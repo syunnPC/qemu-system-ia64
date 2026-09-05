@@ -245,12 +245,9 @@ static BOOLEAN alat_remote_store_probe(VOID)
             __asm__ volatile ("hint @pause" : : : "memory");
         }
         __asm__ volatile (
-            "{ .mmi\n\t"
-            "st8.rel [%2]=%4\n\t"
-            "ld8.a %0=[%3]\n\t"
-            "nop.i 0;;\n\t"
-            "}\n\t"
-            "mov %0=%5;;\n"
+            "ld8.a %0=[%3];;\n\t"
+            "mov %0=%5;;\n\t"
+            "st8.rel [%2]=%4;;\n"
             "1:\n\t"
             "ld8.acq %1=[%3];;\n\t"
             "cmp.eq p6,p7=%1,%4;;\n\t"

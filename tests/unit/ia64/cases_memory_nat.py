@@ -353,15 +353,15 @@ test_zero_alat_check_load_always_reloads = require_registers(
          0),
     ], {"ip": 0x50, "r4": CHECK_LOAD_DATA}, entry=0x10, alat=None)
 
-test_smp_full_alat_request_uses_zero_model = require_registers(
-    "smp_full_alat_request_uses_zero_model", [
+test_smp_full_alat_model_remains_enabled = require_registers(
+    "smp_full_alat_model_remains_enabled", [
         (0x10, 0x00, addl(3, 0x100, 0), nop_i(), nop_i()),
         (0x20, 0x00, ld8_a(4, 3), nop_i(), nop_i()),
         (0x30, *movl_mlx(4, 0x55)),
         (0x40, 0x00, ld8_c_nc(4, 3), nop_i(), nop_i()),
         (0x50, 0x10, nop_m(), nop_i(), br_cond(0x50, 0x50)),
         (0x100, 0x00, 0x123456789abcdef0, 0, 0),
-    ], {"ip": 0x50, "r4": CHECK_LOAD_DATA}, entry=0x10,
+    ], {"ip": 0x50, "r4": 0x55}, entry=0x10,
     alat="full", smp="2")
 
 test_zero_alat_chk_a_always_branches = require_registers(
@@ -3747,7 +3747,7 @@ CASE_NAMES = (
     'semaphore_ops_clear_result_nat',
     'semaphore_ops_invalidate_advanced_loads',
     'simd_helper_nat_propagates',
-    'smp_full_alat_request_uses_zero_model',
+    'smp_full_alat_model_remains_enabled',
     'speculative_load_defers_nat_base',
     'speculative_load_defers_psr_ed',
     'speculative_load_handler_psr_ed_defers_retry',

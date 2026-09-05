@@ -203,10 +203,11 @@ static bool hp_zx1_iommu_select_fill_slot(
     return true;
 }
 
-HPZX1IOMMUTranslateResult hp_zx1_iommu_frontend_translate(
+HPZX1IOMMUTranslateResult hp_zx1_iommu_frontend_translate_ex(
     HPZX1IOMMUFrontend *iommu, uint64_t iova, bool dvi,
     HPSBAIOMMUPdirReadFn pdir_read, void *opaque,
-    HPSBAIOMMUEntry *entry, HPZX1IOMMUEvictionResult *eviction)
+    HPSBAIOMMUEntry *entry, HPZX1IOMMUEvictionResult *eviction,
+    HPZX1IOMMUFault *fault)
 {
     HPZX1IOMMUEvictionResult eviction_result = { 0 };
     HPSBAIOMMUEntry translated;
@@ -218,7 +219,20 @@ HPZX1IOMMUTranslateResult hp_zx1_iommu_frontend_translate(
     uint64_t pdir_index;
     uint64_t pte;
 
-    if (!iommu || !entry || iova > HP_ZX1_IOMMU_PHYS_MASK) {
+    if (fault) {
+        *fault = (HPZX1IOMMUFault) {
+            .reason = HP_ZX1_IOMMU_FAULT_NONE,
+            .iova = iova,
+        };
+    }
+
+    if (!iommu || !entry) {
+        return HP_ZX1_IOMMU_TRANSLATE_BLOCKED;
+    }
+    if (iova > HP_ZX1_IOMMU_PHYS_MASK) {
+        if (fault) {
+            fault->reason = HP_ZX1_IOMMU_FAULT_ADDRESS_WIDTH;
+        }
         return HP_ZX1_IOMMU_TRANSLATE_BLOCKED;
     }
 
@@ -236,11 +250,17 @@ HPZX1IOMMUTranslateResult hp_zx1_iommu_frontend_translate(
     }
 
     if (!hp_zx1_iommu_decode_tcnfg(iommu->tcnfg, &page_shift)) {
+        if (fault) {
+            fault->reason = HP_ZX1_IOMMU_FAULT_PAGE_SIZE;
+        }
         return HP_ZX1_IOMMU_TRANSLATE_BLOCKED;
     }
 
     if (!hp_zx1_iommu_decode_window(iommu->ibase, iommu->imask,
                                      page_shift, &window)) {
+        if (fault) {
+            fault->reason = HP_ZX1_IOMMU_FAULT_WINDOW;
+        }
         return HP_ZX1_IOMMU_TRANSLATE_BLOCKED;
     }
 
@@ -261,13 +281,28 @@ HPZX1IOMMUTranslateResult hp_zx1_iommu_frontend_translate(
         return HP_ZX1_IOMMU_TRANSLATE_TRANSLATED;
     }
 
-    if (!pdir_read ||
-        !hp_zx1_iommu_pdir_index(&window, iova, false, &pdir_index) ||
+    if (!hp_zx1_iommu_pdir_index(&window, iova, false, &pdir_index) ||
         !hp_zx1_iommu_pdir_address(iommu, &window, pdir_index,
-                                    &pdir_address) ||
-        !pdir_read(opaque, pdir_address, &pte) ||
-        !(pte & HP_SBA_IOPDIR_VALID_BIT) ||
+                                    &pdir_address)) {
+        if (fault) {
+            fault->reason = HP_ZX1_IOMMU_FAULT_PDIR_RANGE;
+        }
+        return HP_ZX1_IOMMU_TRANSLATE_BLOCKED;
+    }
+    if (!pdir_read || !pdir_read(opaque, pdir_address, &pte)) {
+        if (fault) {
+            fault->reason = HP_ZX1_IOMMU_FAULT_PDIR_READ;
+            fault->pdir_address = pdir_address;
+        }
+        return HP_ZX1_IOMMU_TRANSLATE_BLOCKED;
+    }
+    if (!(pte & HP_SBA_IOPDIR_VALID_BIT) ||
         (pte & ~(HP_SBA_IOPDIR_VALID_BIT | HP_ZX1_IOMMU_PHYS_MASK))) {
+        if (fault) {
+            fault->reason = HP_ZX1_IOMMU_FAULT_INVALID_PTE;
+            fault->pdir_address = pdir_address;
+            fault->pte = pte;
+        }
         return HP_ZX1_IOMMU_TRANSLATE_BLOCKED;
     }
 
@@ -280,6 +315,11 @@ HPZX1IOMMUTranslateResult hp_zx1_iommu_frontend_translate(
 
     if (!hp_zx1_iommu_select_fill_slot(iommu, &slot, &eviction_result) ||
         !hp_zx1_iotlb_store_slot(&iommu->iotlb, slot, &translated)) {
+        if (fault) {
+            fault->reason = HP_ZX1_IOMMU_FAULT_CACHE;
+            fault->pdir_address = pdir_address;
+            fault->pte = pte;
+        }
         return HP_ZX1_IOMMU_TRANSLATE_BLOCKED;
     }
     if (eviction_result.evicted) {
@@ -292,4 +332,13 @@ HPZX1IOMMUTranslateResult hp_zx1_iommu_frontend_translate(
         *eviction = eviction_result;
     }
     return HP_ZX1_IOMMU_TRANSLATE_TRANSLATED;
+}
+
+HPZX1IOMMUTranslateResult hp_zx1_iommu_frontend_translate(
+    HPZX1IOMMUFrontend *iommu, uint64_t iova, bool dvi,
+    HPSBAIOMMUPdirReadFn pdir_read, void *opaque,
+    HPSBAIOMMUEntry *entry, HPZX1IOMMUEvictionResult *eviction)
+{
+    return hp_zx1_iommu_frontend_translate_ex(
+        iommu, iova, dvi, pdir_read, opaque, entry, eviction, NULL);
 }

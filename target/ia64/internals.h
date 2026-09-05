@@ -85,6 +85,10 @@ typedef struct IA64MMUState {
 typedef struct IA64InterruptState {
     /* Architected Local SAPIC and pending external interrupt state. */
     uint8_t pending_extint;
+    uint8_t sapic_xtp;
+    uint16_t sapic_pmi_pending;
+    bool sapic_init_pending;
+    uint8_t sapic_init_reason;
     bool pal_halt_wake;
     uint64_t sapic_irr[4];
     uint64_t sapic_isr[4];
@@ -116,6 +120,26 @@ typedef struct IA64PalState {
     uint64_t pal_proc_copy_addr;
     uint64_t pal_interrupt_block_addr;
     uint64_t pal_io_block_addr;
+
+    /* Processor RAS log and asynchronous machine-check entry state. */
+    bool pal_mc_log_valid;
+    bool pal_cmc_pending;
+    bool pal_mca_pending;
+    bool pal_mca_active;
+    bool pal_init_active;
+    uint8_t pal_mc_severity;
+    uint64_t pal_mc_error_map;
+    uint64_t pal_mc_state_parameter;
+    uint64_t pal_mc_status;
+    uint64_t pal_mc_address;
+    uint64_t pal_mc_information;
+    uint64_t pal_mc_ip;
+    uint64_t pal_mca_entry;
+    uint64_t pal_mca_gp;
+    uint64_t pal_mca_pending_record_id;
+    uint64_t pal_mca_active_record_id;
+    uint64_t pal_init_entry;
+    uint64_t pal_init_gp;
 } IA64PalState;
 
 typedef struct IA64RSEState {
@@ -191,7 +215,7 @@ typedef struct IA64AlatState {
     bool write_active;
     bool write_observed;
     uint64_t write_generation;
-    /* Transient host RAM-write generation observed by this local ALAT. */
+    /* Sum of host-local CPU store sequences and the external RAM generation. */
     uint64_t memory_write_generation;
 } IA64AlatState;
 

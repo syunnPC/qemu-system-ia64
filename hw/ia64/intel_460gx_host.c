@@ -9,6 +9,7 @@
 
 #include "hw/ia64/intel_460gx_host.h"
 #include "hw/ia64/intel_460gx_host_internal.h"
+#include "hw/ia64/intel_460gx_root.h"
 #include "hw/core/qdev-properties.h"
 #include "migration/vmstate.h"
 #include "qapi/error.h"
@@ -117,6 +118,13 @@ static void intel_460gx_host_reset(DeviceState *dev)
     Intel460GXHostState *s = INTEL_460GX_HOST(dev);
 
     intel_460gx_host_core_reset(&s->core);
+    for (unsigned int i = 0; i < INTEL_460GX_DOWNSTREAM_PORTS; i++) {
+        if (s->core.downstream[i].attached) {
+            intel_460gx_numbered_root_bus_set_number(
+                s->core.downstream[i].bus,
+                s->core.downstream[i].first_bus);
+        }
+    }
 }
 
 static int intel_460gx_host_pre_load(void *opaque)
@@ -140,7 +148,17 @@ static bool intel_460gx_host_post_load(void *opaque, int version_id,
         error_setg(errp, "460GX host migration state has reserved bits set");
         return false;
     }
-    return intel_460gx_host_core_validate_downstream(&s->core, errp);
+    if (!intel_460gx_host_core_validate_downstream(&s->core, errp)) {
+        return false;
+    }
+    for (unsigned int i = 0; i < INTEL_460GX_DOWNSTREAM_PORTS; i++) {
+        if (s->core.downstream[i].attached) {
+            intel_460gx_numbered_root_bus_set_number(
+                s->core.downstream[i].bus,
+                s->core.downstream[i].first_bus);
+        }
+    }
+    return true;
 }
 
 static const VMStateDescription vmstate_intel_460gx_downstream_route = {
@@ -289,8 +307,21 @@ bool intel_460gx_host_apply_decoded_update(
     Intel460GXHostState *s, const Intel460GXDecodedStateUpdate *update,
     Error **errp)
 {
-    return intel_460gx_host_core_apply_decoded_update(&s->core, update,
-                                                       errp);
+    unsigned int i;
+
+    if (!intel_460gx_host_core_apply_decoded_update(&s->core, update,
+                                                     errp)) {
+        return false;
+    }
+    for (i = 0; i < INTEL_460GX_DOWNSTREAM_PORTS; i++) {
+        if ((update->route_mask & BIT(i)) &&
+            s->core.downstream[i].attached) {
+            intel_460gx_numbered_root_bus_set_number(
+                s->core.downstream[i].bus,
+                s->core.downstream[i].first_bus);
+        }
+    }
+    return true;
 }
 
 bool intel_460gx_host_register_bootstrap_sac(

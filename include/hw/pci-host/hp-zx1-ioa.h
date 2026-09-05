@@ -48,6 +48,8 @@ typedef struct HPZX1IOASetup {
      */
     HPIOSAPICDeliver deliver;
     void *delivery_opaque;
+    IA64ChipsetFaultNotify fault_notify;
+    void *fault_opaque;
 } HPZX1IOASetup;
 
 /* Must be called exactly once, before realizing the internal device. */
@@ -58,6 +60,7 @@ PCIBus *hp_zx1_ioa_bus(HPZX1IOAState *s);
 MemoryRegion *hp_zx1_ioa_pci_mem(HPZX1IOAState *s);
 MemoryRegion *hp_zx1_ioa_pci_io(HPZX1IOAState *s);
 uint8_t hp_zx1_ioa_root_bus_num(const HPZX1IOAState *s);
+uint8_t hp_zx1_ioa_rope_mask(const HPZX1IOAState *s);
 
 /* Internal MIO-owned DMA frontend lifecycle; the root must still be empty. */
 bool hp_zx1_ioa_attach_msi_window(HPZX1IOAState *s,

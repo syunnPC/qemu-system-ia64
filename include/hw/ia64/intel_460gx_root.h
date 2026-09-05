@@ -39,5 +39,7 @@ PCIBus *intel_460gx_root_host_bus(Intel460GXRootHostState *s);
 MemoryRegion *intel_460gx_root_host_mem(Intel460GXRootHostState *s);
 MemoryRegion *intel_460gx_root_host_io(Intel460GXRootHostState *s);
 uint8_t intel_460gx_root_host_first_bus(const Intel460GXRootHostState *s);
+void intel_460gx_numbered_root_bus_set_number(PCIBus *bus,
+                                               uint8_t first_bus);
 
 #endif

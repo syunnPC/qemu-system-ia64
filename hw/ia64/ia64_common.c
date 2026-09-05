@@ -13,16 +13,13 @@
 #include "hw/core/loader.h"
 #include "hw/ia64/ia64_common.h"
 #include "hw/ia64/ia64_loader.h"
+#include "exec/cpu-common.h"
 #include "system/address-spaces.h"
 #include "system/system.h"
 
 #define IA64_PIB_IPI_LIMIT          0x00100000ULL
 #define IA64_PIB_INTA_OFFSET        0x001e0000ULL
 #define IA64_PIB_XTP_OFFSET         0x001e0008ULL
-
-#define IA64_SAPIC_DELIVERY_INT     0
-#define IA64_SAPIC_DELIVERY_NMI     4
-#define IA64_SAPIC_DELIVERY_EXTINT  7
 
 typedef struct IA64MachinePibState {
     MemoryRegion memory;
@@ -35,6 +32,9 @@ static uint64_t ia64_pib_read(void *opaque, hwaddr addr, unsigned size)
     IA64MachinePibState *s = opaque;
     int vector;
 
+    if (addr == IA64_PIB_XTP_OFFSET && size == 1) {
+        return current_cpu != NULL ? ia64_sapic_get_xtp(current_cpu) : 0;
+    }
     if (addr != IA64_PIB_INTA_OFFSET || size != 1 || s->inta == NULL) {
         return 0;
     }
@@ -43,23 +43,25 @@ static uint64_t ia64_pib_read(void *opaque, hwaddr addr, unsigned size)
     return vector >= 0 && vector <= UINT8_MAX ? vector : 0;
 }
 
-static void ia64_pib_write(void *opaque, hwaddr addr, uint64_t value,
-                           unsigned size)
+static MemTxResult ia64_pib_write(void *opaque, hwaddr addr, uint64_t value,
+                                  unsigned size, MemTxAttrs attrs)
 {
-    CPUState *cs;
-    unsigned int delivery;
     uint8_t id;
     uint8_t eid;
-    uint8_t vector;
+    IA64SapicDeliveryMode delivery;
 
     (void)opaque;
-    /* XTP is not implemented; one-byte stores are discarded. */
     if (addr == IA64_PIB_XTP_OFFSET && size == 1) {
-        return;
+        if (current_cpu != NULL) {
+            ia64_sapic_set_xtp(current_cpu, value);
+        }
+        return MEMTX_OK;
     }
 
-    if (addr >= IA64_PIB_IPI_LIMIT || size != 8 || (addr & 7)) {
-        return;
+    if (addr >= IA64_PIB_IPI_LIMIT ||
+        !((size == 8 && (addr & 15) == 0) ||
+          (size == 4 && (addr & 3) == 0 && !attrs.unspecified))) {
+        return MEMTX_OK;
     }
 
     /*
@@ -69,36 +71,16 @@ static void ia64_pib_write(void *opaque, hwaddr addr, uint64_t value,
      */
     id = (addr >> 12) & 0xff;
     eid = (addr >> 4) & 0xff;
-    delivery = (value >> 8) & 7;
-    switch (delivery) {
-    case IA64_SAPIC_DELIVERY_INT:
-        vector = value & 0xff;
-        if (!ia64_external_interrupt_vector_valid(vector)) {
-            return;
-        }
-        break;
-    case IA64_SAPIC_DELIVERY_NMI:
-        vector = 2;
-        break;
-    case IA64_SAPIC_DELIVERY_EXTINT:
-        vector = 0;
-        break;
-    default:
-        /* Other SAPIC delivery modes are not implemented. */
-        return;
-    }
-
-    cs = ia64_cpu_by_sapic_id(id, eid);
-    if (cs == NULL) {
-        return;
-    }
-
-    ia64_sapic_set_irq(cs, vector);
+    delivery = (IA64SapicDeliveryMode)((value >> 8) & 7);
+    ia64_sapic_deliver(IA64_SAPIC_DESTINATION_PHYSICAL,
+                       id, eid, (addr & 8) != 0, delivery,
+                       (uint8_t)value);
+    return MEMTX_OK;
 }
 
 static const MemoryRegionOps ia64_pib_ops = {
     .read = ia64_pib_read,
-    .write = ia64_pib_write,
+    .write_with_attrs = ia64_pib_write,
     .endianness = DEVICE_LITTLE_ENDIAN,
     .valid = {
         .min_access_size = 1,
@@ -159,15 +141,6 @@ bool ia64_machine_create_cpus(MachineState *machine,
 
     alat_full = ia64_machine_effective_alat_full(machine,
                                                  config->alat_full);
-    if (config->alat_full && !alat_full) {
-        warn_report("full ALAT emulation is disabled with %u CPUs; "
-                    "using the zero-entry ALAT model",
-                    machine->smp.cpus);
-    } else if (alat_full) {
-        warn_report("full ALAT emulation does not track direct external "
-                    "writes to shared guest RAM");
-    }
-
     for (i = 0; i < machine->smp.cpus; i++) {
         uint32_t package_base = (i / per_socket) * per_socket;
         IA64BootInfo boot_info = config->boot_info(i,
@@ -205,7 +178,8 @@ bool ia64_machine_create_cpus(MachineState *machine,
 bool ia64_machine_effective_alat_full(const MachineState *machine,
                                       bool configured_full)
 {
-    return configured_full && machine->smp.cpus <= 1;
+    (void)machine;
+    return configured_full;
 }
 
 void ia64_machine_reset_cpus(void)

@@ -7,9 +7,13 @@
 #include "qemu/osdep.h"
 
 #include "exec/memattrs.h"
+#include "hw/ia64/hp_zx6000.h"
+#include "hw/ia64/ia64_ras_abi.h"
 #include "hw/ia64/ia64_zx6000_zx1_test.h"
 #include "hw/misc/iommu-testdev.h"
 #include "hw/pci/pci.h"
+#include "hw/pci-host/hp-zx1-ioa-regs.h"
+#include "hw/pci-host/hp-zx1-mio-regs.h"
 #include "libqtest.h"
 #include "qobject/qdict.h"
 #include "qobject/qnum.h"
@@ -867,6 +871,7 @@ static void test_savevm_state(void)
     const uint8_t vector0 = 0x68;
     const uint8_t vector1 = 0x69;
     const uint32_t saved_selector = zx1_test_rte_low(1) + 1;
+    uint64_t error_control;
     g_autofree char *tmpdir = NULL;
     g_autofree char *disk_path = NULL;
     g_autofree char *quoted_disk_path = NULL;
@@ -911,11 +916,29 @@ static void test_savevm_state(void)
     g_assert_cmpuint(zx1_test_delivery_count(qts, 0), ==, 2);
     zx1_test_sapic_select(qts, 0, saved_selector);
 
+    /* Preserve the hardware error log and an armed CE across save/load. */
+    error_control = qtest_readq(qts, ZX1_TEST_IOA0_BASE +
+                               HP_ZX1_IOA_STATUS_CONTROL) &
+        (HP_ZX1_IOA_SIC_FORWARD_VGA | HP_ZX1_IOA_SIC_HARD_FAIL);
+    qtest_writeq(qts, ZX1_TEST_IOA0_BASE + HP_ZX1_IOA_STATUS_CONTROL,
+                 error_control | HP_ZX1_IOA_SIC_CLEAR_ENABLE);
+    qtest_writeq(qts, ZX1_TEST_IOA0_BASE + HP_ZX1_IOA_STATUS_CONTROL,
+                 error_control | HP_ZX1_IOA_SIC_CLEAR_LOG);
+    qtest_writeq(qts, ZX1_TEST_IOA0_BASE + HP_ZX1_IOA_CONFIG_ADDRESS, 0x7800);
+    g_assert_cmphex(qtest_readl(qts, ZX1_TEST_IOA0_BASE +
+                                HP_ZX1_IOA_CONFIG_DATA), ==, UINT32_MAX);
+    qtest_writeq(qts, ZX1_TEST_IOA0_BASE + HP_ZX1_IOA_STATUS_CONTROL,
+                 error_control | HP_ZX1_IOA_SIC_CLEAR_ENABLE);
+
     response = qtest_hmp(qts, "savevm zx1-test-state");
     g_assert_cmpstr(response, ==, "");
     g_clear_pointer(&response, g_free);
 
     /* Change every migrated state category before loading. */
+    qtest_writeq(qts, ZX1_TEST_IOA0_BASE + HP_ZX1_IOA_STATUS_CONTROL,
+                 error_control | HP_ZX1_IOA_SIC_CLEAR_LOG);
+    g_assert_cmphex(qtest_readq(qts, ZX1_TEST_IOA0_BASE +
+                                HP_ZX1_IOA_ERROR_STATUS), ==, 0);
     zx1_test_purge_page(qts, iova);
     zx1_test_expect_dma_success(qts, 0, 0, iova, new_target);
     qtest_writeq(qts, ZX1_TEST_MIO_BASE + ZX1_TEST_MIO_ROPE_CONFIG, 0);
@@ -936,6 +959,15 @@ static void test_savevm_state(void)
     g_clear_pointer(&response, g_free);
 
     /* Post-load restores state but never replays an interrupt delivery. */
+    g_assert_cmphex(qtest_readq(qts, ZX1_TEST_IOA0_BASE +
+                                HP_ZX1_IOA_ERROR_STATUS), ==, 0x40c);
+    g_assert_cmphex(qtest_readq(qts, ZX1_TEST_IOA0_BASE +
+                                HP_ZX1_IOA_OUTBOUND_ERROR_ADDRESS), ==,
+                    UINT64_C(0x4000000080000000));
+    g_assert_cmphex(qtest_readq(qts, ZX1_TEST_IOA0_BASE +
+                                HP_ZX1_IOA_STATUS_CONTROL) &
+                    HP_ZX1_IOA_SIC_CLEAR_ENABLE, ==,
+                    HP_ZX1_IOA_SIC_CLEAR_ENABLE);
     g_assert_cmpuint(zx1_test_delivery_count(qts, 0), ==, 2);
     g_assert_cmphex(zx1_test_qom_get_uint(
                         qts, zx1_test_last_address_property[0]), ==,
@@ -999,6 +1031,81 @@ static void test_savevm_state(void)
     g_assert_cmpint(g_rmdir(tmpdir), ==, 0);
 }
 
+static void test_zx6000_chipset_fault_records(void)
+{
+    const uint64_t ras_bank = IA64_RAS_HUB_DEFAULT_BASE +
+        ia64_ras_record_bank_offset(0, IA64_RAS_RECORD_TYPE_MCA);
+    const uint64_t invalid_mio_offset = UINT64_C(0xfff8);
+    const uint32_t absent_selectors[] = {
+        (uint32_t)PCI_DEVFN(0, 0) << 8,
+        (uint32_t)PCI_DEVFN(1, 3) << 8,
+        (uint32_t)PCI_DEVFN(PCI_SLOT_MAX - 1, 0) << 8,
+    };
+    const uint32_t bus_addresses[] = { 0x10000, 0x20300, 0 };
+    unsigned int i;
+    QTestState *qts = qtest_init(
+        "-machine hp-zx6000,nvram=none,firmware=none "
+        "-m 1G -smp 1 -S -display none -serial none -monitor none "
+        "-net none");
+
+    while (qtest_readq(qts, ras_bank + IA64_RAS_RECORD_REG_LENGTH)) {
+        qtest_writeq(qts, ras_bank + IA64_RAS_RECORD_REG_CLEAR,
+                     IA64_RAS_RECORD_CLEAR_VALUE);
+    }
+    g_assert_cmpuint(qtest_readq(qts, ras_bank +
+                                IA64_RAS_RECORD_REG_LENGTH), ==, 0);
+    qtest_writeq(qts, HP_ZX6000_MIO_BASE + HP_ZX1_MIO_ERROR_CONFIG,
+                 HP_ZX1_MIO_ERROR_CONFIG_NOTIFY);
+    qtest_readq(qts, HP_ZX6000_MIO_BASE + invalid_mio_offset);
+    g_assert_cmphex(qtest_readq(qts, HP_ZX6000_MIO_BASE +
+                                HP_ZX1_MIO_ERROR_STATUS), ==,
+                    HP_ZX1_MIO_ERROR_VALID |
+                    HP_ZX1_MIO_ERROR_CSR_DECODE);
+    g_assert_cmphex(qtest_readq(qts, HP_ZX6000_MIO_BASE +
+                                HP_ZX1_MIO_ERROR_ADDRESS), ==,
+                    invalid_mio_offset);
+    g_assert_cmphex(qtest_readq(qts, ras_bank +
+                                IA64_RAS_RECORD_REG_STATUS) &
+                    IA64_RAS_RECORD_STATUS_PRESENT, ==,
+                    IA64_RAS_RECORD_STATUS_PRESENT);
+
+    while (qtest_readq(qts, ras_bank + IA64_RAS_RECORD_REG_LENGTH)) {
+        qtest_writeq(qts, ras_bank + IA64_RAS_RECORD_REG_CLEAR,
+                     IA64_RAS_RECORD_CLEAR_VALUE);
+    }
+    qtest_writeq(qts, HP_ZX6000_MIO_BASE + HP_ZX1_MIO_ERROR_STATUS,
+                 HP_ZX1_MIO_ERROR_STATUS_W1C);
+    g_assert_cmpuint(qtest_readq(qts, ras_bank +
+                                IA64_RAS_RECORD_REG_LENGTH), ==, 0);
+
+    /* PCI enumeration may probe empty slots/functions without raising MCA. */
+    for (i = 0; i < G_N_ELEMENTS(absent_selectors); i++) {
+        qtest_writeq(qts, ZX1_TEST_IOA0_BASE + HP_ZX1_IOA_STATUS_CONTROL,
+                     HP_ZX1_IOA_SIC_CLEAR_ENABLE);
+        qtest_writeq(qts, ZX1_TEST_IOA0_BASE + HP_ZX1_IOA_STATUS_CONTROL,
+                     HP_ZX1_IOA_SIC_CLEAR_LOG);
+        qtest_writeq(qts, ZX1_TEST_IOA0_BASE + HP_ZX1_IOA_CONFIG_ADDRESS,
+                     absent_selectors[i]);
+        g_assert_cmphex(qtest_readl(qts, ZX1_TEST_IOA0_BASE +
+                                    HP_ZX1_IOA_CONFIG_DATA), ==, UINT32_MAX);
+        g_assert_cmphex(qtest_readq(qts, ZX1_TEST_IOA0_BASE +
+                                    HP_ZX1_IOA_ERROR_STATUS), ==,
+                        0x40c);
+        g_assert_cmphex(qtest_readq(qts, ZX1_TEST_IOA0_BASE +
+                                    HP_ZX1_IOA_OUTBOUND_ERROR_ADDRESS), ==,
+                        UINT64_C(0x4000000000000000) | bus_addresses[i]);
+        g_assert_cmpuint(qtest_readq(qts, ras_bank +
+                                     IA64_RAS_RECORD_REG_LENGTH), ==, 0);
+
+        qtest_writel(qts, ZX1_TEST_IOA0_BASE + HP_ZX1_IOA_CONFIG_DATA,
+                     UINT32_MAX);
+        g_assert_cmpuint(qtest_readq(qts, ras_bank +
+                                     IA64_RAS_RECORD_REG_LENGTH), ==, 0);
+    }
+
+    qtest_quit(qts);
+}
+
 int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
@@ -1017,6 +1124,8 @@ int main(int argc, char **argv)
                    test_system_reset_baseline);
     qtest_add_func("/ia64-zx6000-zx1-test/savevm-state",
                    test_savevm_state);
+    qtest_add_func("/ia64-zx6000-zx1-test/chipset-fault-records",
+                   test_zx6000_chipset_fault_records);
 
     return g_test_run();
 }

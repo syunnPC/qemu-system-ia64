@@ -338,6 +338,84 @@ static bool ioa_config_target_present(const HPZX1IOARegs *s)
     return bus != 0 || device <= 15;
 }
 
+static void ioa_log_config_abort(HPZX1IOARegs *s, uint32_t address)
+{
+    uint64_t status = s->error_status;
+    uint32_t bus_address;
+
+    /* ERS 6.5: configuration master-aborts are nonfatal in either mode. */
+    s->pci_status |= HP_ZX1_IOA_PCI_STATUS_MASTER_ABORT;
+    s->status_control &= ~HP_ZX1_IOA_SIC_CLEAR_ENABLE;
+    if (!(status & (HP_ZX1_IOA_ERROR_FE | HP_ZX1_IOA_ERROR_UNC))) {
+        status &= ~(HP_ZX1_IOA_ERROR_CODE_MASK | HP_ZX1_IOA_ERROR_HF |
+                    HP_ZX1_IOA_ERROR_SMART);
+        status |= HP_ZX1_IOA_ERROR_MASTER_ABORT;
+        if (s->status_control & HP_ZX1_IOA_SIC_HARD_FAIL) {
+            status |= HP_ZX1_IOA_ERROR_HF;
+        }
+        if (s->error_configuration & IOA_ERROR_CONFIG_SMART) {
+            status |= HP_ZX1_IOA_ERROR_SMART;
+        }
+
+        /* ERS 6.3.6/8.3: log the address actually driven on the PCI bus. */
+        if (address & 0xff0000) {
+            bus_address = (address & HP_ZX1_IOA_CONFIG_ADDRESS_MASK) | 1;
+        } else {
+            unsigned int device = (address >> 11) & 0x1f;
+
+            bus_address = address & 0x7fc;
+            if (device < 16) {
+                bus_address |= 1U << (device + 16);
+            }
+        }
+        s->outbound_error_address = HP_ZX1_IOA_OUTBOUND_CONFIG_CYCLE |
+                                    bus_address;
+    }
+    if (status & HP_ZX1_IOA_ERROR_UNC) {
+        status |= HP_ZX1_IOA_ERROR_UNC_OV;
+    }
+    status |= HP_ZX1_IOA_ERROR_UNC;
+    /* OV describes repeats of the highest severity, not of any error. */
+    if (!(status & HP_ZX1_IOA_ERROR_FE) &&
+        (status & HP_ZX1_IOA_ERROR_UNC_OV)) {
+        status |= HP_ZX1_IOA_ERROR_OV;
+    }
+    s->error_status = status;
+}
+
+void hp_zx1_ioa_regs_report_fault(HPZX1IOARegs *s, HPZX1IOAFault reason,
+                                  uint64_t address, uint64_t data)
+{
+    IA64ChipsetFault fault;
+
+    if (!s) {
+        return;
+    }
+    /*
+     * Configuration master-aborts update the local PCI error log without
+     * notifying the platform RAS hub.
+     */
+    if (reason == HP_ZX1_IOA_FAULT_CONFIG_ABORT) {
+        ioa_log_config_abort(s, address);
+        return;
+    }
+    if (!s->reset_config.fault_notify) {
+        return;
+    }
+    /*
+     * Frontend decode faults use the platform RAS hub, not the IOA PCI error
+     * registers.
+     */
+    fault = (IA64ChipsetFault) {
+        .source = IA64_CHIPSET_FAULT_ZX1_IOA,
+        .reason = IA64_CHIPSET_FAULT_DECODE,
+        .bus = s->reset_config.secondary_bus,
+        .address = address,
+        .information = data,
+    };
+    s->reset_config.fault_notify(s->reset_config.fault_opaque, &fault);
+}
+
 static bool ioa_config_data_read(HPZX1IOARegs *s, uint64_t offset,
                                  unsigned int size, uint64_t *value)
 {
@@ -357,6 +435,8 @@ static bool ioa_config_data_read(HPZX1IOARegs *s, uint64_t offset,
                                      s->config_address + lane, cycle_size,
                                      &data)) {
         data = UINT32_MAX;
+        hp_zx1_ioa_regs_report_fault(s, HP_ZX1_IOA_FAULT_CONFIG_ABORT,
+                                     s->config_address + lane, 0);
     }
     *value = data & ioa_low_mask(cycle_size);
     return true;
@@ -374,10 +454,12 @@ static bool ioa_config_data_write(HPZX1IOARegs *s, uint64_t offset,
         return true;
     }
 
-    if (ioa_config_target_present(s) && s->reset_config.config_write) {
-        s->reset_config.config_write(s->reset_config.config_opaque,
-                                     s->config_address + lane, cycle_size,
-                                     value & ioa_low_mask(cycle_size));
+    if (!ioa_config_target_present(s) || !s->reset_config.config_write ||
+        !s->reset_config.config_write(s->reset_config.config_opaque,
+                                      s->config_address + lane, cycle_size,
+                                      value & ioa_low_mask(cycle_size))) {
+        hp_zx1_ioa_regs_report_fault(s, HP_ZX1_IOA_FAULT_CONFIG_ABORT,
+                                     s->config_address + lane, value);
     }
     return true;
 }
@@ -463,6 +545,8 @@ void hp_zx1_ioa_regs_reset(HPZX1IOARegs *s)
                        HP_ZX1_IOA_SLAVE_CONTROL_RESET;
     s->error_configuration =
         s->reset_config.error_configuration_reset_straps;
+    s->error_status = 0;
+    s->outbound_error_address = 0;
 
     s->sapic_in_service = 0;
     s->sapic_asserted = 0;
@@ -585,8 +669,13 @@ bool hp_zx1_ioa_regs_read(HPZX1IOARegs *s, uint64_t offset,
         reg = s->error_configuration & IOA_ERROR_CONFIG_SMART;
         break;
     case HP_ZX1_IOA_ERROR_STATUS:
+        reg = s->error_status;
+        break;
+    case HP_ZX1_IOA_OUTBOUND_ERROR_ADDRESS:
+        reg = s->outbound_error_address;
+        break;
     default:
-        /* Reserved and unmodeled logging registers read as zero. */
+        /* Reserved and unimplemented registers read as zero. */
         reg = 0;
         break;
     }
@@ -687,6 +776,11 @@ bool hp_zx1_ioa_regs_write(HPZX1IOARegs *s, uint64_t offset,
             }
         }
         s->status_control = latch;
+        if ((mask & HP_ZX1_IOA_SIC_CLEAR_LOG) &&
+            (latch & HP_ZX1_IOA_SIC_CLEAR_LOG)) {
+            s->error_status = 0;
+            s->outbound_error_address = 0;
+        }
         if (mask & HP_ZX1_IOA_SIC_RESET_FUNCTION) {
             reset = data & HP_ZX1_IOA_SIC_RESET_FUNCTION;
             if (reset) {

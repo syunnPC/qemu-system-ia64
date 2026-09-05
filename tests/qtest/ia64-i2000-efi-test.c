@@ -39,7 +39,7 @@ static const uint64_t root_mmio_base[] = {
     UINT64_C(0xb0000000),
 };
 
-G_STATIC_ASSERT(sizeof(IA64PlatformDescriptor) == 296);
+G_STATIC_ASSERT(sizeof(IA64PlatformDescriptor) == 1112);
 G_STATIC_ASSERT(sizeof(IA64PlatformRamRange) == 16);
 G_STATIC_ASSERT(sizeof(IA64PlatformPciRoot) == 112);
 G_STATIC_ASSERT(sizeof(IA64PlatformIoSapic) == 24);

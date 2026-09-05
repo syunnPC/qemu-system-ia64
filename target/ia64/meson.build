@@ -12,6 +12,7 @@ ia64_ss.add(files(
   'arch/memory.c',
   'arch/mmu.c',
   'arch/pal.c',
+  'arch/ras.c',
   'arch/rse.c',
   'arch/simd-ops.c',
   'arch/system.c',

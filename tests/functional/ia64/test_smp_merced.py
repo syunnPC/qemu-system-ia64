@@ -18,6 +18,9 @@ SMP_MERCED_BASE_CASES = {
 SMP_MERCED_ZERO_CASES = SMP_MERCED_BASE_CASES | {
     "zero-alat-check-reload",
 }
+SMP_MERCED_FULL_CASES = SMP_MERCED_BASE_CASES | {
+    "full-alat-smp-store-ordering",
+}
 
 
 class Ia64SmpMerced(Ia64FirmwareTest):
@@ -33,14 +36,15 @@ class Ia64SmpMerced(Ia64FirmwareTest):
                              f"alat={alat}"),
             extra_args=("-cpu", "merced",
                         "-accel", "tcg,thread=multi"))
-        cases = SMP_MERCED_ZERO_CASES
+        cases = (SMP_MERCED_FULL_CASES if alat == "full"
+                 else SMP_MERCED_ZERO_CASES)
         result = self.wait_ia64_suite(
             vm, "smp-merced", cases, timeout=180.0)
         self.assertSetEqual(set(result.cases), cases)
 
-    def test_2_socket_requested_full_alat_is_zero(self):
+    def test_2_socket_full_alat(self):
         self.run_merced_ap_rendezvous(
-            "2s-requested-full-alat-is-zero", 2, alat="full")
+            "2s-full-alat", 2, alat="full")
 
     def test_2_socket_zero_alat(self):
         self.run_merced_ap_rendezvous("2s-zero-alat", 2)

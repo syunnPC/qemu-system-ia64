@@ -34,6 +34,7 @@
 #define SAL_MEMORY_USAGE_RUNTIME_CODE 4U
 #define SAL_MEMORY_USAGE_RUNTIME_DATA 5U
 #define SAL_GET_STATE_INFO_SIZE       0x01000002ULL
+#define SAL_STATE_INFO_MAX_SIZE       512U
 #define SAL_SUCCESS                   0ULL
 #define SAL_TABLE_LENGTH              0x170U
 #define SAL_TABLE_ENTRY_COUNT         9U
@@ -644,7 +645,8 @@ static BOOLEAN sal_call_valid(const TEST_SAL_TABLE *Table)
     descriptor[1] = Table->Entrypoint->SalGp;
     procedure = (TEST_SAL_PROC)(UINTN)&descriptor[0];
     result = procedure(SAL_GET_STATE_INFO_SIZE, 0, 0, 0, 0, 0, 0, 0);
-    return result.Status == SAL_SUCCESS && result.Value0 == 64U &&
+    return result.Status == SAL_SUCCESS &&
+           result.Value0 == SAL_STATE_INFO_MAX_SIZE &&
            result.Value1 == 0 && result.Value2 == 0;
 }
 

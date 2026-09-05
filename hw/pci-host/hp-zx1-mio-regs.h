@@ -34,8 +34,21 @@
 #define HP_ZX1_MIO_F1_ID                    0x1000
 #define HP_ZX1_MIO_F1_CLASS                 0x1008
 #define HP_ZX1_MIO_ROPE_CONFIG              0x1040
+#define HP_ZX1_MIO_ERROR_CONFIG              0x1080
+#define HP_ZX1_MIO_ERROR_STATUS              0x1088
+#define HP_ZX1_MIO_ERROR_ADDRESS             0x1090
+#define HP_ZX1_MIO_ERROR_INFORMATION         0x1098
 #define HP_ZX1_MIO_LBA_PORT_CONTROL(n)      (0x1200 + (n) * 8)
 #define HP_ZX1_MIO_LBA_PORT_COUNT           8
+
+#define HP_ZX1_MIO_ERROR_CONFIG_NOTIFY       (UINT64_C(1) << 0)
+#define HP_ZX1_MIO_ERROR_IOMMU               (UINT64_C(1) << 0)
+#define HP_ZX1_MIO_ERROR_CSR_DECODE          (UINT64_C(1) << 1)
+#define HP_ZX1_MIO_ERROR_MULTIPLE            (UINT64_C(1) << 62)
+#define HP_ZX1_MIO_ERROR_VALID               (UINT64_C(1) << 63)
+#define HP_ZX1_MIO_ERROR_STATUS_W1C          \
+    (HP_ZX1_MIO_ERROR_IOMMU | HP_ZX1_MIO_ERROR_CSR_DECODE | \
+     HP_ZX1_MIO_ERROR_MULTIPLE | HP_ZX1_MIO_ERROR_VALID)
 
 typedef struct HPZX1MIORegs {
     /*
@@ -62,7 +75,14 @@ typedef struct HPZX1MIORegs {
 
     uint64_t rope_config;
     uint64_t lba_port_control[HP_ZX1_MIO_LBA_PORT_COUNT];
+    uint64_t error_config;
+    uint64_t error_status;
+    uint64_t error_address;
+    uint64_t error_information;
 } HPZX1MIORegs;
+
+void hp_zx1_mio_regs_report_fault(HPZX1MIORegs *regs, uint64_t status,
+                                  uint64_t address, uint64_t information);
 
 void hp_zx1_mio_regs_reset(HPZX1MIORegs *regs);
 bool hp_zx1_mio_regs_read(const HPZX1MIORegs *regs, uint64_t offset,

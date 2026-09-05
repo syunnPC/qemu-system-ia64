@@ -72,6 +72,9 @@ tests = {
   'test-hp-zx1-mio': [
     meson.project_source_root() / 'hw/pci-host/hp-zx1-mio-regs.c',
   ],
+  'test-hp-zx2-mio': [
+    meson.project_source_root() / 'hw/pci-host/hp-zx2-mio-regs.c',
+  ],
   'test-hp-zx1-iommu': [
     meson.project_source_root() / 'hw/pci-host/hp-zx1-iommu.c',
     meson.project_source_root() / 'hw/pci-host/hp-sba-iommu.c',

@@ -318,6 +318,90 @@ static bool ia64_platform_root_bus_present(
     return false;
 }
 
+static bool ia64_platform_policy_valid(
+    const IA64PlatformDescriptor *descriptor, Error **errp)
+{
+    uint32_t root_count = le32_to_cpu(descriptor->PciRootCount);
+    uint32_t device_count = le32_to_cpu(descriptor->OnboardDeviceCount);
+    uint32_t node_count = le32_to_cpu(descriptor->NumaNodeCount);
+    uint32_t processor_count = le32_to_cpu(descriptor->ProcessorCount);
+    uint32_t ram_count = le32_to_cpu(descriptor->RamRangeCount);
+    uint32_t max_roots = le32_to_cpu(descriptor->MaxPciRoots);
+    uint32_t processor_cursor = 0;
+    uint32_t ram_mask = 0;
+    uint32_t i;
+
+    if (max_roots == 0 || max_roots > IA64_PLATFORM_MAX_PCI_ROOTS ||
+        root_count > max_roots ||
+        le32_to_cpu(descriptor->PciRootIdentity) >
+            IA64_PLATFORM_PCI_ROOT_IDENTITY_HP_ZX ||
+        device_count > IA64_PLATFORM_MAX_ONBOARD_DEVICES ||
+        node_count == 0 || node_count > IA64_PLATFORM_MAX_NUMA_NODES) {
+        error_setg(errp, "invalid IA-64 platform policy limits");
+        return false;
+    }
+
+    for (i = 0; i < device_count; i++) {
+        const IA64PlatformOnboardDevice *device =
+            &descriptor->OnboardDevice[i];
+
+        if (device->Type < IA64_PLATFORM_ONBOARD_GRAPHICS ||
+            device->Type > IA64_PLATFORM_ONBOARD_UART ||
+            device->Device >= 32 || device->Function >= 8 ||
+            !((device->Bar < 6 && le64_to_cpu(device->BarSize) != 0) ||
+              (device->Bar == UINT8_MAX && device->BarSize == 0)) ||
+            device->Reserved0 != 0 || device->Reserved1 != 0 ||
+            device->Flags != 0 || device->VendorDeviceId == 0 ||
+            device->VendorDeviceId == UINT32_MAX ||
+            (le32_to_cpu(device->ClassCode) & 0xff000000U) != 0 ||
+            !ia64_platform_root_for_bus(
+                descriptor, le16_to_cpu(device->Segment), device->Bus)) {
+            error_setg(errp, "invalid IA-64 onboard device %u", i);
+            return false;
+        }
+    }
+
+    for (i = 0; i < node_count; i++) {
+        const IA64PlatformNumaNode *node = &descriptor->NumaNode[i];
+        uint32_t count = le32_to_cpu(node->ProcessorCount);
+        uint32_t node_ram_mask = le32_to_cpu(node->RamRangeMask);
+        uint32_t j;
+
+        if (le32_to_cpu(node->ProximityDomain) != i ||
+            le32_to_cpu(node->ProcessorStart) != processor_cursor ||
+            count == 0 || count > processor_count - processor_cursor ||
+            (node_ram_mask & ram_mask) != 0 ||
+            (node_ram_mask >> ram_count) != 0) {
+            error_setg(errp, "invalid IA-64 NUMA node %u", i);
+            return false;
+        }
+        for (j = 0; j < sizeof(node->Reserved); j++) {
+            if (node->Reserved[j] != 0) {
+                error_setg(errp, "invalid IA-64 NUMA node reserved data");
+                return false;
+            }
+        }
+        for (j = 0; j < node_count; j++) {
+            uint8_t distance = node->Distance[j];
+
+            if ((i == j && distance != 10) ||
+                (i != j && distance < 10) ||
+                distance != descriptor->NumaNode[j].Distance[i]) {
+                error_setg(errp, "invalid IA-64 NUMA distance matrix");
+                return false;
+            }
+        }
+        processor_cursor += count;
+        ram_mask |= node_ram_mask;
+    }
+    if (processor_cursor != processor_count ||
+        ram_mask != ((1U << ram_count) - 1U)) {
+        error_setg(errp, "incomplete IA-64 NUMA affinity map");
+        return false;
+    }
+    return true;
+}
+
 static bool ia64_platform_pci_route_present(
     const IA64PlatformDescriptor *descriptor, uint16_t segment, uint8_t bus,
     uint8_t device, uint8_t pin, uint32_t gsi)
@@ -443,7 +527,10 @@ static bool ia64_platform_range_overlaps_fixed(
                le64_to_cpu(descriptor->ControlSize)) ||
            ia64_platform_u64_ranges_overlap(
                base, size, le64_to_cpu(descriptor->AcpiPmBase),
-               le64_to_cpu(descriptor->AcpiPmSize));
+               le64_to_cpu(descriptor->AcpiPmSize)) ||
+           ia64_platform_u64_ranges_overlap(
+               base, size, le64_to_cpu(descriptor->RasBase),
+               le64_to_cpu(descriptor->RasSize));
 }
 
 static bool ia64_platform_range_overlaps_io_sapic(
@@ -481,8 +568,8 @@ static bool ia64_platform_zx1_io_sapic_embedded(
                       IA64_PLATFORM_IO_SAPIC_SIZE >
                       IA64_PLATFORM_ZX1_LBA_CONFIG_SIZE);
 
-    if (!ia64_platform_is_hp_zx(
-            le32_to_cpu(descriptor->PlatformId))) {
+    if (!(le32_to_cpu(descriptor->Flags) &
+          IA64_PLATFORM_FLAG_EMBEDDED_IO_SAPIC)) {
         return false;
     }
     for (i = 0; i < count; i++) {
@@ -500,12 +587,13 @@ static bool ia64_platform_zx1_io_sapic_embedded(
 
 static bool ia64_platform_root_config_io_sapics_valid(
     const IA64PlatformDescriptor *descriptor,
-    const IA64PlatformPciRoot *root)
+    const IA64PlatformPciRoot *root, uint64_t config_base,
+    uint64_t config_size)
 {
-    bool hp_zx = ia64_platform_is_hp_zx(
-        le32_to_cpu(descriptor->PlatformId));
+    bool embedded_io_sapic =
+        le32_to_cpu(descriptor->Flags) &
+        IA64_PLATFORM_FLAG_EMBEDDED_IO_SAPIC;
     const uint8_t *bytes = (const uint8_t *)descriptor;
-    uint64_t config_base = le64_to_cpu(root->ConfigBase);
     uint32_t offset = le32_to_cpu(descriptor->IoSapicOffset);
     uint32_t count = le32_to_cpu(descriptor->IoSapicCount);
     uint32_t stride = le32_to_cpu(descriptor->IoSapicEntrySize);
@@ -519,11 +607,11 @@ static bool ia64_platform_root_config_io_sapics_valid(
             ~(uint64_t)(IA64_PLATFORM_RESOURCE_ALIGNMENT - 1U);
 
         if (!ia64_platform_u64_ranges_overlap(
-                config_base, IA64_PLATFORM_ZX1_LBA_CONFIG_SIZE,
+                config_base, config_size,
                 efi_base, IA64_PLATFORM_RESOURCE_ALIGNMENT)) {
             continue;
         }
-        if (!hp_zx) {
+        if (!embedded_io_sapic) {
             return false;
         }
         if (root->ConfigType != IA64_PLATFORM_PCI_CONFIG_ZX1_LBA ||
@@ -571,15 +659,19 @@ static bool ia64_platform_desc_validate_entries(
     uint32_t route_offset = le32_to_cpu(descriptor->PciRouteOffset);
     uint32_t route_count = le32_to_cpu(descriptor->PciRouteCount);
     uint32_t route_stride = le32_to_cpu(descriptor->PciRouteEntrySize);
-    uint32_t platform_id = le32_to_cpu(descriptor->PlatformId);
+    uint32_t platform_flags = le32_to_cpu(descriptor->Flags);
+    uint32_t physical_address_bits =
+        le32_to_cpu(descriptor->PhysicalAddressBits);
     uint64_t ram_size = le64_to_cpu(descriptor->RamSize);
     uint64_t low_ram_end = le64_to_cpu(descriptor->LowRamEnd);
     uint64_t ram_total = 0;
     uint64_t previous_end = 0;
+    uint32_t ecam_count = 0;
     uint32_t i;
     uint32_t j;
 
-    if (ram_count == 0 || ram_count > IA64_PLATFORM_MAX_RAM_RANGES ||
+    if (physical_address_bits < 32 || physical_address_bits >= 64 ||
+        ram_count == 0 || ram_count > IA64_PLATFORM_MAX_RAM_RANGES ||
         root_count == 0 || root_count > IA64_PLATFORM_MAX_PCI_ROOTS ||
         sapic_count == 0 || sapic_count > IA64_PLATFORM_MAX_IO_SAPICS ||
         route_count > IA64_PLATFORM_MAX_PCI_ROUTES) {
@@ -626,7 +718,10 @@ static bool ia64_platform_desc_validate_entries(
                 le64_to_cpu(descriptor->ControlSize)) ||
             ia64_platform_u64_ranges_overlap(
                 base, size, le64_to_cpu(descriptor->AcpiPmBase),
-                le64_to_cpu(descriptor->AcpiPmSize))) {
+                le64_to_cpu(descriptor->AcpiPmSize)) ||
+            ia64_platform_u64_ranges_overlap(
+                base, size, le64_to_cpu(descriptor->RasBase),
+                le64_to_cpu(descriptor->RasSize))) {
             error_setg(errp,
                        "IA-64 platform RAM overlaps a fixed resource");
             return false;
@@ -660,21 +755,26 @@ static bool ia64_platform_desc_validate_entries(
             le64_to_cpu(root->Mmio64TranslationOffset);
         uint64_t cpu_mmio32_base = 0;
         uint64_t cpu_mmio64_base = 0;
-        uint64_t config_size =
-            config_type == IA64_PLATFORM_PCI_CONFIG_ZX1_LBA ?
-            IA64_PLATFORM_ZX1_LBA_CONFIG_SIZE : 0;
+        uint64_t config_size = ia64_platform_pci_config_size(
+            config_type, root->Bus, root->BusEnd);
+        uint64_t config_offset = ia64_platform_pci_config_offset(
+            config_type, root->Bus);
+        uint64_t config_window_base = config_base + config_offset;
         uint32_t flags = le32_to_cpu(root->Flags);
         uint32_t rope = le32_to_cpu(root->Rope);
 
         if (config_type != IA64_PLATFORM_PCI_CONFIG_CF8_CFC &&
-            config_type != IA64_PLATFORM_PCI_CONFIG_ZX1_LBA) {
+            config_type != IA64_PLATFORM_PCI_CONFIG_ZX1_LBA &&
+            config_type != IA64_PLATFORM_PCI_CONFIG_ECAM) {
             error_setg(errp, "unsupported IA-64 PCI configuration backend");
             return false;
         }
-        if ((platform_id == IA64_PLATFORM_ID_HP_I2000 &&
-             config_type != IA64_PLATFORM_PCI_CONFIG_CF8_CFC) ||
-            (ia64_platform_is_hp_zx(platform_id) &&
-             config_type != IA64_PLATFORM_PCI_CONFIG_ZX1_LBA)) {
+        if ((config_type == IA64_PLATFORM_PCI_CONFIG_CF8_CFC &&
+             !(platform_flags & IA64_PLATFORM_FLAG_PCI_CF8)) ||
+            (config_type == IA64_PLATFORM_PCI_CONFIG_ZX1_LBA &&
+             !(platform_flags & IA64_PLATFORM_FLAG_PCI_ZX1_LBA)) ||
+            (config_type == IA64_PLATFORM_PCI_CONFIG_ECAM &&
+             !(platform_flags & IA64_PLATFORM_FLAG_PCI_ECAM))) {
             error_setg(errp,
                        "IA-64 PCI configuration backend does not match "
                        "the platform");
@@ -690,15 +790,25 @@ static bool ia64_platform_desc_validate_entries(
              (config_base == 0 ||
              (config_base & (IA64_PLATFORM_ZX1_LBA_CONFIG_SIZE - 1U)) != 0 ||
               config_base >
-                  (1ULL << IA64_PLATFORM_ZX6000_PHYS_ADDR_BITS) -
+                  (1ULL << physical_address_bits) -
                   IA64_PLATFORM_ZX1_LBA_CONFIG_SIZE ||
-              rope > 7))) {
+              rope > 7)) ||
+            (config_type == IA64_PLATFORM_PCI_CONFIG_ECAM &&
+             ((config_base &
+               (IA64_PLATFORM_PCI_ECAM_ALIGNMENT - 1U)) != 0 ||
+              config_base >
+                  (1ULL << physical_address_bits) -
+                  config_offset - config_size))) {
             error_setg(errp, "invalid IA-64 PCI root identity");
             return false;
         }
+        if (config_type == IA64_PLATFORM_PCI_CONFIG_ECAM) {
+            ecam_count++;
+        }
         if (!ia64_platform_optional_u64_range_valid(io_base, io_size) ||
             ((flags & IA64_PLATFORM_PCI_ROOT_FLAG_SPARSE_IO) != 0 ?
-             (!ia64_platform_is_hp_zx(platform_id) || io_size == 0 ||
+             (!(platform_flags & IA64_PLATFORM_FLAG_SPARSE_IO) ||
+              io_size == 0 ||
               io_translation != le64_to_cpu(descriptor->LegacyIoBase)) :
              io_translation != 0) ||
             (io_size != 0 && io_base + io_size > 0x10000ULL) ||
@@ -738,19 +848,19 @@ static bool ia64_platform_desc_validate_entries(
                 descriptor, cpu_mmio64_base, mmio64_size) ||
             (config_size != 0 &&
              (ia64_platform_range_overlaps_ram(
-                  descriptor, config_base, config_size) ||
+                  descriptor, config_window_base, config_size) ||
               ia64_platform_range_overlaps_fixed(
-                  descriptor, config_base, config_size) ||
+                  descriptor, config_window_base, config_size) ||
               !ia64_platform_root_config_io_sapics_valid(
-                  descriptor, root))) ||
+                  descriptor, root, config_window_base, config_size))) ||
             ia64_platform_u64_ranges_overlap(
                 cpu_mmio32_base, mmio32_size,
                 cpu_mmio64_base, mmio64_size) ||
             ia64_platform_u64_ranges_overlap(
-                config_base, config_size,
+                config_window_base, config_size,
                 cpu_mmio32_base, mmio32_size) ||
             ia64_platform_u64_ranges_overlap(
-                config_base, config_size,
+                config_window_base, config_size,
                 cpu_mmio64_base, mmio64_size)) {
             error_setg(errp, "invalid IA-64 PCI root aperture");
             return false;
@@ -766,9 +876,11 @@ static bool ia64_platform_desc_validate_entries(
             uint64_t other_cpu_mmio32_base;
             uint64_t other_cpu_mmio64_base;
             uint64_t other_config_base = le64_to_cpu(other->ConfigBase);
-            uint64_t other_config_size =
-                other->ConfigType == IA64_PLATFORM_PCI_CONFIG_ZX1_LBA ?
-                IA64_PLATFORM_ZX1_LBA_CONFIG_SIZE : 0;
+            uint64_t other_config_size = ia64_platform_pci_config_size(
+                other->ConfigType, other->Bus, other->BusEnd);
+            uint64_t other_config_window_base = other_config_base +
+                ia64_platform_pci_config_offset(other->ConfigType,
+                                                other->Bus);
 
             if (!ia64_platform_translate_range(
                     le64_to_cpu(other->Mmio32Base), other_mmio32_size,
@@ -806,20 +918,20 @@ static bool ia64_platform_desc_validate_entries(
                     cpu_mmio64_base, mmio64_size,
                     other_cpu_mmio64_base, other_mmio64_size) ||
                 ia64_platform_u64_ranges_overlap(
-                    config_base, config_size,
-                    other_config_base, other_config_size) ||
+                    config_window_base, config_size,
+                    other_config_window_base, other_config_size) ||
                 ia64_platform_u64_ranges_overlap(
-                    config_base, config_size,
+                    config_window_base, config_size,
                     other_cpu_mmio32_base, other_mmio32_size) ||
                 ia64_platform_u64_ranges_overlap(
-                    config_base, config_size,
+                    config_window_base, config_size,
                     other_cpu_mmio64_base, other_mmio64_size) ||
                 ia64_platform_u64_ranges_overlap(
                     cpu_mmio32_base, mmio32_size,
-                    other_config_base, other_config_size) ||
+                    other_config_window_base, other_config_size) ||
                 ia64_platform_u64_ranges_overlap(
                     cpu_mmio64_base, mmio64_size,
-                    other_config_base, other_config_size)) {
+                    other_config_window_base, other_config_size)) {
                 error_setg(errp,
                            "overlapping IA-64 PCI root CPU MMIO ranges");
                 return false;
@@ -851,6 +963,8 @@ static bool ia64_platform_desc_validate_entries(
         uint64_t control_size = le64_to_cpu(descriptor->ControlSize);
         uint64_t acpi_pm_base = le64_to_cpu(descriptor->AcpiPmBase);
         uint64_t acpi_pm_size = le64_to_cpu(descriptor->AcpiPmSize);
+        uint64_t ras_base = le64_to_cpu(descriptor->RasBase);
+        uint64_t ras_size = le64_to_cpu(descriptor->RasSize);
         uint32_t gsi_base = le32_to_cpu(sapic->GsiBase);
         uint32_t entries = le32_to_cpu(sapic->RedirectionEntries);
 
@@ -892,7 +1006,10 @@ static bool ia64_platform_desc_validate_entries(
                 control_base, control_size) ||
             ia64_platform_u64_ranges_overlap(
                 efi_base, IA64_PLATFORM_RESOURCE_ALIGNMENT,
-                acpi_pm_base, acpi_pm_size)) {
+                acpi_pm_base, acpi_pm_size) ||
+            ia64_platform_u64_ranges_overlap(
+                efi_base, IA64_PLATFORM_RESOURCE_ALIGNMENT,
+                ras_base, ras_size)) {
             error_setg(errp,
                        "IA-64 I/O SAPIC overlaps a fixed platform resource");
             return false;
@@ -963,6 +1080,12 @@ static bool ia64_platform_desc_validate_entries(
             }
         }
     }
+    if (((le32_to_cpu(descriptor->Flags) &
+          IA64_PLATFORM_FLAG_NO_MCFG) != 0) != (ecam_count == 0)) {
+        error_setg(errp,
+                   "IA-64 MCFG flag does not match the ECAM roots");
+        return false;
+    }
     return true;
 }
 
@@ -1010,8 +1133,9 @@ static bool ia64_platform_desc_validate_profile(
     isp_mmio_size = isp_root ? le64_to_cpu(isp_root->Mmio32Size) : 0;
     profile_flags = le32_to_cpu(profile->Flags);
     isp_capabilities = le32_to_cpu(profile->Isp12160Capabilities);
-    if (le32_to_cpu(descriptor->PlatformId) !=
-            IA64_PLATFORM_ID_HP_I2000 ||
+    if ((le32_to_cpu(descriptor->Flags) &
+         IA64_PLATFORM_FLAG_FAMILY_MASK) !=
+            IA64_PLATFORM_FLAG_FAMILY_HP_I2000 ||
         (flags & IA64_PLATFORM_HP_I2000_REQUIRED_FLAGS) !=
             IA64_PLATFORM_HP_I2000_REQUIRED_FLAGS ||
         le64_to_cpu(descriptor->NvramBase) !=
@@ -1117,6 +1241,10 @@ bool ia64_platform_desc_validate(const IA64PlatformDescriptor *descriptor,
     uint32_t sockets;
     uint32_t cores;
     uint32_t threads;
+    uint32_t physical_address_bits;
+    uint32_t max_sockets;
+    uint32_t max_cores;
+    uint32_t max_threads;
     uint64_t ram_size;
     uint64_t low_ram_end;
     uint64_t legacy_io_base;
@@ -1140,6 +1268,8 @@ bool ia64_platform_desc_validate(const IA64PlatformDescriptor *descriptor,
     uint64_t acpi_pm_base;
     uint64_t acpi_pm_size;
     uint32_t acpi_sci_gsi;
+    uint64_t ras_base;
+    uint64_t ras_size;
     uint64_t console_size;
     bool fixed_i2000_profile;
     const uint32_t known_flags = IA64_PLATFORM_KNOWN_FLAGS;
@@ -1173,18 +1303,20 @@ bool ia64_platform_desc_validate(const IA64PlatformDescriptor *descriptor,
     }
 
     platform_id = le32_to_cpu(descriptor->PlatformId);
-    if (platform_id != expected_platform_id ||
-        (platform_id != IA64_PLATFORM_ID_HP_I2000 &&
-         !ia64_platform_is_hp_zx(platform_id))) {
+    if (platform_id != expected_platform_id) {
         error_setg(errp, "IA-64 platform descriptor ID mismatch");
         return false;
     }
     flags = le32_to_cpu(descriptor->Flags);
-    if ((flags & IA64_PLATFORM_FLAG_NO_MCFG) == 0 ||
-        (flags & ~known_flags) != 0 || descriptor->Reserved0 != 0 ||
+    if ((flags & ~known_flags) != 0 ||
+        ((flags & IA64_PLATFORM_FLAG_FAMILY_MASK) !=
+             IA64_PLATFORM_FLAG_FAMILY_HP_I2000 &&
+         (flags & IA64_PLATFORM_FLAG_FAMILY_MASK) !=
+             IA64_PLATFORM_FLAG_FAMILY_HP_ZX) ||
+        descriptor->Reserved0 != 0 ||
         descriptor->Reserved1 != 0 || descriptor->Reserved2 != 0 ||
         descriptor->Reserved3 != 0 || descriptor->Reserved4 != 0) {
-        error_setg(errp, "HP IA-64 descriptor must suppress MCFG");
+        error_setg(errp, "invalid HP IA-64 descriptor flags");
         return false;
     }
 
@@ -1282,8 +1414,11 @@ bool ia64_platform_desc_validate(const IA64PlatformDescriptor *descriptor,
     acpi_pm_base = le64_to_cpu(descriptor->AcpiPmBase);
     acpi_pm_size = le64_to_cpu(descriptor->AcpiPmSize);
     acpi_sci_gsi = le32_to_cpu(descriptor->AcpiSciGsi);
+    ras_base = le64_to_cpu(descriptor->RasBase);
+    ras_size = le64_to_cpu(descriptor->RasSize);
     console_size = 8 * (uint64_t)console_stride;
-    if (!ia64_platform_legacy_io_valid(platform_id, legacy_io_base,
+    physical_address_bits = le32_to_cpu(descriptor->PhysicalAddressBits);
+    if (!ia64_platform_legacy_io_valid(physical_address_bits, legacy_io_base,
                                        legacy_io_size) ||
         local_sapic_size < 2 * MiB || local_sapic_base > UINT32_MAX ||
         (local_sapic_size & (IA64_PLATFORM_DESC_ALIGNMENT - 1U)) != 0 ||
@@ -1293,7 +1428,8 @@ bool ia64_platform_desc_validate(const IA64PlatformDescriptor *descriptor,
         console_stride == 0 || !is_power_of_2(console_stride) ||
         console_stride > IA64_PLATFORM_DESC_ALIGNMENT ||
         console_clock < IA64_PLATFORM_UART_MIN_CLOCK_HZ ||
-        le32_to_cpu(descriptor->ConsoleFlags) != 0 ||
+        (le32_to_cpu(descriptor->ConsoleFlags) &
+         ~IA64_PLATFORM_CONSOLE_KNOWN_FLAGS) != 0 ||
         !ia64_platform_u64_range_valid(console_base, console_size) ||
         (fixed_i2000_profile ?
          (nvram_base != IA64_I2000_PROFILE_NVRAM_BASE ||
@@ -1320,13 +1456,17 @@ bool ia64_platform_desc_validate(const IA64PlatformDescriptor *descriptor,
           reset_control_offset == poweroff_control_offset ||
           control_value == 0 || control_value > UINT8_MAX)) ||
         ((acpi_pm_base | acpi_pm_size | acpi_sci_gsi) != 0 &&
-         (!ia64_platform_is_hp_zx(platform_id) ||
+         (!(flags & IA64_PLATFORM_FLAG_ACPI_PM) ||
           acpi_pm_base == 0 ||
           acpi_pm_size != IA64_PLATFORM_ACPI_PM_SIZE ||
           acpi_sci_gsi == 0 || acpi_sci_gsi > UINT16_MAX ||
           (acpi_pm_base &
            (IA64_PLATFORM_RESOURCE_ALIGNMENT - 1U)) != 0 ||
-          !ia64_platform_u64_range_valid(acpi_pm_base, acpi_pm_size)))) {
+          !ia64_platform_u64_range_valid(acpi_pm_base, acpi_pm_size))) ||
+        ras_base == 0 || ras_size < IA64_RAS_HUB_SIZE ||
+        (ras_base & (IA64_PLATFORM_RESOURCE_ALIGNMENT - 1U)) != 0 ||
+        (ras_size & (IA64_PLATFORM_RESOURCE_ALIGNMENT - 1U)) != 0 ||
+        !ia64_platform_u64_range_valid(ras_base, ras_size)) {
         error_setg(errp, "invalid IA-64 platform I/O resources");
         return false;
     }
@@ -1376,7 +1516,22 @@ bool ia64_platform_desc_validate(const IA64PlatformDescriptor *descriptor,
         ia64_platform_u64_ranges_overlap(acpi_pm_base, acpi_pm_size,
                                          rtc_base, rtc_size) ||
         ia64_platform_u64_ranges_overlap(acpi_pm_base, acpi_pm_size,
-                                         control_base, control_size)) {
+                                         control_base, control_size) ||
+        ia64_platform_u64_ranges_overlap(ras_base, ras_size,
+                                         legacy_io_base, legacy_io_size) ||
+        ia64_platform_u64_ranges_overlap(ras_base, ras_size,
+                                         local_sapic_base,
+                                         local_sapic_size) ||
+        ia64_platform_u64_ranges_overlap(ras_base, ras_size,
+                                         firmware_base, firmware_size) ||
+        ia64_platform_u64_ranges_overlap(ras_base, ras_size,
+                                         nvram_base, nvram_size) ||
+        ia64_platform_u64_ranges_overlap(ras_base, ras_size,
+                                         rtc_base, rtc_size) ||
+        ia64_platform_u64_ranges_overlap(ras_base, ras_size,
+                                         control_base, control_size) ||
+        ia64_platform_u64_ranges_overlap(ras_base, ras_size,
+                                         acpi_pm_base, acpi_pm_size)) {
         error_setg(errp, "overlapping IA-64 fixed platform resources");
         return false;
     }
@@ -1402,6 +1557,8 @@ bool ia64_platform_desc_validate(const IA64PlatformDescriptor *descriptor,
          ia64_platform_u64_ranges_overlap(console_base, console_size,
                                           acpi_pm_base, acpi_pm_size) ||
          ia64_platform_u64_ranges_overlap(console_base, console_size,
+                                          ras_base, ras_size) ||
+         ia64_platform_u64_ranges_overlap(console_base, console_size,
                                           firmware_base, firmware_size))) {
         error_setg(errp, "IA-64 console overlaps a fixed platform resource");
         return false;
@@ -1411,22 +1568,22 @@ bool ia64_platform_desc_validate(const IA64PlatformDescriptor *descriptor,
     sockets = le32_to_cpu(descriptor->SocketCount);
     cores = le32_to_cpu(descriptor->CoresPerSocket);
     threads = le32_to_cpu(descriptor->ThreadsPerCore);
-    if (platform_id == IA64_PLATFORM_ID_HP_RX2660) {
-        if (processors < 1 || processors > 8 ||
-            sockets < 1 || sockets > 2 ||
-            cores < 1 || cores > 2 || threads < 1 || threads > 2 ||
-            processors != sockets * cores * threads) {
-            error_setg(errp, "invalid HP rx2660 processor topology");
-            return false;
-        }
-    } else if (processors < 1 || processors > 2 ||
-               sockets < 1 || sockets > 2 || cores != 1 || threads != 1 ||
-               processors != sockets) {
+    max_sockets = le32_to_cpu(descriptor->MaxSockets);
+    max_cores = le32_to_cpu(descriptor->MaxCoresPerSocket);
+    max_threads = le32_to_cpu(descriptor->MaxThreadsPerCore);
+    if (processors < 1 || processors > 256 || max_sockets < 1 ||
+        max_sockets > 256 || max_cores < 1 || max_cores > 256 ||
+        max_threads < 1 || max_threads > 256 ||
+        sockets < 1 || sockets > max_sockets ||
+        cores < 1 || cores > max_cores ||
+        threads < 1 || threads > max_threads ||
+        (uint64_t)sockets * cores * threads != processors) {
         error_setg(errp, "invalid HP IA-64 processor topology");
         return false;
     }
 
-    if (!ia64_platform_desc_validate_entries(descriptor, errp) ||
+    if (!ia64_platform_policy_valid(descriptor, errp) ||
+        !ia64_platform_desc_validate_entries(descriptor, errp) ||
         !ia64_platform_desc_validate_profile(descriptor, errp)) {
         return false;
     }

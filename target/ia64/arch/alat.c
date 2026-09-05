@@ -36,10 +36,53 @@ static void ia64_alat_clear(CPUIA64State *env)
     env->alat_state.alat_active_count = 0;
 }
 
+/*
+ * ALAT loads/checks sample each vCPU's store sequence.  The CPU set is fixed
+ * during execution and the sequences survive resets, so their sum changes
+ * on every write until 64-bit wraparound.  Migration discards ALAT entries;
+ * these host-local sequences are not migrated.
+ */
+static uint64_t ia64_alat_cpu_generation(bool *active)
+{
+    CPUState *cs;
+    uint64_t generation = 0;
+
+    CPU_FOREACH(cs) {
+        IA64CPU *cpu = ia64_cpu_from_cpu_state(cs);
+        uint64_t sequence = qatomic_load_acquire(&cpu->alat_write_sequence);
+
+        generation += sequence;
+        if (active) {
+            *active |= sequence & 1;
+        }
+    }
+    return generation;
+}
+
+static uint64_t ia64_alat_memory_generation(void)
+{
+    return physical_memory_write_generation() +
+           ia64_alat_cpu_generation(NULL);
+}
+
+static bool ia64_alat_memory_generation_changed(uint64_t generation)
+{
+    uint64_t external;
+    uint64_t current;
+    bool active = false;
+
+    /* Keep the preceding advanced load before its closing sequence sample. */
+    smp_rmb();
+    external = physical_memory_write_generation();
+    current = external + ia64_alat_cpu_generation(&active);
+    return active || current != generation ||
+           physical_memory_write_generation_changed(external);
+}
+
 /* Own stores use PA overlap; other RAM-write generations clear the ALAT. */
 static bool ia64_alat_sync_memory_writes(CPUIA64State *env)
 {
-    uint64_t generation = physical_memory_write_generation();
+    uint64_t generation = ia64_alat_memory_generation();
 
     if (generation != env->alat_state.memory_write_generation) {
         ia64_alat_clear(env);
@@ -52,13 +95,13 @@ static bool ia64_alat_sync_memory_writes(CPUIA64State *env)
 static bool ia64_alat_memory_window_changed(CPUIA64State *env,
                                              uint64_t generation)
 {
-    if (!physical_memory_write_generation_changed(generation)) {
+    if (!ia64_alat_memory_generation_changed(generation)) {
         return false;
     }
 
     ia64_alat_clear(env);
     env->alat_state.memory_write_generation =
-        physical_memory_write_generation();
+        ia64_alat_memory_generation();
     return true;
 }
 
@@ -170,7 +213,7 @@ void ia64_alat_invala(CPUIA64State *env)
 {
     ia64_alat_clear(env);
     env->alat_state.memory_write_generation =
-        physical_memory_write_generation();
+        ia64_alat_memory_generation();
 }
 
 uint64_t ia64_alat_load_begin(CPUIA64State *env)
@@ -375,21 +418,27 @@ void ia64_alat_notify_store(CPUIA64State *env)
     }
 
     g_assert(!env->alat_state.write_active);
-    ia64_alat_clear(env);
-    env->alat_state.memory_write_generation =
-        physical_memory_write_generation_advance();
+    physical_memory_write_generation_advance();
+    ia64_alat_invala(env);
 }
 
 void ia64_alat_write_begin(CPUIA64State *env)
 {
+    IA64CPU *cpu = ia64_cpu_from_cpu_state(env_cpu(env));
+
     g_assert(!env->alat_state.write_active);
-    if (env->alat_state.alat_full) {
-        ia64_alat_sync_memory_writes(env);
-    }
     env->alat_state.write_generation =
-        physical_memory_write_generation();
-    env->alat_state.write_observed = physical_memory_write_begin();
+        env->alat_state.memory_write_generation;
+    env->alat_state.write_observed = env->alat_state.alat_full;
     env->alat_state.write_active = true;
+    if (env->alat_state.write_observed) {
+        uint64_t sequence = qatomic_read(&cpu->alat_write_sequence);
+
+        g_assert(!(sequence & 1));
+        qatomic_set(&cpu->alat_write_sequence, sequence + 1);
+        /* Publish the odd sequence before the faultable RAM store. */
+        smp_wmb();
+    }
 }
 
 static bool ia64_alat_write_take_token(CPUIA64State *env)
@@ -400,6 +449,14 @@ static bool ia64_alat_write_take_token(CPUIA64State *env)
     observed = env->alat_state.write_observed;
     env->alat_state.write_active = false;
     env->alat_state.write_observed = false;
+    if (observed) {
+        IA64CPU *cpu = ia64_cpu_from_cpu_state(env_cpu(env));
+        uint64_t sequence = qatomic_read(&cpu->alat_write_sequence);
+
+        g_assert(sequence & 1);
+        /* Publish completion only after the RAM store is visible. */
+        qatomic_store_release(&cpu->alat_write_sequence, sequence + 1);
+    }
     return observed;
 }
 
@@ -408,17 +465,13 @@ static void ia64_alat_write_finish(CPUIA64State *env, uint64_t addr,
 {
     uint64_t generation = env->alat_state.write_generation;
     bool observed = ia64_alat_write_take_token(env);
-    uint64_t expected = generation + observed;
+    uint64_t expected = generation + 2;
 
-    physical_memory_write_end(observed);
-
-    if (env->alat_state.alat_full) {
+    if (observed && env->alat_state.alat_active_count != 0) {
         if (!precise ||
             env->alat_state.memory_write_generation != generation ||
-            physical_memory_write_generation_changed(expected)) {
-            ia64_alat_clear(env);
-            env->alat_state.memory_write_generation =
-                physical_memory_write_generation();
+            ia64_alat_memory_generation_changed(expected)) {
+            ia64_alat_invala(env);
             return;
         }
 
@@ -435,7 +488,10 @@ void ia64_alat_write_end(CPUIA64State *env, uint64_t addr, uint32_t size)
 
 void ia64_alat_write_cancel(CPUIA64State *env)
 {
-    physical_memory_write_cancel(ia64_alat_write_take_token(env));
+    if (ia64_alat_write_take_token(env)) {
+        /* No RAM changed, so retain entries while accounting for our scope. */
+        env->alat_state.memory_write_generation += 2;
+    }
 }
 
 void ia64_alat_write_abort(CPUIA64State *env)

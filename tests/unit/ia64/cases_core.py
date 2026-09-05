@@ -1297,7 +1297,7 @@ test_mov_cpuid_indexed_decode = require_registers("mov_cpuid_indexed_decode", [
     "r30": 0x49656e69756e6547,
 }, entry=0x10)
 
-def _madison_cpuid_case(name, cpu):
+def _cpuid_case(name, cpu, version, features):
     return require_registers(name, [
         (0x10, 0x00, nop_m(), addl(31, 3, 0), nop_i()),
         (0x20, 0x00, mov_cpuid(29, 31), addl(31, 4, 0), nop_i()),
@@ -1305,16 +1305,26 @@ def _madison_cpuid_case(name, cpu):
         (0x40, 0x10, nop_m(), nop_i(), br_cond(0x40, 0x40)),
     ], {
         "ip": 0x40,
-        "r28": 0x0000000000000001,
-        "r29": 0x000000001f010504,
+        "r28": features,
+        "r29": version,
     }, entry=0x10, cpu=cpu)
 
 
-test_mov_cpuid_madison_model = _madison_cpuid_case(
-    "mov_cpuid_madison_model", "madison")
+test_mov_cpuid_madison_model = _cpuid_case(
+    "mov_cpuid_madison_model", "madison", 0x1f010504, 1)
 
-test_mov_cpuid_madison_zx6000_profile = _madison_cpuid_case(
-    "mov_cpuid_madison_zx6000_profile", "madison-zx6000")
+test_mov_cpuid_madison_zx6000_profile = _cpuid_case(
+    "mov_cpuid_madison_zx6000_profile", "madison-zx6000",
+    0x1f010504, 1)
+
+test_mov_cpuid_mckinley_model = _cpuid_case(
+    "mov_cpuid_mckinley_model", "mckinley", 0x1f000704, 1)
+
+test_mov_cpuid_madison_9m_model = _cpuid_case(
+    "mov_cpuid_madison_9m_model", "madison-9m", 0x1f020204, 1)
+
+test_mov_cpuid_montvale_model = _cpuid_case(
+    "mov_cpuid_montvale_model", "montvale", 0x20010104, 5)
 
 
 def _merced_cpuid_case(name, cpu):
@@ -3613,9 +3623,12 @@ CASE_NAMES = (
     'mov_cpuid_indexed_decode',
     'mov_cpuid_itanium2_alias',
     'mov_cpuid_itanium_alias',
+    'mov_cpuid_madison_9m_model',
     'mov_cpuid_madison_model',
     'mov_cpuid_madison_zx6000_profile',
+    'mov_cpuid_mckinley_model',
     'mov_cpuid_merced_model',
+    'mov_cpuid_montvale_model',
     'mov_dahr_indexed_decode',
     'mov_dbr_ibr_indexed_decode',
     'mov_dbr_index8_reserved_register_field',

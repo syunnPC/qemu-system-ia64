@@ -335,13 +335,45 @@ static void qtest_irq_handler(void *opaque, int n, int level)
     }
 }
 
-static bool (*process_command_cb)(CharFrontend *chr, gchar **words);
+static GPtrArray *process_command_cbs;
 
-void qtest_set_command_cb(bool (*pc_cb)(CharFrontend *chr, gchar **words))
+void qtest_add_command_cb(QTestCommandHandler handler)
 {
-    assert(!process_command_cb);  /* Switch to a list if we need more than one */
+    unsigned int i;
 
-    process_command_cb = pc_cb;
+    if (!process_command_cbs) {
+        process_command_cbs = g_ptr_array_new();
+    }
+    for (i = 0; i < process_command_cbs->len; i++) {
+        if (g_ptr_array_index(process_command_cbs, i) == handler) {
+            return;
+        }
+    }
+    g_ptr_array_add(process_command_cbs, handler);
+}
+
+void qtest_set_command_cb(QTestCommandHandler handler)
+{
+    assert(!process_command_cbs);
+    qtest_add_command_cb(handler);
+}
+
+static bool qtest_process_command_callbacks(CharFrontend *chr, gchar **words)
+{
+    unsigned int i;
+
+    if (!process_command_cbs) {
+        return false;
+    }
+    for (i = 0; i < process_command_cbs->len; i++) {
+        QTestCommandHandler handler =
+            g_ptr_array_index(process_command_cbs, i);
+
+        if (handler(chr, words)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 static void qtest_install_gpio_out_intercept(DeviceState *dev, const char *name, int n)
@@ -754,7 +786,7 @@ static void qtest_process_command(CharFrontend *chr, gchar **words)
         new_ns = qemu_clock_advance_virtual_time(ns);
         qtest_sendf(chr, "%s %"PRIi64"\n",
                     new_ns == ns ? "OK" : "FAIL", new_ns);
-    } else if (process_command_cb && process_command_cb(chr, words)) {
+    } else if (qtest_process_command_callbacks(chr, words)) {
         /* Command got consumed by the callback handler */
     } else {
         qtest_sendf(chr, "FAIL Unknown command '%s'\n", words[0]);

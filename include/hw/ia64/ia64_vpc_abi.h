@@ -11,10 +11,11 @@
 #define HW_IA64_VPC_ABI_H
 
 #include "hw/ia64/ia64_firmware_compat.h"
+#include "hw/ia64/ia64_ras_abi.h"
 
 #define IA64_FW_HANDOFF_ADDR          0x00000000000ff000ULL
 #define IA64_FW_HANDOFF_MAGIC         0x4d41523436414951ULL /* "QIA64RAM" */
-#define IA64_FW_HANDOFF_VERSION       10ULL
+#define IA64_FW_HANDOFF_VERSION       11ULL
 
 #define IA64_FW_COMPAT_HANDOFF_ADDR   (IA64_FW_HANDOFF_ADDR + 0x100ULL)
 #define IA64_FW_COMPAT_HANDOFF_MAGIC  0x504d4f4334364951ULL /* "QI64COMP" */
@@ -54,6 +55,12 @@
 #define IA64_FW_DEBUG_STACK_END_OFFSET \
     (IA64_FW_DEBUG_STACK_OFFSET + \
      IA64_VPC_MAX_CPUS * IA64_FW_DEBUG_STACK_SIZE)
+
+#define IA64_FW_MCA_STATE_OFFSET       0x0000000000500000ULL
+#define IA64_FW_MCA_STATE_SIZE         0x0000000000001000ULL
+#define IA64_FW_MCA_STATE_END_OFFSET \
+    (IA64_FW_MCA_STATE_OFFSET + \
+     IA64_VPC_MAX_CPUS * IA64_FW_MCA_STATE_SIZE)
 
 #define IA64_FW_EARLY_RSE_OFFSET       0x0000000000600000ULL
 #define IA64_FW_EARLY_RSE_SIZE         0x0000000000008000ULL
@@ -104,6 +111,8 @@ typedef struct __attribute__((packed)) IA64VpcHandoff {
     unsigned long long SocketCount;
     unsigned long long CoresPerSocket;
     unsigned long long ThreadsPerCore;
+    unsigned long long RasBase;
+    unsigned long long RasSize;
 } IA64VpcHandoff;
 
 /* A missing extension selects IA64_FW_COMPAT_ALL_MASK. */

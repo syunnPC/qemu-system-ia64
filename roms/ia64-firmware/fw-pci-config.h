@@ -102,6 +102,24 @@ static inline BOOLEAN fw_pci_cf8_request_valid(UINT64 Segment, UINT64 Bus,
                                     Size, FW_PCI_CF8_CONFIG_SIZE);
 }
 
+static inline BOOLEAN fw_pci_ecam_address(UINT64 Base, UINT64 Bus,
+                                           UINT64 Device, UINT64 Function,
+                                           UINT64 Offset, UINT64 *Address)
+{
+    UINT64 delta;
+
+    if (Address == NULL || Bus > 0xffU || Device > 0x1fU ||
+        Function > 7U || Offset >= FW_PCI_ECAM_CONFIG_SIZE) {
+        return 0;
+    }
+    delta = (Bus << 20) | (Device << 15) | (Function << 12) | Offset;
+    if (Base > ~(UINT64)0 - delta) {
+        return 0;
+    }
+    *Address = Base + delta;
+    return 1;
+}
+
 /*
  * Resolve a Mercury indirect configuration transaction.  Bus zero selects
  * the root bus; rejected requests leave the output unchanged.

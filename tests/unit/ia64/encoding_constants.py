@@ -204,6 +204,9 @@ PAL_VM_TR_READ = 0x0105
 PAL_BRAND_INFO = 0x0112
 PAL_VERSION_VALUE = ((0x0968 << 32) | (1 << 24) | 0x0968)
 MADISON_PAL_VERSION_VALUE = ((0x0573 << 32) | (1 << 24) | 0x0573)
+MCKINLEY_PAL_VERSION_VALUE = ((0x0779 << 32) | (1 << 24) | 0x0779)
+MADISON_9M_PAL_VERSION_VALUE = ((0x0225 << 32) | (1 << 24) | 0x0225)
+MONTVALE_PAL_VERSION_VALUE = ((0x0108 << 32) | (1 << 24) | 0x0108)
 MERCED_PAL_VERSION_VALUE = ((0x8830 << 32) | (1 << 24) | 0x8830)
 MERCED_PAL_PERF_MON_INFO_VALUE = 0x08122004
 PAL_INSERTABLE_PAGE_SIZE_MASK = ((1 << 12) | (1 << 13) | (1 << 14) |
@@ -247,7 +250,7 @@ PAL_CACHE_INFO_L2_U_2 = (12 * 1024 * 1024 | (12 << 32) | (20 << 40) |
                           (49 << 48))
 MADISON_PAL_CACHE_INFO_L2_U_1 = (
     1 | (1 << 1) | (12 << 8) | (7 << 16) | (7 << 24) |
-    (1 << 32) | (12 << 40))
+    (1 << 32) | (14 << 40))
 MADISON_PAL_CACHE_INFO_L2_U_2 = (
     3 * 1024 * 1024 | (12 << 32) | (18 << 40) | (49 << 48))
 MADISON_ZX6000_PAL_CACHE_INFO_L2_U_1 = (
@@ -255,6 +258,16 @@ MADISON_ZX6000_PAL_CACHE_INFO_L2_U_1 = (
     (1 << 32) | (14 << 40))
 MADISON_ZX6000_PAL_CACHE_INFO_L2_U_2 = (
     6 * 1024 * 1024 | (12 << 32) | (18 << 40) | (49 << 48))
+MCKINLEY_PAL_CACHE_INFO_L2_U_1 = (
+    1 | (1 << 1) | (12 << 8) | (7 << 16) | (7 << 24) |
+    (1 << 32) | (12 << 40))
+MCKINLEY_PAL_CACHE_INFO_L2_U_2 = (
+    3 * 1024 * 1024 | (12 << 32) | (18 << 40) | (49 << 48))
+MADISON_9M_PAL_CACHE_INFO_L2_U_1 = (
+    1 | (1 << 1) | (18 << 8) | (7 << 16) | (7 << 24) |
+    (1 << 32) | (14 << 40))
+MADISON_9M_PAL_CACHE_INFO_L2_U_2 = (
+    9 * 1024 * 1024 | (12 << 32) | (19 << 40) | (49 << 48))
 PAL_VM_INFO_L0 = 1 | (32 << 8) | (32 << 16)
 PAL_VM_INFO_L1 = (1 | (128 << 8) | (128 << 16) |
                   (1 << 32) | (1 << 34))
@@ -536,6 +549,9 @@ __all__ = (
     'PAL_BRAND_INFO',
     'PAL_VERSION_VALUE',
     'MADISON_PAL_VERSION_VALUE',
+    'MCKINLEY_PAL_VERSION_VALUE',
+    'MADISON_9M_PAL_VERSION_VALUE',
+    'MONTVALE_PAL_VERSION_VALUE',
     'MERCED_PAL_VERSION_VALUE',
     'MERCED_PAL_PERF_MON_INFO_VALUE',
     'PAL_INSERTABLE_PAGE_SIZE_MASK',
@@ -564,6 +580,10 @@ __all__ = (
     'MADISON_PAL_CACHE_INFO_L2_U_2',
     'MADISON_ZX6000_PAL_CACHE_INFO_L2_U_1',
     'MADISON_ZX6000_PAL_CACHE_INFO_L2_U_2',
+    'MCKINLEY_PAL_CACHE_INFO_L2_U_1',
+    'MCKINLEY_PAL_CACHE_INFO_L2_U_2',
+    'MADISON_9M_PAL_CACHE_INFO_L2_U_1',
+    'MADISON_9M_PAL_CACHE_INFO_L2_U_2',
     'PAL_VM_INFO_L0',
     'PAL_VM_INFO_L1',
     'MERCED_INSERTABLE_PAGE_SIZE_MASK',

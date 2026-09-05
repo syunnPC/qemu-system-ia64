@@ -93,6 +93,14 @@ PCIBus *intel_460gx_numbered_root_bus_register(
     return bus;
 }
 
+void intel_460gx_numbered_root_bus_set_number(PCIBus *bus,
+                                               uint8_t first_bus)
+{
+    if (bus && object_dynamic_cast(OBJECT(bus), TYPE_INTEL_460GX_ROOT_BUS)) {
+        INTEL_460GX_ROOT_BUS(bus)->first_bus = first_bus;
+    }
+}
+
 static void intel_460gx_root_set_irq(void *opaque, int irq_num, int level)
 {
     Intel460GXRootHostState *s = opaque;
@@ -122,6 +130,7 @@ static void intel_460gx_root_host_realize(DeviceState *dev, Error **errp)
 {
     Intel460GXRootHostState *s = INTEL_460GX_ROOT_HOST(dev);
     PCIHostState *host = PCI_HOST_BRIDGE(dev);
+    g_autofree char *bus_name = NULL;
     uint8_t first_bus;
 
     if (s->initial_first_bus > UINT8_MAX) {
@@ -140,8 +149,10 @@ static void intel_460gx_root_host_realize(DeviceState *dev, Error **errp)
 
     snprintf(s->root_bus_path, sizeof(s->root_bus_path), "0000:%02x",
              first_bus);
+    bus_name = first_bus ? g_strdup_printf("pci.%u", first_bus) :
+                           g_strdup("pci");
     intel_460gx_numbered_root_bus_register(
-        host, "pci", intel_460gx_root_set_irq, intel_460gx_root_map_irq, s,
+        host, bus_name, intel_460gx_root_set_irq, intel_460gx_root_map_irq, s,
         &s->pci_mem, &s->pci_io, PCI_DEVFN(0, 0), PCI_NUM_PINS,
         first_bus, errp);
 }

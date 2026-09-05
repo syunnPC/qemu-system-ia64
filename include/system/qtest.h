@@ -24,7 +24,9 @@ static inline bool qtest_enabled(void)
 }
 
 void G_GNUC_PRINTF(2, 3) qtest_sendf(CharFrontend *chr, const char *fmt, ...);
-void qtest_set_command_cb(bool (*pc_cb)(CharFrontend *chr, gchar **words));
+typedef bool (*QTestCommandHandler)(CharFrontend *chr, gchar **words);
+void qtest_set_command_cb(QTestCommandHandler handler);
+void qtest_add_command_cb(QTestCommandHandler handler);
 bool qtest_driver(void);
 
 void qtest_server_init(const char *qtest_chrdev, const char *qtest_log, Error **errp);

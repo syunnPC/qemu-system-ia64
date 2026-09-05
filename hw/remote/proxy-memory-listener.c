@@ -12,6 +12,7 @@
 #include "qemu/range.h"
 #include "system/memory.h"
 #include "system/ramblock.h"
+#include "system/physmem.h"
 #include "exec/cpu-common.h"
 #include "qapi/error.h"
 #include "qemu/error-report.h"
@@ -171,6 +172,7 @@ static void proxy_memory_listener_commit(MemoryListener *listener)
     ram_addr_t offset;
     uintptr_t host_addr;
     int region;
+    bool opened_writer = false;
     Error *local_err = NULL;
 
     memset(&msg, 0, sizeof(MPQemuMsg));
@@ -193,8 +195,24 @@ static void proxy_memory_listener_commit(MemoryListener *listener)
         msg.fds[region] = get_fd_from_hostaddr(host_addr, &offset);
         msg.data.sync_sysmem.offsets[region] = offset;
     }
+    if (proxy_listener->n_mr_sections &&
+        !proxy_listener->external_writer_active) {
+        physical_memory_write_external_begin();
+        proxy_listener->external_writer_active = true;
+        opened_writer = true;
+    }
     if (!mpqemu_msg_send(&msg, proxy_listener->ioc, &local_err)) {
         error_report_err(local_err);
+        if (opened_writer) {
+            physical_memory_write_external_cancel();
+            proxy_listener->external_writer_active = false;
+        }
+        return;
+    }
+    if (!proxy_listener->n_mr_sections &&
+        proxy_listener->external_writer_active) {
+        physical_memory_write_external_end();
+        proxy_listener->external_writer_active = false;
     }
 }
 
@@ -203,6 +221,10 @@ void proxy_memory_listener_deconfigure(ProxyMemoryListener *proxy_listener)
     memory_listener_unregister(&proxy_listener->listener);
 
     proxy_memory_listener_reset(&proxy_listener->listener);
+    if (proxy_listener->external_writer_active) {
+        physical_memory_write_external_end();
+        proxy_listener->external_writer_active = false;
+    }
 }
 
 void proxy_memory_listener_configure(ProxyMemoryListener *proxy_listener,
@@ -210,6 +232,7 @@ void proxy_memory_listener_configure(ProxyMemoryListener *proxy_listener,
 {
     proxy_listener->n_mr_sections = 0;
     proxy_listener->mr_sections = NULL;
+    proxy_listener->external_writer_active = false;
 
     proxy_listener->ioc = ioc;
 

@@ -307,6 +307,7 @@ static void pcie_aer_root_notify(PCIDevice *dev)
  */
 static void pcie_aer_msg_root_port(PCIDevice *dev, const PCIEAERMsg *msg)
 {
+    PCIDeviceClass *pc = PCI_DEVICE_GET_CLASS(dev);
     uint16_t cmd;
     uint8_t *aer_cap;
     uint32_t root_cmd;
@@ -362,6 +363,10 @@ static void pcie_aer_msg_root_port(PCIDevice *dev, const PCIEAERMsg *msg)
         root_status |= PCI_ERR_ROOT_UNCOR_RCV;
     }
     pci_set_long(aer_cap + PCI_ERR_ROOT_STATUS, root_status);
+
+    if (pc->aer_notify) {
+        pc->aer_notify(dev, msg);
+    }
 
     /* 6.2.4.1.2 Interrupt Generation */
     /* All the above did was set some bits in the status register.

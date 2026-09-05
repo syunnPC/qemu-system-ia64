@@ -56,6 +56,24 @@ typedef struct HPZX1IOMMUEvictionResult {
     HPSBAIOMMUPurge range;
 } HPZX1IOMMUEvictionResult;
 
+typedef enum HPZX1IOMMUFaultReason {
+    HP_ZX1_IOMMU_FAULT_NONE,
+    HP_ZX1_IOMMU_FAULT_ADDRESS_WIDTH,
+    HP_ZX1_IOMMU_FAULT_PAGE_SIZE,
+    HP_ZX1_IOMMU_FAULT_WINDOW,
+    HP_ZX1_IOMMU_FAULT_PDIR_RANGE,
+    HP_ZX1_IOMMU_FAULT_PDIR_READ,
+    HP_ZX1_IOMMU_FAULT_INVALID_PTE,
+    HP_ZX1_IOMMU_FAULT_CACHE,
+} HPZX1IOMMUFaultReason;
+
+typedef struct HPZX1IOMMUFault {
+    HPZX1IOMMUFaultReason reason;
+    uint64_t iova;
+    uint64_t pdir_address;
+    uint64_t pte;
+} HPZX1IOMMUFault;
+
 /* Invalid input returns false without changing an existing frontend. */
 bool hp_zx1_iommu_frontend_reset(HPZX1IOMMUFrontend *iommu,
                                   const HPZX1IOMMUResetConfig *config);
@@ -97,5 +115,11 @@ HPZX1IOMMUTranslateResult hp_zx1_iommu_frontend_translate(
     HPZX1IOMMUFrontend *iommu, uint64_t iova, bool dvi,
     HPSBAIOMMUPdirReadFn pdir_read, void *opaque,
     HPSBAIOMMUEntry *entry, HPZX1IOMMUEvictionResult *eviction);
+
+HPZX1IOMMUTranslateResult hp_zx1_iommu_frontend_translate_ex(
+    HPZX1IOMMUFrontend *iommu, uint64_t iova, bool dvi,
+    HPSBAIOMMUPdirReadFn pdir_read, void *opaque,
+    HPSBAIOMMUEntry *entry, HPZX1IOMMUEvictionResult *eviction,
+    HPZX1IOMMUFault *fault);
 
 #endif

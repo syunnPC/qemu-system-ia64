@@ -1,5 +1,6 @@
 ia64_ss = ss.source_set()
 ia64_ss.add(files('hp_ia64.c', 'ia64_common.c', 'ia64_loader.c'))
+ia64_ss.add(files('ia64_ras.c'))
 ia64_ss.add(when: 'CONFIG_ATI_VGA', if_true: files('hp_int10.c'))
 ia64_ss.add(files('ia64_platform.c'))
 ia64_ss.add(files('ia64_platform_rom.c'))
@@ -33,7 +34,8 @@ ia64_ss.add(when: 'CONFIG_IA64_460GX_HOST',
                            'intel_460gx_root.c',
                            'intel_460gx_dma.c'))
 ia64_ss.add(when: 'CONFIG_IA64_460GX_CHIPSET',
-            if_true: files('intel_460gx_chipset.c'))
+            if_true: files('intel_460gx_chipset.c',
+                           'intel_460gx_ihpc.c'))
 ia64_ss.add(when: 'CONFIG_HP_I2000', if_true: files('hp_i2000.c'))
 ia64_ss.add(when: 'CONFIG_IA64_460GX_DMA_TEST',
             if_true: files('intel_460gx_dma_test.c'))

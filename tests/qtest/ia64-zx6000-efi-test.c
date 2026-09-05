@@ -28,6 +28,10 @@
 #define ZX6000_EFI_TEST_ROOT1_BAR           UINT32_C(0x00200000)
 #define ZX6000_EFI_TEST_ROOT0_VECTOR        UINT32_C(0x51)
 #define ZX6000_EFI_TEST_ROOT1_VECTOR        UINT32_C(0x62)
+#define ZX6000_EFI_TEST_RSDP_BASE           UINT64_C(0x00802000)
+#define ZX6000_EFI_TEST_ECAM0_BASE          UINT64_C(0x0000000500000000)
+#define ZX6000_EFI_TEST_ECAM1_BASE          UINT64_C(0x0000000600000000)
+#define ZX6000_EFI_TEST_MCFG_SIZE           76U
 
 typedef union TestDescriptorStorage {
     uint64_t alignment;
@@ -61,7 +65,7 @@ static const uint32_t zx6000_efi_gsi_base[] = {
     IA64_ZX6000_EFI_TEST_ROOT1_GSI_BASE,
 };
 
-G_STATIC_ASSERT(sizeof(IA64PlatformDescriptor) == 296);
+G_STATIC_ASSERT(sizeof(IA64PlatformDescriptor) == 1112);
 G_STATIC_ASSERT(sizeof(IA64PlatformRamRange) == 16);
 G_STATIC_ASSERT(sizeof(IA64PlatformPciRoot) == 112);
 G_STATIC_ASSERT(sizeof(IA64PlatformIoSapic) == 24);
@@ -162,7 +166,10 @@ static void assert_descriptor(QTestState *qts, unsigned int cpu_count)
                      IA64_PLATFORM_ID_HP_ZX6000);
     g_assert_cmphex(le32_to_cpu(descriptor->Flags), ==,
                     IA64_PLATFORM_FLAG_NO_MCFG |
-                    IA64_PLATFORM_FLAG_QEMU_EXTENSION);
+                    IA64_PLATFORM_FLAG_QEMU_EXTENSION |
+                    IA64_PLATFORM_FLAG_FAMILY_HP_ZX |
+                    IA64_PLATFORM_FLAG_PCI_ZX1_LBA |
+                    IA64_PLATFORM_FLAG_EMBEDDED_IO_SAPIC);
     g_assert_cmpuint(descriptor_checksum(storage.bytes,
                                          sizeof(storage.bytes)), ==, 0);
 
@@ -614,10 +621,117 @@ static void test_machine_configuration(void)
     qtest_quit(qts);
 }
 
+static uint64_t wait_for_acpi_xsdt(QTestState *qts)
+{
+    uint8_t signature[8];
+    unsigned int attempt;
+
+    for (attempt = 0; attempt < 30000; attempt++) {
+        qtest_memread(qts, ZX6000_EFI_TEST_RSDP_BASE,
+                      signature, sizeof(signature));
+        if (memcmp(signature, "RSD PTR ", sizeof(signature)) == 0) {
+            return qtest_readq(qts, ZX6000_EFI_TEST_RSDP_BASE + 24U);
+        }
+        g_usleep(1000);
+    }
+    g_error("firmware did not publish the ACPI RSDP");
+    return 0;
+}
+
+static uint64_t find_acpi_table(QTestState *qts, uint64_t xsdt,
+                                const char signature[4])
+{
+    uint32_t length = qtest_readl(qts, xsdt + 4U);
+    uint32_t offset;
+
+    g_assert_cmpuint(length, >=, 36U);
+    g_assert_cmpuint((length - 36U) % 8U, ==, 0);
+    for (offset = 36U; offset < length; offset += 8U) {
+        uint64_t table = qtest_readq(qts, xsdt + offset);
+        char actual[4];
+
+        qtest_memread(qts, table, actual, sizeof(actual));
+        if (memcmp(actual, signature, sizeof(actual)) == 0) {
+            return table;
+        }
+    }
+    return 0;
+}
+
+static void test_firmware_ecam_mcfg(void)
+{
+    const uint64_t ecam_base[] = {
+        ZX6000_EFI_TEST_ECAM0_BASE,
+        ZX6000_EFI_TEST_ECAM1_BASE,
+    };
+    const char *firmware_path = g_getenv(TEST_FIRMWARE_ENV);
+    g_autofree char *quoted_firmware = NULL;
+    TestDescriptorStorage storage;
+    IA64PlatformDescriptor *descriptor =
+        (IA64PlatformDescriptor *)storage.bytes;
+    IA64PlatformPciRoot *roots;
+    uint8_t mcfg[ZX6000_EFI_TEST_MCFG_SIZE];
+    uint64_t xsdt;
+    uint64_t table;
+    QTestState *qts;
+    unsigned int i;
+
+    g_assert_nonnull(firmware_path);
+    quoted_firmware = g_shell_quote(firmware_path);
+    qts = qtest_initf(
+        "-machine x-ia64-zx6000-efi-test,x-pci-ecam=on "
+        "-S -smp 1 -m 512M "
+        "-nodefaults -display none -net none -serial null -accel tcg "
+        "-bios %s",
+        quoted_firmware);
+
+    qtest_memread(qts, IA64_ZX6000_EFI_TEST_DESCRIPTOR_GPA,
+                  storage.bytes, sizeof(storage.bytes));
+    roots = (IA64PlatformPciRoot *)(
+        storage.bytes + le32_to_cpu(descriptor->PciRootOffset));
+    g_assert_cmphex(le32_to_cpu(descriptor->Flags), ==,
+                    IA64_PLATFORM_FLAG_QEMU_EXTENSION |
+                    IA64_PLATFORM_FLAG_FAMILY_HP_ZX |
+                    IA64_PLATFORM_FLAG_PCI_ECAM);
+    for (i = 0; i < IA64_ZX6000_ZX1_TEST_ROOT_COUNT; i++) {
+        g_assert_cmpuint(roots[i].ConfigType, ==,
+                         IA64_PLATFORM_PCI_CONFIG_ECAM);
+        g_assert_cmpuint(le16_to_cpu(roots[i].Segment), ==, i);
+        g_assert_cmphex(le64_to_cpu(roots[i].ConfigBase), ==,
+                        ecam_base[i]);
+    }
+    g_assert_cmpuint(descriptor_checksum(
+                         storage.bytes,
+                         le32_to_cpu(descriptor->TotalSize)),
+                     ==, 0);
+
+    qtest_qmp_assert_success(qts, "{'execute':'cont'}");
+    xsdt = wait_for_acpi_xsdt(qts);
+    table = find_acpi_table(qts, xsdt, "MCFG");
+    g_assert_cmphex(table, !=, 0);
+    g_assert_cmpuint(qtest_readl(qts, table + 4U), ==, sizeof(mcfg));
+    qtest_memread(qts, table, mcfg, sizeof(mcfg));
+    g_assert_cmpuint(descriptor_checksum(mcfg, sizeof(mcfg)), ==, 0);
+    g_assert_cmphex(ldq_le_p(mcfg + 36U), ==, 0);
+    for (i = 0; i < IA64_ZX6000_ZX1_TEST_ROOT_COUNT; i++) {
+        const unsigned int offset = 44U + i * 16U;
+
+        g_assert_cmphex(ldq_le_p(mcfg + offset), ==, ecam_base[i]);
+        g_assert_cmpuint(lduw_le_p(mcfg + offset + 8U), ==, i);
+        g_assert_cmpuint(mcfg[offset + 10U], ==, zx6000_efi_first_bus[i]);
+        g_assert_cmpuint(mcfg[offset + 11U], ==, zx6000_efi_last_bus[i]);
+        g_assert_cmphex(ldl_le_p(mcfg + offset + 12U), ==, 0);
+    }
+
+    qtest_quit(qts);
+}
+
 int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
     qtest_add_func("zx6000-efi/machine-configuration",
                    test_machine_configuration);
+    qtest_add_func("zx6000-efi/firmware-ecam-mcfg",
+                   test_firmware_ecam_mcfg);
     return g_test_run();
 }

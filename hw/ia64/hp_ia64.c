@@ -13,6 +13,21 @@
 
 #define HP_IA64_DESCRIPTOR_CHILD "platform-descriptor"
 
+bool hp_ia64_machine_create_ras(HPIA64MachineState *machine,
+                                hwaddr base, Error **errp)
+{
+    if (!machine) {
+        error_setg(errp, "invalid HP IA-64 machine for RAS setup");
+        return false;
+    }
+    if (machine->ras) {
+        error_setg(errp, "HP IA-64 RAS hub is already installed");
+        return false;
+    }
+    machine->ras = ia64_ras_hub_create(OBJECT(machine), "ras", base, errp);
+    return machine->ras != NULL;
+}
+
 bool hp_ia64_machine_install_platform_descriptor(
     HPIA64MachineState *machine,
     const IA64PlatformDescriptor *header,
@@ -31,10 +46,7 @@ bool hp_ia64_machine_install_platform_descriptor(
     hmc = HP_IA64_MACHINE_GET_CLASS(machine);
     ms = MACHINE(machine);
     platform_id = le32_to_cpu(header->PlatformId);
-    if ((hmc->platform_id != IA64_PLATFORM_ID_HP_I2000 &&
-         hmc->platform_id != IA64_PLATFORM_ID_HP_ZX6000 &&
-         hmc->platform_id != IA64_PLATFORM_ID_HP_RX2660) ||
-        platform_id != hmc->platform_id) {
+    if (platform_id != hmc->platform_id) {
         error_setg(errp,
                    "HP IA-64 descriptor platform does not match the machine");
         return false;
@@ -185,8 +197,7 @@ static void hp_ia64_machine_class_init(ObjectClass *oc, const void *data)
     object_class_property_add_str(oc, "alat", hp_ia64_machine_get_alat,
                                   hp_ia64_machine_set_alat);
     object_class_property_set_description(oc, "alat",
-        "Set the IA-64 ALAT model to 'zero' (default) or 'full'; "
-        "'full' is limited to one CPU");
+        "Set the IA-64 ALAT model to 'zero' (default) or 'full'");
 }
 
 static const TypeInfo hp_ia64_machine_type = {

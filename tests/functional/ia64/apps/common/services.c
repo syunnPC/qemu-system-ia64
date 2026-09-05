@@ -225,6 +225,7 @@ typedef struct {
 #define TEST_SAL_CLEAR_STATE_INFO    0x01000003ULL
 #define TEST_SAL_SUCCESS             0ULL
 #define TEST_SAL_NO_INFORMATION      ((UINT64)-5)
+#define TEST_SAL_STATE_INFO_MAX_SIZE 512U
 
 static VOID *find_config_table(EFI_SYSTEM_TABLE *SystemTable,
                                const UINT8 *Guid)
@@ -2024,6 +2025,7 @@ static BOOLEAN test_ssdt_legacy_crs(const TEST_TABLE_CONTEXT *Context)
     static const UINT8 sb_name[4] = { '_', 'S', 'B', '_' };
     static const UINT8 pci0_name[4] = { 'P', 'C', 'I', '0' };
     static const UINT8 uart_name[4] = { 'U', 'A', 'R', '0' };
+    static const UINT8 uart_enabled_name[4] = { 'U', '0', 'E', 'N' };
     static const UINT8 ps2_enabled_name[4] = { 'P', '2', 'E', 'N' };
     static const UINT8 keyboard_name[4] = { 'P', 'S', '2', 'K' };
     static const UINT8 mouse_name[4] = { 'P', 'S', '2', 'M' };
@@ -2036,16 +2038,23 @@ static BOOLEAN test_ssdt_legacy_crs(const TEST_TABLE_CONTEXT *Context)
     static const UINT8 mouse_resources[] = {
         0x22, 0x00, 0x10, 0x79, 0x00,
     };
+    static const UINT8 uart_resources[] = {
+        0x47, 0x01, 0xf8, 0x03, 0xf8, 0x03, 0x01, 0x08,
+        0x22, 0x10, 0x00, 0x79, 0x00,
+    };
     const UINT8 *aml;
     UINTN aml_length;
     const UINT8 *keyboard;
     const UINT8 *mouse;
+    const UINT8 *uart;
     const UINT8 *keyboard_crs;
     const UINT8 *mouse_crs;
+    const UINT8 *uart_crs;
     const UINT8 *scope_content;
     const UINT8 *scope_end;
     UINTN keyboard_crs_length;
     UINTN mouse_crs_length;
+    UINTN uart_crs_length;
     UINTN scope_offset;
     BOOLEAN under_pci0 = 0;
 
@@ -2058,18 +2067,25 @@ static BOOLEAN test_ssdt_legacy_crs(const TEST_TABLE_CONTEXT *Context)
     keyboard = find_bytes(aml, aml_length, keyboard_name,
                           sizeof(keyboard_name), 0);
     mouse = find_bytes(aml, aml_length, mouse_name, sizeof(mouse_name), 0);
-    if (keyboard == NULL || mouse == NULL ||
-        find_bytes(aml, aml_length, uart_name, sizeof(uart_name), 0) != NULL ||
+    uart = find_bytes(aml, aml_length, uart_name, sizeof(uart_name), 0);
+    if (keyboard == NULL || mouse == NULL || uart == NULL ||
         find_bytes(aml, aml_length, pci0_name, sizeof(pci0_name), 0) == NULL ||
+        !aml_named_byte(aml, aml_length, uart_enabled_name, 0x0fU) ||
         !aml_named_byte(aml, aml_length, ps2_enabled_name, 0) ||
+        !aml_named_buffer(aml, aml_length, crs_name,
+                          (UINTN)(uart - aml), &uart_crs,
+                          &uart_crs_length) ||
         !aml_named_buffer(aml, aml_length, crs_name,
                           (UINTN)(keyboard - aml), &keyboard_crs,
                           &keyboard_crs_length) ||
         !aml_named_buffer(aml, aml_length, crs_name,
                           (UINTN)(mouse - aml), &mouse_crs,
                           &mouse_crs_length) ||
+        uart_crs_length != sizeof(uart_resources) ||
         keyboard_crs_length != sizeof(keyboard_resources) ||
         mouse_crs_length != sizeof(mouse_resources) ||
+        !ia64_bytes_equal(uart_crs, uart_resources,
+                          sizeof(uart_resources)) ||
         !ia64_bytes_equal(keyboard_crs, keyboard_resources,
                           sizeof(keyboard_resources)) ||
         !ia64_bytes_equal(mouse_crs, mouse_resources,
@@ -2090,6 +2106,9 @@ static BOOLEAN test_ssdt_legacy_crs(const TEST_TABLE_CONTEXT *Context)
                              sb_name, sizeof(sb_name)) &&
             ia64_bytes_equal(scope_content + 6U,
                              pci0_name, sizeof(pci0_name)) &&
+            find_bytes(scope_content + 10U,
+                       (UINTN)(scope_end - scope_content - 10U),
+                       uart_name, sizeof(uart_name), 0) != NULL &&
             find_bytes(scope_content + 10U,
                        (UINTN)(scope_end - scope_content - 10U),
                        keyboard_name, sizeof(keyboard_name), 0) != NULL &&
@@ -2552,7 +2571,8 @@ static BOOLEAN test_sal_state_info_no_log(EFI_SYSTEM_TABLE *SystemTable)
     TEST_SAL_RETURN size;
     TEST_SAL_RETURN info;
     TEST_SAL_RETURN clear;
-    UINT8 record[64] __attribute__((aligned(16)));
+    UINT8 record[TEST_SAL_STATE_INFO_MAX_SIZE]
+        __attribute__((aligned(16)));
     BOOLEAN ok = 0;
 
     if (!get_memory_map(SystemTable, &map)) {

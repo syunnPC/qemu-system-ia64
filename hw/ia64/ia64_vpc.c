@@ -26,6 +26,7 @@
 #include "hw/acpi/acpi.h"
 #include "hw/pci/pci.h"
 #include "hw/pci/pci_bus.h"
+#include "hw/pci/pci_host.h"
 #include "net/net.h"
 #include "hw/isa/isa.h"
 #include "hw/usb/hcd-uhci.h"
@@ -33,6 +34,7 @@
 #include "hw/ia64/ia64_common.h"
 #include "hw/ia64/ia64_pci.h"
 #include "hw/ia64/ia64_iosapic.h"
+#include "hw/ia64/ia64_ras.h"
 #ifdef CONFIG_IA64_460GX_HOST
 #include "hw/ia64/intel_460gx_host.h"
 #endif
@@ -75,7 +77,8 @@
     (IA64_LOW_RAM_LIMIT + \
      (IA64_PCI_MMIO_BASE - IA64_HIGH_RAM_BASE) + \
      (IA64_LOCAL_SAPIC_PA - \
-      (IA64_PCI_MMIO_BASE + IA64_PCI_MMIO_SIZE)) + \
+      (IA64_PCI_MMIO_BASE + IA64_PCI_MMIO_SIZE) - \
+      IA64_RAS_HUB_SIZE) + \
      (IA64_PCI_IO_BASE - IA64_HIGH_RAM_AFTER_FIRMWARE_BASE))
 #define IA64_FW_LOW_RAM_MIN IA64_FW_MIN_LOW_RAM_SIZE
 #define IA64_IVT_BASE   0x10000ULL
@@ -423,6 +426,7 @@ struct IA64VpcMachineState {
     uint64_t firmware_console;
     char *nvram_path;
     bool alat_full;
+    bool pcie;
 
     PCIDevice *ahci_dev;
     PCIDevice *ohci_dev;
@@ -432,12 +436,13 @@ struct IA64VpcMachineState {
     PCIDevice *nic_devs[MAX_NICS];
     unsigned int nic_count;
 
-    MemoryRegion *ram_aliases[4];
+    MemoryRegion *ram_aliases[5];
     unsigned int ram_alias_count;
     MemoryRegion *vga_fb_alias;
     MemoryRegion *vga_mmio_alias;
     MemoryRegion *vga_legacy_alias;
     MemoryRegion *lsapic_mmio;
+    IA64RasHubState *ras;
     MemoryRegion firmware_space;
     MemoryRegion rtc_mmio;
     MemoryRegion watchdog_mmio;
@@ -2280,6 +2285,18 @@ static void ia64_vpc_set_alat(Object *obj, const char *value, Error **errp)
     error_setg(errp, "alat must be 'zero' or 'full'");
 }
 
+static bool ia64_vpc_get_pcie(Object *obj, Error **errp)
+{
+    (void)errp;
+    return IA64_VPC_MACHINE(obj)->pcie;
+}
+
+static void ia64_vpc_set_pcie(Object *obj, bool value, Error **errp)
+{
+    (void)errp;
+    IA64_VPC_MACHINE(obj)->pcie = value;
+}
+
 static void ia64_vpc_acpi_update_sci(ACPIREGS *ar)
 {
     IA64VpcMachineState *s = container_of(ar, IA64VpcMachineState,
@@ -2524,9 +2541,18 @@ static void ia64_vpc_map_ram(IA64VpcMachineState *s)
 
     size = ia64_vpc_map_ram_alias(
         s, IA64_PCI_MMIO_BASE + IA64_PCI_MMIO_SIZE, offset, remaining,
-        IA64_LOCAL_SAPIC_PA -
+        IA64_RAS_HUB_DEFAULT_BASE -
             (IA64_PCI_MMIO_BASE + IA64_PCI_MMIO_SIZE),
         "ia64-vpc.high-ram-above-pci");
+    offset += size;
+    remaining -= size;
+
+    size = ia64_vpc_map_ram_alias(
+        s, IA64_RAS_HUB_DEFAULT_BASE + IA64_RAS_HUB_SIZE,
+        offset, remaining,
+        IA64_LOCAL_SAPIC_PA -
+            (IA64_RAS_HUB_DEFAULT_BASE + IA64_RAS_HUB_SIZE),
+        "ia64-vpc.high-ram-above-ras");
     offset += size;
     remaining -= size;
 
@@ -2545,7 +2571,7 @@ static void ia64_vpc_write_firmware_handoff(IA64VpcMachineState *s)
     IA64VpcCompatHandoff compat = { 0 };
     bool debug_port_present = debug_port_get_chardev() != NULL;
 
-    _Static_assert(sizeof(IA64VpcHandoff) == 104,
+    _Static_assert(sizeof(IA64VpcHandoff) == 120,
                    "IA-64 firmware handoff ABI size changed");
     _Static_assert(offsetof(IA64VpcHandoff, ProcessorCount) == 64,
                    "IA-64 firmware handoff CPU count offset changed");
@@ -2576,6 +2602,8 @@ static void ia64_vpc_write_firmware_handoff(IA64VpcMachineState *s)
     handoff.SocketCount = cpu_to_le64(machine->smp.sockets);
     handoff.CoresPerSocket = cpu_to_le64(machine->smp.cores);
     handoff.ThreadsPerCore = cpu_to_le64(machine->smp.threads);
+    handoff.RasBase = cpu_to_le64(IA64_RAS_HUB_DEFAULT_BASE);
+    handoff.RasSize = cpu_to_le64(IA64_RAS_HUB_SIZE);
     cpu_physical_memory_write(IA64_FW_HANDOFF_ADDR, &handoff,
                               sizeof(handoff));
 
@@ -3051,6 +3079,11 @@ static bool ia64_vpc_build(MachineState *machine, Error **errp)
     if (!ia64_vpc_map_firmware_address_space(s, errp)) {
         return false;
     }
+    s->ras = ia64_ras_hub_create(
+        OBJECT(s), "ras", IA64_RAS_HUB_DEFAULT_BASE, errp);
+    if (!s->ras) {
+        return false;
+    }
     ia64_vpc_init_rtc(s);
     ia64_vpc_init_watchdog(s);
     ia64_vpc_init_nvram(s);
@@ -3102,11 +3135,19 @@ static bool ia64_vpc_build(MachineState *machine, Error **errp)
         &s->firmware_notifier, machine, IA64_FW_BASE, s->firmware_size,
         ia64_vpc_firmware_boot_info, ia64_vpc_machine_done, s);
 
-    pci_host = qdev_new(TYPE_IA64_PCI_HOST_BRIDGE);
+    pci_host = qdev_new(s->pcie ? TYPE_IA64_PCIE_HOST_BRIDGE :
+                                  TYPE_IA64_PCI_HOST_BRIDGE);
+    if (s->pcie &&
+        !ia64_pcie_host_set_fault_notifier(
+            IA64_PCI_HOST_BRIDGE(pci_host),
+            ia64_ras_hub_report_chipset_fault, s->ras, errp)) {
+        object_unref(OBJECT(pci_host));
+        return false;
+    }
     if (!sysbus_realize_and_unref(SYS_BUS_DEVICE(pci_host), errp)) {
         return false;
     }
-    pci_bus = PCI_BUS(qdev_get_child_bus(pci_host, "pci"));
+    pci_bus = PCI_HOST_BRIDGE(pci_host)->bus;
 
     /* Reserve the empty slot and the optional AHCI slot during device setup. */
 #ifdef CONFIG_IA64_VPC_STORAGE
@@ -3353,8 +3394,12 @@ static void ia64_vpc_machine_class_init(ObjectClass *oc, const void *data)
                                   ia64_vpc_get_alat,
                                   ia64_vpc_set_alat);
     object_class_property_set_description(oc, "alat",
-        "Set the IA-64 ALAT model to 'zero' (default) or 'full'; "
-        "'full' is limited to one CPU");
+        "Set the IA-64 ALAT model to 'zero' (default) or 'full'");
+    object_class_property_add_bool(oc, "pcie",
+                                   ia64_vpc_get_pcie,
+                                   ia64_vpc_set_pcie);
+    object_class_property_set_description(oc, "pcie",
+        "Use a PCI Express root bus with extended configuration space");
 }
 
 static void itanium_vpc_machine_class_init(ObjectClass *oc, const void *data)

@@ -31,7 +31,6 @@
 
 #define RTE_VECTOR_MASK               UINT64_C(0x00000000000000ff)
 #define RTE_DELIVERY_MODE             UINT64_C(0x0000000000000700)
-#define RTE_DESTINATION_LOGICAL       UINT64_C(0x0000000000000800)
 #define RTE_DELIVERY_STATUS           UINT64_C(0x0000000000001000)
 #define RTE_POLARITY_LOW              UINT64_C(0x0000000000002000)
 #define RTE_REMOTE_IRR                UINT64_C(0x0000000000004000)
@@ -42,15 +41,9 @@
 
 #define RTE_READ_ONLY                 (RTE_DELIVERY_STATUS | RTE_REMOTE_IRR)
 #define RTE_WRITABLE                  (RTE_VECTOR_MASK | RTE_DELIVERY_MODE | \
-                                       RTE_DESTINATION_LOGICAL | \
                                        RTE_POLARITY_LOW | RTE_TRIGGER_LEVEL | \
                                        RTE_MASKED | RTE_FLUSH_ENABLE | \
                                        RTE_DESTINATION)
-
-#define PID_DELIVERY_FIXED            0
-#define PID_DELIVERY_FIXED_HINT       1
-#define PID_DELIVERY_NMI              4
-#define PID_DELIVERY_EXTINT           7
 
 #define PID_TEST_MMIO_UNMAPPED        UINT64_MAX
 
@@ -84,8 +77,8 @@ static bool pid_level_route(uint64_t rte)
     unsigned delivery = pid_delivery_mode(rte);
 
     /* NMI and ExtINT delivery is edge-triggered. */
-    return (delivery == PID_DELIVERY_FIXED ||
-            delivery == PID_DELIVERY_FIXED_HINT) &&
+    return (delivery == IA64_SAPIC_DELIVERY_INT ||
+            delivery == IA64_SAPIC_DELIVERY_INT_REDIRECT) &&
            (rte & RTE_TRIGGER_LEVEL);
 }
 
@@ -99,50 +92,15 @@ static void pid_sync_level_status(Intel460GXPIDState *s, unsigned pin);
 static void pid_update(Intel460GXPIDState *s, unsigned pin)
 {
     uint64_t rte = s->rte[pin];
-    unsigned delivery = pid_delivery_mode(rte);
+    IA64SapicDeliveryMode delivery =
+        (IA64SapicDeliveryMode)pid_delivery_mode(rte);
     uint8_t id = rte >> 56;
     uint8_t eid = rte >> 48;
-    uint8_t vector;
     bool level_route = pid_level_route(rte);
-    CPUState *cs;
 
     if ((rte & RTE_MASKED) ||
         (level_route && !pid_pin_active(s, pin) &&
          !s->mask_latched[pin])) {
-        return;
-    }
-
-    /* Logical SAPIC destination delivery is not implemented. */
-    if (rte & RTE_DESTINATION_LOGICAL) {
-        return;
-    }
-
-    switch (delivery) {
-    case PID_DELIVERY_FIXED:
-    case PID_DELIVERY_FIXED_HINT:
-        /*
-         * In SAPIC mode 00x is fixed delivery and bit 8 is the platform
-         * redirection hint.  With no external redirection agent attached,
-         * deliver to the physical ID/EID programmed in the RTE.
-         */
-        vector = rte & RTE_VECTOR_MASK;
-        if (!ia64_external_interrupt_vector_valid(vector)) {
-            return;
-        }
-        break;
-    case PID_DELIVERY_NMI:
-        vector = 2;
-        break;
-    case PID_DELIVERY_EXTINT:
-        vector = 0;
-        break;
-    default:
-        /* Other SAPIC delivery modes are not implemented. */
-        return;
-    }
-
-    cs = ia64_cpu_by_sapic_id(id, eid);
-    if (cs == NULL) {
         return;
     }
 
@@ -153,7 +111,14 @@ static void pid_update(Intel460GXPIDState *s, unsigned pin)
         s->rte[pin] |= RTE_REMOTE_IRR;
     }
 
-    ia64_sapic_set_irq(cs, vector);
+    if (!ia64_sapic_deliver(IA64_SAPIC_DESTINATION_PHYSICAL,
+                            id, eid, false, delivery,
+                            rte & RTE_VECTOR_MASK)) {
+        if (level_route) {
+            s->rte[pin] &= ~RTE_REMOTE_IRR;
+        }
+        return;
+    }
 
     if (level_route) {
         s->mask_latched[pin] = 0;

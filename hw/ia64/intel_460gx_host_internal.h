@@ -40,7 +40,6 @@ typedef struct Intel460GXHostCore {
     Intel460GXDownstreamRoute downstream[INTEL_460GX_DOWNSTREAM_PORTS];
 } Intel460GXHostCore;
 
-uint32_t intel_460gx_chipset_device_mask(void);
 bool intel_460gx_chipset_device_valid(unsigned device);
 
 void intel_460gx_host_core_init(Intel460GXHostCore *core, uint8_t cbn,

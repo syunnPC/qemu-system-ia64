@@ -205,7 +205,7 @@ sal_proc_mode_valid:
     ;;
 
 sal_proc_physical:
-    adds r12 = -SAL_RUNTIME_STACK_FRAME_SIZE, r2
+    adds r12 = -(SAL_RUNTIME_STACK_FRAME_SIZE * 2), r2
     mov ar.rsc = SAL_RUNTIME_RSC_EAGER_PL0
     movl r1 = __gp
     ;;
@@ -215,7 +215,7 @@ sal_proc_physical:
      * originate in non-NaT-capable special/static state; SAL arguments stay
      * in registers until they are copied into the new output frame.
      */
-    mov r2 = r12
+    adds r2 = SAL_RUNTIME_STACK_FRAME_SIZE, r12
     ;;
     st8 [r2] = r22, 8
     ;;
@@ -256,7 +256,7 @@ sal_proc_physical:
     mov r25 = r10
     mov r26 = r11
     ;;
-    mov r2 = r12
+    adds r2 = SAL_RUNTIME_STACK_FRAME_SIZE, r12
     ;;
     ld8 r14 = [r2], 8
     ;;
@@ -628,6 +628,340 @@ fw_pal_itc_ratio:
     ;;
     .endp fw_pal_itc_ratio
     .size fw_pal_itc_ratio, . - fw_pal_itc_ratio
+
+    .section .text.fw_pal_mc_drain, "ax"
+    .global fw_pal_mc_drain
+    .type fw_pal_mc_drain, @function
+    .proc fw_pal_mc_drain
+    .explicit
+fw_pal_mc_drain:
+    alloc r33 = ar.pfs, 0, 2, 0, 0
+    ;;
+    mov r32 = b0
+    movl r28 = 0x16
+    ;;
+    mov r29 = r0
+    mov r30 = r0
+    mov r31 = r0
+    movl r14 = pal_proc_entry
+    ;;
+    mov b6 = r14
+    movl r14 = 1f
+    ;;
+    mov b0 = r14
+    ;;
+    br.sptk.many b6
+    ;;
+1:
+    mov b0 = r32
+    mov ar.pfs = r33
+    ;;
+    br.ret.sptk.many b0
+    ;;
+    .endp fw_pal_mc_drain
+    .size fw_pal_mc_drain, . - fw_pal_mc_drain
+
+    .section .text.fw_pal_mc_clear_log, "ax"
+    .global fw_pal_mc_clear_log
+    .type fw_pal_mc_clear_log, @function
+    .proc fw_pal_mc_clear_log
+    .explicit
+fw_pal_mc_clear_log:
+    alloc r33 = ar.pfs, 0, 2, 0, 0
+    ;;
+    mov r32 = b0
+    movl r28 = 0x15
+    ;;
+    mov r29 = r0
+    mov r30 = r0
+    mov r31 = r0
+    movl r14 = pal_proc_entry
+    ;;
+    mov b6 = r14
+    movl r14 = 1f
+    ;;
+    mov b0 = r14
+    ;;
+    br.sptk.many b6
+    ;;
+1:
+    mov b0 = r32
+    mov ar.pfs = r33
+    ;;
+    br.ret.sptk.many b0
+    ;;
+    .endp fw_pal_mc_clear_log
+    .size fw_pal_mc_clear_log, . - fw_pal_mc_clear_log
+
+    .section .text.fw_pal_mc_register_mem, "ax"
+    .global fw_pal_mc_register_mem
+    .type fw_pal_mc_register_mem, @function
+    .proc fw_pal_mc_register_mem
+    .explicit
+fw_pal_mc_register_mem:
+    alloc r34 = ar.pfs, 1, 2, 0, 0
+    ;;
+    mov r33 = b0
+    mov r29 = r32
+    movl r28 = 0x1b
+    ;;
+    mov r30 = r0
+    mov r31 = r0
+    movl r14 = pal_proc_entry
+    ;;
+    mov b6 = r14
+    movl r14 = 1f
+    ;;
+    mov b0 = r14
+    ;;
+    br.sptk.many b6
+    ;;
+1:
+    mov b0 = r33
+    mov ar.pfs = r34
+    ;;
+    br.ret.sptk.many b0
+    ;;
+    .endp fw_pal_mc_register_mem
+    .size fw_pal_mc_register_mem, . - fw_pal_mc_register_mem
+
+    /*
+     * PAL saves the static/banked GRs, predicates, b0/b1 and RSE context.
+     * SAL must preserve the remaining state before entering C or the OS.
+     * Use the SAL-owned tail of the registered 4 KiB min-state region;
+     * this also keeps the extra state in guest RAM across migration.
+     */
+    .equ FW_RAS_EXTRA_STATE_OFFSET, 1024
+    .equ FW_RAS_EXTRA_STATE_SIZE, (12 * 8 + 126 * 16)
+    .if FW_RAS_EXTRA_STATE_OFFSET + FW_RAS_EXTRA_STATE_SIZE > 4096
+    .error "RAS extra state exceeds the registered min-state region"
+    .endif
+
+    .macro fw_ras_fp_state restore, regs:vararg
+    .irp reg, \regs
+    .if \restore
+    ldf.fill \reg = [r14], 16
+    .else
+    stf.spill [r14] = \reg, 16
+    .endif
+    ;;
+    .endr
+    .endm
+
+    .macro fw_ras_extra_state base, restore=0
+    adds r14 = FW_RAS_EXTRA_STATE_OFFSET, \base
+    ;;
+    .irp reg, b2, b3, b4, b5, b6, b7, ar.pfs, ar.lc, ar.ec, ar.ccv, ar.unat, ar.fpsr
+    .if \restore
+    ld8 r15 = [r14], 8
+    ;;
+    mov \reg = r15
+    .else
+    mov r15 = \reg
+    ;;
+    st8 [r14] = r15, 8
+    .endif
+    ;;
+    .endr
+    fw_ras_fp_state \restore, f2, f3, f4, f5, f6, f7
+    fw_ras_fp_state \restore, f8, f9, f10, f11, f12, f13, f14, f15
+    fw_ras_fp_state \restore, f16, f17, f18, f19, f20, f21, f22, f23
+    fw_ras_fp_state \restore, f24, f25, f26, f27, f28, f29, f30, f31
+    fw_ras_fp_state \restore, f32, f33, f34, f35, f36, f37, f38, f39
+    fw_ras_fp_state \restore, f40, f41, f42, f43, f44, f45, f46, f47
+    fw_ras_fp_state \restore, f48, f49, f50, f51, f52, f53, f54, f55
+    fw_ras_fp_state \restore, f56, f57, f58, f59, f60, f61, f62, f63
+    fw_ras_fp_state \restore, f64, f65, f66, f67, f68, f69, f70, f71
+    fw_ras_fp_state \restore, f72, f73, f74, f75, f76, f77, f78, f79
+    fw_ras_fp_state \restore, f80, f81, f82, f83, f84, f85, f86, f87
+    fw_ras_fp_state \restore, f88, f89, f90, f91, f92, f93, f94, f95
+    fw_ras_fp_state \restore, f96, f97, f98, f99, f100, f101, f102, f103
+    fw_ras_fp_state \restore, f104, f105, f106, f107, f108, f109, f110, f111
+    fw_ras_fp_state \restore, f112, f113, f114, f115, f116, f117, f118, f119
+    fw_ras_fp_state \restore, f120, f121, f122, f123, f124, f125, f126, f127
+    .endm
+
+    .section .text.fw_mca_entry, "ax"
+    .align 16
+    .global fw_mca_entry
+    .type fw_mca_entry, @function
+    .proc fw_mca_entry
+    .explicit
+fw_mca_entry:
+    fw_ras_extra_state r10
+    movl r1 = __gp
+    ;;
+    alloc r14 = ar.pfs, 0, 0, 3, 0
+    ;;
+    mov r32 = r8
+    mov r33 = r9
+    mov r34 = r10
+    ;;
+    br.call.sptk.many b0 = firmware_mca_prepare
+    ;;
+    mov r14 = r8
+    mov r15 = r9
+    mov r16 = r10
+    mov r17 = r11
+    ;;
+    cmp.ne p6, p7 = r14, r0
+    cmp.eq p8, p9 = 1, r17
+    ;;
+(p6) br.cond.sptk.few fw_mca_invoke_os
+    ;;
+(p8) mov r17 = r0
+(p8) br.cond.sptk.few fw_mca_resume_saved
+    ;;
+    br.cond.sptk.few fw_mca_halt
+    ;;
+
+fw_mca_invoke_os:
+    mov ar.rsc = r0
+    ;;
+    flushrs
+    ;;
+    cover
+    ;;
+    mov r1 = r15
+    movl r8 = pal_proc_entry
+    movl r9 = sal_proc_entry
+    movl r10 = __gp
+    ;;
+    mov r11 = r17
+    movl r12 = fw_mca_os_return
+    mov r4 = r16
+    ;;
+    mov b6 = r14
+    ;;
+    br.sptk.many b6
+    ;;
+
+fw_mca_os_return:
+    cmp.eq p6, p7 = r8, r0
+    ;;
+(p6) br.cond.sptk.few fw_mca_os_resume
+    ;;
+    cmp.eq p8, p9 = -1, r8
+    ;;
+(p8) br.cond.sptk.few fw_reset_warm_entry
+    ;;
+    cmp.eq p10, p11 = -2, r8
+    ;;
+(p10) br.cond.sptk.few fw_reset_cold_entry
+    ;;
+    br.cond.sptk.few fw_mca_halt
+    ;;
+fw_mca_os_resume:
+    mov r1 = r9
+    mov r16 = r4
+    mov r17 = r10
+    ;;
+
+fw_mca_resume_saved:
+    /* A new context supplies its own non-minimal state. */
+    cmp.ne p6, p7 = r17, r0
+    ;;
+(p6) br.cond.sptk.few fw_mca_resume_pal
+    ;;
+    /* Address the saved physical FRs independently of the OS's rotation. */
+    cover
+    ;;
+    fw_ras_extra_state r16, 1
+
+fw_mca_resume_pal:
+    movl r28 = 0x1a
+    mov r29 = r0
+    mov r30 = r16
+    mov r31 = r17
+    ;;
+    movl r15 = fw_mca_halt
+    ;;
+    mov b0 = r15
+    ;;
+    /* A direct branch leaves the restored b2-b7 and ar.pfs untouched. */
+    br.sptk.many pal_proc_entry
+    ;;
+
+fw_mca_halt:
+    movl r28 = 0x1d
+    mov r29 = r0
+    mov r30 = r0
+    mov r31 = r0
+    movl r14 = pal_proc_entry
+    ;;
+    mov b6 = r14
+    movl r15 = fw_mca_halt
+    ;;
+    mov b0 = r15
+    ;;
+    br.sptk.many b6
+    ;;
+
+fw_reset_warm_entry:
+    movl r1 = __gp
+    ;;
+    br.call.sptk.many b0 = fw_reset_warm
+    ;;
+    br.cond.sptk.few fw_mca_halt
+    ;;
+
+fw_reset_cold_entry:
+    movl r1 = __gp
+    ;;
+    br.call.sptk.many b0 = fw_reset_cold
+    ;;
+    br.cond.sptk.few fw_mca_halt
+    ;;
+    .endp fw_mca_entry
+    .size fw_mca_entry, . - fw_mca_entry
+
+    .section .text.fw_init_entry, "ax"
+    .align 16
+    .global fw_init_entry
+    .type fw_init_entry, @function
+    .proc fw_init_entry
+    .explicit
+fw_init_entry:
+    fw_ras_extra_state r9
+    movl r1 = __gp
+    ;;
+    alloc r14 = ar.pfs, 0, 0, 2, 0
+    ;;
+    mov r32 = r8
+    mov r33 = r9
+    ;;
+    br.call.sptk.many b0 = firmware_init_prepare
+    ;;
+    mov r14 = r8
+    mov r15 = r9
+    mov r16 = r10
+    mov r17 = r11
+    ;;
+    cmp.eq p6, p7 = r14, r0
+    ;;
+(p6) br.cond.sptk.few fw_reset_warm_entry
+    ;;
+    mov ar.rsc = r0
+    ;;
+    flushrs
+    ;;
+    cover
+    ;;
+    mov r1 = r15
+    movl r8 = pal_proc_entry
+    movl r9 = sal_proc_entry
+    movl r10 = __gp
+    ;;
+    mov r11 = r17
+    movl r12 = fw_mca_os_return
+    mov r4 = r16
+    ;;
+    mov b6 = r14
+    ;;
+    br.sptk.many b6
+    ;;
+    .endp fw_init_entry
+    .size fw_init_entry, . - fw_init_entry
 
     .section .text.fw_ebc_bridge, "ax"
 

@@ -91,6 +91,30 @@ static int test_cf8_encoding(void)
     return 0;
 }
 
+static int test_ecam_encoding(void)
+{
+    const UINT64 base = 0x0000000500000000ULL;
+    UINT64 address = 0;
+
+    if (!fw_pci_ecam_address(base, 0x20, 0x1d, 6, 0x7f, &address) ||
+        address != base + (0x20ULL << 20) + (0x1dULL << 15) +
+                   (6ULL << 12) + 0x7fU ||
+        !fw_pci_ecam_address(base, 0xff, 0x1f, 7, 0xfff, &address) ||
+        address != base + 0xfffffffU ||
+        !fw_pci_ecam_address(0, 1, 0, 0, 0, &address) ||
+        address != IA64_PLATFORM_PCI_ECAM_BUS_SIZE ||
+        fw_pci_ecam_address(base, 0x100, 0, 0, 0, &address) ||
+        fw_pci_ecam_address(base, 0, 0x20, 0, 0, &address) ||
+        fw_pci_ecam_address(base, 0, 0, 8, 0, &address) ||
+        fw_pci_ecam_address(base, 0, 0, 0, 0x1000, &address) ||
+        fw_pci_ecam_address(~(UINT64)0 - 0xffffffeU,
+                            0xff, 0x1f, 7, 0xfff, &address) ||
+        fw_pci_ecam_address(base, 0, 0, 0, 0, NULL)) {
+        return 1;
+    }
+    return 0;
+}
+
 static int test_zx1_config_encoding(void)
 {
     IA64PlatformPciRoot roots[2] = { 0 };
@@ -433,7 +457,8 @@ static int test_access_span_bounds(void)
 int main(void)
 {
     return test_unique_root_lookup() || test_request_validation() ||
-        test_cf8_encoding() || test_zx1_config_encoding() ||
+        test_cf8_encoding() || test_ecam_encoding() ||
+        test_zx1_config_encoding() ||
         test_zx1_config_lanes() || test_zx1_config_rejections() ||
         test_pci_io_config_encoding() || test_root_config_decode() ||
         test_transfer_buffer_bounds() ||

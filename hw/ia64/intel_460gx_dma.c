@@ -25,13 +25,29 @@ typedef struct Intel460GXDMAAlias {
     uint64_t size;
 } Intel460GXDMAAlias;
 
+typedef struct Intel460GXDMARequesterAlias {
+    MemoryRegion mr;
+} Intel460GXDMARequesterAlias;
+
+typedef struct Intel460GXDMARequester {
+    Intel460GXDMA *dma;
+    MemoryRegion container;
+    MemoryRegion fault;
+    AddressSpace address_space;
+    GPtrArray *aliases;
+    uint8_t devfn;
+} Intel460GXDMARequester;
+
 struct Intel460GXDMA {
     Object parent_obj;
 
     MemoryRegion container;
     AddressSpace address_space;
     GPtrArray *aliases;
+    Intel460GXDMARequester *requesters[PCI_DEVFN_MAX];
     PCIBus *bus;
+    IA64ChipsetFaultNotify fault_notify;
+    void *fault_opaque;
     uint64_t aperture_base;
     uint64_t aperture_size;
     bool initialized;
@@ -260,14 +276,137 @@ static bool dma_bus_is_empty(const PCIBus *bus)
     return true;
 }
 
+static void dma_report_fault(Intel460GXDMARequester *requester,
+                             hwaddr addr, unsigned size, bool is_write)
+{
+    Intel460GXDMA *dma = requester->dma;
+    IA64ChipsetFault fault;
+
+    if (!dma->fault_notify) {
+        return;
+    }
+    fault = (IA64ChipsetFault) {
+        .source = IA64_CHIPSET_FAULT_460GX,
+        .reason = IA64_CHIPSET_FAULT_DECODE,
+        .bus = pci_bus_num(dma->bus),
+        .severity = IA64_RAS_SEVERITY_RECOVERABLE,
+        .requester = PCI_BUILD_BDF(pci_bus_num(dma->bus),
+                                   requester->devfn),
+        .address = addr,
+        .status = BIT(3),
+        .information = (uint64_t)is_write << 8 | size,
+    };
+    dma->fault_notify(dma->fault_opaque, &fault);
+}
+
+static MemTxResult dma_fault_read(void *opaque, hwaddr addr,
+                                  uint64_t *data, unsigned size,
+                                  MemTxAttrs attrs)
+{
+    Intel460GXDMARequester *requester = opaque;
+
+    *data = UINT64_MAX;
+    dma_report_fault(requester, addr, size, false);
+    return MEMTX_DECODE_ERROR;
+}
+
+static MemTxResult dma_fault_write(void *opaque, hwaddr addr,
+                                   uint64_t value, unsigned size,
+                                   MemTxAttrs attrs)
+{
+    Intel460GXDMARequester *requester = opaque;
+
+    dma_report_fault(requester, addr, size, true);
+    return MEMTX_DECODE_ERROR;
+}
+
+static const MemoryRegionOps dma_fault_ops = {
+    .read_with_attrs = dma_fault_read,
+    .write_with_attrs = dma_fault_write,
+    .endianness = DEVICE_LITTLE_ENDIAN,
+    .valid = {
+        .min_access_size = 1,
+        .max_access_size = 8,
+        .unaligned = true,
+    },
+    .impl = {
+        .min_access_size = 1,
+        .max_access_size = 8,
+        .unaligned = true,
+    },
+};
+
+static Intel460GXDMARequester *dma_requester_new(Intel460GXDMA *dma,
+                                                  int devfn)
+{
+    Intel460GXDMARequester *requester;
+    g_autofree char *name = NULL;
+    size_t i;
+
+    requester = g_new0(Intel460GXDMARequester, 1);
+    requester->dma = dma;
+    requester->devfn = devfn;
+    requester->aliases = g_ptr_array_new();
+    name = g_strdup_printf("intel-460gx-dma-%02x-container", devfn);
+    memory_region_init(&requester->container, OBJECT(dma), name,
+                       INTEL_460GX_DMA_ADDRESS_LIMIT);
+    name = g_strdup_printf("intel-460gx-dma-%02x-fault", devfn);
+    memory_region_init_io(&requester->fault, OBJECT(dma), &dma_fault_ops,
+                          requester, name, INTEL_460GX_DMA_ADDRESS_LIMIT);
+    memory_region_add_subregion_overlap(&requester->container, 0,
+                                        &requester->fault, -1);
+
+    for (i = 0; i < dma->aliases->len; i++) {
+        Intel460GXDMAAlias *source = g_ptr_array_index(dma->aliases, i);
+        Intel460GXDMARequesterAlias *alias =
+            g_new0(Intel460GXDMARequesterAlias, 1);
+
+        name = g_strdup_printf("intel-460gx-dma-%02x-alias-%zu", devfn, i);
+        memory_region_init_alias(&alias->mr, OBJECT(dma), name,
+                                 &source->mr, 0, source->size);
+        memory_region_add_subregion(&requester->container, source->dma_base,
+                                    &alias->mr);
+        g_ptr_array_add(requester->aliases, alias);
+    }
+
+    name = g_strdup_printf("intel-460gx-dma-%02x", devfn);
+    address_space_init(&requester->address_space, &requester->container,
+                       name);
+    return requester;
+}
+
+static void dma_requester_destroy(Intel460GXDMARequester *requester)
+{
+    size_t i;
+
+    address_space_remove_listeners(&requester->address_space);
+    address_space_destroy(&requester->address_space);
+    for (i = 0; i < requester->aliases->len; i++) {
+        Intel460GXDMARequesterAlias *alias =
+            g_ptr_array_index(requester->aliases, i);
+
+        memory_region_del_subregion(&requester->container, &alias->mr);
+        object_unparent(OBJECT(&alias->mr));
+        g_free(alias);
+    }
+    g_ptr_array_free(requester->aliases, true);
+    memory_region_del_subregion(&requester->container, &requester->fault);
+    object_unparent(OBJECT(&requester->fault));
+    object_unparent(OBJECT(&requester->container));
+    g_free(requester);
+}
+
 static AddressSpace *dma_get_address_space(PCIBus *bus, void *opaque,
                                            int devfn)
 {
     Intel460GXDMA *dma = opaque;
 
-    (void)bus;
-    (void)devfn;
-    return &dma->address_space;
+    g_assert(bus == dma->bus);
+    g_assert(devfn >= 0 && devfn < PCI_DEVFN_MAX);
+    if (!dma->requesters[devfn]) {
+        dma->requesters[devfn] = dma_requester_new(dma, devfn);
+    }
+    return &dma->requesters[devfn]->address_space;
 }
 
 static const PCIIOMMUOps dma_iommu_ops = {
@@ -317,6 +456,15 @@ bool intel_460gx_dma_attach_root(Intel460GXDMA *dma, PCIBus *bus,
     object_ref(OBJECT(bus));
     dma->bus = bus;
     return true;
+}
+
+void intel_460gx_dma_set_fault_notify(Intel460GXDMA *dma,
+                                      IA64ChipsetFaultNotify notify,
+                                      void *opaque)
+{
+    g_return_if_fail(dma != NULL);
+    dma->fault_notify = notify;
+    dma->fault_opaque = opaque;
 }
 
 AddressSpace *intel_460gx_dma_address_space(Intel460GXDMA *dma)
@@ -372,6 +520,13 @@ bool intel_460gx_dma_destroy(Intel460GXDMA *dma, Error **errp)
         }
         object_unref(OBJECT(dma->bus));
         dma->bus = NULL;
+    }
+
+    for (i = 0; i < ARRAY_SIZE(dma->requesters); i++) {
+        if (dma->requesters[i]) {
+            dma_requester_destroy(dma->requesters[i]);
+            dma->requesters[i] = NULL;
+        }
     }
 
     for (i = 0; i < dma->aliases->len; i++) {

@@ -7094,14 +7094,17 @@ test_region6_processor_interrupt_block_xtp_store = require_registers(
          br_cond(0x90, 0xa0)),
         (0xa0, 0x00, st1_postinc(3, 4, 0), nop_i(),
          nop_i()),
-        (0xb0, 0x00, mov_m_cr_gr(30, IA64_CR_SAPIC_IRR3), nop_i(),
+        (0xb0, 0x00, ld1(31, 3), nop_i(),
          nop_i()),
-        (0xc0, 0x10, nop_m(), nop_i(),
-         br_cond(0xc0, 0xc0)),
+        (0xc0, 0x00, mov_m_cr_gr(30, IA64_CR_SAPIC_IRR3), nop_i(),
+         nop_i()),
+        (0xd0, 0x10, nop_m(), nop_i(),
+         br_cond(0xd0, 0xd0)),
     ], {
-        "ip": 0xc0,
+        "ip": 0xd0,
         "exception": IA64_EXCP_NONE,
         "r30": 0,
+        "r31": 0x80,
     }, entry=0x10)
 
 test_firmware_identity_under_translation = require_registers(

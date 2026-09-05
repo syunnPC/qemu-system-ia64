@@ -50,6 +50,7 @@ struct IA64Zx6000EfiTestMachineState {
     HPIA64MachineState parent_obj;
 
     IA64Zx6000EfiTestTopologyState *topology;
+    bool pci_ecam;
 };
 
 enum {
@@ -315,22 +316,39 @@ static bool zx6000_efi_machine_create_topology(
 static void zx6000_efi_descriptor_header_init(
     IA64PlatformDescriptor *header,
     const IA64ZX6000ZX1TestLayout *layout,
-    const MachineState *machine)
+    const IA64Zx6000EfiTestMachineState *machine)
 {
+    const MachineState *ms = MACHINE(machine);
+
     *header = (IA64PlatformDescriptor) {
         .Magic = cpu_to_le64(IA64_PLATFORM_DESC_MAGIC),
         .FormatRevision = cpu_to_le32(IA64_PLATFORM_DESC_REVISION),
         .PlatformId = cpu_to_le32(IA64_PLATFORM_ID_HP_ZX6000),
-        .Flags = cpu_to_le32(IA64_PLATFORM_FLAG_NO_MCFG |
-                             IA64_PLATFORM_FLAG_QEMU_EXTENSION),
+        .Flags = cpu_to_le32(
+            (machine->pci_ecam ? 0 : IA64_PLATFORM_FLAG_NO_MCFG) |
+            IA64_PLATFORM_FLAG_QEMU_EXTENSION |
+            IA64_PLATFORM_FLAG_FAMILY_HP_ZX |
+            (machine->pci_ecam ? IA64_PLATFORM_FLAG_PCI_ECAM :
+             IA64_PLATFORM_FLAG_PCI_ZX1_LBA |
+             IA64_PLATFORM_FLAG_EMBEDDED_IO_SAPIC)),
         .RamSize = cpu_to_le64(layout->ram.size),
         .LowRamEnd = cpu_to_le64(layout->ram.size),
         .FirmwareBase = cpu_to_le64(IA64_PLATFORM_FIRMWARE_BASE),
         .FirmwareSize = cpu_to_le64(IA64_PLATFORM_FIRMWARE_SIZE),
-        .ProcessorCount = cpu_to_le32(machine->smp.cpus),
-        .SocketCount = cpu_to_le32(machine->smp.sockets),
-        .CoresPerSocket = cpu_to_le32(machine->smp.cores),
-        .ThreadsPerCore = cpu_to_le32(machine->smp.threads),
+        .ProcessorCount = cpu_to_le32(ms->smp.cpus),
+        .SocketCount = cpu_to_le32(ms->smp.sockets),
+        .CoresPerSocket = cpu_to_le32(ms->smp.cores),
+        .ThreadsPerCore = cpu_to_le32(ms->smp.threads),
+        .PhysicalAddressBits = cpu_to_le32(
+            IA64_PLATFORM_ZX6000_PHYS_ADDR_BITS),
+        .MaxSockets = cpu_to_le32(2),
+        .MaxCoresPerSocket = cpu_to_le32(2),
+        .MaxThreadsPerCore = cpu_to_le32(2),
+        .MaxPciRoots = cpu_to_le32(
+            IA64_ZX6000_ZX1_TEST_ROOT_COUNT),
+        .PciRootIdentity = cpu_to_le32(
+            IA64_PLATFORM_PCI_ROOT_IDENTITY_HP_ZX),
+        .NumaNodeCount = cpu_to_le32(1),
         .LegacyIoBase = cpu_to_le64(
             IA64_ZX6000_EFI_TEST_LEGACY_IO_BASE),
         .LegacyIoSize = cpu_to_le64(IA64_PLATFORM_MIN_LEGACY_IO_SIZE),
@@ -347,13 +365,22 @@ static void zx6000_efi_descriptor_header_init(
         .NvramSize = cpu_to_le64(IA64_ZX6000_EFI_TEST_NVRAM_SIZE),
         .RtcBase = cpu_to_le64(IA64_ZX6000_EFI_TEST_RTC_BASE),
         .RtcSize = cpu_to_le64(IA64_ZX6000_EFI_TEST_RTC_SIZE),
+        .RasBase = cpu_to_le64(IA64_RAS_HUB_DEFAULT_BASE),
+        .RasSize = cpu_to_le64(IA64_RAS_HUB_SIZE),
     };
+    header->NumaNode[0].ProcessorCount = cpu_to_le32(ms->smp.cpus);
+    header->NumaNode[0].RamRangeMask = cpu_to_le32(1);
+    header->NumaNode[0].Distance[0] = 10;
 }
 
 static void zx6000_efi_descriptor_roots_init(
     IA64PlatformPciRoot roots[IA64_ZX6000_ZX1_TEST_ROOT_COUNT],
-    const IA64ZX6000ZX1TestLayout *layout)
+    const IA64ZX6000ZX1TestLayout *layout, bool pci_ecam)
 {
+    static const uint64_t ecam_base[] = {
+        UINT64_C(0x0000000500000000),
+        UINT64_C(0x0000000600000000),
+    };
     unsigned int i;
 
     memset(roots, 0, sizeof(*roots) *
@@ -361,12 +388,14 @@ static void zx6000_efi_descriptor_roots_init(
     for (i = 0; i < IA64_ZX6000_ZX1_TEST_ROOT_COUNT; i++) {
         const IA64ZX6000ZX1TestRoot *source = &layout->roots[i];
 
-        roots[i].Segment = cpu_to_le16(0);
+        roots[i].Segment = cpu_to_le16(pci_ecam ? i : 0);
         roots[i].Bus = source->first_bus;
-        roots[i].ConfigType = IA64_PLATFORM_PCI_CONFIG_ZX1_LBA;
+        roots[i].ConfigType = pci_ecam ? IA64_PLATFORM_PCI_CONFIG_ECAM :
+            IA64_PLATFORM_PCI_CONFIG_ZX1_LBA;
         roots[i].Flags = cpu_to_le32(
             IA64_PLATFORM_PCI_ROOT_FLAG_IDENTITY_DMA);
-        roots[i].ConfigBase = cpu_to_le64(source->ioa_csr.base);
+        roots[i].ConfigBase = cpu_to_le64(
+            pci_ecam ? ecam_base[i] : source->ioa_csr.base);
         roots[i].Mmio32Base = cpu_to_le64(source->pci_mmio.base);
         roots[i].Mmio32Size = cpu_to_le64(source->pci_mmio.size);
         roots[i].DmaBase = cpu_to_le64(
@@ -385,7 +414,6 @@ static bool zx6000_efi_machine_install_descriptor(
     const IA64ZX6000ZX1TestLayout *layout, Error **errp)
 {
     HPIA64MachineState *hp = HP_IA64_MACHINE(machine);
-    MachineState *ms = MACHINE(machine);
     IA64PlatformDescriptor header;
     IA64PlatformRamRange ram = {
         .Base = cpu_to_le64(layout->ram.base),
@@ -406,19 +434,19 @@ static bool zx6000_efi_machine_install_descriptor(
     };
     unsigned int i;
 
-    zx6000_efi_descriptor_header_init(&header, layout, ms);
-    zx6000_efi_descriptor_roots_init(roots, layout);
+    zx6000_efi_descriptor_header_init(&header, layout, machine);
+    zx6000_efi_descriptor_roots_init(roots, layout, machine->pci_ecam);
     for (i = 0; i < IA64_ZX6000_ZX1_TEST_ROOT_COUNT; i++) {
         sapics[i].Base = cpu_to_le64(
             layout->roots[i].ioa_csr.base +
-            IA64_PLATFORM_ZX1_IO_SAPIC_OFFSET);
+            (machine->pci_ecam ? 0 : IA64_PLATFORM_ZX1_IO_SAPIC_OFFSET));
         sapics[i].GsiBase = cpu_to_le32(zx6000_efi_gsi_base[i]);
         sapics[i].RedirectionEntries = cpu_to_le32(
             IA64_ZX6000_ZX1_TEST_PCI_INPUT_COUNT);
         sapics[i].Version = cpu_to_le32(ZX6000_EFI_TEST_IO_SAPIC_VERSION);
         sapics[i].Id = i;
 
-        routes[i].Segment = cpu_to_le16(0);
+        routes[i].Segment = roots[i].Segment;
         routes[i].Bus = layout->roots[i].first_bus;
         routes[i].Device = IA64_ZX6000_EFI_TEST_PROBE_SLOT;
         routes[i].Pin = 0;
@@ -521,6 +549,10 @@ static bool zx6000_efi_machine_build(MachineState *ms, Error **errp)
 
     memory_region_add_subregion(get_system_memory(), layout.ram.base,
                                 ms->ram);
+    if (!hp_ia64_machine_create_ras(
+            hp, IA64_RAS_HUB_DEFAULT_BASE, errp)) {
+        return false;
+    }
     ia64_machine_map_pib(
         OBJECT(machine), &hp->pib, "ia64-zx6000-efi-test.pib",
         layout.pib.base, IA64_ZX6000_EFI_TEST_LOCAL_SAPIC_SIZE);
@@ -556,6 +588,19 @@ static void zx6000_efi_machine_reset(MachineState *machine, ResetType type)
     ia64_machine_reset_cpus();
 }
 
+static bool zx6000_efi_machine_get_pci_ecam(Object *obj, Error **errp)
+{
+    (void)errp;
+    return IA64_ZX6000_EFI_TEST_MACHINE(obj)->pci_ecam;
+}
+
+static void zx6000_efi_machine_set_pci_ecam(Object *obj, bool value,
+                                             Error **errp)
+{
+    (void)errp;
+    IA64_ZX6000_EFI_TEST_MACHINE(obj)->pci_ecam = value;
+}
+
 static void zx6000_efi_machine_class_init(ObjectClass *oc, const void *data)
 {
     MachineClass *mc = MACHINE_CLASS(oc);
@@ -581,6 +626,10 @@ static void zx6000_efi_machine_class_init(ObjectClass *oc, const void *data)
     hmc->minimum_ram_size = IA64_ZX6000_ZX1_TEST_RAM_SIZE;
     hmc->maximum_ram_size = IA64_ZX6000_ZX1_TEST_RAM_SIZE;
     hmc->descriptor_gpa = IA64_ZX6000_EFI_TEST_DESCRIPTOR_GPA;
+
+    object_class_property_add_bool(oc, "x-pci-ecam",
+                                   zx6000_efi_machine_get_pci_ecam,
+                                   zx6000_efi_machine_set_pci_ecam);
 }
 
 static const TypeInfo zx6000_efi_test_types[] = {

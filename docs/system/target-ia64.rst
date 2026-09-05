@@ -40,10 +40,11 @@ Ethernet at ``00:05.0``, QLogic ISP12160 at ``01:00.0``, IHPC functions at
 ``01:0f.0`` and ``02:0f.0``, and Quadro2 Pro at ``03:00.0``.
 
 The programmable interrupt device's PCI function supplies its identity; the
-interrupt delivery path uses the separate 460GX SAPIC model.  IHPC and most
-460GX configuration functions implement enumeration and register storage only.
-The 460GX memory-card A/B configuration functions are not implemented.  The
-CS4281 supports primary AC '97 playback and capture routed through any of its
+interrupt delivery path uses the separate 460GX SAPIC model.  IHPC supports
+slot power control, hotplug notifications, and guest-controlled removal.
+The 460GX memory-card A/B configuration functions expose memory-error logs;
+chipset errors are reported through the firmware RAS mailbox.
+The CS4281 supports primary AC '97 playback and capture routed through any of its
 four DMA channels, including continuous DMA and half/terminal-count interrupts.
 Its legacy audio, FM synthesis, game port, MIDI, secondary codec and non-PCM
 serial slots remain unimplemented.
@@ -64,17 +65,19 @@ The 82550 Flash aperture contains no Flash storage.
 HP Integrity rx2660
 -------------------
 
-The rx2660 accepts ``montecito-9010`` (one core, 6 MiB L3) and
-``montecito-9040`` (two cores, 18 MiB L3), both at 1.6 GHz.  The 9010 has one
-thread per core; the 9040 supports one or two.  The machine supports up to two
-sockets.  CPU hotplug is unsupported, so ``maxcpus`` must equal ``cpus``.
+The rx2660 accepts ``montecito-9010`` (default), ``montecito-9020``,
+``montecito-9040``, ``montvale-9110n``, ``montvale-9120n``, and
+``montvale-9140m``.  The 9010 and 9110n have one core and one thread per
+socket; the other supported models have two cores and one or two threads per
+core.  The machine supports up to two sockets.  CPU hotplug is unsupported,
+so ``maxcpus`` must equal ``cpus``.
 
 RAM ranges from 1 GiB to 32 GiB, with an 8 GiB default.  Default devices are
 five PCI/PCI-X roots with ACPI UIDs 0, 0x200, 0x300, 0x600, and 0x700,
 RN50/ES1000 VGA, two NEC OHCI functions and one EHCI function, an LSI SAS1068,
-and two BCM5704 functions.  The MIO exposes zx2 IDs, but its registers and the
-root adapters reuse zx1 behavior; zx2 multi-rope LBA grouping is not
-implemented.
+and two BCM5704 functions.  The MIO exposes zx2 IDs and four IOMMU contexts
+selected through rope-group mappings.  The IOMMU translation engine and
+PCI/PCI-X root adapters reuse zx1 behavior.
 
 PCIe, Core-I/O management, and iLO/BMC are not implemented.  Management
 functions ``103c:1303`` and ``103c:1302`` enumerate at ``00:01`` but do not
@@ -155,15 +158,31 @@ ALAT model
 ----------
 
 ``alat=zero|full`` selects the IA-64 ALAT model.  Every machine and CPU model
-defaults to ``zero``.  The ``full`` model is restricted to one CPU;
-multi-CPU configurations warn and use ``zero``.
-Writable VFIO DMA mappings suppress entries in the ``full`` model while those
-mappings are active.  Direct writes by arbitrary processes to shared guest RAM
-are not observed.  IA-32 compatibility instructions execute exclusively when
-the ``full`` model is active.
+defaults to ``zero``.  The ``zero`` model treats every ALAT check as a miss,
+so check loads reload memory and advanced-load checks enter their recovery
+paths.  The ``full`` model maintains a 32-entry table per CPU and supports SMP.
+
+CPU stores publish per-CPU write sequences.  Advanced loads and ALAT checks
+validate those sequences together with the external RAM-write generation;
+ordinary stores do not update a shared CPU-writer counter.  Stores by the
+same CPU invalidate overlapping physical addresses, while writes by another
+CPU or a device conservatively invalidate the whole local ALAT.
+
+The ``full`` model skips guest reloads and recovery code on ALAT hits, while
+tracking and validation add host execution work.  Writable VFIO, vhost and
+remote-device DMA mappings suppress entries while those mappings are active.
+Direct writes by arbitrary processes to shared guest RAM are not observed.
+On CPU models with native IA-32 support, ``full`` executes IA-32 compatibility
+instructions exclusively when vCPUs would otherwise run in parallel.
+Montecito/Montvale models do not support native IA-32 execution.
 
 Virtual PC options
 ------------------
+
+``pcie=on|off``
+  Use a PCI Express root bus with extended configuration space when enabled.
+  The default is ``off``.  The ``ia64-pcie-root-port`` device provides AER
+  interrupts and platform error notifications.
 
 ``i8042=on|off``
   Select PS/2 input when enabled and USB input when disabled.  It defaults to

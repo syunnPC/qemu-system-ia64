@@ -8,12 +8,15 @@
 
 #include "hw/ia64/ia64_zx6000_zx1_test.h"
 #include "hw/ia64/ia64_zx6000_zx1_test_layout.h"
+#include "hw/ia64/ia64_pci.h"
+#include "hw/ia64/ia64_zx2_pcie_test.h"
 #include "hw/core/boards.h"
 #include "hw/core/qdev-properties.h"
 #include "hw/core/sysbus.h"
 #include "hw/misc/iommu-testdev.h"
 #include "hw/pci/pci.h"
 #include "hw/pci/pci_device.h"
+#include "hw/pci/pci_bridge.h"
 #include "hw/pci/msi.h"
 #include "hw/pci-host/hp-zx1-ioa.h"
 #include "hw/pci-host/hp-zx1-mio.h"
@@ -21,6 +24,7 @@
 #include "qapi/error.h"
 #include "qemu/module.h"
 #include "qemu/rcu.h"
+#include "qemu/units.h"
 #include "system/address-spaces.h"
 #include "system/memory.h"
 #include "system/qtest.h"
@@ -31,6 +35,8 @@
 #define TYPE_ZX1_TEST_IOMMU_TESTDEV \
     TYPE_IA64_ZX6000_ZX1_TEST ".iommu-testdev"
 #define ZX1_TEST_MSI_CAP_OFFSET UINT8_C(0x50)
+#define ZX2_PCIE_TEST_MIO_BASE UINT64_C(0xb1000000)
+#define ZX2_PCIE_TEST_ROPES    (UINT16_C(1) << 15)
 
 typedef struct ZX1TestRouteBaseline {
     uint32_t packed;
@@ -78,6 +84,27 @@ typedef struct IA64ZX6000ZX1QTestState {
     PCIDevice *probes[IA64_ZX6000_ZX1_TEST_ROOT_COUNT]
                      [IA64_ZX6000_ZX1_TEST_PROBES_PER_ROOT];
 } IA64ZX6000ZX1QTestState;
+
+typedef struct IA64ZX2PCIeQTestState {
+    DeviceState parent_obj;
+
+    IA64PCIState *host;
+    IA64PCIState *second_host;
+    HPZX1MIOState *mio;
+    DeviceState *cpu;
+    PCIDevice *root_port;
+    PCIDevice *probe;
+    PCIDevice *second_probe;
+    MemoryRegion ram;
+    bool owns_host;
+    bool ram_mapped;
+    bool root_attached;
+    bool second_root_attached;
+    bool mio_mapped;
+} IA64ZX2PCIeQTestState;
+
+#define IA64_ZX2_PCIE_QTEST(obj) \
+    OBJECT_CHECK(IA64ZX2PCIeQTestState, (obj), TYPE_IA64_ZX2_PCIE_QTEST)
 
 static void (*zx1_test_probe_parent_realize)(PCIDevice *pdev, Error **errp);
 static PCIUnregisterFunc *zx1_test_probe_parent_exit;
@@ -1084,6 +1111,269 @@ static void zx1_qtest_class_init(ObjectClass *klass, const void *data)
     dc->hotpluggable = false;
 }
 
+static int zx2_pcie_qtest_find_host(Object *child, void *opaque)
+{
+    IA64PCIState **host = opaque;
+
+    if (object_dynamic_cast(child, TYPE_IA64_PCIE_HOST_BRIDGE)) {
+        *host = IA64_PCI_HOST_BRIDGE(child);
+        return 1;
+    }
+    return 0;
+}
+
+static void zx2_pcie_qtest_unrealize(DeviceState *dev)
+{
+    IA64ZX2PCIeQTestState *s = IA64_ZX2_PCIE_QTEST(dev);
+    Error *local_err = NULL;
+    DeviceState *mio;
+
+    if (s->probe) {
+        qdev_unrealize(DEVICE(s->probe));
+        object_unparent(OBJECT(s->probe));
+        object_unref(OBJECT(s->probe));
+        s->probe = NULL;
+    }
+    if (s->root_port) {
+        qdev_unrealize(DEVICE(s->root_port));
+        object_unparent(OBJECT(s->root_port));
+        object_unref(OBJECT(s->root_port));
+        s->root_port = NULL;
+    }
+    if (s->second_probe) {
+        qdev_unrealize(DEVICE(s->second_probe));
+        object_unparent(OBJECT(s->second_probe));
+        object_unref(OBJECT(s->second_probe));
+        s->second_probe = NULL;
+    }
+    drain_call_rcu();
+    if (s->root_attached) {
+        bool detached = hp_zx1_mio_detach_pci_root(
+            s->mio, ia64_pci_host_bus(s->host), &local_err);
+
+        g_assert(detached);
+        g_assert_null(local_err);
+        s->root_attached = false;
+    }
+    if (s->second_root_attached) {
+        bool detached = hp_zx1_mio_detach_pci_root(
+            s->mio, ia64_pci_host_bus(s->second_host), &local_err);
+
+        g_assert(detached);
+        g_assert_null(local_err);
+        s->second_root_attached = false;
+    }
+    if (s->mio_mapped) {
+        memory_region_del_subregion(
+            get_system_memory(),
+            sysbus_mmio_get_region(SYS_BUS_DEVICE(s->mio), 0));
+        s->mio_mapped = false;
+    }
+    if (s->mio) {
+        mio = DEVICE(s->mio);
+        zx1_test_remove_child(&mio);
+        s->mio = NULL;
+    }
+    if (s->owns_host) {
+        DeviceState *host = DEVICE(s->host);
+
+        zx1_test_remove_child(&host);
+        s->owns_host = false;
+    }
+    if (s->second_host) {
+        DeviceState *host = DEVICE(s->second_host);
+
+        zx1_test_remove_child(&host);
+        s->second_host = NULL;
+    }
+    if (s->ram_mapped) {
+        memory_region_del_subregion(get_system_memory(), &s->ram);
+        s->ram_mapped = false;
+    }
+    if (s->cpu) {
+        zx1_test_remove_child(&s->cpu);
+    }
+    s->host = NULL;
+}
+
+static void zx2_pcie_qtest_realize(DeviceState *dev, Error **errp)
+{
+    IA64ZX2PCIeQTestState *s = IA64_ZX2_PCIE_QTEST(dev);
+    HPZX1MIOIOMMUResetConfig iommu_reset = { 0 };
+    IA64PCIHostConfig second_config = {
+        .segment = 1,
+        .first_bus = 0x80,
+        .last_bus = 0x80,
+        .ecam_base = UINT64_C(0x0000008000000000),
+        .ecam_size = 1 * MiB,
+        .mmio_cpu_base = UINT64_C(0xb2000000),
+        .mmio_bus_base = UINT64_C(0x90000000),
+        .mmio_size = 1 * MiB,
+        .io_cpu_base = UINT64_C(0x00000ffff8000000),
+        .io_bus_base = UINT64_C(0x8000),
+        .io_size = UINT64_C(0x100),
+        .gsi_base = 80,
+    };
+    IA64PCIHostConfig observed_config;
+    DeviceState *mio;
+    PCIBus *root;
+    PCIBus *downstream;
+    Error *local_err = NULL;
+
+    if (!qtest_enabled()) {
+        error_setg(errp, "%s is available only under qtest",
+                   TYPE_IA64_ZX2_PCIE_QTEST);
+        return;
+    }
+    s->cpu = zx1_test_add_child(dev, "cpu", "itanium2-ia64-cpu");
+    if (!qdev_realize(s->cpu, NULL, &local_err)) {
+        goto fail;
+    }
+    object_child_foreach_recursive(OBJECT(qdev_get_machine()),
+                                   zx2_pcie_qtest_find_host, &s->host);
+    if (!s->host) {
+        DeviceState *host = zx1_test_add_child(
+            dev, "host", TYPE_IA64_PCIE_HOST_BRIDGE);
+
+        s->host = IA64_PCI_HOST_BRIDGE(host);
+        s->owns_host = true;
+        if (!sysbus_realize(SYS_BUS_DEVICE(host), &local_err)) {
+            goto fail;
+        }
+    } else if (!qdev_is_realized(DEVICE(s->host))) {
+        error_setg(&local_err, "%s found an unrealized IA-64 PCIe host",
+                   TYPE_IA64_ZX2_PCIE_QTEST);
+        goto fail;
+    }
+    root = ia64_pci_host_bus(s->host);
+    if (!root || !pci_bus_is_express(root)) {
+        error_setg(&local_err, "%s requires a PCIe root bus",
+                   TYPE_IA64_ZX2_PCIE_QTEST);
+        goto fail;
+    }
+
+    if (s->owns_host) {
+        if (!memory_region_init_ram(&s->ram, OBJECT(s),
+                                    TYPE_IA64_ZX2_PCIE_QTEST ".ram",
+                                    64 * MiB, &local_err)) {
+            goto fail;
+        }
+        memory_region_add_subregion(get_system_memory(), 0, &s->ram);
+        s->ram_mapped = true;
+    }
+
+    mio = zx1_test_add_child(dev, "mio", TYPE_HP_ZX2_MIO);
+    s->mio = HP_ZX1_MIO(mio);
+    if (!hp_zx1_mio_configure_iommu_reset(s->mio, &iommu_reset,
+                                           &local_err) ||
+        !sysbus_realize(SYS_BUS_DEVICE(mio), &local_err)) {
+        goto fail;
+    }
+    memory_region_add_subregion(
+        get_system_memory(), ZX2_PCIE_TEST_MIO_BASE,
+        sysbus_mmio_get_region(SYS_BUS_DEVICE(s->mio), 0));
+    s->mio_mapped = true;
+    if (!hp_zx2_mio_attach_pci_root(s->mio, root,
+                                    ZX2_PCIE_TEST_ROPES, &local_err)) {
+        goto fail;
+    }
+    s->root_attached = true;
+    if (!root->iommu_per_bus) {
+        error_setg(&local_err,
+                   "zx2 PCIe root did not install a root-private IOMMU");
+        goto fail;
+    }
+    s->second_host = IA64_PCI_HOST_BRIDGE(zx1_test_add_child(
+        dev, "second-host", TYPE_IA64_PCIE_HOST_BRIDGE));
+    if (!ia64_pci_host_configure(s->second_host, &second_config,
+                                 &local_err) ||
+        !sysbus_realize(SYS_BUS_DEVICE(s->second_host), &local_err)) {
+        goto fail;
+    }
+    ia64_pci_host_get_config(s->second_host, &observed_config);
+    if (memcmp(&observed_config, &second_config, sizeof(second_config))) {
+        error_setg(&local_err,
+                   "second IA-64 PCIe host did not retain its root descriptor values");
+        goto fail;
+    }
+    root = ia64_pci_host_bus(s->second_host);
+    if (pci_bus_num(root) != second_config.first_bus) {
+        error_setg(&local_err,
+                   "second IA-64 PCIe host exposed the wrong first bus");
+        goto fail;
+    }
+    if (hp_zx2_mio_attach_pci_root(s->mio, root,
+                                   ZX2_PCIE_TEST_ROPES, &local_err)) {
+        hp_zx1_mio_detach_pci_root(s->mio, root, NULL);
+        error_setg(&local_err,
+                   "zx2 MIOC accepted duplicate rope ownership");
+        goto fail;
+    }
+    if (!local_err || !strstr(error_get_pretty(local_err), "overlaps")) {
+        if (local_err) {
+            error_prepend(&local_err,
+                          "unexpected duplicate zx2 rope rejection: ");
+        } else {
+            error_setg(&local_err,
+                       "zx2 MIOC rejected duplicate ropes without an error");
+        }
+        goto fail;
+    }
+    error_free(local_err);
+    local_err = NULL;
+    if (!hp_zx2_mio_attach_pci_root(
+            s->mio, root, UINT16_C(1) << 14, &local_err)) {
+        goto fail;
+    }
+    s->second_root_attached = true;
+    if (!root->iommu_per_bus) {
+        error_setg(&local_err,
+                   "second zx2 PCIe root did not install a root-private IOMMU");
+        goto fail;
+    }
+    s->second_probe = pci_new(IA64_ZX2_PCIE_SECOND_DEVFN,
+                              TYPE_IOMMU_TESTDEV);
+    if (!qdev_realize(DEVICE(s->second_probe), BUS(root), &local_err)) {
+        object_unref(OBJECT(s->second_probe));
+        s->second_probe = NULL;
+        goto fail;
+    }
+    root = ia64_pci_host_bus(s->host);
+
+    s->root_port = pci_new(PCI_DEVFN(7, 0), TYPE_IA64_PCIE_ROOT_PORT);
+    qdev_prop_set_uint8(DEVICE(s->root_port), "chassis", 1);
+    qdev_prop_set_uint16(DEVICE(s->root_port), "slot", 7);
+    if (!qdev_realize(DEVICE(s->root_port), BUS(root), &local_err)) {
+        object_unref(OBJECT(s->root_port));
+        s->root_port = NULL;
+        goto fail;
+    }
+    downstream = pci_bridge_get_sec_bus(PCI_BRIDGE(s->root_port));
+    s->probe = pci_new(PCI_DEVFN(0, 0), TYPE_IOMMU_TESTDEV);
+    if (!qdev_realize(DEVICE(s->probe), BUS(downstream), &local_err)) {
+        object_unref(OBJECT(s->probe));
+        s->probe = NULL;
+        goto fail;
+    }
+    return;
+
+fail:
+    zx2_pcie_qtest_unrealize(dev);
+    error_propagate(errp, local_err);
+}
+
+static void zx2_pcie_qtest_class_init(ObjectClass *klass, const void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+
+    (void)data;
+    dc->desc = "IA-64 zx2 PCIe IOMMU qtest device";
+    dc->realize = zx2_pcie_qtest_realize;
+    dc->unrealize = zx2_pcie_qtest_unrealize;
+    dc->user_creatable = true;
+    dc->hotpluggable = false;
+}
+
 static void zx1_test_probe_realize(PCIDevice *pdev, Error **errp)
 {
     Error *local_err = NULL;
@@ -1149,6 +1439,11 @@ static const TypeInfo zx1_test_types[] = {
         .instance_size = sizeof(IA64ZX6000ZX1QTestState),
         .instance_init = zx1_qtest_init,
         .class_init = zx1_qtest_class_init,
+    }, {
+        .name = TYPE_IA64_ZX2_PCIE_QTEST,
+        .parent = TYPE_DEVICE,
+        .instance_size = sizeof(IA64ZX2PCIeQTestState),
+        .class_init = zx2_pcie_qtest_class_init,
     },
 };
 

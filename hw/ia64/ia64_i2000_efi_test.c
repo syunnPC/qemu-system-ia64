@@ -210,6 +210,16 @@ static void i2000_descriptor_header_init(
         .SocketCount = cpu_to_le32(machine->smp.sockets),
         .CoresPerSocket = cpu_to_le32(machine->smp.cores),
         .ThreadsPerCore = cpu_to_le32(machine->smp.threads),
+        .PhysicalAddressBits = cpu_to_le32(
+            IA64_PLATFORM_I2000_PHYS_ADDR_BITS),
+        .MaxSockets = cpu_to_le32(2),
+        .MaxCoresPerSocket = cpu_to_le32(1),
+        .MaxThreadsPerCore = cpu_to_le32(1),
+        .MaxPciRoots = cpu_to_le32(
+            IA64_I2000_460GX_TEST_ROOT_COUNT),
+        .PciRootIdentity = cpu_to_le32(
+            IA64_PLATFORM_PCI_ROOT_IDENTITY_GENERIC),
+        .NumaNodeCount = cpu_to_le32(1),
         .LegacyIoBase = cpu_to_le64(layout->legacy_io.base),
         .LegacyIoSize = cpu_to_le64(layout->legacy_io.size),
         .LocalSapicBase = cpu_to_le64(layout->pib.base),
@@ -226,7 +236,12 @@ static void i2000_descriptor_header_init(
         .NvramSize = cpu_to_le64(IA64_I2000_PROFILE_NVRAM_SIZE),
         .RtcBase = 0,
         .RtcSize = 0,
+        .RasBase = cpu_to_le64(IA64_RAS_HUB_DEFAULT_BASE),
+        .RasSize = cpu_to_le64(IA64_RAS_HUB_SIZE),
     };
+    header->NumaNode[0].ProcessorCount = cpu_to_le32(machine->smp.cpus);
+    header->NumaNode[0].RamRangeMask = cpu_to_le32(1);
+    header->NumaNode[0].Distance[0] = 10;
 }
 
 static void i2000_descriptor_roots_init(
@@ -411,6 +426,10 @@ static bool i2000_machine_build(MachineState *ms, Error **errp)
 
     memory_region_add_subregion(get_system_memory(), layout_460gx_test.ram.base,
                                 ms->ram);
+    if (!hp_ia64_machine_create_ras(
+            hp, IA64_RAS_HUB_DEFAULT_BASE, errp)) {
+        return false;
+    }
     if (!memory_region_init_ram(
             &machine->nvram, NULL,
             "ia64-i2000-efi-test.nvram",

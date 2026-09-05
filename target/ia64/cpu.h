@@ -98,6 +98,7 @@
 
 #define IA64_PAL_DISPATCH_HALTED  (1U << 0)
 #define IA64_PAL_DISPATCH_EXIT_TB (1U << 1)
+#define IA64_PAL_DISPATCH_RESUMED (1U << 2)
 
 #define IA64_FR_ONE      0x3ff0000000000000ULL
 /* Architected FP status expected by IA-64 firmware and OS hand-off. */
@@ -411,7 +412,22 @@ typedef enum IA64PredicateRegisterIndex {
 
 typedef enum IA64BranchRegisterIndex {
     IA64_BR_RETURN_LINK = 0,
+    IA64_BR_STATIC0 = 1,
 } IA64BranchRegisterIndex;
+
+typedef enum IA64RasGeneralRegisterIndex {
+    IA64_RAS_GR_SAL_MIN_STATE = 16,
+    IA64_RAS_GR_PAL_MIN_STATE = 17,
+    IA64_RAS_GR_PROCESSOR_STATE = 18,
+    IA64_RAS_GR_PALE_RETURN = 19,
+    IA64_RAS_GR_SALE_ENTRY_STATE = 20,
+    IA64_RAS_GR_PMI_VECTOR = 24,
+    IA64_RAS_GR_PMI_MIN_STATE = 25,
+    IA64_RAS_GR_PMI_RSC = 26,
+    IA64_RAS_GR_PMI_B0 = 27,
+    IA64_RAS_GR_PMI_B1 = 28,
+    IA64_RAS_GR_PMI_PREDICATES = 29,
+} IA64RasGeneralRegisterIndex;
 
 typedef enum IA64FloatingRegisterIndex {
     IA64_FR_ZERO_INDEX = 0,
@@ -654,9 +670,6 @@ ia64_pte_exception_for_access(uint64_t pte, uint8_t perm, uint8_t needed,
     /*
      * The Data Dirty Bit fault outranks the Data Access Bit fault, so a
      * store to a page with both bits clear reports the dirty-bit vector.
-     * That is what lets an operating system resolve both bits from the one
-     * handler (Linux's dirty_bit vector sets _PAGE_D|_PAGE_A) instead of
-     * taking a second fault.
      */
     if (is_ifetch) {
         if (!(pte & IA64_PTE_ACCESSED) && !(psr & IA64_PSR_IA)) {
@@ -748,13 +761,10 @@ typedef struct IA64RnatWritebackImage {
 } IA64RnatWritebackImage;
 
 /*
- * The EFI 1.10 native debug-support ABI uses a fixed 1192-byte IA-64
- * context record.  Firmware places one record per vCPU immediately after
- * the architected IVT.  The emulator retains only the RSE bookkeeping that
- * is needed while a registered callback runs; architected state is carried
- * in the guest-visible context record itself.
+ * RSE register and bookkeeping snapshot for firmware debug callbacks and
+ * MCA/INIT handlers.
  */
-typedef struct IA64FirmwareDebugRseState {
+typedef struct IA64RSEContextState {
     uint64_t pgr[IA64_STACKED_GR_COUNT];
     uint64_t pgr_nat[2];
     uint64_t gr_dirty[2];
@@ -788,7 +798,9 @@ typedef struct IA64FirmwareDebugRseState {
     uint64_t completion_psr;
     uint64_t completion_source_ip;
     uint8_t completion_source_slot;
-} IA64FirmwareDebugRseState;
+} IA64RSEContextState;
+
+typedef IA64RSEContextState IA64FirmwareDebugRseState;
 
 typedef enum IA64MemorySpeculation {
     IA64_MEM_NON_SPECULATIVE,
@@ -1393,9 +1405,39 @@ void ia64_rse_delivery_check(CPUIA64State *env, int excp);
 #endif
 
 CPUState *ia64_cpu_by_sapic_id(uint8_t id, uint8_t eid);
+
+typedef enum IA64SapicDeliveryMode {
+    IA64_SAPIC_DELIVERY_INT = 0,
+    IA64_SAPIC_DELIVERY_INT_REDIRECT = 1,
+    IA64_SAPIC_DELIVERY_PMI = 2,
+    IA64_SAPIC_DELIVERY_NMI = 4,
+    IA64_SAPIC_DELIVERY_INIT = 5,
+    IA64_SAPIC_DELIVERY_EXTINT = 7,
+} IA64SapicDeliveryMode;
+
+typedef enum IA64SapicDestinationMode {
+    IA64_SAPIC_DESTINATION_PHYSICAL = 0,
+    IA64_SAPIC_DESTINATION_LOGICAL = 1,
+} IA64SapicDestinationMode;
+
+#define IA64_SAPIC_XTP_DISABLE       0x80
+#define IA64_SAPIC_XTP_PRIORITY_MASK 0x0f
+#define IA64_SAPIC_XTP_WRITABLE_MASK \
+    (IA64_SAPIC_XTP_DISABLE | IA64_SAPIC_XTP_PRIORITY_MASK)
+
+bool ia64_sapic_deliver(IA64SapicDestinationMode destination_mode,
+                        uint8_t id, uint8_t eid, bool redirect,
+                        IA64SapicDeliveryMode delivery, uint8_t vector);
+void ia64_sapic_set_xtp(CPUState *cs, uint8_t xtp);
+uint8_t ia64_sapic_get_xtp(CPUState *cs);
 void ia64_sapic_set_irq(CPUState *cs, uint8_t vector);
+void ia64_sapic_set_init(CPUState *cs, uint8_t reason);
 void ia64_sapic_update_interrupt(CPUIA64State *env);
 bool ia64_sapic_has_pending(CPUIA64State *env);
+bool ia64_sapic_has_pmi(CPUIA64State *env);
+bool ia64_sapic_has_init(CPUIA64State *env);
+int ia64_sapic_accept_pmi(CPUIA64State *env);
+bool ia64_sapic_accept_init(CPUIA64State *env);
 int  ia64_sapic_accept(CPUIA64State *env);
 void ia64_sapic_eoi(CPUIA64State *env);
 int  ia64_sapic_get_ivr(CPUIA64State *env);
@@ -1404,6 +1446,20 @@ void ia64_itc_sync(CPUIA64State *env);
 void ia64_itc_advance_pending_itm(CPUIA64State *env);
 void ia64_itc_check_timer(CPUIA64State *env);
 void ia64_itc_enter_halt(CPUIA64State *env);
+
+bool ia64_ras_save_min_state(CPUIA64State *env, uint64_t address);
+bool ia64_ras_restore_min_state(IA64CPU *cpu, uint64_t address,
+                                bool new_context);
+bool ia64_ras_enter_pmi(CPUIA64State *env, uint8_t vector);
+bool ia64_ras_enter_mca(IA64CPU *cpu);
+bool ia64_ras_enter_init(IA64CPU *cpu);
+void ia64_ras_update_cmc(CPUIA64State *env);
+void ia64_cpu_request_mca(CPUState *cs, uint64_t entry, uint64_t gp,
+                          uint64_t record_id, uint8_t severity);
+void ia64_cpu_set_init_entry(CPUState *cs, uint64_t entry, uint64_t gp);
+void ia64_cpu_record_machine_check(CPUState *cs, uint8_t severity,
+                                   uint64_t status, uint64_t address,
+                                   uint64_t information);
 
 static inline bool ia64_external_interrupt_vector_valid(uint8_t vector)
 {
@@ -1456,6 +1512,8 @@ struct ArchCPU {
     QEMUTimer *itm_timer;
     IA64BootInfo boot_info;
     IA64FirmwareDebugState firmware_debug;
+    IA64RSEContextState mca_rse;
+    bool mca_rse_valid;
     bool boot_info_valid;
     bool boot_info_pending;
     bool alat_full;
@@ -1467,6 +1525,14 @@ struct ArchCPU {
     uint32_t threads_per_core;
     uint32_t package_base;
     uint32_t package_cpus;
+    uint64_t semantic_profile_id;
+    uint32_t semantic_profile_abi;
+    uint8_t migration_alat_full;
+    /*
+     * Single-writer store sequence, retained across CPU resets and not migrated.
+     * Odd denotes an in-progress store; even denotes a completed/canceled one.
+     */
+    uint64_t alat_write_sequence;
 };
 
 typedef enum IA64CPUModel {
@@ -1487,6 +1553,8 @@ struct IA64CPUClass {
     ResettablePhases parent_phases;
 
     /* Guest-visible processor-model data. */
+    uint64_t semantic_profile_id;
+    uint32_t semantic_profile_abi;
     IA64CPUModel model;
     uint64_t cpuid_version;
     uint64_t cpuid_features;
@@ -1496,6 +1564,8 @@ struct IA64CPUClass {
     uint32_t itc_frequency_hz;
     uint32_t pal_l3_cache_size;
     uint32_t pal_package_cache_size;
+    uint64_t pal_processor_frequency_hz;
+    uint64_t pal_bus_frequency_hz;
     uint64_t processor_frequency_ratio;
     uint64_t bus_frequency_ratio;
     uint64_t itc_frequency_ratio;

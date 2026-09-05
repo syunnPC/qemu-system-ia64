@@ -15,16 +15,42 @@
 #include "libqtest.h"
 #include "libqos/generic-pcihost.h"
 #include "libqos/pci.h"
+#include "exec/memattrs.h"
 #include "hw/display/bochs-vbe.h"
 #include "hw/display/vga_regs.h"
 #include "hw/pci/pci_ids.h"
 #include "hw/pci/pci_regs.h"
+#include "hw/pci/pcie_regs.h"
 #include "hw/ia64/ia64_platform_abi.h"
+#include "hw/ia64/ia64_ras.h"
 #include "hw/ia64/ia64_vpc_abi.h"
+#include "hw/ia64/ia64_zx2_pcie_test.h"
+#include "hw/misc/iommu-testdev.h"
 #include "hw/net/e1000_regs.h"
+#include "hw/pci-host/hp-zx1-iommu.h"
+#include "hw/pci-host/hp-zx1-mio-regs.h"
+#include "hw/pci-host/hp-zx2-mio-regs.h"
 
 #define TEST_FIRMWARE_ENV             "QTEST_IA64_FIRMWARE"
 #define IA64_PCI_CONFIG_BASE         0x0000007ff0000000ULL
+#define IA64_PIB_BASE                0x00000000fee00000ULL
+#define IA64_PCIE_ROOT_SLOT          7U
+#define IA64_PCIE_ROOT_DEVFN         QPCI_DEVFN(IA64_PCIE_ROOT_SLOT, 0)
+#define IA64_PCIE_SECONDARY_BUS      1U
+#define IA64_PCIE_ENDPOINT_DEVFN     QPCI_DEVFN(0, 0)
+#define IA64_PCIE_ENDPOINT_MMIO      0x00000000c2000000ULL
+#define IA64_PCIE_ROOT_MMIO          0x00000000c2100000ULL
+#define IA64_PCIE_INTX_GSI           19U
+#define IA64_PCIE_ROOT_VENDOR        0x1b36U
+#define IA64_PCIE_EDU_VENDOR         0x1234U
+#define IA64_ZX2_PCIE_MIO_BASE       0x00000000b1000000ULL
+#define IA64_ZX2_PCIE_IOMMU_REG(offset) \
+    (IA64_ZX2_PCIE_MIO_BASE + 0x1000 + (offset))
+#define IA64_ZX2_PCIE_IOMMU_IBASE    0x0000000040000000ULL
+#define IA64_ZX2_PCIE_IOMMU_IMASK    0x00000000f0000000ULL
+#define IA64_ZX2_PCIE_PDIR           0x0000000001000000ULL
+#define IA64_ZX2_PCIE_TARGET         0x0000000002000000ULL
+#define IA64_ZX2_PCIE_PTE_VALID      0x8000000000000000ULL
 #define IA64_ACPI_PM_IO_BASE         0x00002000ULL
 #define IA64_ACPI_PM1_EVT_EN_OFFSET  0x02ULL
 #define IA64_ACPI_PM1_CNT_OFFSET     0x04ULL
@@ -1151,7 +1177,7 @@ static void assert_firmware_handoff(QTestState *qts, uint64_t i8042,
     IA64VpcHandoff handoff;
     IA64VpcCompatHandoff compat;
 
-    g_assert_cmpuint(sizeof(handoff), ==, 104);
+    g_assert_cmpuint(sizeof(handoff), ==, 120);
     qtest_memread(qts, IA64_FW_HANDOFF_ADDR, &handoff, sizeof(handoff));
     g_assert_cmphex(le64_to_cpu(handoff.Magic), ==, IA64_FW_HANDOFF_MAGIC);
     g_assert_cmphex(le64_to_cpu(handoff.Version), ==,
@@ -1168,6 +1194,10 @@ static void assert_firmware_handoff(QTestState *qts, uint64_t i8042,
     g_assert_cmphex(le64_to_cpu(handoff.SocketCount), ==, sockets);
     g_assert_cmphex(le64_to_cpu(handoff.CoresPerSocket), ==, cores);
     g_assert_cmphex(le64_to_cpu(handoff.ThreadsPerCore), ==, threads);
+    g_assert_cmphex(le64_to_cpu(handoff.RasBase), ==,
+                    IA64_RAS_HUB_DEFAULT_BASE);
+    g_assert_cmphex(le64_to_cpu(handoff.RasSize), ==,
+                    IA64_RAS_HUB_SIZE);
 
     qtest_memread(qts, IA64_FW_COMPAT_HANDOFF_ADDR,
                   &compat, sizeof(compat));
@@ -1181,9 +1211,9 @@ static void assert_firmware_handoff(QTestState *qts, uint64_t i8042,
 
 static void test_firmware_handoff_defaults(void)
 {
-    static const uint8_t expected_v10[sizeof(IA64VpcHandoff)] = {
+    static const uint8_t expected_v11[sizeof(IA64VpcHandoff)] = {
         0x51, 0x49, 0x41, 0x36, 0x34, 0x52, 0x41, 0x4d, /* Magic */
-        0x0a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* Version */
+        0x0b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* Version */
         0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, /* RamSize */
         0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ConsolePolicy */
         0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* IdeDmaEnabled */
@@ -1195,6 +1225,8 @@ static void test_firmware_handoff_defaults(void)
         0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* SocketCount */
         0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* CoresPerSocket */
         0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ThreadsPerCore */
+        0x00, 0x00, 0x80, 0xfe, 0x00, 0x00, 0x00, 0x00, /* RasBase */
+        0x00, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, /* RasSize */
     };
     uint8_t actual[sizeof(IA64VpcHandoff)];
     QTestState *qts = ia64_vpc_handoff_start("ia64-vpc", NULL);
@@ -1202,7 +1234,7 @@ static void test_firmware_handoff_defaults(void)
     assert_firmware_handoff(qts, 0, 1, 1, 1, 1, 1, 0);
     qtest_memread(qts, IA64_FW_HANDOFF_ADDR, actual, sizeof(actual));
     g_assert_cmpmem(actual, sizeof(actual),
-                    expected_v10, sizeof(expected_v10));
+                    expected_v11, sizeof(expected_v11));
     qtest_quit(qts);
 }
 
@@ -1306,48 +1338,17 @@ static void test_machine_default_ram(void)
     }
 }
 
-static void test_smp_forces_zero_alat(void)
+static void test_smp_full_alat(void)
 {
-    if (g_test_subprocess()) {
-        g_autoptr(QDict) response = NULL;
-        QTestState *qts = qtest_init(
-            "-machine ia64-vpc,alat=full,nvram=none -smp 2 -S");
+    g_autoptr(QDict) response = NULL;
+    QTestState *qts = qtest_init(
+        "-machine ia64-vpc,alat=full,nvram=none -smp 2 -S");
 
-        response = qtest_qmp(
-            qts, "{'execute':'qom-get','arguments':"
-                 "{'path':'/machine','property':'alat'}}");
-        g_assert_cmpstr(qdict_get_str(response, "return"), ==, "zero");
-        qtest_quit(qts);
-        return;
-    }
-
-    g_test_trap_subprocess(NULL, 30 * G_USEC_PER_SEC, 0);
-    g_test_trap_assert_passed();
-    g_test_trap_assert_stderr(
-        "*warning: full ALAT emulation is disabled with 2 CPUs; "
-        "using the zero-entry ALAT model*");
-}
-
-static void test_full_alat_warns(void)
-{
-    if (g_test_subprocess()) {
-        g_autoptr(QDict) response = NULL;
-        QTestState *qts = qtest_init(
-            "-machine ia64-vpc,alat=full,nvram=none -smp 1 -S");
-
-        response = qtest_qmp(
-            qts, "{'execute':'qom-get','arguments':"
-                 "{'path':'/machine','property':'alat'}}");
-        g_assert_cmpstr(qdict_get_str(response, "return"), ==, "full");
-        qtest_quit(qts);
-        return;
-    }
-
-    g_test_trap_subprocess(NULL, 30 * G_USEC_PER_SEC, 0);
-    g_test_trap_assert_passed();
-    g_test_trap_assert_stderr(
-        "*warning: full ALAT emulation does not track direct external "
-        "writes to shared guest RAM*");
+    response = qtest_qmp(
+        qts, "{'execute':'qom-get','arguments':"
+             "{'path':'/machine','property':'alat'}}");
+    g_assert_cmpstr(qdict_get_str(response, "return"), ==, "full");
+    qtest_quit(qts);
 }
 
 static void test_alat_active_writer_window(void)
@@ -1356,16 +1357,35 @@ static void test_alat_active_writer_window(void)
     bool active_alloc_hit;
     bool active_hit;
     bool setup_hit;
+
+    for (unsigned int cpus = 1; cpus <= 2; cpus++) {
+        QTestState *qts = qtest_initf(
+            "-machine ia64-vpc,alat=full,nvram=none -m 4G -smp %u -S "
+            "-accel tcg,thread=multi", cpus);
+
+        qtest_ia64_alat_active_writer(qts, &setup_hit, &active_hit,
+                                      &active_alloc_count, &active_alloc_hit);
+        g_assert_true(setup_hit);
+        g_assert_false(active_hit);
+        g_assert_cmpuint(active_alloc_count, ==, 0);
+        g_assert_false(active_alloc_hit);
+        qtest_quit(qts);
+    }
+}
+
+static void test_alat_smp_writer(void)
+{
+    bool memory_write_ok;
+    bool setup_hit;
+    bool smp_hit;
     QTestState *qts = qtest_init(
-        "-machine ia64-vpc,alat=full,nvram=none -m 4G -smp 1 -S "
+        "-machine ia64-vpc,alat=full,nvram=none -m 4G -smp 2 -S "
         "-accel tcg,thread=multi");
 
-    qtest_ia64_alat_active_writer(qts, &setup_hit, &active_hit,
-                                  &active_alloc_count, &active_alloc_hit);
+    qtest_ia64_alat_smp_writer(qts, &setup_hit, &memory_write_ok, &smp_hit);
     g_assert_true(setup_hit);
-    g_assert_false(active_hit);
-    g_assert_cmpuint(active_alloc_count, ==, 0);
-    g_assert_false(active_alloc_hit);
+    g_assert_true(memory_write_ok);
+    g_assert_false(smp_hit);
 
     qtest_quit(qts);
 }
@@ -2237,6 +2257,281 @@ static void test_profile_default_input(void)
     qtest_quit(qts);
 }
 
+static uint64_t ras_record_bank(unsigned int cpu, unsigned int type);
+static void assert_ras_record(QTestState *qts, uint64_t bank,
+                              unsigned int severity);
+static void clear_ras_record(QTestState *qts, uint64_t bank);
+
+static void test_ras_cpu_online_mask(void)
+{
+    const uint64_t address =
+        IA64_RAS_HUB_DEFAULT_BASE + IA64_RAS_REG_CPU_ONLINE;
+
+    for (unsigned int cpus = 1; cpus <= 2; cpus++) {
+        QTestState *qts = qtest_initf(
+            "-machine ia64-vpc,nvram=none -m 256M -smp %u -S", cpus);
+        uint64_t present = BIT_ULL(cpus) - 1;
+
+        g_assert_cmphex(qtest_readq(qts, address), ==, 0);
+        /* The mailbox only exposes CPUs belonging to this machine. */
+        qtest_writeq(qts, address, UINT64_MAX);
+        g_assert_cmphex(qtest_readq(qts, address), ==, present);
+        qtest_writeq(qts, address, 0);
+        g_assert_cmphex(qtest_readq(qts, address), ==, present);
+        qtest_quit(qts);
+    }
+}
+
+static void test_ras_hub_rendezvous(void)
+{
+    const uint64_t base = IA64_RAS_HUB_DEFAULT_BASE;
+    QTestState *qts = qtest_init(
+        "-machine ia64-vpc,nvram=none -m 256M -smp 2 -S");
+
+    g_assert_cmphex(qtest_readq(qts, base + IA64_RAS_REG_MAGIC), ==,
+                    IA64_RAS_HUB_MAGIC);
+    g_assert_cmphex(qtest_readq(qts, base + IA64_RAS_REG_REVISION), ==,
+                    IA64_RAS_HUB_REVISION);
+    g_assert_cmphex(qtest_readq(qts, base + IA64_RAS_REG_CAPABILITIES), ==,
+                    IA64_RAS_CAP_MCA | IA64_RAS_CAP_CMC |
+                    IA64_RAS_CAP_CPE | IA64_RAS_CAP_RENDEZVOUS |
+                    IA64_RAS_CAP_SAL_RECORDS | IA64_RAS_CAP_INIT |
+                    IA64_RAS_CAP_MEMORY_WAKEUP);
+    g_assert_cmpuint(qtest_readq(qts,
+                                base + IA64_RAS_REG_MAX_RECORD_SIZE), ==,
+                     IA64_RAS_MAX_RECORD_SIZE);
+
+    qtest_writeq(qts, base + IA64_RAS_REG_CPU_ONLINE, BIT_ULL(0));
+    qtest_writeq(qts, base + IA64_RAS_REG_CPU_ONLINE, BIT_ULL(1));
+    qtest_writeq(qts, base + IA64_RAS_REG_RENDEZVOUS_VECTOR, 0xe0);
+    qtest_writeq(qts, base + IA64_RAS_REG_WAKEUP_MECHANISM, 1);
+    qtest_writeq(qts, base + IA64_RAS_REG_WAKEUP_VALUE, 0xe1);
+    qtest_writeq(qts, base + IA64_RAS_REG_RENDEZVOUS_BEGIN, 0);
+
+    g_assert_cmpuint(qtest_readq(qts,
+                                base + IA64_RAS_REG_RENDEZVOUS_ACTIVE), ==,
+                     1);
+    g_assert_cmphex(qtest_readq(qts,
+                               base + IA64_RAS_REG_RENDEZVOUS_REQUIRED), ==,
+                    BIT_ULL(1));
+    qtest_writeq(qts, base + IA64_RAS_REG_RENDEZVOUS_ARRIVED,
+                 BIT_ULL(1) | BIT_ULL(2));
+    g_assert_cmphex(qtest_readq(qts,
+                               base + IA64_RAS_REG_RENDEZVOUS_ARRIVED), ==,
+                    BIT_ULL(1));
+
+    qtest_writeq(qts, base + IA64_RAS_REG_RENDEZVOUS_RELEASE, 1);
+    g_assert_cmpuint(qtest_readq(qts,
+                                base + IA64_RAS_REG_RENDEZVOUS_ACTIVE), ==,
+                     0);
+    g_assert_cmpuint(qtest_readq(qts,
+                                base + IA64_RAS_REG_RENDEZVOUS_REQUIRED), ==,
+                     0);
+    g_assert_cmpuint(qtest_readq(qts,
+                                base + IA64_RAS_REG_RENDEZVOUS_ARRIVED), ==,
+                     0);
+
+    qtest_writeq(qts, base + IA64_RAS_REG_RENDEZVOUS_VECTOR, 0);
+    qtest_writeq(qts, base + IA64_RAS_REG_RENDEZVOUS_BEGIN, 0);
+    g_assert_cmpuint(qtest_readq(
+                         qts, base + IA64_RAS_REG_RENDEZVOUS_FALLBACK), ==,
+                     1);
+    g_assert_cmphex(qtest_ia64_sapic(
+                        qts, "state", 1, 0, 0, 0, 0) & BIT(11), ==,
+                    BIT(11));
+    g_assert_cmpint(qtest_ia64_sapic(
+                        qts, "accept-init", 1, 0, 0, 0, 0), ==, 1);
+    qtest_writeq(qts, base + IA64_RAS_REG_INIT_CAPTURE, 1);
+    assert_ras_record(qts, ras_record_bank(
+                          1, IA64_RAS_RECORD_TYPE_INIT),
+                      IA64_RAS_SAL_STATUS_RECOVERABLE);
+    clear_ras_record(qts, ras_record_bank(
+                         1, IA64_RAS_RECORD_TYPE_INIT));
+    qtest_writeq(qts, base + IA64_RAS_REG_RENDEZVOUS_RELEASE, 1);
+
+    qtest_writeq(qts, base + IA64_RAS_REG_RENDEZVOUS_VECTOR, 0xe0);
+    qtest_writeq(qts, base + IA64_RAS_REG_WAKEUP_MECHANISM, 2);
+    qtest_writeq(qts, base + IA64_RAS_REG_WAKEUP_VALUE, 0x00200000);
+    qtest_writeq(qts, base + IA64_RAS_REG_RENDEZVOUS_BEGIN, 0);
+    qtest_writeq(qts, base + IA64_RAS_REG_RENDEZVOUS_ARRIVED, BIT_ULL(1));
+    qtest_writeq(qts, base + IA64_RAS_REG_RENDEZVOUS_RELEASE, 1);
+    g_assert_cmphex(qtest_readq(qts, 0x00200000), ==, 2);
+    g_assert_cmphex(qtest_readq(
+                        qts, base + IA64_RAS_REG_WAKEUP_PENDING), ==,
+                    BIT_ULL(1));
+    qtest_writeq(qts, 0x00200000, 0);
+    qtest_writeq(qts, base + IA64_RAS_REG_WAKEUP_ACK, BIT_ULL(1));
+    g_assert_cmphex(qtest_readq(
+                        qts, base + IA64_RAS_REG_WAKEUP_PENDING), ==, 0);
+    qtest_quit(qts);
+}
+
+static void test_ras_min_state_restore(void)
+{
+    QTestState *qts = qtest_init(
+        "-machine ia64-vpc,nvram=none -m 256M -S "
+        "-accel tcg,thread=single");
+
+    g_assert_cmphex(qtest_ia64_ras_min_state(qts), ==, 0x1ffff);
+    qtest_quit(qts);
+}
+
+static uint64_t ras_record_bank(unsigned int cpu, unsigned int type)
+{
+    return IA64_RAS_HUB_DEFAULT_BASE +
+        ia64_ras_record_bank_offset(cpu, type);
+}
+
+static void assert_ras_record(QTestState *qts, uint64_t bank,
+                              unsigned int severity)
+{
+    uint64_t status = qtest_readq(
+        qts, bank + IA64_RAS_RECORD_REG_STATUS);
+    uint64_t header = qtest_readq(
+        qts, bank + IA64_RAS_RECORD_DATA + 8);
+
+    g_assert_cmphex(status & IA64_RAS_RECORD_STATUS_PRESENT, ==,
+                    IA64_RAS_RECORD_STATUS_PRESENT);
+    g_assert_cmpuint(qtest_readq(qts,
+                                bank + IA64_RAS_RECORD_REG_LENGTH), >, 0);
+    g_assert_cmpuint((header >> 16) & 0xff, ==, severity);
+}
+
+static void clear_ras_record(QTestState *qts, uint64_t bank)
+{
+    qtest_writeq(qts, bank + IA64_RAS_RECORD_REG_CLEAR,
+                 IA64_RAS_RECORD_CLEAR_VALUE);
+    g_assert_cmphex(qtest_readq(qts,
+                               bank + IA64_RAS_RECORD_REG_STATUS), ==, 0);
+}
+
+static void test_ras_fault_injection(void)
+{
+    const uint8_t cmc_vector = 0x52;
+    const uint8_t cpe_vector = 0x53;
+    const uint64_t cmc_bank = ras_record_bank(
+        0, IA64_RAS_RECORD_TYPE_CMC);
+    const uint64_t mca_bank = ras_record_bank(
+        0, IA64_RAS_RECORD_TYPE_MCA);
+    const uint64_t cpe_bank = ras_record_bank(
+        0, IA64_RAS_RECORD_TYPE_CPE);
+    QTestState *qts = qtest_init(
+        "-machine ia64-vpc,nvram=none -m 256M -S "
+        "-accel tcg,thread=single");
+
+    qtest_ia64_ras_inject_processor(
+        qts, 0, IA64_RAS_SEVERITY_CORRECTED,
+        0x1020304050607080ULL, 0x00123456789ab000ULL,
+        0x8877665544332211ULL, cmc_vector);
+    assert_ras_record(qts, cmc_bank, IA64_RAS_SAL_STATUS_CORRECTED);
+    g_assert_cmphex(qtest_readq(
+                    qts, cmc_bank + IA64_RAS_RECORD_DATA + 64), ==,
+                    BIT_ULL(0) | BIT_ULL(1) | BIT_ULL(2) | BIT_ULL(12));
+    g_assert_cmphex(qtest_readq(
+                        qts, cmc_bank + IA64_RAS_RECORD_DATA + 72), ==,
+                    BIT_ULL(24));
+    g_assert_cmphex(qtest_readq(
+                        qts, cmc_bank + IA64_RAS_RECORD_DATA + 80) &
+                    BIT_ULL(61), ==, BIT_ULL(61));
+    g_assert_cmphex(qtest_readq(
+                        qts, cmc_bank + IA64_RAS_RECORD_DATA + 96), ==,
+                    BIT_ULL(0) | BIT_ULL(1) | BIT_ULL(3) | BIT_ULL(4));
+    g_assert_cmphex(qtest_readq(
+                        qts, cmc_bank + IA64_RAS_RECORD_DATA + 104), ==,
+                    0x1020304050607080ULL);
+    g_assert_cmphex(qtest_readq(
+                        qts, cmc_bank + IA64_RAS_RECORD_DATA + 112), ==,
+                    0x8877665544332211ULL);
+    g_assert_cmphex(qtest_readq(
+                        qts, cmc_bank + IA64_RAS_RECORD_DATA + 128), ==,
+                    0x00123456789ab000ULL);
+    g_assert_cmphex(qtest_ia64_sapic(
+                        qts, "state", 0, cmc_vector, 0, 0, 0) & BIT(8),
+                    ==, BIT(8));
+    g_assert_cmphex(qtest_ia64_sapic(
+                        qts, "ras-state", 0, 0, 0, 0, 0), ==, BIT(3));
+    clear_ras_record(qts, cmc_bank);
+
+    qtest_writeq(qts, IA64_RAS_HUB_DEFAULT_BASE + IA64_RAS_REG_MCA_ENTRY,
+                 0x00100000);
+    qtest_writeq(qts, IA64_RAS_HUB_DEFAULT_BASE + IA64_RAS_REG_CPU_ONLINE,
+                 BIT_ULL(0));
+    qtest_ia64_ras_inject_processor(
+        qts, 0, IA64_RAS_SEVERITY_RECOVERABLE,
+        0x1111222233334444ULL, 0x0056789abcdef000ULL,
+        0xaabbccddeeff0011ULL, 0);
+    assert_ras_record(qts, mca_bank, IA64_RAS_SAL_STATUS_RECOVERABLE);
+    g_assert_cmphex(qtest_ia64_sapic(
+                        qts, "ras-state", 0, 0, 0, 0, 0), ==,
+                    BIT(0) | BIT(3));
+
+    qtest_ia64_ras_inject_chipset(
+        qts, IA64_CHIPSET_FAULT_MEMORY_CORRECTED,
+        IA64_RAS_SEVERITY_CORRECTED, 0x0000aaaabbbb0000ULL,
+        0x1234, 0x5678, 0x90ab);
+    assert_ras_record(qts, cpe_bank, IA64_RAS_SAL_STATUS_CORRECTED);
+    g_assert_cmphex(qtest_ia64_sapic(
+                        qts, "state", 0, cpe_vector, 0, 0, 0) & BIT(8),
+                    ==, 0);
+    qtest_writeq(qts, IA64_RAS_HUB_DEFAULT_BASE + IA64_RAS_REG_CPE_VECTOR,
+                 cpe_vector);
+    g_assert_cmphex(qtest_ia64_sapic(
+                        qts, "state", 0, cpe_vector, 0, 0, 0) & BIT(8),
+                    ==, BIT(8));
+
+    clear_ras_record(qts, cpe_bank);
+    clear_ras_record(qts, mca_bank);
+    qtest_quit(qts);
+}
+
+static void test_ras_queue_backpressure(void)
+{
+    const uint64_t bank = ras_record_bank(0, IA64_RAS_RECORD_TYPE_CMC);
+    QTestState *qts = qtest_init(
+        "-machine ia64-vpc,nvram=none -m 256M -S "
+        "-accel tcg,thread=single");
+    unsigned int i;
+    uint64_t record_id;
+
+    for (i = 0; i < IA64_RAS_RECORD_DEPTH; i++) {
+        g_assert_true(qtest_ia64_ras_inject_processor(
+            qts, 0, IA64_RAS_SEVERITY_CORRECTED, i + 1,
+            0x100000 + i * 0x1000, 0x200000 + i, 0x54));
+    }
+    g_assert_false(qtest_ia64_ras_inject_processor(
+        qts, 0, IA64_RAS_SEVERITY_CORRECTED, 0x100,
+        0x300000, 0x400000, 0x54));
+    g_assert_cmphex(qtest_readq(qts, bank + IA64_RAS_RECORD_REG_STATUS),
+                    ==, IA64_RAS_RECORD_STATUS_PRESENT |
+                        IA64_RAS_RECORD_STATUS_MORE |
+                        IA64_RAS_RECORD_STATUS_OVERFLOW);
+
+    for (i = 0; i < IA64_RAS_RECORD_DEPTH; i++) {
+        qtest_writeq(qts, bank + IA64_RAS_RECORD_REG_CLEAR,
+                     IA64_RAS_RECORD_CLEAR_VALUE);
+        g_assert_cmphex(qtest_readq(
+                            qts, bank + IA64_RAS_RECORD_REG_STATUS) &
+                        IA64_RAS_RECORD_STATUS_PRESENT, ==,
+                        i + 1 < IA64_RAS_RECORD_DEPTH ?
+                            IA64_RAS_RECORD_STATUS_PRESENT : 0);
+    }
+    g_assert_true(qtest_ia64_ras_inject_processor(
+        qts, 0, IA64_RAS_SEVERITY_CORRECTED, 0x101,
+        0x500000, 0x600000, 0x54));
+    record_id = qtest_readq(qts, bank + IA64_RAS_RECORD_DATA);
+    qtest_system_reset(qts);
+    assert_ras_record(qts, bank, IA64_RAS_SAL_STATUS_CORRECTED);
+    g_assert_cmphex(qtest_readq(qts, bank + IA64_RAS_RECORD_DATA), ==,
+                    record_id);
+    clear_ras_record(qts, bank);
+    g_assert_true(qtest_ia64_ras_inject_processor(
+        qts, 0, IA64_RAS_SEVERITY_CORRECTED, 0x102,
+        0x700000, 0x800000, 0x54));
+    g_assert_cmpuint(qtest_readq(qts, bank + IA64_RAS_RECORD_DATA), >,
+                     record_id);
+    qtest_quit(qts);
+}
+
 static void test_iosapic_level_remote_irr(void)
 {
     const unsigned pin = 23;
@@ -2342,6 +2637,621 @@ static bool sapic_irr_wait_for_vector(QTestState *qts, uint8_t vector)
     return false;
 }
 
+static uint64_t ia64_pcie_config_address(unsigned int bus, unsigned int devfn,
+                                         unsigned int offset)
+{
+    return IA64_PCI_CONFIG_BASE + ((uint64_t)bus << 20) +
+           ((uint64_t)devfn << 12) + offset;
+}
+
+static uint8_t ia64_pcie_find_capability(QTestState *qts, unsigned int bus,
+                                         unsigned int devfn, uint8_t id)
+{
+    uint64_t config = ia64_pcie_config_address(bus, devfn, 0);
+    uint8_t offset = qtest_readb(qts, config + PCI_CAPABILITY_LIST) & ~3U;
+    unsigned int count;
+
+    for (count = 0; offset && count < 48; count++) {
+        if (qtest_readb(qts, config + offset + PCI_CAP_LIST_ID) == id) {
+            return offset;
+        }
+        offset = qtest_readb(qts, config + offset + PCI_CAP_LIST_NEXT) & ~3U;
+    }
+    return 0;
+}
+
+static uint16_t ia64_pcie_find_extended_capability(
+    QTestState *qts, unsigned int bus, unsigned int devfn, uint16_t id)
+{
+    uint64_t config = ia64_pcie_config_address(bus, devfn, 0);
+    uint16_t offset = PCI_CFG_SPACE_SIZE;
+    unsigned int count;
+
+    for (count = 0; offset && count < 256; count++) {
+        uint32_t header = qtest_readl(qts, config + offset);
+
+        if (PCI_EXT_CAP_ID(header) == id) {
+            return offset;
+        }
+        offset = PCI_EXT_CAP_NEXT(header);
+        if (offset && (offset < PCI_CFG_SPACE_SIZE || (offset & 3))) {
+            return 0;
+        }
+    }
+    return 0;
+}
+
+static QTestState *ia64_pcie_start(void)
+{
+    return qtest_init(
+        "-machine itanium2-vpc,pcie=on,nvram=none -m 256M -S "
+        "-device ia64-pcie-root-port,id=rp,bus=pci,addr=7.0,"
+        "chassis=1,slot=7");
+}
+
+static void ia64_pcie_configure_root_port(QTestState *qts)
+{
+    uint64_t config = ia64_pcie_config_address(0, IA64_PCIE_ROOT_DEVFN, 0);
+    uint8_t pcie_cap = ia64_pcie_find_capability(
+        qts, 0, IA64_PCIE_ROOT_DEVFN, PCI_CAP_ID_EXP);
+    uint16_t slot_control;
+
+    g_assert_cmphex(pcie_cap, !=, 0);
+    slot_control = qtest_readw(qts, config + pcie_cap + PCI_EXP_SLTCTL);
+    slot_control &= ~(PCI_EXP_SLTCTL_PCC | PCI_EXP_SLTCTL_PIC);
+    slot_control |= PCI_EXP_SLTCTL_PWR_IND_ON;
+    qtest_writew(qts, config + pcie_cap + PCI_EXP_SLTCTL, slot_control);
+
+    qtest_writeb(qts, config + PCI_PRIMARY_BUS, 0);
+    qtest_writeb(qts, config + PCI_SECONDARY_BUS, IA64_PCIE_SECONDARY_BUS);
+    qtest_writeb(qts, config + PCI_SUBORDINATE_BUS,
+                 IA64_PCIE_SECONDARY_BUS);
+    qtest_writew(qts, config + PCI_MEMORY_BASE,
+                 IA64_PCIE_ENDPOINT_MMIO >> 16);
+    qtest_writew(qts, config + PCI_MEMORY_LIMIT,
+                 IA64_PCIE_ENDPOINT_MMIO >> 16);
+    qtest_writew(qts, config + PCI_COMMAND,
+                 PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
+    g_assert_cmphex(qtest_readb(qts, config + PCI_SECONDARY_BUS), ==,
+                    IA64_PCIE_SECONDARY_BUS);
+    g_assert_cmphex(qtest_readb(qts, config + PCI_SUBORDINATE_BUS), ==,
+                    IA64_PCIE_SECONDARY_BUS);
+}
+
+static void test_pcie_ecam_aer_hotplug_msix(void)
+{
+    const uint8_t vector = 0x61;
+    QTestState *qts = ia64_pcie_start();
+    uint64_t root = ia64_pcie_config_address(0, IA64_PCIE_ROOT_DEVFN, 0);
+    uint64_t endpoint = ia64_pcie_config_address(
+        IA64_PCIE_SECONDARY_BUS, IA64_PCIE_ENDPOINT_DEVFN, 0);
+    uint8_t pcie_cap;
+    uint8_t msix_cap;
+    uint32_t table;
+    uint64_t table_address;
+    uint16_t slot_control;
+    uint16_t slot_status;
+
+    g_assert_cmphex(qtest_readw(qts, root + PCI_VENDOR_ID), ==,
+                    IA64_PCIE_ROOT_VENDOR);
+    g_assert_cmphex(PCI_EXT_CAP_ID(qtest_readl(qts, root + 0x100)),
+                    ==, PCI_EXT_CAP_ID_ERR);
+    g_assert_cmphex(qtest_readl(qts, root + 0xffc), ==, 0);
+
+    pcie_cap = ia64_pcie_find_capability(qts, 0, IA64_PCIE_ROOT_DEVFN,
+                                         PCI_CAP_ID_EXP);
+    msix_cap = ia64_pcie_find_capability(qts, 0, IA64_PCIE_ROOT_DEVFN,
+                                         PCI_CAP_ID_MSIX);
+    g_assert_cmphex(pcie_cap, !=, 0);
+    g_assert_cmphex(msix_cap, !=, 0);
+
+    qtest_writel(qts, root + PCI_BASE_ADDRESS_0, IA64_PCIE_ROOT_MMIO);
+    ia64_pcie_configure_root_port(qts);
+    table = qtest_readl(qts, root + msix_cap + PCI_MSIX_TABLE);
+    g_assert_cmphex(table & PCI_MSIX_TABLE_BIR, ==, 0);
+    table_address = IA64_PCIE_ROOT_MMIO +
+                    (table & PCI_MSIX_TABLE_OFFSET);
+    qtest_writel(qts, table_address, IA64_PIB_BASE);
+    qtest_writel(qts, table_address + 4, 0);
+    qtest_writel(qts, table_address + 8, vector);
+    qtest_writel(qts, table_address + 12, 0);
+    qtest_writew(qts, root + msix_cap + PCI_MSIX_FLAGS,
+                 qtest_readw(qts, root + msix_cap + PCI_MSIX_FLAGS) |
+                 PCI_MSIX_FLAGS_ENABLE);
+    qtest_writew(qts, root + pcie_cap + PCI_EXP_SLTSTA, UINT16_MAX);
+    qtest_writew(qts, root + pcie_cap + PCI_EXP_SLTCTL,
+                 PCI_EXP_SLTCTL_PDCE | PCI_EXP_SLTCTL_HPIE);
+
+    qtest_qmp_device_add(qts, "edu", "edu-hot",
+                         "{'bus':'rp','addr':'0x0'}");
+
+    slot_status = qtest_readw(qts, root + pcie_cap + PCI_EXP_SLTSTA);
+    g_assert_cmphex(slot_status & PCI_EXP_SLTSTA_PDS, !=, 0);
+    g_assert_cmphex(slot_status & PCI_EXP_SLTSTA_PDC, !=, 0);
+    g_assert_cmphex(qtest_readw(qts, endpoint + PCI_VENDOR_ID), ==,
+                    IA64_PCIE_EDU_VENDOR);
+    g_assert_true(sapic_irr_wait_for_vector(qts, vector));
+    g_assert_cmpint(qtest_ia64_sapic(
+                        qts, "accept", 0, 0, 0, 0, 0), ==, vector);
+    qtest_ia64_sapic(qts, "eoi", 0, 0, 0, 0, 0);
+    qtest_writew(qts, root + pcie_cap + PCI_EXP_SLTSTA,
+                 PCI_EXP_SLTSTA_PDC);
+    g_assert_cmphex(qtest_readw(qts, root + pcie_cap + PCI_EXP_SLTSTA) &
+                    PCI_EXP_SLTSTA_PDC, ==, 0);
+
+    qtest_qmp_device_del_send(qts, "edu-hot");
+    slot_control = qtest_readw(qts, root + pcie_cap + PCI_EXP_SLTCTL);
+    slot_control &= ~PCI_EXP_SLTCTL_PIC;
+    qtest_writew(qts, root + pcie_cap + PCI_EXP_SLTCTL,
+                 slot_control | PCI_EXP_SLTCTL_PWR_OFF |
+                 PCI_EXP_SLTCTL_PWR_IND_OFF);
+    g_assert_cmphex(qtest_readw(qts, endpoint + PCI_VENDOR_ID), ==,
+                    UINT16_MAX);
+    g_assert_cmphex(qtest_readw(qts, root + pcie_cap + PCI_EXP_SLTSTA) &
+                    PCI_EXP_SLTSTA_PDS, ==, 0);
+    slot_status = qtest_readw(qts, root + pcie_cap + PCI_EXP_SLTSTA);
+    g_assert_cmphex(slot_status & PCI_EXP_SLTSTA_PDS, ==, 0);
+    g_assert_cmphex(slot_status & PCI_EXP_SLTSTA_PDC, !=, 0);
+    g_assert_true(sapic_irr_wait_for_vector(qts, vector));
+    qtest_system_reset_nowait(qts);
+    qtest_qmp_eventwait(qts, "DEVICE_DELETED");
+
+    qtest_quit(qts);
+}
+
+static void test_pcie_intx_and_msi(void)
+{
+    const uint8_t intx_vector = 0x62;
+    const uint8_t msi_vector = 0x63;
+    QTestState *qts = ia64_pcie_start();
+    uint64_t endpoint = ia64_pcie_config_address(
+        IA64_PCIE_SECONDARY_BUS, IA64_PCIE_ENDPOINT_DEVFN, 0);
+    uint8_t msi_cap;
+    uint16_t msi_flags;
+    uint32_t rte_low = IA64_IOSAPIC_RTE_BASE + IA64_PCIE_INTX_GSI * 2;
+
+    ia64_pcie_configure_root_port(qts);
+    qtest_qmp_device_add(qts, "edu", "edu-irq",
+                         "{'bus':'rp','addr':'0x0'}");
+    qtest_writel(qts, endpoint + PCI_BASE_ADDRESS_0,
+                 IA64_PCIE_ENDPOINT_MMIO);
+    qtest_writew(qts, endpoint + PCI_COMMAND,
+                 PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
+    g_assert_cmphex(qtest_readl(qts, endpoint + PCI_BASE_ADDRESS_0), ==,
+                    IA64_PCIE_ENDPOINT_MMIO);
+    g_assert_cmphex(qtest_readl(qts, IA64_PCIE_ENDPOINT_MMIO), ==,
+                    0x010000edU);
+
+    iosapic_write(qts, rte_low, intx_vector);
+    qtest_writel(qts, IA64_PCIE_ENDPOINT_MMIO + 0x60, 1);
+    g_assert_true(sapic_irr_wait_for_vector(qts, intx_vector));
+    qtest_writel(qts, IA64_PCIE_ENDPOINT_MMIO + 0x64, 1);
+
+    msi_cap = ia64_pcie_find_capability(qts, IA64_PCIE_SECONDARY_BUS,
+                                        IA64_PCIE_ENDPOINT_DEVFN,
+                                        PCI_CAP_ID_MSI);
+    g_assert_cmphex(msi_cap, !=, 0);
+    msi_flags = qtest_readw(qts, endpoint + msi_cap + PCI_MSI_FLAGS);
+    g_assert_cmphex(msi_flags & PCI_MSI_FLAGS_64BIT, !=, 0);
+    qtest_writel(qts, endpoint + msi_cap + PCI_MSI_ADDRESS_LO,
+                 IA64_PIB_BASE + 8);
+    qtest_writel(qts, endpoint + msi_cap + PCI_MSI_ADDRESS_HI, 0);
+    qtest_writew(qts, endpoint + msi_cap + PCI_MSI_DATA_64, msi_vector);
+    qtest_writew(qts, endpoint + msi_cap + PCI_MSI_FLAGS,
+                 msi_flags | PCI_MSI_FLAGS_ENABLE);
+    qtest_writel(qts, IA64_PCIE_ENDPOINT_MMIO + 0x60, 1);
+    g_assert_true(sapic_irr_wait_for_vector(qts, msi_vector));
+
+    qtest_quit(qts);
+}
+
+static void assert_pcie_ras_record(QTestState *qts, uint64_t bank,
+                                   unsigned int severity, uint64_t root,
+                                   uint8_t pcie_cap, uint16_t aer_cap,
+                                   uint16_t source, bool corrected)
+{
+    uint16_t flags = qtest_readw(qts, root + pcie_cap + PCI_EXP_FLAGS);
+    uint32_t slot_cap = qtest_readl(qts, root + pcie_cap + PCI_EXP_SLTCAP);
+    uint32_t class_revision = qtest_readl(qts, root + PCI_CLASS_REVISION);
+    uint64_t identity0;
+    uint64_t identity1;
+    uint64_t aer_source;
+
+    assert_ras_record(qts, bank, severity);
+    g_assert_cmpuint(qtest_readq(qts,
+                                bank + IA64_RAS_RECORD_REG_LENGTH), ==, 304);
+    g_assert_cmphex(qtest_readq(
+                        qts, bank + IA64_RAS_RECORD_DATA + 40), ==,
+                    UINT64_C(0x11dcd44109f42430));
+    g_assert_cmphex(qtest_readq(
+                        qts, bank + IA64_RAS_RECORD_DATA + 48), ==,
+                    UINT64_C(0x669a0c200008ff95));
+    g_assert_cmpuint(qtest_readq(
+                         qts, bank + IA64_RAS_RECORD_DATA + 56) >> 32,
+                     ==, 264);
+    g_assert_cmphex(qtest_readq(
+                        qts, bank + IA64_RAS_RECORD_DATA + 64), ==,
+                    BIT_ULL(0) | BIT_ULL(1) | BIT_ULL(2) | BIT_ULL(3) |
+                    BIT_ULL(5) | BIT_ULL(6) | BIT_ULL(7));
+    g_assert_cmphex(qtest_readq(
+                        qts, bank + IA64_RAS_RECORD_DATA + 72), ==,
+                    ((uint64_t)(flags & PCI_EXP_FLAGS_VERS) << 40) |
+                    ((flags & PCI_EXP_FLAGS_TYPE) >>
+                     PCI_EXP_FLAGS_TYPE_SHIFT));
+    g_assert_cmphex(qtest_readq(
+                        qts, bank + IA64_RAS_RECORD_DATA + 80) &
+                    UINT64_C(0xffffffff), ==,
+                    qtest_readl(qts, root + PCI_COMMAND));
+
+    identity0 = qtest_readl(qts, root + PCI_VENDOR_ID) |
+        ((uint64_t)(class_revision >> 8) << 32) |
+        ((uint64_t)PCI_FUNC(IA64_PCIE_ROOT_DEVFN) << 56);
+    identity1 = PCI_SLOT(IA64_PCIE_ROOT_DEVFN) |
+        ((uint64_t)qtest_readb(qts, root + PCI_PRIMARY_BUS) << 24) |
+        ((uint64_t)qtest_readb(qts, root + PCI_SECONDARY_BUS) << 32) |
+        ((uint64_t)(((slot_cap & PCI_EXP_SLTCAP_PSN) >>
+                     PCI_EXP_SLTCAP_PSN_SHIFT) << 3) << 40);
+    g_assert_cmphex(qtest_readq(
+                        qts, bank + IA64_RAS_RECORD_DATA + 88), ==,
+                    identity0);
+    g_assert_cmphex(qtest_readq(
+                        qts, bank + IA64_RAS_RECORD_DATA + 96), ==,
+                    identity1);
+    g_assert_cmphex(qtest_readq(
+                        qts, bank + IA64_RAS_RECORD_DATA + 112) &
+                    UINT64_C(0xffffffff), ==,
+                    qtest_readw(qts, root + PCI_SEC_STATUS) |
+                    ((uint64_t)qtest_readw(
+                         qts, root + PCI_BRIDGE_CONTROL) << 16));
+    g_assert_cmphex(qtest_readq(
+                        qts, bank + IA64_RAS_RECORD_DATA + 176) >> 32, ==,
+                    qtest_readl(qts, root + aer_cap));
+    g_assert_cmphex(qtest_readq(
+                        qts, bank + IA64_RAS_RECORD_DATA + 224) >> 32, ==,
+                    qtest_readl(qts, root + aer_cap + PCI_ERR_ROOT_STATUS));
+    aer_source = qtest_readq(qts,
+                             bank + IA64_RAS_RECORD_DATA + 232);
+    g_assert_cmphex(corrected ? aer_source & UINT16_MAX : aer_source >> 16,
+                    ==, source);
+}
+
+static void test_pcie_aer_delivery(void)
+{
+    const uint8_t vector = 0x64;
+    const uint8_t cpe_vector = 0x65;
+    const uint16_t endpoint_requester =
+        (IA64_PCIE_SECONDARY_BUS << 8) | IA64_PCIE_ENDPOINT_DEVFN;
+    const uint64_t mca_bank =
+        ras_record_bank(0, IA64_RAS_RECORD_TYPE_MCA);
+    const uint64_t cpe_bank =
+        ras_record_bank(0, IA64_RAS_RECORD_TYPE_CPE);
+    g_autofree char *response = NULL;
+    QTestState *qts = ia64_pcie_start();
+    uint64_t root = ia64_pcie_config_address(0, IA64_PCIE_ROOT_DEVFN, 0);
+    uint64_t endpoint = ia64_pcie_config_address(
+        IA64_PCIE_SECONDARY_BUS, IA64_PCIE_ENDPOINT_DEVFN, 0);
+    uint8_t endpoint_pcie_cap;
+    uint8_t root_pcie_cap;
+    uint8_t root_msix_cap;
+    uint16_t endpoint_aer_cap;
+    uint16_t root_aer_cap;
+    uint32_t table;
+    uint64_t table_address;
+    uint32_t root_status;
+
+    ia64_pcie_configure_root_port(qts);
+    qtest_qmp_device_add(qts, "pcie-pci-bridge", "aer-endpoint",
+                         "{'bus':'rp','addr':'0x0'}");
+
+    endpoint_pcie_cap = ia64_pcie_find_capability(
+        qts, IA64_PCIE_SECONDARY_BUS, IA64_PCIE_ENDPOINT_DEVFN,
+        PCI_CAP_ID_EXP);
+    endpoint_aer_cap = ia64_pcie_find_extended_capability(
+        qts, IA64_PCIE_SECONDARY_BUS, IA64_PCIE_ENDPOINT_DEVFN,
+        PCI_EXT_CAP_ID_ERR);
+    root_aer_cap = ia64_pcie_find_extended_capability(
+        qts, 0, IA64_PCIE_ROOT_DEVFN, PCI_EXT_CAP_ID_ERR);
+    root_pcie_cap = ia64_pcie_find_capability(
+        qts, 0, IA64_PCIE_ROOT_DEVFN, PCI_CAP_ID_EXP);
+    root_msix_cap = ia64_pcie_find_capability(
+        qts, 0, IA64_PCIE_ROOT_DEVFN, PCI_CAP_ID_MSIX);
+    g_assert_cmphex(endpoint_pcie_cap, !=, 0);
+    g_assert_cmphex(endpoint_aer_cap, !=, 0);
+    g_assert_cmphex(root_aer_cap, !=, 0);
+    g_assert_cmphex(root_pcie_cap, !=, 0);
+    g_assert_cmphex(root_msix_cap, !=, 0);
+
+    qtest_writel(qts, root + PCI_BASE_ADDRESS_0, IA64_PCIE_ROOT_MMIO);
+    table = qtest_readl(qts, root + root_msix_cap + PCI_MSIX_TABLE);
+    table_address = IA64_PCIE_ROOT_MMIO +
+                    (table & PCI_MSIX_TABLE_OFFSET);
+    qtest_writel(qts, table_address, IA64_PIB_BASE);
+    qtest_writel(qts, table_address + 4, 0);
+    qtest_writel(qts, table_address + 8, vector);
+    qtest_writel(qts, table_address + 12, 0);
+    qtest_writew(qts, root + root_msix_cap + PCI_MSIX_FLAGS,
+                 qtest_readw(qts, root + root_msix_cap + PCI_MSIX_FLAGS) |
+                 PCI_MSIX_FLAGS_ENABLE);
+
+    qtest_writew(qts, endpoint + endpoint_pcie_cap + PCI_EXP_DEVCTL,
+                 qtest_readw(qts, endpoint + endpoint_pcie_cap +
+                             PCI_EXP_DEVCTL) |
+                 PCI_EXP_DEVCTL_NFERE);
+    qtest_writew(qts, root + root_pcie_cap + PCI_EXP_DEVCTL,
+                 qtest_readw(qts, root + root_pcie_cap + PCI_EXP_DEVCTL) |
+                 PCI_EXP_DEVCTL_NFERE);
+    qtest_writew(qts, root + PCI_BRIDGE_CONTROL,
+                 qtest_readw(qts, root + PCI_BRIDGE_CONTROL) |
+                 PCI_BRIDGE_CTL_SERR);
+    qtest_writel(qts, endpoint + endpoint_aer_cap + PCI_ERR_UNCOR_MASK,
+                 qtest_readl(qts, endpoint + endpoint_aer_cap +
+                             PCI_ERR_UNCOR_MASK) & ~PCI_ERR_UNC_DLP);
+    qtest_writel(qts, endpoint + endpoint_aer_cap + PCI_ERR_UNCOR_SEVER,
+                 qtest_readl(qts, endpoint + endpoint_aer_cap +
+                             PCI_ERR_UNCOR_SEVER) & ~PCI_ERR_UNC_DLP);
+    qtest_writel(qts, root + root_aer_cap + PCI_ERR_ROOT_COMMAND,
+                 PCI_ERR_ROOT_CMD_NONFATAL_EN);
+    qtest_writew(qts, root + root_pcie_cap + PCI_EXP_RTCTL,
+                 PCI_EXP_RTCTL_SENFEE);
+
+    response = qtest_hmp(qts,
+                         "pcie_aer_inject_error aer-endpoint DLP");
+    g_assert_true(g_str_has_prefix(response, "OK id: aer-endpoint"));
+    g_assert_cmphex(qtest_readl(qts, endpoint + endpoint_aer_cap +
+                               PCI_ERR_UNCOR_STATUS) & PCI_ERR_UNC_DLP,
+                    ==, PCI_ERR_UNC_DLP);
+    root_status = qtest_readl(qts, root + root_aer_cap +
+                             PCI_ERR_ROOT_STATUS);
+    g_assert_cmphex(root_status & (PCI_ERR_ROOT_UNCOR_RCV |
+                                  PCI_ERR_ROOT_NONFATAL_RCV),
+                    ==, PCI_ERR_ROOT_UNCOR_RCV |
+                        PCI_ERR_ROOT_NONFATAL_RCV);
+    g_assert_cmphex(qtest_readw(qts, root + root_aer_cap +
+                               PCI_ERR_ROOT_ERR_SRC + sizeof(uint16_t)),
+                    ==, endpoint_requester);
+    g_assert_true(sapic_irr_wait_for_vector(qts, vector));
+    assert_pcie_ras_record(qts, mca_bank,
+                           IA64_RAS_SAL_STATUS_RECOVERABLE, root,
+                           root_pcie_cap, root_aer_cap,
+                           endpoint_requester, false);
+    clear_ras_record(qts, mca_bank);
+
+    qtest_writeq(qts, IA64_RAS_HUB_DEFAULT_BASE + IA64_RAS_REG_CPE_VECTOR,
+                 cpe_vector);
+    qtest_writew(qts, endpoint + endpoint_pcie_cap + PCI_EXP_DEVCTL,
+                 qtest_readw(qts, endpoint + endpoint_pcie_cap +
+                             PCI_EXP_DEVCTL) |
+                 PCI_EXP_DEVCTL_CERE);
+    qtest_writew(qts, root + root_pcie_cap + PCI_EXP_DEVCTL,
+                 qtest_readw(qts, root + root_pcie_cap + PCI_EXP_DEVCTL) |
+                 PCI_EXP_DEVCTL_CERE);
+    qtest_writel(qts, endpoint + endpoint_aer_cap + PCI_ERR_COR_MASK,
+                 qtest_readl(qts, endpoint + endpoint_aer_cap +
+                             PCI_ERR_COR_MASK) & ~PCI_ERR_COR_BAD_DLLP);
+    qtest_writel(qts, root + root_aer_cap + PCI_ERR_ROOT_COMMAND,
+                 PCI_ERR_ROOT_CMD_NONFATAL_EN | PCI_ERR_ROOT_CMD_COR_EN);
+    qtest_writew(qts, root + root_pcie_cap + PCI_EXP_RTCTL,
+                 PCI_EXP_RTCTL_SENFEE | PCI_EXP_RTCTL_SECEE);
+
+    g_clear_pointer(&response, g_free);
+    response = qtest_hmp(qts,
+                         "pcie_aer_inject_error aer-endpoint BAD_DLLP");
+    g_assert_true(g_str_has_prefix(response, "OK id: aer-endpoint"));
+    g_assert_cmphex(qtest_readl(qts, endpoint + endpoint_aer_cap +
+                               PCI_ERR_COR_STATUS) & PCI_ERR_COR_BAD_DLLP,
+                    ==, PCI_ERR_COR_BAD_DLLP);
+    root_status = qtest_readl(qts, root + root_aer_cap +
+                             PCI_ERR_ROOT_STATUS);
+    g_assert_cmphex(root_status & PCI_ERR_ROOT_COR_RCV, ==,
+                    PCI_ERR_ROOT_COR_RCV);
+    g_assert_cmphex(qtest_readw(qts, root + root_aer_cap +
+                               PCI_ERR_ROOT_ERR_SRC), ==,
+                    endpoint_requester);
+    assert_pcie_ras_record(qts, cpe_bank,
+                           IA64_RAS_SAL_STATUS_CORRECTED, root,
+                           root_pcie_cap, root_aer_cap,
+                           endpoint_requester, true);
+    g_assert_true(sapic_irr_wait_for_vector(qts, cpe_vector));
+    clear_ras_record(qts, cpe_bank);
+
+    qtest_quit(qts);
+}
+
+static void test_pcie_aer_notification_controls(void)
+{
+    static const struct {
+        const char *error;
+        uint16_t enable;
+        uint32_t received;
+        unsigned int severity;
+        unsigned int type;
+    } cases[] = {
+        { "BAD_DLLP", PCI_EXP_RTCTL_SECEE, PCI_ERR_ROOT_COR_RCV,
+          IA64_RAS_SAL_STATUS_CORRECTED, IA64_RAS_RECORD_TYPE_CPE },
+        { "COMP_TIME", PCI_EXP_RTCTL_SENFEE, PCI_ERR_ROOT_NONFATAL_RCV,
+          IA64_RAS_SAL_STATUS_RECOVERABLE, IA64_RAS_RECORD_TYPE_MCA },
+        { "COMP_TIME", PCI_EXP_RTCTL_SEFEE, PCI_ERR_ROOT_FATAL_RCV,
+          IA64_RAS_SAL_STATUS_FATAL, IA64_RAS_RECORD_TYPE_MCA },
+    };
+    const uint8_t vector = 0x66;
+    unsigned int i, mode;
+
+    for (i = 0; i < G_N_ELEMENTS(cases); i++) {
+        for (mode = 0; mode < 5; mode++) {
+            QTestState *qts = ia64_pcie_start();
+            uint64_t root = ia64_pcie_config_address(
+                0, IA64_PCIE_ROOT_DEVFN, 0);
+            uint8_t pcie_cap = ia64_pcie_find_capability(
+                qts, 0, IA64_PCIE_ROOT_DEVFN, PCI_CAP_ID_EXP);
+            uint8_t msix_cap = ia64_pcie_find_capability(
+                qts, 0, IA64_PCIE_ROOT_DEVFN, PCI_CAP_ID_MSIX);
+            uint16_t aer_cap = ia64_pcie_find_extended_capability(
+                qts, 0, IA64_PCIE_ROOT_DEVFN, PCI_EXT_CAP_ID_ERR);
+            bool native = (mode & 1) || mode == 4;
+            bool platform = mode == 2 || mode == 3;
+            uint16_t enable = cases[i].enable;
+            uint16_t control = platform ? enable : 0;
+            uint64_t bank = ras_record_bank(0, cases[i].type);
+            uint64_t table;
+            g_autofree char *command = g_strdup_printf(
+                "pcie_aer_inject_error rp %s", cases[i].error);
+            g_autofree char *response = NULL;
+
+            g_test_message("%s severity=%u notification-mode=%u",
+                           cases[i].error, cases[i].severity, mode);
+            ia64_pcie_configure_root_port(qts);
+            qtest_writel(qts, root + PCI_BASE_ADDRESS_0, IA64_PCIE_ROOT_MMIO);
+            table = IA64_PCIE_ROOT_MMIO +
+                (qtest_readl(qts, root + msix_cap + PCI_MSIX_TABLE) &
+                 PCI_MSIX_TABLE_OFFSET);
+            qtest_writel(qts, table, IA64_PIB_BASE);
+            qtest_writel(qts, table + 4, 0);
+            qtest_writel(qts, table + 8, vector);
+            qtest_writel(qts, table + 12, 0);
+            qtest_writew(qts, root + msix_cap + PCI_MSIX_FLAGS,
+                         qtest_readw(qts, root + msix_cap + PCI_MSIX_FLAGS) |
+                         PCI_MSIX_FLAGS_ENABLE);
+
+            qtest_writew(qts, root + pcie_cap + PCI_EXP_DEVCTL,
+                         PCI_EXP_DEVCTL_CERE | PCI_EXP_DEVCTL_NFERE |
+                         PCI_EXP_DEVCTL_FERE);
+            qtest_writew(qts, root + PCI_BRIDGE_CONTROL, PCI_BRIDGE_CTL_SERR);
+            qtest_writel(qts, root + aer_cap + PCI_ERR_COR_MASK, 0);
+            qtest_writel(qts, root + aer_cap + PCI_ERR_UNCOR_MASK, 0);
+            qtest_writel(qts, root + aer_cap + PCI_ERR_UNCOR_SEVER,
+                         i == 2 ? PCI_ERR_UNC_COMP_TIME : 0);
+            if (mode == 4) {
+                /* Enabling a different severity must not send an MCA/CPE. */
+                control = cases[(i + 1) % G_N_ELEMENTS(cases)].enable;
+            }
+            qtest_writew(qts, root + pcie_cap + PCI_EXP_RTCTL, control);
+            qtest_writel(qts, root + aer_cap + PCI_ERR_ROOT_COMMAND,
+                         native ? enable : 0);
+
+            response = qtest_hmp(qts, "%s", command);
+            g_assert_true(g_str_has_prefix(response, "OK id: rp"));
+            g_assert_cmphex(qtest_readl(qts, root + aer_cap +
+                                       PCI_ERR_ROOT_STATUS) & cases[i].received,
+                            ==, cases[i].received);
+            if (platform) {
+                assert_ras_record(qts, bank, cases[i].severity);
+            } else {
+                g_assert_cmpuint(qtest_readq(qts, bank +
+                                            IA64_RAS_RECORD_REG_LENGTH), ==, 0);
+            }
+            if (native) {
+                g_assert_true(sapic_irr_wait_for_vector(qts, vector));
+            } else {
+                g_assert_false(sapic_irr_has_vector(qts, vector));
+            }
+            qtest_quit(qts);
+        }
+    }
+}
+
+static uint32_t ia64_zx2_pcie_dma_trigger(QTestState *qts, uint64_t iova,
+                                          uint64_t target)
+{
+    qtest_writel(qts, IA64_PCIE_ENDPOINT_MMIO + ITD_REG_DMA_GVA_LO, iova);
+    qtest_writel(qts, IA64_PCIE_ENDPOINT_MMIO + ITD_REG_DMA_GVA_HI,
+                 iova >> 32);
+    qtest_writel(qts, IA64_PCIE_ENDPOINT_MMIO + ITD_REG_DMA_GPA_LO, target);
+    qtest_writel(qts, IA64_PCIE_ENDPOINT_MMIO + ITD_REG_DMA_GPA_HI,
+                 target >> 32);
+    qtest_writel(qts, IA64_PCIE_ENDPOINT_MMIO + ITD_REG_DMA_LEN,
+                 sizeof(uint32_t));
+    qtest_writel(qts, IA64_PCIE_ENDPOINT_MMIO + ITD_REG_DMA_ATTRS, 0);
+    qtest_writel(qts, IA64_PCIE_ENDPOINT_MMIO + ITD_REG_DMA_DBELL,
+                 ITD_DMA_DBELL_ARM);
+    qtest_readl(qts, IA64_PCIE_ENDPOINT_MMIO + ITD_REG_DMA_TRIGGERING);
+    return qtest_readl(qts, IA64_PCIE_ENDPOINT_MMIO + ITD_REG_DMA_RESULT);
+}
+
+static void test_pcie_zx2_iommu(void)
+{
+    const uint64_t iova = IA64_ZX2_PCIE_IOMMU_IBASE;
+    QTestState *qts;
+    uint64_t root;
+    uint64_t endpoint;
+    uint64_t group_control;
+
+    if (!qtest_has_device(TYPE_IA64_ZX2_PCIE_QTEST)) {
+        g_test_skip("zx2 PCIe IOMMU test device is unavailable");
+        return;
+    }
+    qts = qtest_init(
+        "-machine none -nodefaults -S "
+        "-device " TYPE_IA64_ZX2_PCIE_QTEST);
+    root = ia64_pcie_config_address(0, IA64_PCIE_ROOT_DEVFN, 0);
+    endpoint = ia64_pcie_config_address(
+        IA64_PCIE_SECONDARY_BUS, IA64_PCIE_ENDPOINT_DEVFN, 0);
+
+    ia64_pcie_configure_root_port(qts);
+    qtest_writel(qts, endpoint + PCI_BASE_ADDRESS_0,
+                 IA64_PCIE_ENDPOINT_MMIO);
+    qtest_writew(qts, endpoint + PCI_COMMAND,
+                 PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
+    g_assert_cmphex(qtest_readw(qts, endpoint + PCI_VENDOR_ID), ==,
+                    IOMMU_TESTDEV_VENDOR_ID);
+    g_assert_cmphex(qtest_readl(qts, root + PCI_CLASS_REVISION) >> 8, ==,
+                    PCI_CLASS_BRIDGE_PCI << 8);
+    g_assert_cmphex(qtest_readw(
+                        qts, IA64_ZX2_PCIE_SECOND_ECAM_BASE +
+                        (IA64_ZX2_PCIE_SECOND_DEVFN << 12) + PCI_VENDOR_ID),
+                    ==, IOMMU_TESTDEV_VENDOR_ID);
+
+    g_assert_cmphex(qtest_readq(qts, IA64_ZX2_PCIE_MIO_BASE +
+                               HP_ZX2_MIO_GROUP_ROPES(3)) & BIT_ULL(15),
+                    ==, BIT_ULL(15));
+    group_control = qtest_readq(qts, IA64_ZX2_PCIE_MIO_BASE +
+                               HP_ZX2_MIO_GROUP_CONTROL(3));
+    g_assert_cmphex(group_control, ==,
+                    HP_ZX2_MIO_GROUP_ENABLE |
+                    (UINT64_C(3) << HP_ZX2_MIO_GROUP_CONTEXT_SHIFT));
+
+    qtest_writeq(qts, IA64_ZX2_PCIE_PDIR,
+                 IA64_ZX2_PCIE_TARGET | IA64_ZX2_PCIE_PTE_VALID);
+    qtest_writeq(qts, IA64_ZX2_PCIE_MIO_BASE +
+                 HP_ZX2_MIO_IOMMU_SELECT, 3);
+    qtest_writeq(qts,
+                 IA64_ZX2_PCIE_IOMMU_REG(HP_ZX1_IOC_IOMMU_IMASK),
+                 IA64_ZX2_PCIE_IOMMU_IMASK);
+    qtest_writeq(qts,
+                 IA64_ZX2_PCIE_IOMMU_REG(HP_ZX1_IOC_IOMMU_IBASE),
+                 IA64_ZX2_PCIE_IOMMU_IBASE | 1);
+    qtest_writeq(qts,
+                 IA64_ZX2_PCIE_IOMMU_REG(HP_ZX1_IOC_IOMMU_TCNFG), 0);
+    qtest_writeq(qts,
+                 IA64_ZX2_PCIE_IOMMU_REG(HP_ZX1_IOC_IOMMU_PDIR_BASE),
+                 IA64_ZX2_PCIE_PDIR);
+
+    qtest_writel(qts, IA64_ZX2_PCIE_TARGET, UINT32_C(0xa5a5a5a5));
+    g_assert_cmphex(ia64_zx2_pcie_dma_trigger(
+                        qts, iova, IA64_ZX2_PCIE_TARGET), ==, 0);
+    g_assert_cmphex(qtest_readl(qts, IA64_PCIE_ENDPOINT_MMIO +
+                               ITD_REG_DMA_MEMTX_RESULT), ==, MEMTX_OK);
+    g_assert_cmphex(qtest_readl(qts, IA64_ZX2_PCIE_TARGET), ==,
+                    ITD_DMA_WRITE_VAL);
+
+    qtest_writeq(qts, IA64_ZX2_PCIE_PDIR, IA64_ZX2_PCIE_TARGET);
+    qtest_writeq(qts, IA64_ZX2_PCIE_IOMMU_REG(HP_ZX1_IOC_IOMMU_PCOM),
+                 iova | 12);
+    qtest_writel(qts, IA64_ZX2_PCIE_TARGET, UINT32_C(0xa5a5a5a5));
+    g_assert_cmphex(ia64_zx2_pcie_dma_trigger(
+                        qts, iova, IA64_ZX2_PCIE_TARGET), ==,
+                    ITD_DMA_ERR_TX_FAIL);
+    g_assert_cmphex(qtest_readl(qts, IA64_PCIE_ENDPOINT_MMIO +
+                               ITD_REG_DMA_MEMTX_RESULT), ==,
+                    MEMTX_DECODE_ERROR);
+    g_assert_cmphex(qtest_readq(qts, IA64_ZX2_PCIE_MIO_BASE +
+                               HP_ZX2_MIO_ERROR_STATUS), ==,
+                    HP_ZX1_MIO_ERROR_VALID | HP_ZX1_MIO_ERROR_IOMMU);
+    g_assert_cmphex(qtest_readq(qts, IA64_ZX2_PCIE_MIO_BASE +
+                               HP_ZX2_MIO_ERROR_ADDRESS), ==, iova);
+
+    qtest_quit(qts);
+}
+
 static void test_iosapic_edge_requires_input(void)
 {
     const unsigned pin = 21;
@@ -2356,7 +3266,8 @@ static void test_iosapic_edge_requires_input(void)
      * request.  Only an input edge may set the destination Local SAPIC IRR.
      */
     g_assert_false(sapic_irr_has_vector(qts, vector));
-    iosapic_write(qts, rte_low, vector);
+    iosapic_write(qts, rte_low, vector | BIT(11));
+    g_assert_cmphex(iosapic_read(qts, rte_low) & BIT(11), ==, 0);
     g_assert_false(sapic_irr_has_vector(qts, vector));
 
     qtest_set_irq_in(qts, iosapic_path, NULL, pin, 1);
@@ -2442,6 +3353,13 @@ static void test_savevm_restores_platform_state(const void *opaque)
     const unsigned pin = 23;
     const uint8_t saved_vector = 0x55;
     const uint8_t changed_vector = 0x56;
+    const uint8_t saved_rendezvous_vector = 0xe0;
+    const uint8_t saved_cpe_vector = 0x67;
+    const uint64_t wakeup_address = 0x00200000;
+    const uint64_t mca_bank =
+        ras_record_bank(0, IA64_RAS_RECORD_TYPE_MCA);
+    const uint64_t cpe_bank =
+        ras_record_bank(0, IA64_RAS_RECORD_TYPE_CPE);
     const uint32_t rte_low = IA64_IOSAPIC_RTE_BASE + pin * 2;
     const uint64_t pm_enable_addr =
         IA64_LEGACY_IO_BASE +
@@ -2456,6 +3374,8 @@ static void test_savevm_restores_platform_state(const void *opaque)
     g_autoptr(GError) error = NULL;
     uint8_t int10_response[2];
     TestInt10Registers int10_regs;
+    uint64_t saved_mca_record_id;
+    uint64_t saved_cpe_record_id;
     QTestState *qts;
 
     if (!have_qemu_img()) {
@@ -2497,6 +3417,49 @@ static void test_savevm_restores_platform_state(const void *opaque)
     g_assert_true(sapic_irr_wait_for_vector(qts, saved_vector));
     g_assert_cmphex(iosapic_read(qts, rte_low) &
                     IA64_IOSAPIC_RTE_REMOTE_IRR, !=, 0);
+    qtest_writeq(qts, IA64_RAS_HUB_DEFAULT_BASE +
+                 IA64_RAS_REG_CPU_ONLINE, 0xf);
+    qtest_writeq(qts, IA64_RAS_HUB_DEFAULT_BASE +
+                 IA64_RAS_REG_RENDEZVOUS_VECTOR,
+                 saved_rendezvous_vector);
+    qtest_writeq(qts, IA64_RAS_HUB_DEFAULT_BASE +
+                 IA64_RAS_REG_WAKEUP_MECHANISM, 2);
+    qtest_writeq(qts, IA64_RAS_HUB_DEFAULT_BASE +
+                 IA64_RAS_REG_WAKEUP_VALUE,
+                 wakeup_address);
+    qtest_writeq(qts, IA64_RAS_HUB_DEFAULT_BASE +
+                 IA64_RAS_REG_RENDEZVOUS_BEGIN, 0);
+    qtest_writeq(qts, IA64_RAS_HUB_DEFAULT_BASE +
+                 IA64_RAS_REG_RENDEZVOUS_ARRIVED, BIT_ULL(1));
+    qtest_writeq(qts, IA64_RAS_HUB_DEFAULT_BASE +
+                 IA64_RAS_REG_RENDEZVOUS_RELEASE, 1);
+    qtest_writeq(qts, IA64_RAS_HUB_DEFAULT_BASE +
+                 IA64_RAS_REG_WAKEUP_ACK, BIT_ULL(1));
+    g_assert_cmphex(qtest_readq(qts, wakeup_address), ==, 3);
+    qtest_writeq(qts, IA64_RAS_HUB_DEFAULT_BASE +
+                 IA64_RAS_REG_RENDEZVOUS_BEGIN, 0);
+    qtest_writeq(qts, IA64_RAS_HUB_DEFAULT_BASE +
+                 IA64_RAS_REG_RENDEZVOUS_ARRIVED, BIT_ULL(1));
+    g_assert_cmpint(qtest_ia64_sapic(qts, "accept", 2, 0, 0, 0, 0), ==,
+                    saved_rendezvous_vector);
+    qtest_ia64_sapic(qts, "eoi", 2, 0, 0, 0, 0);
+
+    qtest_writeq(qts, IA64_RAS_HUB_DEFAULT_BASE + IA64_RAS_REG_MCA_ENTRY,
+                 0x00100000);
+    g_assert_true(qtest_ia64_ras_inject_processor(
+        qts, 0, IA64_RAS_SEVERITY_RECOVERABLE,
+        0x1111222233334444ULL, 0x0056789abcdef000ULL,
+        0xaabbccddeeff0011ULL, 0));
+    saved_mca_record_id = qtest_readq(
+        qts, mca_bank + IA64_RAS_RECORD_REG_ID);
+    qtest_writeq(qts, IA64_RAS_HUB_DEFAULT_BASE + IA64_RAS_REG_CPE_VECTOR,
+                 saved_cpe_vector);
+    g_assert_true(qtest_ia64_ras_inject_chipset(
+        qts, IA64_CHIPSET_FAULT_PROTOCOL, IA64_RAS_SEVERITY_CORRECTED,
+        0x0000aaaabbbb0000ULL, 0x1234, 0x5678, 0x90ab));
+    g_assert_true(sapic_irr_wait_for_vector(qts, saved_cpe_vector));
+    saved_cpe_record_id = qtest_readq(
+        qts, cpe_bank + IA64_RAS_RECORD_REG_ID);
 
     response = qtest_hmp(qts, "savevm platform-state");
     g_assert_cmpstr(response, ==, "");
@@ -2527,6 +3490,12 @@ static void test_savevm_restores_platform_state(const void *opaque)
     qtest_set_irq_in(qts, iosapic_path, NULL, pin, 1);
     g_assert_false(sapic_irr_has_vector(qts, saved_vector));
     g_assert_true(sapic_irr_wait_for_vector(qts, changed_vector));
+    g_assert_cmpuint(qtest_readq(qts, IA64_RAS_HUB_DEFAULT_BASE +
+                                IA64_RAS_REG_RENDEZVOUS_ACTIVE), ==, 0);
+    clear_ras_record(qts, mca_bank);
+    clear_ras_record(qts, cpe_bank);
+    g_assert_cmphex(qtest_ia64_sapic(
+                        qts, "ras-state", 0, 0, 0, 0, 0), ==, 0);
 
     response = qtest_hmp(qts, "loadvm platform-state");
     g_assert_cmpstr(response, ==, "");
@@ -2552,10 +3521,116 @@ static void test_savevm_restores_platform_state(const void *opaque)
                     IA64_IOSAPIC_RTE_REMOTE_IRR, !=, 0);
     g_assert_true(sapic_irr_has_vector(qts, saved_vector));
     g_assert_false(sapic_irr_has_vector(qts, changed_vector));
+    g_assert_cmphex(qtest_readq(qts, IA64_RAS_HUB_DEFAULT_BASE +
+                               IA64_RAS_REG_CPU_ONLINE), ==, 0xf);
+    g_assert_cmphex(qtest_readq(qts, IA64_RAS_HUB_DEFAULT_BASE +
+                               IA64_RAS_REG_RENDEZVOUS_VECTOR), ==,
+                    saved_rendezvous_vector);
+    g_assert_cmpuint(qtest_readq(qts, IA64_RAS_HUB_DEFAULT_BASE +
+                                IA64_RAS_REG_RENDEZVOUS_ACTIVE), ==, 1);
+    g_assert_cmphex(qtest_readq(qts, IA64_RAS_HUB_DEFAULT_BASE +
+                               IA64_RAS_REG_RENDEZVOUS_REQUIRED), ==, 0xe);
+    g_assert_cmphex(qtest_readq(qts, IA64_RAS_HUB_DEFAULT_BASE +
+                               IA64_RAS_REG_RENDEZVOUS_ARRIVED), ==,
+                    BIT_ULL(1));
+    g_assert_cmphex(qtest_readq(qts, IA64_RAS_HUB_DEFAULT_BASE +
+                               IA64_RAS_REG_WAKEUP_PENDING), ==, 0xc);
+    g_assert_cmphex(qtest_readq(qts, wakeup_address), ==, 3);
+    g_assert_cmphex(qtest_ia64_sapic(
+                        qts, "state", 2, saved_rendezvous_vector,
+                        0, 0, 0) & BIT(8), ==, BIT(8));
+    assert_ras_record(qts, mca_bank, IA64_RAS_SAL_STATUS_RECOVERABLE);
+    g_assert_cmphex(qtest_readq(qts, mca_bank + IA64_RAS_RECORD_REG_ID),
+                    ==, saved_mca_record_id);
+    assert_ras_record(qts, cpe_bank, IA64_RAS_SAL_STATUS_CORRECTED);
+    g_assert_cmphex(qtest_readq(qts, cpe_bank + IA64_RAS_RECORD_REG_ID),
+                    ==, saved_cpe_record_id);
+    g_assert_cmphex(qtest_ia64_sapic(
+                        qts, "ras-state", 0, 0, 0, 0, 0), ==,
+                    BIT(0) | BIT(3));
+    g_assert_cmphex(qtest_ia64_sapic(
+                        qts, "state", 0, saved_cpe_vector, 0, 0, 0) &
+                    BIT(8), ==, BIT(8));
 
     qtest_quit(qts);
     g_assert_cmpint(g_unlink(disk_path), ==, 0);
     g_assert_cmpint(g_rmdir(tmpdir), ==, 0);
+}
+
+typedef struct TestCPUProfileMigration {
+    const char *source_machine;
+    const char *destination_machine;
+    const char *source;
+    const char *destination;
+    const char *source_extra;
+    const char *destination_extra;
+    bool compatible;
+} TestCPUProfileMigration;
+
+static char *wait_for_migration_terminal(QTestState *qts)
+{
+    int64_t deadline = g_get_monotonic_time() + 60 * G_TIME_SPAN_SECOND;
+
+    for (;;) {
+        QDict *result = qtest_qmp_assert_success_ref(
+            qts, "{'execute':'query-migrate'}");
+        const char *status = qdict_get_str(result, "status");
+
+        if (!strcmp(status, "completed") || !strcmp(status, "failed") ||
+            !strcmp(status, "cancelled")) {
+            char *terminal = g_strdup(status);
+
+            qobject_unref(result);
+            return terminal;
+        }
+        qobject_unref(result);
+        g_assert_cmpint(g_get_monotonic_time(), <, deadline);
+        g_usleep(1000);
+    }
+}
+
+static void test_cpu_profile_migration(const void *opaque)
+{
+    const TestCPUProfileMigration *test = opaque;
+    g_autofree char *path = g_strdup_printf(
+        "%s/ia64-cpu-profile-migration.XXXXXX", g_get_tmp_dir());
+    g_autofree char *uri = NULL;
+    g_autofree char *status = NULL;
+    g_autofree char *args = NULL;
+    QTestState *qts;
+    int fd;
+
+    fd = g_mkstemp(path);
+    g_assert_cmpint(fd, >=, 0);
+    close(fd);
+    uri = g_strdup_printf("file:%s", path);
+
+    args = g_strdup_printf(
+        "-machine %s,nvram=none -m 256M -S -nodefaults -cpu %s %s",
+        test->source_machine ?: "ia64-vpc", test->source,
+        test->source_extra ?: "");
+    qts = qtest_init(args);
+    qtest_qmp_assert_success(
+        qts, "{'execute':'migrate','arguments':{'uri':%s}}", uri);
+    status = wait_for_migration_terminal(qts);
+    g_assert_cmpstr(status, ==, "completed");
+    g_clear_pointer(&status, g_free);
+    qtest_quit(qts);
+
+    g_clear_pointer(&args, g_free);
+    args = g_strdup_printf(
+        "-machine %s,nvram=none -m 256M -S -nodefaults -cpu %s %s "
+        "-incoming defer",
+        test->destination_machine ?: "ia64-vpc", test->destination,
+        test->destination_extra ?: "");
+    qts = qtest_init(args);
+    qtest_qmp_assert_success(
+        qts, "{'execute':'migrate-incoming','arguments':"
+             "{'uri':%s,'exit-on-error':false}}", uri);
+    status = wait_for_migration_terminal(qts);
+    g_assert_cmpstr(status, ==, test->compatible ? "completed" : "failed");
+    qtest_quit(qts);
+    g_assert_cmpint(g_unlink(path), ==, 0);
 }
 
 static void test_stale_victim_speculative_load(void)
@@ -2592,6 +3667,44 @@ static void test_stale_victim_speculative_load(void)
 int main(int argc, char **argv)
 {
     static const unsigned cpu_counts[] = { 1, 2, 4, 8, 16, 32, 64 };
+    static const TestCPUProfileMigration cpu_profile_migrations[] = {
+        {
+            .source = "merced",
+            .destination = "itanium",
+            .compatible = true,
+        }, {
+            .source = "madison-9m",
+            .destination = "madison",
+            .compatible = false,
+        }, {
+            .source = "montecito",
+            .destination = "montecito",
+            .source_extra = "-smp cpus=2,sockets=2,cores=1,threads=1",
+            .destination_extra =
+                "-smp cpus=2,sockets=1,cores=2,threads=1",
+            .compatible = false,
+        }, {
+            .source_machine = "ia64-vpc,alat=zero",
+            .destination_machine = "ia64-vpc,alat=full",
+            .source = "montecito",
+            .destination = "montecito",
+            .compatible = false,
+        }, {
+            .source_machine = "itanium-vpc",
+            .destination_machine = "itanium2-vpc",
+            .source = "merced",
+            .destination = "merced",
+            .compatible = false,
+        }, {
+            .source = "montvale-9150m",
+            .destination = "montvale-9152m",
+            .compatible = true,
+        }, {
+            .source = "montvale-9140m",
+            .destination = "montvale-9140n",
+            .compatible = false,
+        },
+    };
     unsigned i;
 
     g_test_init(&argc, &argv, NULL);
@@ -2643,16 +3756,45 @@ int main(int argc, char **argv)
 
         qtest_add_data_func(path, topology, test_smp_multicore_topology);
     }
-    qtest_add_func("/ia64-vpc/smp/force-zero-alat",
-                   test_smp_forces_zero_alat);
-    qtest_add_func("/ia64-vpc/alat/full-warning",
-                   test_full_alat_warns);
+    qtest_add_func("/ia64-vpc/smp/full-alat", test_smp_full_alat);
     qtest_add_func("/ia64-vpc/alat/active-writer-window",
                    test_alat_active_writer_window);
+    qtest_add_func("/ia64-vpc/alat/smp-writer", test_alat_smp_writer);
     qtest_add_func("/ia64-machine/alat/default-zero",
                    test_machine_defaults_to_zero_alat);
+    qtest_add_data_func("/ia64-vpc/migration/cpu-profile-alias",
+                        &cpu_profile_migrations[0],
+                        test_cpu_profile_migration);
+    qtest_add_data_func("/ia64-vpc/migration/cpu-profile-mismatch",
+                        &cpu_profile_migrations[1],
+                        test_cpu_profile_migration);
+    qtest_add_data_func("/ia64-vpc/migration/cpu-topology-mismatch",
+                        &cpu_profile_migrations[2],
+                        test_cpu_profile_migration);
+    qtest_add_data_func("/ia64-vpc/migration/alat-mode-mismatch",
+                        &cpu_profile_migrations[3],
+                        test_cpu_profile_migration);
+    qtest_add_data_func("/ia64-vpc/migration/firmware-flags-mismatch",
+                        &cpu_profile_migrations[4],
+                        test_cpu_profile_migration);
+    qtest_add_data_func("/ia64-vpc/migration/montvale-equivalent-profile",
+                        &cpu_profile_migrations[5],
+                        test_cpu_profile_migration);
+    qtest_add_data_func("/ia64-vpc/migration/montvale-frequency-mismatch",
+                        &cpu_profile_migrations[6],
+                        test_cpu_profile_migration);
     qtest_add_func("/ia64-vpc/input/profile-defaults",
                    test_profile_default_input);
+    qtest_add_func("/ia64-vpc/ras/rendezvous",
+                   test_ras_hub_rendezvous);
+    qtest_add_func("/ia64-vpc/ras/cpu-online-mask",
+                   test_ras_cpu_online_mask);
+    qtest_add_func("/ia64-vpc/ras/min-state-restore",
+                   test_ras_min_state_restore);
+    qtest_add_func("/ia64-vpc/ras/fault-injection",
+                   test_ras_fault_injection);
+    qtest_add_func("/ia64-vpc/ras/queue-backpressure",
+                   test_ras_queue_backpressure);
     qtest_add_func("/ia64-vpc/rtc/aligned-read", test_rtc_aligned_read);
     qtest_add_func("/ia64-vpc/nvram/commit-and-restart",
                    test_nvram_commit_and_restart);
@@ -2663,6 +3805,16 @@ int main(int argc, char **argv)
     qtest_add_func("/ia64-vpc/nvram/extended-file",
                    test_nvram_extended_file);
     qtest_add_func("/ia64-vpc/pci/default-layout", test_pci_default_layout);
+    qtest_add_func("/ia64-vpc/pcie/ecam-aer-hotplug-msix",
+                   test_pcie_ecam_aer_hotplug_msix);
+    qtest_add_func("/ia64-vpc/pcie/intx-and-msi",
+                   test_pcie_intx_and_msi);
+    qtest_add_func("/ia64-vpc/pcie/aer-delivery",
+                   test_pcie_aer_delivery);
+    qtest_add_func("/ia64-vpc/pcie/aer-notification-controls",
+                   test_pcie_aer_notification_controls);
+    qtest_add_func("/ia64-vpc/pcie/zx2-iommu",
+                   test_pcie_zx2_iommu);
     qtest_add_func("/ia64-vpc/pci/es1000-model", test_pci_es1000_model);
     qtest_add_func("/ia64-vpc/pci/rv100-model", test_pci_rv100_model);
     qtest_add_func("/ia64-vpc/pci/itanium-no-default-ahci",

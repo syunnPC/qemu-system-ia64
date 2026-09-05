@@ -159,6 +159,21 @@ static void test_f1_byte_lane_writes(void)
                       &regs, HP_ZX1_MIO_LBA_PORT_CONTROL(0) + 1, 1, 0xff));
     g_assert_cmphex(read64(&regs, HP_ZX1_MIO_LBA_PORT_CONTROL(0)), ==,
                     UINT64_C(0x70));
+
+    hp_zx1_mio_regs_report_fault(&regs, HP_ZX1_MIO_ERROR_IOMMU,
+                                 UINT64_C(0x12345000), UINT64_C(0x55));
+    g_assert_true(hp_zx1_mio_regs_write_be(
+                      &regs, HP_ZX1_MIO_ERROR_STATUS,
+                      HP_ZX1_MIO_ERROR_VALID, 0x80));
+    g_assert_cmphex(read64(&regs, HP_ZX1_MIO_ERROR_STATUS), ==, 0);
+    g_assert_cmphex(read64(&regs, HP_ZX1_MIO_ERROR_ADDRESS), ==, 0);
+    g_assert_cmphex(read64(&regs, HP_ZX1_MIO_ERROR_INFORMATION), ==, 0);
+    g_assert_true(hp_zx1_mio_regs_write_be(
+                      &regs, HP_ZX1_MIO_ERROR_ADDRESS, UINT64_MAX,
+                      UINT8_MAX));
+    g_assert_true(hp_zx1_mio_regs_write_be(
+                      &regs, HP_ZX1_MIO_ERROR_INFORMATION, UINT64_MAX,
+                      UINT8_MAX));
 }
 
 static void test_invalid_accesses(void)

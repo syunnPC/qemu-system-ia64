@@ -26,6 +26,11 @@ typedef struct DeliveryLog {
     unsigned int count;
 } DeliveryLog;
 
+typedef struct FaultLog {
+    IA64ChipsetFault last;
+    unsigned int count;
+} FaultLog;
+
 static uint64_t read_size(HPZX1IOARegs *ioa, uint64_t offset,
                           unsigned int size)
 {
@@ -49,6 +54,17 @@ static void write_size(HPZX1IOARegs *ioa, uint64_t offset,
 static void writeq(HPZX1IOARegs *ioa, uint64_t offset, uint64_t value)
 {
     write_size(ioa, offset, 8, value);
+}
+
+static void clear_error_log(HPZX1IOARegs *ioa)
+{
+    uint64_t control = readq(ioa, HP_ZX1_IOA_STATUS_CONTROL) &
+        (HP_ZX1_IOA_SIC_FORWARD_VGA | HP_ZX1_IOA_SIC_HARD_FAIL);
+
+    writeq(ioa, HP_ZX1_IOA_STATUS_CONTROL,
+           control | HP_ZX1_IOA_SIC_CLEAR_ENABLE);
+    writeq(ioa, HP_ZX1_IOA_STATUS_CONTROL,
+           control | HP_ZX1_IOA_SIC_CLEAR_LOG);
 }
 
 static HPZX1IOARegsConfig test_config(HPZX1IOAMode mode)
@@ -99,6 +115,15 @@ static bool config_write(void *opaque, uint32_t address, unsigned int size,
     log->value = value;
     log->writes++;
     return log->respond;
+}
+
+static bool record_fault(void *opaque, const IA64ChipsetFault *fault)
+{
+    FaultLog *log = opaque;
+
+    log->last = *fault;
+    log->count++;
+    return true;
 }
 
 static unsigned int rte_low(unsigned int entry)
@@ -459,6 +484,171 @@ static void test_configuration_cycles(void)
     g_assert_cmpuint(log.reads, ==, 5);
 }
 
+static void test_configuration_abort_no_mca(void)
+{
+    const struct {
+        uint32_t selector;
+        uint32_t bus_address;
+    } probes[] = {
+        { 0, 0x10000 },                        /* Empty type-0 slot. */
+        { (1U << 11) | (3U << 8), 0x20300 },    /* Absent function. */
+        { 16U << 11, 0 },                      /* No type-0 IDSEL. */
+        { (2U << 16) | (16U << 11), 0x28001 },  /* Empty type-1 slot. */
+    };
+    HPZX1IOARegs ioa;
+    HPZX1IOARegsConfig config = test_config(HP_ZX1_IOA_MODE_PCI);
+    ConfigLog config_log = { .respond = false };
+    FaultLog fault_log = { 0 };
+    unsigned int i;
+
+    config.config_read = config_read;
+    config.config_write = config_write;
+    config.config_opaque = &config_log;
+    config.fault_notify = record_fault;
+    config.fault_opaque = &fault_log;
+    g_assert_true(hp_zx1_ioa_regs_init(&ioa, &config));
+
+    for (i = 0; i < G_N_ELEMENTS(probes); i++) {
+        clear_error_log(&ioa);
+        writeq(&ioa, HP_ZX1_IOA_CONFIG_ADDRESS, probes[i].selector);
+        g_assert_cmphex(read_size(&ioa, HP_ZX1_IOA_CONFIG_DATA, 4), ==,
+                        UINT32_MAX);
+        g_assert_cmphex(readq(&ioa, HP_ZX1_IOA_ERROR_STATUS), ==,
+                        0x40c); /* UNC, master-abort log code. */
+        g_assert_cmphex(readq(&ioa, HP_ZX1_IOA_OUTBOUND_ERROR_ADDRESS), ==,
+                        UINT64_C(0x4000000000000000) | probes[i].bus_address);
+        g_assert_cmphex(readq(&ioa, HP_ZX1_IOA_ERROR_MASTER_ID), ==, 0);
+        g_assert_cmphex(read_size(&ioa, HP_ZX1_IOA_FUNCTION_ID + 6, 2) & 0x2000,
+                        ==, 0x2000);
+        g_assert_cmpuint(fault_log.count, ==, 0);
+
+        write_size(&ioa, HP_ZX1_IOA_CONFIG_DATA, 4, UINT32_MAX);
+        g_assert_cmphex(readq(&ioa, HP_ZX1_IOA_ERROR_STATUS), ==,
+                        UINT64_C(0x4000000042c)); /* UNC_OV, OV, UNC, code. */
+        g_assert_cmpuint(fault_log.count, ==, 0);
+    }
+
+    /* A prior configuration abort must not mask a later real fault. */
+    hp_zx1_ioa_regs_report_fault(&ioa, HP_ZX1_IOA_FAULT_MSI_DECODE,
+                                 UINT64_C(0xfee00000), 0x55);
+    g_assert_cmpuint(fault_log.count, ==, 1);
+    g_assert_cmpuint(fault_log.last.reason, ==, IA64_CHIPSET_FAULT_DECODE);
+    g_assert_cmphex(fault_log.last.address, ==, UINT64_C(0xfee00000));
+    g_assert_cmphex(fault_log.last.information, ==, 0x55);
+    g_assert_cmphex(fault_log.last.status, ==, 0);
+    g_assert_cmphex(readq(&ioa, HP_ZX1_IOA_ERROR_STATUS), ==,
+                    UINT64_C(0x4000000042c));
+
+    clear_error_log(&ioa);
+    g_assert_cmphex(readq(&ioa, HP_ZX1_IOA_ERROR_STATUS), ==, 0);
+    hp_zx1_ioa_regs_report_fault(&ioa, HP_ZX1_IOA_FAULT_CSR_DECODE,
+                                 UINT64_C(0xfff8), 0);
+    g_assert_cmpuint(fault_log.count, ==, 2);
+    g_assert_cmpuint(fault_log.last.reason, ==, IA64_CHIPSET_FAULT_DECODE);
+    g_assert_cmphex(fault_log.last.address, ==, UINT64_C(0xfff8));
+    g_assert_cmphex(readq(&ioa, HP_ZX1_IOA_ERROR_STATUS), ==, 0);
+}
+
+static void test_error_log_clear(void)
+{
+    HPZX1IOARegs ioa;
+    HPZX1IOARegsConfig config = test_config(HP_ZX1_IOA_MODE_PCI);
+    uint64_t status;
+    uint64_t address;
+
+    g_assert_true(hp_zx1_ioa_regs_init(&ioa, &config));
+    writeq(&ioa, HP_ZX1_IOA_CONFIG_ADDRESS, 0x800);
+    read_size(&ioa, HP_ZX1_IOA_CONFIG_DATA + 3, 1);
+    status = readq(&ioa, HP_ZX1_IOA_ERROR_STATUS);
+    address = readq(&ioa, HP_ZX1_IOA_OUTBOUND_ERROR_ADDRESS);
+    g_assert_cmphex(status, ==, 0x40c);
+    g_assert_cmphex(address, ==, UINT64_C(0x4000000000020000));
+
+    /* Status and address are read-only, including subword writes. */
+    writeq(&ioa, HP_ZX1_IOA_ERROR_STATUS, UINT64_MAX);
+    write_size(&ioa, HP_ZX1_IOA_ERROR_STATUS + 1, 1, 0xff);
+    writeq(&ioa, HP_ZX1_IOA_OUTBOUND_ERROR_ADDRESS, UINT64_MAX);
+    writeq(&ioa, HP_ZX1_IOA_ERROR_MASTER_ID, UINT64_MAX);
+    writeq(&ioa, 0x698, UINT64_MAX); /* Reserved, not an error-data register. */
+    g_assert_cmphex(readq(&ioa, HP_ZX1_IOA_ERROR_STATUS), ==, status);
+    g_assert_cmphex(readq(&ioa, HP_ZX1_IOA_OUTBOUND_ERROR_ADDRESS), ==,
+                    address);
+    g_assert_cmphex(readq(&ioa, HP_ZX1_IOA_ERROR_MASTER_ID), ==, 0);
+    g_assert_cmphex(readq(&ioa, 0x698), ==, 0);
+
+    /* CE=0 prevents CL from discarding an unread error. */
+    writeq(&ioa, HP_ZX1_IOA_STATUS_CONTROL, HP_ZX1_IOA_SIC_CLEAR_LOG);
+    g_assert_cmphex(readq(&ioa, HP_ZX1_IOA_ERROR_STATUS), ==, status);
+    g_assert_cmphex(readq(&ioa, HP_ZX1_IOA_STATUS_CONTROL), ==, 0);
+
+    /* A new error between arming CE and writing CL cancels the clear. */
+    writeq(&ioa, HP_ZX1_IOA_STATUS_CONTROL, HP_ZX1_IOA_SIC_CLEAR_ENABLE);
+    writeq(&ioa, HP_ZX1_IOA_CONFIG_ADDRESS, 0x1000);
+    read_size(&ioa, HP_ZX1_IOA_CONFIG_DATA, 4);
+    g_assert_cmphex(readq(&ioa, HP_ZX1_IOA_STATUS_CONTROL), ==, 0);
+    writeq(&ioa, HP_ZX1_IOA_STATUS_CONTROL, HP_ZX1_IOA_SIC_CLEAR_LOG);
+    g_assert_cmphex(readq(&ioa, HP_ZX1_IOA_ERROR_STATUS), ==,
+                    UINT64_C(0x4000000042c));
+    g_assert_cmphex(readq(&ioa, HP_ZX1_IOA_OUTBOUND_ERROR_ADDRESS), ==,
+                    address);
+
+    clear_error_log(&ioa);
+    g_assert_cmphex(readq(&ioa, HP_ZX1_IOA_ERROR_STATUS), ==, 0);
+    g_assert_cmphex(readq(&ioa, HP_ZX1_IOA_OUTBOUND_ERROR_ADDRESS), ==, 0);
+    /* PCI Status has its own W1C mechanism, independent of CE/CL. */
+    g_assert_cmphex(read_size(&ioa, HP_ZX1_IOA_FUNCTION_ID + 6, 2) & 0x2000,
+                    ==, 0x2000);
+    write_size(&ioa, HP_ZX1_IOA_FUNCTION_ID + 6, 2, 0x2000);
+    g_assert_cmphex(read_size(&ioa, HP_ZX1_IOA_FUNCTION_ID + 6, 2) & 0x2000,
+                    ==, 0);
+    g_assert_cmphex(readq(&ioa, HP_ZX1_IOA_STATUS_CONTROL), ==,
+                    HP_ZX1_IOA_SIC_CLEAR_LOG);
+    read_size(&ioa, HP_ZX1_IOA_CONFIG_DATA, 4);
+    write_size(&ioa, HP_ZX1_IOA_STATUS_CONTROL + 4, 4, 0);
+    g_assert_cmphex(readq(&ioa, HP_ZX1_IOA_ERROR_STATUS), ==, 0x40c);
+
+    /* Writing CE=CL=1 leaves the error log unchanged. */
+    writeq(&ioa, HP_ZX1_IOA_STATUS_CONTROL,
+           HP_ZX1_IOA_SIC_CLEAR_ENABLE | HP_ZX1_IOA_SIC_CLEAR_LOG);
+    g_assert_cmphex(readq(&ioa, HP_ZX1_IOA_ERROR_STATUS), ==, 0x40c);
+    clear_error_log(&ioa);
+
+    /* Log the control bits at the first error, not their current values. */
+    writeq(&ioa, HP_ZX1_IOA_ERROR_CONFIGURATION, 0x20);
+    writeq(&ioa, HP_ZX1_IOA_STATUS_CONTROL, HP_ZX1_IOA_SIC_HARD_FAIL);
+    hp_zx1_ioa_regs_report_fault(&ioa, HP_ZX1_IOA_FAULT_CONFIG_ABORT, 0, 0);
+    writeq(&ioa, HP_ZX1_IOA_ERROR_CONFIGURATION, 0);
+    writeq(&ioa, HP_ZX1_IOA_STATUS_CONTROL, 0);
+    g_assert_cmphex(readq(&ioa, HP_ZX1_IOA_ERROR_STATUS), ==,
+                    UINT64_C(0x30000040c));
+    hp_zx1_ioa_regs_reset(&ioa);
+    g_assert_cmphex(readq(&ioa, HP_ZX1_IOA_ERROR_STATUS), ==, 0);
+    g_assert_cmphex(readq(&ioa, HP_ZX1_IOA_OUTBOUND_ERROR_ADDRESS), ==, 0);
+}
+
+static void test_error_log_priority(void)
+{
+    HPZX1IOARegs ioa;
+    HPZX1IOARegsConfig config = test_config(HP_ZX1_IOA_MODE_PCI);
+
+    g_assert_true(hp_zx1_ioa_regs_init(&ioa, &config));
+    /* Seed other error classes, as when restoring an existing hardware log. */
+    ioa.error_status = 0x801; /* Corrected error. */
+    ioa.outbound_error_address = 0x1000;
+    hp_zx1_ioa_regs_report_fault(&ioa, HP_ZX1_IOA_FAULT_CONFIG_ABORT, 0, 0);
+    g_assert_cmphex(readq(&ioa, HP_ZX1_IOA_ERROR_STATUS), ==, 0xc0c);
+    g_assert_cmphex(readq(&ioa, HP_ZX1_IOA_OUTBOUND_ERROR_ADDRESS), ==,
+                    UINT64_C(0x4000000000010000));
+
+    ioa.error_status = 0x21f; /* One fatal SERR, no overflow. */
+    ioa.outbound_error_address = 0x2000;
+    hp_zx1_ioa_regs_report_fault(&ioa, HP_ZX1_IOA_FAULT_CONFIG_ABORT, 0, 0);
+    hp_zx1_ioa_regs_report_fault(&ioa, HP_ZX1_IOA_FAULT_CONFIG_ABORT, 0, 0);
+    g_assert_cmphex(readq(&ioa, HP_ZX1_IOA_ERROR_STATUS), ==,
+                    UINT64_C(0x4000000061f));
+    g_assert_cmphex(readq(&ioa, HP_ZX1_IOA_OUTBOUND_ERROR_ADDRESS), ==, 0x2000);
+}
+
 static void test_sapic_registers_edge_and_id_eid(void)
 {
     HPZX1IOARegs ioa;
@@ -605,6 +795,10 @@ int main(int argc, char **argv)
                     test_msi_ranges_and_reset_control);
     g_test_add_func("/hp-zx1-ioa/configuration-cycles",
                     test_configuration_cycles);
+    g_test_add_func("/hp-zx1-ioa/configuration-abort-no-mca",
+                    test_configuration_abort_no_mca);
+    g_test_add_func("/hp-zx1-ioa/error-log-clear", test_error_log_clear);
+    g_test_add_func("/hp-zx1-ioa/error-log-priority", test_error_log_priority);
     g_test_add_func("/hp-zx1-ioa/sapic-registers-edge-and-id-eid",
                     test_sapic_registers_edge_and_id_eid);
     g_test_add_func("/hp-zx1-ioa/sapic-level-mask-eoi-and-software",

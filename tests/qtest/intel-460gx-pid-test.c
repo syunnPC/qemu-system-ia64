@@ -13,6 +13,8 @@
 
 #define PID_TEST_BASE                  UINT64_C(0x80200000)
 #define PID_QOM_PATH                   "/machine/peripheral/pid0"
+#define IA64_PIB_BASE                  UINT64_C(0xfee00000)
+#define IA64_PIB_XTP                   (IA64_PIB_BASE + UINT64_C(0x1e0008))
 
 #define PID_IOREGSEL                   0x00
 #define PID_IOWIN                      0x10
@@ -25,7 +27,7 @@
 
 #define PID_RTE_VECTOR                 UINT32_C(0x000000ff)
 #define PID_RTE_REDIRECTION_HINT       BIT(8)
-#define PID_RTE_DESTINATION_LOGICAL    BIT(11)
+#define PID_RTE_RESERVED_11            BIT(11)
 #define PID_RTE_DELIVERY_STATUS        BIT(12)
 #define PID_RTE_POLARITY_LOW           BIT(13)
 #define PID_RTE_REMOTE_IRR             BIT(14)
@@ -37,15 +39,26 @@
 #define PID_DELIVERY_NMI               PID_DELIVERY_MODE(4)
 #define PID_DELIVERY_EXTINT            PID_DELIVERY_MODE(7)
 
+#define SAPIC_STATE_IRR                BIT(8)
+#define SAPIC_STATE_ISR                BIT(9)
+#define SAPIC_STATE_PMI                BIT(10)
+#define SAPIC_STATE_INIT               BIT(11)
+
+static QTestState *pid_start_cpus(const char *device_properties,
+                                  const char *extra_args, unsigned int cpus)
+{
+    return qtest_initf("-machine ia64-vpc,nvram=none "
+                       "-m 256M -smp %u -S "
+                       "-device %s,id=pid0,x-test-mmio-base=0x%" PRIx64
+                       "%s %s",
+                       cpus, TYPE_INTEL_460GX_PID, PID_TEST_BASE,
+                       device_properties ?: "", extra_args ?: "");
+}
+
 static QTestState *pid_start(const char *device_properties,
                              const char *extra_args)
 {
-    return qtest_initf("-machine ia64-vpc,nvram=none "
-                       "-m 256M -smp 1 -S "
-                       "-device %s,id=pid0,x-test-mmio-base=0x%" PRIx64
-                       "%s %s",
-                       TYPE_INTEL_460GX_PID, PID_TEST_BASE,
-                       device_properties ?: "", extra_args ?: "");
+    return pid_start_cpus(device_properties, extra_args, 1);
 }
 
 static QTestState *pid_start_with_wiring(const char *extra_args,
@@ -152,7 +165,7 @@ static void test_registers_and_negative(void)
 
     /* Reserved RTE bits are hard zero and status/RIRR are read-only. */
     pid_write(qts, pid_rte_low(0), 0xffffffff);
-    g_assert_cmphex(pid_read(qts, pid_rte_low(0)), ==, 0x0003afff);
+    g_assert_cmphex(pid_read(qts, pid_rte_low(0)), ==, 0x0003a7ff);
     pid_write(qts, pid_rte_high(0), 0xffffffff);
     g_assert_cmphex(pid_read(qts, pid_rte_high(0)), ==, 0xffff0000);
 
@@ -306,7 +319,7 @@ static void test_mask_destination_and_route(void)
 {
     const uint8_t masked_vector = 0x53;
     const uint8_t wrong_dest_vector = 0x54;
-    const uint8_t logical_dest_vector = 0x55;
+    const uint8_t reserved_dest_vector = 0x55;
     const uint8_t low_edge_vector = 0x56;
     const uint8_t masked_level_vector = 0x59;
     const uint8_t pending_edge_vector = 0x5a;
@@ -347,9 +360,11 @@ static void test_mask_destination_and_route(void)
                     ==, 0);
 
     pid_write(qts, pid_rte_low(6),
-              logical_dest_vector | PID_RTE_DESTINATION_LOGICAL);
+              reserved_dest_vector | PID_RTE_RESERVED_11);
+    g_assert_cmphex(pid_read(qts, pid_rte_low(6)) & PID_RTE_RESERVED_11,
+                    ==, 0);
     pid_pulse(qts, INTEL_460GX_PID_GPIO_IRQ, 6);
-    g_assert_false(sapic_irr_has_vector(qts, logical_dest_vector));
+    g_assert_true(sapic_irr_wait_for_vector(qts, reserved_dest_vector));
 
     pid_write(qts, pid_rte_low(7),
               low_edge_vector | PID_RTE_POLARITY_LOW);
@@ -486,6 +501,156 @@ static void test_mask_destination_and_route(void)
     qtest_quit(qts);
 }
 
+static int64_t sapic_cpu_operation(QTestState *qts, const char *operation,
+                                   unsigned int cpu, uint8_t value)
+{
+    return qtest_ia64_sapic(qts, operation, cpu, value, 0, 0, 0);
+}
+
+static int64_t sapic_deliver(QTestState *qts, unsigned int destination_mode,
+                             uint8_t id, uint8_t eid,
+                             unsigned int delivery_mode, bool redirect,
+                             uint8_t vector)
+{
+    return qtest_ia64_sapic(qts, "deliver", destination_mode,
+                            ((uint16_t)id << 8) | eid, delivery_mode,
+                            redirect, vector);
+}
+
+static uint64_t sapic_cpu_state(QTestState *qts, unsigned int cpu,
+                                uint8_t vector)
+{
+    return sapic_cpu_operation(qts, "state", cpu, vector);
+}
+
+static void test_smp_delivery_accept_and_eoi(void)
+{
+    const uint8_t reserved_vector = 0x62;
+    const uint8_t priority_vector = 0x63;
+    const uint8_t disabled_vector = 0x64;
+    const uint8_t level_vector = 0x65;
+    const uint8_t no_redirect_vector = 0x66;
+    const unsigned int level_pin = 12;
+    QTestState *qts = pid_start_cpus(NULL, NULL, 4);
+    uint64_t state;
+    unsigned int cpu;
+
+    pid_write(qts, pid_rte_high(0), UINT32_C(0x05000000));
+    pid_write(qts, pid_rte_low(0),
+              reserved_vector | PID_RTE_RESERVED_11);
+    g_assert_cmphex(pid_read(qts, pid_rte_low(0)) & PID_RTE_RESERVED_11,
+                    ==, 0);
+    pid_pulse(qts, INTEL_460GX_PID_GPIO_IRQ, 0);
+    for (cpu = 0; cpu < 4; cpu++) {
+        state = sapic_cpu_state(qts, cpu, reserved_vector);
+        g_assert_cmphex(state & SAPIC_STATE_IRR, ==, 0);
+    }
+
+    g_assert_cmphex(sapic_cpu_operation(qts, "xtp", 0, 8), ==, 8);
+    g_assert_cmphex(sapic_cpu_operation(qts, "xtp", 1, 0x80), ==, 0x80);
+    g_assert_cmphex(sapic_cpu_operation(qts, "xtp", 2, 2), ==, 2);
+    g_assert_cmphex(sapic_cpu_operation(qts, "xtp", 3, 2), ==, 2);
+    g_assert_cmpint(qtest_ia64_sapic(
+                        qts, "pib-write", 0, IA64_PIB_XTP, 1, 6, 0), ==, 1);
+    g_assert_cmpint(qtest_ia64_sapic(
+                        qts, "pib-read", 0, IA64_PIB_XTP, 1, 0, 0), ==, 6);
+    g_assert_cmpint(qtest_ia64_sapic(
+                        qts, "pib-write", 0,
+                        IA64_PIB_BASE + (UINT64_C(1) << 12), 8,
+                        priority_vector, 0), ==, 1);
+    g_assert_cmphex(sapic_cpu_state(qts, 1, priority_vector) &
+                    SAPIC_STATE_IRR, ==, SAPIC_STATE_IRR);
+    g_assert_cmpint(sapic_cpu_operation(qts, "accept", 1, 0), ==,
+                    priority_vector);
+    sapic_cpu_operation(qts, "eoi", 1, 0);
+    g_assert_cmpint(qtest_ia64_sapic(
+                        qts, "pib-write", 0,
+                        IA64_PIB_BASE + (UINT64_C(1) << 12) + 8, 8,
+                        disabled_vector, 0), ==, 1);
+    for (cpu = 0; cpu < 4; cpu++) {
+        g_assert_cmphex(sapic_cpu_state(qts, cpu, disabled_vector) &
+                        SAPIC_STATE_IRR, ==, 0);
+    }
+
+    pid_write(qts, pid_rte_low(1),
+              priority_vector | PID_RTE_REDIRECTION_HINT);
+    pid_pulse(qts, INTEL_460GX_PID_GPIO_IRQ, 1);
+    g_assert_cmphex(sapic_cpu_state(qts, 0, priority_vector) &
+                    SAPIC_STATE_IRR, ==, 0);
+    g_assert_cmphex(sapic_cpu_state(qts, 1, priority_vector) &
+                    SAPIC_STATE_IRR, ==, 0);
+    g_assert_cmphex(sapic_cpu_state(qts, 2, priority_vector) &
+                    SAPIC_STATE_IRR, ==, SAPIC_STATE_IRR);
+    g_assert_cmphex(sapic_cpu_state(qts, 3, priority_vector) &
+                    SAPIC_STATE_IRR, ==, 0);
+    cpu = 2;
+    g_assert_cmpint(sapic_cpu_operation(qts, "accept", cpu, 0), ==,
+                    priority_vector);
+    sapic_cpu_operation(qts, "eoi", cpu, 0);
+    sapic_cpu_operation(qts, "xtp", 2, 0x82);
+    pid_write(qts, pid_rte_low(2),
+              disabled_vector | PID_RTE_REDIRECTION_HINT);
+    pid_pulse(qts, INTEL_460GX_PID_GPIO_IRQ, 2);
+    g_assert_cmphex(sapic_cpu_state(qts, 2, disabled_vector) &
+                    SAPIC_STATE_IRR, ==, 0);
+    g_assert_cmphex(sapic_cpu_state(qts, 3, disabled_vector) &
+                    SAPIC_STATE_IRR, ==, SAPIC_STATE_IRR);
+
+    sapic_cpu_operation(qts, "xtp", 0, 0x88);
+    sapic_cpu_operation(qts, "xtp", 3, 0x82);
+    pid_write(qts, pid_rte_low(3),
+              no_redirect_vector | PID_RTE_REDIRECTION_HINT);
+    pid_pulse(qts, INTEL_460GX_PID_GPIO_IRQ, 3);
+    g_assert_cmphex(sapic_cpu_state(qts, 0, no_redirect_vector) &
+                    SAPIC_STATE_IRR, ==, SAPIC_STATE_IRR);
+    g_assert_cmphex(sapic_cpu_state(qts, 3, no_redirect_vector) &
+                    SAPIC_STATE_IRR, ==, 0);
+
+    g_assert_cmpint(sapic_deliver(qts, 0, 1, 0, 2, false, 0), ==, 1);
+    g_assert_cmphex(sapic_cpu_state(qts, 1, 0) & SAPIC_STATE_PMI, ==,
+                    SAPIC_STATE_PMI);
+    g_assert_cmpint(sapic_cpu_operation(qts, "accept-pmi", 1, 0), ==, 0);
+    g_assert_cmphex(sapic_cpu_state(qts, 1, 0) & SAPIC_STATE_PMI, ==, 0);
+    g_assert_cmpint(sapic_deliver(qts, 0, 1, 0, 2, false, 3), ==, 1);
+    g_assert_cmpint(sapic_deliver(qts, 0, 1, 0, 2, false, 0), ==, 1);
+    g_assert_cmpint(sapic_cpu_operation(qts, "accept-pmi", 1, 0), ==, 3);
+    g_assert_cmpint(sapic_cpu_operation(qts, "accept-pmi", 1, 0), ==, 0);
+    g_assert_cmpint(sapic_deliver(qts, 0, 1, 0, 2, false, 4), ==, 0);
+
+    g_assert_cmpint(sapic_deliver(qts, 0, 3, 0, 5, false, 0xff), ==, 1);
+    g_assert_cmphex(sapic_cpu_state(qts, 3, 0) & SAPIC_STATE_INIT, ==,
+                    SAPIC_STATE_INIT);
+    g_assert_cmpint(sapic_cpu_operation(qts, "accept-init", 3, 0), ==, 1);
+    g_assert_cmpint(sapic_cpu_operation(qts, "accept-init", 3, 0), ==, 0);
+
+    pid_write(qts, pid_rte_high(level_pin), UINT32_C(0x01000000));
+    pid_write(qts, pid_rte_low(level_pin),
+              level_vector | PID_RTE_TRIGGER_LEVEL);
+    qtest_set_irq_in(qts, PID_QOM_PATH, INTEL_460GX_PID_GPIO_IRQ,
+                     level_pin, 1);
+    g_assert_cmpint(sapic_cpu_operation(qts, "accept", 1, 0), ==,
+                    level_vector);
+    g_assert_cmphex(sapic_cpu_state(qts, 1, level_vector) &
+                    (SAPIC_STATE_IRR | SAPIC_STATE_ISR), ==,
+                    SAPIC_STATE_ISR);
+    sapic_cpu_operation(qts, "eoi", 1, 0);
+    qtest_writel(qts, PID_TEST_BASE + PID_EOI, level_vector);
+    g_assert_cmphex(sapic_cpu_state(qts, 1, level_vector) &
+                    (SAPIC_STATE_IRR | SAPIC_STATE_ISR), ==,
+                    SAPIC_STATE_IRR);
+
+    qtest_set_irq_in(qts, PID_QOM_PATH, INTEL_460GX_PID_GPIO_IRQ,
+                     level_pin, 0);
+    g_assert_cmpint(sapic_cpu_operation(qts, "accept", 1, 0), ==,
+                    level_vector);
+    sapic_cpu_operation(qts, "eoi", 1, 0);
+    qtest_writel(qts, PID_TEST_BASE + PID_EOI, level_vector);
+    g_assert_cmphex(pid_read(qts, pid_rte_low(level_pin)) &
+                    PID_RTE_REMOTE_IRR, ==, 0);
+
+    qtest_quit(qts);
+}
+
 static void test_named_legacy_input(void)
 {
     const uint8_t vector = 0x57;
@@ -549,6 +714,13 @@ static void test_migration_state(void)
                      pending_pin, 0);
     g_assert_cmphex(pid_read(qts, pid_rte_low(pending_pin)) &
                     PID_RTE_DELIVERY_STATUS, !=, 0);
+    g_assert_cmphex(sapic_cpu_operation(qts, "xtp", 0, 0x86), ==, 0x86);
+    g_assert_cmpint(sapic_deliver(qts, 0, 0, 0, 2, false, 0), ==, 1);
+    g_assert_cmpint(sapic_deliver(qts, 0, 0, 0, 2, false, 3), ==, 1);
+    g_assert_cmpint(sapic_deliver(qts, 0, 0, 0, 5, false, 0xff), ==, 1);
+    g_assert_cmpint(sapic_cpu_operation(qts, "ras-arm", 0, 0), ==, 1);
+    g_assert_cmphex(sapic_cpu_operation(qts, "ras-state", 0, 0), ==,
+                    BIT(1) | BIT(3));
     pid_select(qts, pid_rte_high(pin));
 
     response = qtest_hmp(qts, "savevm pid-state");
@@ -559,6 +731,10 @@ static void test_migration_state(void)
     g_assert_cmphex(pid_read(qts, pid_rte_low(pin)), ==, PID_RTE_MASKED);
     g_assert_cmphex(pid_read(qts, PID_REG_ID), ==, 0x09008000);
     g_assert_cmphex(pid_read(qts, PID_REG_ARB_ID), ==, 0x09000000);
+    g_assert_cmphex(sapic_cpu_state(qts, 0, 0) &
+                    (UINT64_C(0xff) | SAPIC_STATE_PMI | SAPIC_STATE_INIT),
+                    ==, 0x80);
+    g_assert_cmphex(sapic_cpu_operation(qts, "ras-state", 0, 0), ==, 0);
 
     response = qtest_hmp(qts, "loadvm pid-state");
     g_assert_cmpstr(response, ==, "");
@@ -570,6 +746,18 @@ static void test_migration_state(void)
                     (PID_RTE_VECTOR | PID_RTE_TRIGGER_LEVEL |
                      PID_RTE_REMOTE_IRR), ==,
                     vector | PID_RTE_TRIGGER_LEVEL | PID_RTE_REMOTE_IRR);
+    g_assert_cmphex(sapic_cpu_state(qts, 0, 0) &
+                    (UINT64_C(0xff) | SAPIC_STATE_PMI | SAPIC_STATE_INIT),
+                    ==, 0x86 | SAPIC_STATE_PMI | SAPIC_STATE_INIT);
+    g_assert_cmphex(sapic_cpu_operation(qts, "ras-state", 0, 0), ==,
+                    BIT(1) | BIT(3));
+    g_assert_cmpint(sapic_cpu_operation(qts, "ras-resume", 0, 0), ==, 1);
+    g_assert_cmphex(sapic_cpu_operation(qts, "ras-state", 0, 0), ==,
+                    BIT(3));
+    g_assert_cmpint(sapic_cpu_operation(qts, "accept-pmi", 0, 0), ==, 3);
+    g_assert_cmpint(sapic_cpu_operation(qts, "accept-pmi", 0, 0), ==, 0);
+    g_assert_cmpint(sapic_cpu_operation(qts, "accept-init", 0, 0), ==, 1);
+    g_assert_cmpint(sapic_cpu_operation(qts, "accept-init", 0, 0), ==, 0);
 
     pid_write(qts, pid_rte_high(pending_pin), 0);
     pid_write(qts, pid_rte_low(pending_pin),
@@ -678,6 +866,8 @@ int main(int argc, char **argv)
                    test_sapic_delivery_and_hint);
     qtest_add_func("/intel-460gx-pid/mask-destination-and-route",
                    test_mask_destination_and_route);
+    qtest_add_func("/intel-460gx-pid/smp-delivery-accept-and-eoi",
+                   test_smp_delivery_accept_and_eoi);
     qtest_add_func("/intel-460gx-pid/named-legacy-input",
                    test_named_legacy_input);
     qtest_add_func("/intel-460gx-pid/migration-state",

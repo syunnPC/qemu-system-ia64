@@ -8,6 +8,7 @@
 
 #include "hw/core/qdev.h"
 #include "hw/ia64/ia64_platform.h"
+#include "hw/ia64/ia64_ras_abi.h"
 #include "migration/vmstate.h"
 #include "qemu/bswap.h"
 #include "qemu/module.h"
@@ -291,7 +292,9 @@ static void test_fixture_init(TestDescriptorFixture *fixture)
     header->FormatRevision = cpu_to_le32(IA64_PLATFORM_DESC_REVISION);
     header->PlatformId = cpu_to_le32(IA64_PLATFORM_ID_HP_I2000);
     header->Flags = cpu_to_le32(IA64_PLATFORM_FLAG_NO_MCFG |
-                                IA64_PLATFORM_FLAG_QEMU_EXTENSION);
+                                IA64_PLATFORM_FLAG_QEMU_EXTENSION |
+                                IA64_PLATFORM_FLAG_FAMILY_HP_I2000 |
+                                IA64_PLATFORM_FLAG_PCI_CF8);
     header->RamSize = cpu_to_le64(2 * GiB);
     header->LowRamEnd = cpu_to_le64(1 * GiB);
     header->FirmwareBase = cpu_to_le64(IA64_PLATFORM_FIRMWARE_BASE);
@@ -300,6 +303,18 @@ static void test_fixture_init(TestDescriptorFixture *fixture)
     header->SocketCount = cpu_to_le32(1);
     header->CoresPerSocket = cpu_to_le32(1);
     header->ThreadsPerCore = cpu_to_le32(1);
+    header->PhysicalAddressBits = cpu_to_le32(
+        IA64_PLATFORM_I2000_PHYS_ADDR_BITS);
+    header->MaxSockets = cpu_to_le32(2);
+    header->MaxCoresPerSocket = cpu_to_le32(1);
+    header->MaxThreadsPerCore = cpu_to_le32(1);
+    header->MaxPciRoots = cpu_to_le32(1);
+    header->PciRootIdentity = cpu_to_le32(
+        IA64_PLATFORM_PCI_ROOT_IDENTITY_GENERIC);
+    header->NumaNodeCount = cpu_to_le32(1);
+    header->NumaNode[0].ProcessorCount = cpu_to_le32(1);
+    header->NumaNode[0].RamRangeMask = cpu_to_le32(3);
+    header->NumaNode[0].Distance[0] = 10;
     header->LegacyIoBase = cpu_to_le64(TEST_LEGACY_IO_BASE);
     header->LegacyIoSize = cpu_to_le64(64 * MiB);
     header->LocalSapicBase = cpu_to_le64(0xfee00000ULL);
@@ -312,6 +327,8 @@ static void test_fixture_init(TestDescriptorFixture *fixture)
     header->NvramSize = cpu_to_le64(64 * KiB);
     header->RtcBase = cpu_to_le64(0xffef0000ULL);
     header->RtcSize = cpu_to_le64(8 * KiB);
+    header->RasBase = cpu_to_le64(IA64_RAS_HUB_DEFAULT_BASE);
+    header->RasSize = cpu_to_le64(IA64_RAS_HUB_SIZE);
 
     ram[0].Size = cpu_to_le64(1 * GiB);
     ram[1].Base = cpu_to_le64(4 * GiB);

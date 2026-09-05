@@ -464,7 +464,7 @@ static void test_hp_zx6000_constraints(void)
     zx6000_assert_start_fails("-smp", "3", "max CPUs supported");
     zx6000_assert_start_fails(
         "-smp", "2,sockets=1,cores=2",
-        "requires one single-core, single-thread processor per socket");
+        "requires one to 2 sockets, 1 core per socket, one to 1 threads");
     zx6000_assert_start_fails("-m", "256M", "at least 512 MiB");
 }
 
@@ -1244,7 +1244,7 @@ static void test_hp_zx6000_descriptor(void)
         { 0x20, 1, 1, 28 }, /* LSI function 1 */
         { 0x20, 2, 0, 29 }, /* BCM5701 */
     };
-    uint8_t storage[2048] = { 0 };
+    uint8_t storage[IA64_PLATFORM_DESC_MAX_SIZE] = { 0 };
     IA64PlatformDescriptor *descriptor =
         (IA64PlatformDescriptor *)storage;
     const IA64PlatformRamRange *ram;

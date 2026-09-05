@@ -12,9 +12,10 @@
 
 #include "hw/ia64/ia64_firmware_compat.h"
 #include "hw/ia64/ia64_i2000_profile_abi.h"
+#include "hw/ia64/ia64_ras_abi.h"
 
 #define IA64_PLATFORM_DESC_MAGIC          0x44504c5034364951ULL /* QI64PLPD */
-#define IA64_PLATFORM_DESC_REVISION       5U
+#define IA64_PLATFORM_DESC_REVISION       7U
 #define IA64_PLATFORM_DESC_ALIGNMENT      0x1000U
 #define IA64_PLATFORM_DESC_MAX_SIZE       0x1000U
 #define IA64_PLATFORM_FIRMWARE_BASE       0x0000000000100000ULL
@@ -37,11 +38,7 @@
 #define IA64_PLATFORM_ACPI_GPE0_STS_OFFSET 0x1010U
 #define IA64_PLATFORM_ACPI_GPE0_EN_OFFSET  0x1014U
 #define IA64_PLATFORM_ACPI_GPE0_LENGTH     0x0008U
-/*
- * zx6000 fixed ACPI hardware remains in its physical MMIO page and is also
- * decoded at these platform I/O ports for operating systems that consume the
- * FADT SystemIO form.  Both views address the same register storage.
- */
+/* The ACPI PM MMIO and SystemIO aliases address the same register storage. */
 #define IA64_PLATFORM_ACPI_PM_IO_BASE \
     IA64_PLATFORM_ACPI_PM_TMR_OFFSET
 #define IA64_PLATFORM_ACPI_PM_IO_SIZE \
@@ -72,18 +69,14 @@ static inline int ia64_platform_zx1_embedded_io_sapic(
 #define IA64_PLATFORM_MAX_PCI_ROOTS       16U
 #define IA64_PLATFORM_MAX_IO_SAPICS       16U
 #define IA64_PLATFORM_MAX_PCI_ROUTES      128U
-#define IA64_PLATFORM_MAX_RAM_RANGES      4U
+#define IA64_PLATFORM_MAX_RAM_RANGES      5U
 #define IA64_PLATFORM_MAX_PROFILES        1U
+#define IA64_PLATFORM_MAX_ONBOARD_DEVICES 16U
+#define IA64_PLATFORM_MAX_NUMA_NODES      8U
 
 #define IA64_PLATFORM_ID_HP_I2000         0x00002000U
 #define IA64_PLATFORM_ID_HP_RX2660        0x00002660U
 #define IA64_PLATFORM_ID_HP_ZX6000        0x00006000U
-
-static inline int ia64_platform_is_hp_zx(unsigned int platform_id)
-{
-    return platform_id == IA64_PLATFORM_ID_HP_ZX6000 ||
-           platform_id == IA64_PLATFORM_ID_HP_RX2660;
-}
 
 #define IA64_PLATFORM_FLAG_NO_MCFG        (1U << 0)
 #define IA64_PLATFORM_FLAG_QEMU_EXTENSION (1U << 1)
@@ -91,6 +84,18 @@ static inline int ia64_platform_is_hp_zx(unsigned int platform_id)
 #define IA64_PLATFORM_FLAG_PS2_PRESENT    (1U << 3)
 #define IA64_PLATFORM_FLAG_NVRAM_PERSISTENT (1U << 4)
 #define IA64_PLATFORM_FLAG_FIRMWARE_COMPAT (1U << 5)
+#define IA64_PLATFORM_FLAG_FAMILY_HP_I2000 (1U << 6)
+#define IA64_PLATFORM_FLAG_FAMILY_HP_ZX    (1U << 7)
+#define IA64_PLATFORM_FLAG_PCI_CF8         (1U << 8)
+#define IA64_PLATFORM_FLAG_PCI_ZX1_LBA     (1U << 9)
+#define IA64_PLATFORM_FLAG_PCI_ECAM        (1U << 10)
+#define IA64_PLATFORM_FLAG_SPARSE_IO       (1U << 11)
+#define IA64_PLATFORM_FLAG_EMBEDDED_IO_SAPIC (1U << 12)
+#define IA64_PLATFORM_FLAG_ACPI_PM         (1U << 13)
+
+#define IA64_PLATFORM_FLAG_FAMILY_MASK \
+    (IA64_PLATFORM_FLAG_FAMILY_HP_I2000 | \
+     IA64_PLATFORM_FLAG_FAMILY_HP_ZX)
 
 #define IA64_PLATFORM_KNOWN_FLAGS \
     (IA64_PLATFORM_FLAG_NO_MCFG | \
@@ -98,18 +103,29 @@ static inline int ia64_platform_is_hp_zx(unsigned int platform_id)
      IA64_PLATFORM_FLAG_IDE_DMA | \
      IA64_PLATFORM_FLAG_PS2_PRESENT | \
      IA64_PLATFORM_FLAG_NVRAM_PERSISTENT | \
-     IA64_PLATFORM_FLAG_FIRMWARE_COMPAT)
+     IA64_PLATFORM_FLAG_FIRMWARE_COMPAT | \
+     IA64_PLATFORM_FLAG_FAMILY_MASK | \
+     IA64_PLATFORM_FLAG_PCI_CF8 | \
+     IA64_PLATFORM_FLAG_PCI_ZX1_LBA | \
+     IA64_PLATFORM_FLAG_PCI_ECAM | \
+     IA64_PLATFORM_FLAG_SPARSE_IO | \
+     IA64_PLATFORM_FLAG_EMBEDDED_IO_SAPIC | \
+     IA64_PLATFORM_FLAG_ACPI_PM)
 
 #define IA64_PLATFORM_HP_I2000_REQUIRED_FLAGS \
     (IA64_PLATFORM_FLAG_NO_MCFG | \
      IA64_PLATFORM_FLAG_QEMU_EXTENSION | \
      IA64_PLATFORM_FLAG_PS2_PRESENT | \
-     IA64_PLATFORM_FLAG_FIRMWARE_COMPAT)
+     IA64_PLATFORM_FLAG_FIRMWARE_COMPAT | \
+     IA64_PLATFORM_FLAG_FAMILY_HP_I2000 | \
+     IA64_PLATFORM_FLAG_PCI_CF8)
 
 static inline unsigned long long ia64_platform_firmware_compat_flags(
     unsigned int platform_id, unsigned int flags)
 {
-    if (platform_id == IA64_PLATFORM_ID_HP_I2000 &&
+    (void)platform_id;
+    if ((flags & IA64_PLATFORM_FLAG_FAMILY_MASK) ==
+            IA64_PLATFORM_FLAG_FAMILY_HP_I2000 &&
         (flags & IA64_PLATFORM_FLAG_FIRMWARE_COMPAT) != 0) {
         return IA64_FW_COMPAT_ALL_MASK;
     }
@@ -118,6 +134,31 @@ static inline unsigned long long ia64_platform_firmware_compat_flags(
 
 #define IA64_PLATFORM_PCI_CONFIG_CF8_CFC  1U
 #define IA64_PLATFORM_PCI_CONFIG_ZX1_LBA  2U
+#define IA64_PLATFORM_PCI_CONFIG_ECAM     3U
+#define IA64_PLATFORM_PCI_ECAM_BUS_SIZE   0x00100000ULL
+#define IA64_PLATFORM_PCI_ECAM_ALIGNMENT  0x10000000ULL
+
+static inline unsigned long long ia64_platform_pci_config_size(
+    unsigned int config_type, unsigned int first_bus,
+    unsigned int last_bus)
+{
+    if (config_type == IA64_PLATFORM_PCI_CONFIG_ZX1_LBA) {
+        return IA64_PLATFORM_ZX1_LBA_CONFIG_SIZE;
+    }
+    if (config_type == IA64_PLATFORM_PCI_CONFIG_ECAM &&
+        last_bus >= first_bus) {
+        return ((unsigned long long)last_bus - first_bus + 1U) *
+            IA64_PLATFORM_PCI_ECAM_BUS_SIZE;
+    }
+    return 0;
+}
+
+static inline unsigned long long ia64_platform_pci_config_offset(
+    unsigned int config_type, unsigned int first_bus)
+{
+    return config_type == IA64_PLATFORM_PCI_CONFIG_ECAM ?
+        (unsigned long long)first_bus * IA64_PLATFORM_PCI_ECAM_BUS_SIZE : 0;
+}
 
 #define IA64_PLATFORM_PCI_ROOT_FLAG_IDENTITY_DMA (1U << 0)
 #define IA64_PLATFORM_PCI_ROOT_FLAG_SPARSE_IO    (1U << 1)
@@ -130,26 +171,64 @@ static inline unsigned long long ia64_platform_firmware_compat_flags(
      IA64_PLATFORM_PCI_ROOT_FLAG_AGP | \
      IA64_PLATFORM_PCI_ROOT_FLAG_VGA_LEGACY)
 
+#define IA64_PLATFORM_CONSOLE_FLAG_VGA_PRIMARY (1U << 0)
+#define IA64_PLATFORM_CONSOLE_KNOWN_FLAGS \
+    IA64_PLATFORM_CONSOLE_FLAG_VGA_PRIMARY
+
+#define IA64_PLATFORM_PCI_ROOT_IDENTITY_GENERIC 0U
+#define IA64_PLATFORM_PCI_ROOT_IDENTITY_HP_ZX   1U
+
+#define IA64_PLATFORM_ONBOARD_GRAPHICS 1U
+#define IA64_PLATFORM_ONBOARD_UHCI     2U
+#define IA64_PLATFORM_ONBOARD_OHCI     3U
+#define IA64_PLATFORM_ONBOARD_EHCI     4U
+#define IA64_PLATFORM_ONBOARD_IDE      5U
+#define IA64_PLATFORM_ONBOARD_SCSI     6U
+#define IA64_PLATFORM_ONBOARD_MPT      7U
+#define IA64_PLATFORM_ONBOARD_NETWORK  8U
+#define IA64_PLATFORM_ONBOARD_MGMT     9U
+#define IA64_PLATFORM_ONBOARD_UART     10U
+
+typedef struct __attribute__((packed)) IA64PlatformOnboardDevice {
+    unsigned short Segment;
+    unsigned char Bus;
+    unsigned char Device;
+    unsigned char Function;
+    unsigned char Type;
+    unsigned char Bar;
+    unsigned char Reserved0;
+    unsigned int VendorDeviceId;
+    unsigned int ClassCode;
+    unsigned long long BarSize;
+    unsigned int Flags;
+    unsigned int Reserved1;
+} IA64PlatformOnboardDevice;
+
+/* Each RAM-range bit and processor index is owned by exactly one node. */
+typedef struct __attribute__((packed)) IA64PlatformNumaNode {
+    unsigned int ProximityDomain;
+    unsigned int ProcessorStart;
+    unsigned int ProcessorCount;
+    unsigned int RamRangeMask;
+    unsigned char Distance[IA64_PLATFORM_MAX_NUMA_NODES];
+    unsigned char Reserved[8];
+} IA64PlatformNumaNode;
+
 /*
  * PAL_PLATFORM_ADDR type 1 registers exactly one 64 MiB sparse-I/O block.
  * Keep descriptor acceptance within the CPU model paired with each machine
  * and outside the QEMU PAL firmware-update exclusion window.
  */
 static inline int ia64_platform_legacy_io_valid(
-    unsigned int platform_id, unsigned long long base,
+    unsigned int physical_address_bits, unsigned long long base,
     unsigned long long size)
 {
-    unsigned int phys_addr_bits;
     unsigned long long implemented_limit;
 
-    if (platform_id == IA64_PLATFORM_ID_HP_I2000) {
-        phys_addr_bits = IA64_PLATFORM_I2000_PHYS_ADDR_BITS;
-    } else if (ia64_platform_is_hp_zx(platform_id)) {
-        phys_addr_bits = IA64_PLATFORM_ZX6000_PHYS_ADDR_BITS;
-    } else {
+    if (physical_address_bits < 32U || physical_address_bits >= 64U) {
         return 0;
     }
-    implemented_limit = 1ULL << phys_addr_bits;
+    implemented_limit = 1ULL << physical_address_bits;
     if (size != IA64_PLATFORM_MIN_LEGACY_IO_SIZE ||
         (base & (IA64_PLATFORM_LEGACY_IO_ALIGNMENT - 1U)) != 0 ||
         base > implemented_limit - size) {
@@ -181,6 +260,18 @@ typedef struct __attribute__((packed)) IA64PlatformDescriptor {
     unsigned int SocketCount;
     unsigned int CoresPerSocket;
     unsigned int ThreadsPerCore;
+    unsigned int PhysicalAddressBits;
+    unsigned int MaxSockets;
+    unsigned int MaxCoresPerSocket;
+    unsigned int MaxThreadsPerCore;
+    unsigned int MaxPciRoots;
+    unsigned int PciRootIdentity;
+    unsigned int OnboardDeviceCount;
+    unsigned int NumaNodeCount;
+
+    IA64PlatformOnboardDevice
+        OnboardDevice[IA64_PLATFORM_MAX_ONBOARD_DEVICES];
+    IA64PlatformNumaNode NumaNode[IA64_PLATFORM_MAX_NUMA_NODES];
 
     unsigned int PciRootOffset;
     unsigned int PciRootCount;
@@ -236,6 +327,10 @@ typedef struct __attribute__((packed)) IA64PlatformDescriptor {
     unsigned long long AcpiPmSize;
     unsigned int AcpiSciGsi;
     unsigned int Reserved4;
+
+    /* Firmware-visible machine-check and corrected-error record transport. */
+    unsigned long long RasBase;
+    unsigned long long RasSize;
 } IA64PlatformDescriptor;
 
 /*
@@ -256,6 +351,7 @@ typedef struct __attribute__((packed)) IA64PlatformPciRoot {
     unsigned char Bus;
     unsigned char ConfigType;
     unsigned int Flags;
+    /* ECAM uses the processor-relative bus-zero base reported by MCFG. */
     unsigned long long ConfigBase;
     /* Logical PCI I/O port numbers, never sparse CPU physical addresses. */
     unsigned long long IoBase;

@@ -15,7 +15,7 @@ ia64_functional_test_apps = []
 foreach app : [
   'smoke', 'services', 'tables', 'exitbs', 'storage', 'input', 'graphics',
   'smp', 'smp-merced', 'pci-bridge', 'i2000-pci-root', 'i2000-runtime',
-  'i2000-loader',
+  'i2000-loader', 'ras',
 ]
   app_source = files('apps/' + app + '-app.c')
   app_linker_script = ia64_app_linker_script
@@ -90,6 +90,7 @@ tests_ia64_system_quick = [
   'tables',
   'smp',
   'smp_merced',
+  'ras',
 ] + (config_all_devices.has_key('CONFIG_IA64_ZX6000_EFI_TEST') ?
      ['zx6000_efi'] : []) + \
     (config_all_devices.has_key('CONFIG_HP_I2000') ?
@@ -112,6 +113,7 @@ test_ia64_timeouts = {
   'tables': 90,
   'smp': 120,
   'smp_merced': 900,
+  'ras': 120,
   'zx6000_efi': 90,
   'hp_i2000': 120,
   'hp_zx6000': 120,

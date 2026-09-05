@@ -10,6 +10,7 @@
 #include "hw/core/boards.h"
 #include "hw/ia64/ia64_common.h"
 #include "hw/ia64/ia64_platform.h"
+#include "hw/ia64/ia64_ras.h"
 #include "system/memory.h"
 
 #define TYPE_HP_IA64_MACHINE MACHINE_TYPE_NAME("hp-ia64-base")
@@ -20,6 +21,7 @@ struct HPIA64MachineState {
 
     bool alat_full;
     MemoryRegion *pib;
+    IA64RasHubState *ras;
     IA64PlatformDescriptorDevice *descriptor_device;
     IA64PlatformFirmwareArgs firmware_args;
     uint64_t descriptor_low_ram_end;
@@ -39,6 +41,8 @@ struct HPIA64MachineClass {
 };
 
 bool hp_ia64_machine_validate(HPIA64MachineState *machine, Error **errp);
+bool hp_ia64_machine_create_ras(HPIA64MachineState *machine,
+                                hwaddr base, Error **errp);
 
 /*
  * Install the immutable firmware descriptor after RAM mapping.  Platform

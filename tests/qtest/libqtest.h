@@ -696,6 +696,100 @@ void qtest_ia64_alat_active_writer(QTestState *s, bool *setup_hit,
                                    bool *active_alloc_hit);
 
 /**
+ * qtest_ia64_alat_smp_writer:
+ * @s: QTestState instance with two stopped IA-64 CPUs
+ * @setup_hit: receives whether CPU 0 initially finds its ALAT entry
+ * @memory_write_ok: receives whether CPU 1 completed the RAM write
+ * @smp_hit: receives whether CPU 0 still finds the entry after the write
+ */
+void qtest_ia64_alat_smp_writer(QTestState *s, bool *setup_hit,
+                                bool *memory_write_ok, bool *smp_hit);
+
+/**
+ * qtest_ia64_ras_min_state:
+ * @s: #QTestState instance with one stopped IA-64 CPU
+ *
+ * Exercises machine-check entry and same- and new-context minimal-state
+ * restore.
+ *
+ * Returns: A bit mask identifying the state groups restored successfully.
+ */
+uint64_t qtest_ia64_ras_min_state(QTestState *s);
+
+/**
+ * qtest_ia64_ras_inject_processor:
+ * @s: #QTestState instance with a stopped IA-64 CPU
+ * @cpu: processor index
+ * @severity: SAL record severity
+ * @status: processor error status
+ * @address: associated physical address
+ * @information: implementation-specific error information
+ * @cmc_vector: CMC interrupt vector for corrected errors
+ *
+ * Inject a processor error through the machine's IA-64 RAS hub.
+ */
+bool qtest_ia64_ras_inject_processor(QTestState *s, unsigned int cpu,
+                                     unsigned int severity, uint64_t status,
+                                     uint64_t address, uint64_t information,
+                                     uint8_t cmc_vector);
+
+/**
+ * qtest_ia64_ras_inject_chipset:
+ * @s: #QTestState instance with one IA-64 RAS hub
+ * @reason: chipset fault reason
+ * @severity: SAL record severity
+ * @address: associated physical address
+ * @status: chipset status bits
+ * @information: chipset error information
+ * @requester: PCI requester identifier
+ *
+ * Inject a chipset error through the machine's IA-64 RAS hub.
+ */
+bool qtest_ia64_ras_inject_chipset(QTestState *s, unsigned int reason,
+                                   unsigned int severity, uint64_t address,
+                                   uint64_t status, uint64_t information,
+                                   uint32_t requester);
+
+/**
+ * qtest_ia64_460gx_inject_memory_error:
+ * @s: #QTestState instance with one Intel 460GX chipset
+ * @card: memory card index
+ * @mac: memory controller function index
+ * @error: Intel 460GX memory error type
+ * @address: associated physical address
+ * @data: logged memory data
+ * @ecc: ECC syndrome
+ * @chunk: data chunk number
+ * @itid: transaction identifier
+ *
+ * Inject a memory-controller error through the 460GX chipset model.
+ */
+void qtest_ia64_460gx_inject_memory_error(
+    QTestState *s, unsigned int card, unsigned int mac, unsigned int error,
+    uint64_t address, uint64_t data, uint8_t ecc, uint8_t chunk,
+    uint8_t itid);
+
+/**
+ * qtest_ia64_sapic:
+ * @s: #QTestState instance with stopped IA-64 CPUs
+ * @operation: SAPIC operation name
+ * @arg0: operation-specific argument
+ * @arg1: operation-specific argument
+ * @arg2: operation-specific argument
+ * @arg3: operation-specific argument
+ * @arg4: operation-specific argument
+ *
+ * Exercises local SAPIC delivery and state transitions on stopped CPUs.
+ * Delivery uses destination mode, packed ID/EID, delivery mode, redirect,
+ * and vector arguments.  CPU-local operations use CPU index and value.
+ *
+ * Returns: The operation-specific signed result.
+ */
+int64_t qtest_ia64_sapic(QTestState *s, const char *operation,
+                         uint64_t arg0, uint64_t arg1, uint64_t arg2,
+                         uint64_t arg3, uint64_t arg4);
+
+/**
  * qtest_bufread:
  * @s: #QTestState instance to operate on.
  * @addr: Guest address to read from.

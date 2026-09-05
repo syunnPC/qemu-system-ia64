@@ -47,13 +47,16 @@ non-persistent EFI variables.
 
 Select a machine explicitly with `-machine`.
 
-| Machine | CPU models | Max sockets | Max total cores / threads | Default input | Default VGA | Default RAM |
-| --- | --- | ---: | ---: | --- | --- | ---: |
-| `hp-i2000` | `merced` | 2 | 2 | USB keyboard + tablet | NVIDIA Quadro2 Pro | 2 GiB |
-| `hp-zx6000` | `madison-zx6000` | 2 | 2 | USB keyboard + tablet | ATI Radeon RV100 | 2 GiB |
-| `hp-rx2660` | `montecito-9010` (default), `montecito-9040` | 2 | 9010: 2 / 2; 9040: 4 / 8 | USB keyboard + tablet | ATI RN50 | 8 GiB |
-| `itanium2-vpc` | Any model below; `montecito` by default | 64 | 64 | USB keyboard + tablet | ATI Rage 128 Pro | 2 GiB |
-| `itanium-vpc` | Any model below; `merced` by default | 64 | 64 | PS/2 keyboard + mouse | ATI Rage 128 Pro | 2 GiB |
+| Machine | CPU models | Max sockets | Max total cores / threads | Default VGA | Default RAM |
+| --- | --- | ---: | ---: | --- | ---: |
+| `hp-i2000` | `merced` | 2 | 2 | NVIDIA Quadro2 Pro | 2 GiB |
+| `hp-zx6000` | `madison-zx6000` | 2 | 2 | ATI Radeon RV100 | 2 GiB |
+| `hp-rx2660` | Selected Montecito/Montvale models (see below) | 2 | 9010/9110n: 2 / 2; others: 4 / 8 | ATI RN50 | 8 GiB |
+| `itanium2-vpc` | Any model below; `montecito` by default | 64 | 64 | ATI Rage 128 Pro | 2 GiB |
+| `itanium-vpc` | Any model below; `merced` by default | 64 | 64 | ATI Rage 128 Pro | 2 GiB |
+
+`hp-rx2660` accepts `montecito-9010` (default), `montecito-9020`,
+`montecito-9040`, `montvale-9110n`, `montvale-9120n`, and `montvale-9140m`.
 
 Use `-vga quadro2` for NVIDIA Quadro2 Pro or `-vga ati` for an ATI adapter.
 ATI models are `rage128p`, `rv100`, and `es1000`:
@@ -88,14 +91,33 @@ Select a model with `-cpu <model>`. Use `-cpu help` to list available models.
 | Model | Generation | Cores/socket | Threads/core | Clock | L3/socket |
 | --- | --- | ---: | ---: | ---: | ---: |
 | `merced` | Merced | 1 | 1 | 800 MHz | 4 MiB |
+| `mckinley`, `mckinley-1000` | McKinley | 1 | 1 | 1.0 GHz | 3 MiB |
+| `mckinley-900` | McKinley | 1 | 1 | 900 MHz | 1.5 MiB |
+| `deerfield` | Madison/Deerfield | 1 | 1 | 1.0 GHz | 1.5 MiB |
 | `madison` | Madison | 1 | 1 | 1.6 GHz | 3 MiB |
+| `madison-1.5m` | Madison | 1 | 1 | 1.4 GHz | 1.5 MiB |
+| `madison-3m` | Madison | 1 | 1 | 1.6 GHz | 3 MiB |
+| `madison-4m` | Madison | 1 | 1 | 1.4 GHz | 4 MiB |
+| `madison-6m` | Madison | 1 | 1 | 1.5 GHz | 6 MiB |
+| `madison-9m` | Madison 9M | 1 | 1 | 1.6 GHz | 9 MiB |
 | `madison-zx6000` | Madison | 1 | 1 | 1.5 GHz | 6 MiB |
 | `montecito` | Montecito | 2 | 2 | 1.6 GHz | 24 MiB (12 MiB/core) |
 | `montecito-9010` | Montecito | 1 | 1 | 1.6 GHz | 6 MiB |
+| `montecito-9015` | Montecito | 2 | 1-2 | 1.4 GHz | 12 MiB (6 MiB/core) |
+| `montecito-9020` | Montecito | 2 | 1-2 | 1.42 GHz | 12 MiB (6 MiB/core) |
+| `montecito-9030` | Montecito | 2 | 1-2 | 1.6 GHz | 8 MiB (4 MiB/core) |
 | `montecito-9040` | Montecito | 2 | 1-2 | 1.6 GHz | 18 MiB (9 MiB/core) |
+| `montecito-9050` | Montecito | 2 | 1-2 | 1.6 GHz | 24 MiB (12 MiB/core) |
+| `montvale`, `montvale-9150n` | Montvale | 2 | 1-2 | 1.6 GHz | 24 MiB (12 MiB/core) |
+| `montvale-9110n` | Montvale | 1 | 1 | 1.6 GHz | 12 MiB |
+| `montvale-9120n` | Montvale | 2 | 1-2 | 1.42 GHz | 12 MiB (6 MiB/core) |
+| `montvale-9130m` | Montvale | 2 | 1 | 1.666 GHz | 8 MiB (4 MiB/core) |
+| `montvale-9140m` | Montvale | 2 | 1-2 | 1.666 GHz | 18 MiB (9 MiB/core) |
+| `montvale-9140n` | Montvale | 2 | 1-2 | 1.6 GHz | 18 MiB (9 MiB/core) |
+| `montvale-9150m`, `montvale-9152m` | Montvale | 2 | 1-2 | 1.666 GHz | 24 MiB (12 MiB/core) |
 
-Clock and cache values are guest-visible metadata and do not affect emulation
-speed.
+Reported processor clocks and cache sizes do not set the host execution rate.
+The interval timer counter advances at the CPU model's configured ITC frequency.
 
 CPU selection does not set the topology. Configure it separately:
 

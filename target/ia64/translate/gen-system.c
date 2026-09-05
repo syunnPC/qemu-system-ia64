@@ -34,6 +34,7 @@ static bool ia64_cr_write_requires_tb_exit(uint32_t cr_num)
     case IA64_CR_SAPIC_TPR:
     case IA64_CR_SAPIC_EOI:
     case IA64_CR_ITV:
+    case IA64_CR_CMCV:
         /*
          * These writes reschedule interrupts, change firmware instruction
          * identity, or flush translation state.  Return to the CPU loop at
@@ -95,6 +96,7 @@ static void ia64_gen_cr_write(uint32_t cr_num, TCGv_i64 value)
     case IA64_CR_SAPIC_IRR2:
     case IA64_CR_SAPIC_IRR3:
     case IA64_CR_ITV:
+    case IA64_CR_CMCV:
         gen_helper_write_cr(tcg_env, tcg_constant_i32(cr_num), value);
         break;
     default:
@@ -887,9 +889,14 @@ IA64GenResult ia64_gen_system(DisasContext *ctx,
         } else if ((op->immediate & 0x100000) &&
             ia64_is_pal_proc_break(ctx->env, insn->address)) {
             TCGv_i32 flags = tcg_temp_new_i32();
+            TCGv_i32 resumed = tcg_temp_new_i32();
             TCGLabel *no_exit = gen_new_label();
+            TCGLabel *resumed_exit = gen_new_label();
 
             gen_helper_pal_dispatch(flags, tcg_env);
+            tcg_gen_andi_i32(resumed, flags,
+                             IA64_PAL_DISPATCH_RESUMED);
+            tcg_gen_brcondi_i32(TCG_COND_NE, resumed, 0, resumed_exit);
             tcg_gen_andi_i32(flags, flags,
                              IA64_PAL_DISPATCH_HALTED |
                              IA64_PAL_DISPATCH_EXIT_TB);
@@ -897,6 +904,8 @@ IA64GenResult ia64_gen_system(DisasContext *ctx,
             ia64_gen_exit_to_completed(ctx, next_ip, insn->address,
                                        record_iipa,
                                        track_psr_suppression);
+            gen_set_label(resumed_exit);
+            tcg_gen_exit_tb(NULL, 0);
             gen_set_label(no_exit);
         } else {
             ia64_gen_raise_exception(IA64_EXCP_BREAK, insn->address,

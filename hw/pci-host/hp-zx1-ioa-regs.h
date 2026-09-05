@@ -11,6 +11,7 @@
 #define HW_PCI_HOST_HP_ZX1_IOA_REGS_H
 
 #include "hw/pci-host/hp-io-sapic.h"
+#include "hw/ia64/ia64_ras.h"
 
 #define HP_ZX1_IOA_CONFIG_APERTURE_SIZE  0x2000
 #define HP_ZX1_IOA_IMPLEMENTED_SIZE      0x1000
@@ -25,6 +26,7 @@
 #define HP_ZX1_IOA_BUS_NUMBER            0x0058
 #define HP_ZX1_IOA_AGP_CAPABILITY        0x0060
 #define HP_ZX1_IOA_AGP_COMMAND           0x0068
+#define HP_ZX1_IOA_OUTBOUND_ERROR_ADDRESS 0x0070
 #define HP_ZX1_IOA_ARBITRATION_MASK      0x0080
 #define HP_ZX1_IOA_PCIX_CAPABILITY       0x00a0
 #define HP_ZX1_IOA_STATUS_CONTROL        0x0108
@@ -44,6 +46,7 @@
 #define HP_ZX1_IOA_BUS_MODE              0x0620
 #define HP_ZX1_IOA_ERROR_CONFIGURATION   0x0680
 #define HP_ZX1_IOA_ERROR_STATUS          0x0688
+#define HP_ZX1_IOA_ERROR_MASTER_ID       0x0690
 #define HP_ZX1_IOA_IOREGSEL              0x0800
 #define HP_ZX1_IOA_IOWIN                 0x0810
 #define HP_ZX1_IOA_IOEOI                 0x0840
@@ -99,6 +102,35 @@
 #define HP_ZX1_IOA_SLAVE_CONTROL_VISIBLE 0x0006200fU
 #define HP_ZX1_IOA_SLAVE_CONTROL_RESET   0x00000006U
 
+/* Mercury ERS 6.3.2: read-only error log, cleared through SIC.CE/CL. */
+#define HP_ZX1_IOA_ERROR_CODE_MASK       UINT64_C(0x1f)
+#define HP_ZX1_IOA_ERROR_MASTER_ABORT    UINT64_C(0x0c)
+#define HP_ZX1_IOA_ERROR_OV             (UINT64_C(1) << 5)
+#define HP_ZX1_IOA_ERROR_FE             (UINT64_C(1) << 9)
+#define HP_ZX1_IOA_ERROR_UNC            (UINT64_C(1) << 10)
+#define HP_ZX1_IOA_ERROR_CORR           (UINT64_C(1) << 11)
+#define HP_ZX1_IOA_ERROR_HF             (UINT64_C(1) << 32)
+#define HP_ZX1_IOA_ERROR_SMART          (UINT64_C(1) << 33)
+#define HP_ZX1_IOA_ERROR_FE_OV          (UINT64_C(1) << 41)
+#define HP_ZX1_IOA_ERROR_UNC_OV         (UINT64_C(1) << 42)
+#define HP_ZX1_IOA_ERROR_CORR_OV        (UINT64_C(1) << 43)
+#define HP_ZX1_IOA_ERROR_SEVERITY_MASK  \
+    (HP_ZX1_IOA_ERROR_FE | HP_ZX1_IOA_ERROR_UNC | HP_ZX1_IOA_ERROR_CORR)
+#define HP_ZX1_IOA_ERROR_STATUS_MASK   \
+    (HP_ZX1_IOA_ERROR_CODE_MASK | HP_ZX1_IOA_ERROR_OV | \
+     HP_ZX1_IOA_ERROR_SEVERITY_MASK | HP_ZX1_IOA_ERROR_HF | \
+     HP_ZX1_IOA_ERROR_SMART | HP_ZX1_IOA_ERROR_FE_OV | \
+     HP_ZX1_IOA_ERROR_UNC_OV | HP_ZX1_IOA_ERROR_CORR_OV)
+#define HP_ZX1_IOA_OUTBOUND_CONFIG_CYCLE (UINT64_C(1) << 62)
+#define HP_ZX1_IOA_PCI_STATUS_MASTER_ABORT UINT16_C(0x2000)
+
+/* Internal frontend fault reasons, not hardware error-register bits. */
+typedef enum HPZX1IOAFault {
+    HP_ZX1_IOA_FAULT_CONFIG_ABORT,
+    HP_ZX1_IOA_FAULT_MSI_DECODE,
+    HP_ZX1_IOA_FAULT_CSR_DECODE,
+} HPZX1IOAFault;
+
 typedef enum HPZX1IOAMode {
     HP_ZX1_IOA_MODE_PCI,
     HP_ZX1_IOA_MODE_PCIX,
@@ -133,6 +165,8 @@ typedef struct HPZX1IOARegsConfig {
     void *config_opaque;
     HPIOSAPICDeliver deliver;
     void *delivery_opaque;
+    IA64ChipsetFaultNotify fault_notify;
+    void *fault_opaque;
 } HPZX1IOARegsConfig;
 
 typedef struct HPZX1IOARegs {
@@ -166,6 +200,8 @@ typedef struct HPZX1IOARegs {
     uint64_t bus_mode;
     uint64_t slave_control;
     uint32_t error_configuration;
+    uint64_t error_status;
+    uint64_t outbound_error_address;
 
     uint32_t sapic_selector;
     uint32_t sapic_in_service;
@@ -187,6 +223,8 @@ bool hp_zx1_ioa_regs_set_input(HPZX1IOARegs *s, unsigned int input,
                                bool asserted);
 void hp_zx1_ioa_regs_set_pci_status(HPZX1IOARegs *s, uint16_t status);
 void hp_zx1_ioa_regs_set_pcix_status(HPZX1IOARegs *s, uint32_t status);
+void hp_zx1_ioa_regs_report_fault(HPZX1IOARegs *s, HPZX1IOAFault reason,
+                                  uint64_t address, uint64_t data);
 
 bool hp_zx1_ioa_regs_msi_contains(const HPZX1IOARegs *s, uint64_t address);
 

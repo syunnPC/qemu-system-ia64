@@ -11,7 +11,7 @@ import subprocess
 APP_NAMES = ("smoke", "services", "tables", "exitbs", "storage", "input",
              "graphics", "smp", "smp-merced", "pci-bridge",
              "i2000-pci-root", "i2000-runtime", "i2000-loader",
-             "start-image-child")
+             "start-image-child", "ras")
 SOURCE_DIR = Path(__file__).resolve().parent
 APPS_SOURCE_DIR = SOURCE_DIR / "apps"
 

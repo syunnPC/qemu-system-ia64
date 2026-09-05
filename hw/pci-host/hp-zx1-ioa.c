@@ -79,6 +79,8 @@ struct HPZX1IOAState {
     HPZX1IOABaseline baseline;
     HPIOSAPICDeliver deliver;
     void *delivery_opaque;
+    IA64ChipsetFaultNotify fault_notify;
+    void *fault_opaque;
     bool setup_done;
     char root_bus_name[8];
     char root_bus_path[8];
@@ -118,7 +120,11 @@ static MemTxResult hp_zx1_ioa_msi_read(void *opaque, hwaddr addr,
                                        uint64_t *data, unsigned int size,
                                        MemTxAttrs attrs)
 {
+    HPZX1IOAState *s = opaque;
+
     *data = 0;
+    hp_zx1_ioa_regs_report_fault(&s->regs, HP_ZX1_IOA_FAULT_MSI_DECODE,
+                                 s->msi_window_base + addr, 0);
     return MEMTX_DECODE_ERROR;
 }
 
@@ -132,11 +138,17 @@ static MemTxResult hp_zx1_ioa_msi_write(void *opaque, hwaddr addr,
 
     if (size != 4 || (addr & 3) || !s->msi_dma_root ||
         addr > UINT64_MAX - s->msi_window_base) {
+        hp_zx1_ioa_regs_report_fault(&s->regs,
+                                     HP_ZX1_IOA_FAULT_MSI_DECODE,
+                                     s->msi_window_base + addr, value);
         return MEMTX_DECODE_ERROR;
     }
 
     address = s->msi_window_base + addr;
     if (!hp_zx1_ioa_regs_msi_contains(&s->regs, address)) {
+        hp_zx1_ioa_regs_report_fault(&s->regs,
+                                     HP_ZX1_IOA_FAULT_MSI_DECODE,
+                                     address, value);
         return MEMTX_DECODE_ERROR;
     }
 
@@ -195,6 +207,10 @@ static bool hp_zx1_ioa_config_read(void *opaque, uint32_t address,
         !hp_zx1_ioa_config_address(s, address, &translated)) {
         return false;
     }
+    if (!pci_find_device(bus, extract32(translated, 16, 8),
+                         extract32(translated, 8, 8))) {
+        return false;
+    }
 
     *value = pci_data_read(bus, translated, size);
     return true;
@@ -209,6 +225,10 @@ static bool hp_zx1_ioa_config_write(void *opaque, uint32_t address,
 
     if (!bus || (size != 1 && size != 2 && size != 4) ||
         !hp_zx1_ioa_config_address(s, address, &translated)) {
+        return false;
+    }
+    if (!pci_find_device(bus, extract32(translated, 16, 8),
+                         extract32(translated, 8, 8))) {
         return false;
     }
 
@@ -242,6 +262,8 @@ static HPZX1IOARegsConfig hp_zx1_ioa_regs_config(HPZX1IOAState *s)
         .config_opaque = s,
         .deliver = hp_zx1_ioa_deliver,
         .delivery_opaque = s,
+        .fault_notify = s->fault_notify,
+        .fault_opaque = s->fault_opaque,
     };
 }
 
@@ -311,11 +333,15 @@ bool hp_zx1_ioa_setup(HPZX1IOAState *s, const HPZX1IOASetup *setup,
     s->baseline = baseline;
     s->deliver = setup->deliver;
     s->delivery_opaque = setup->delivery_opaque;
+    s->fault_notify = setup->fault_notify;
+    s->fault_opaque = setup->fault_opaque;
     config = hp_zx1_ioa_regs_config(s);
     if (!hp_zx1_ioa_regs_init(&s->regs, &config)) {
         memset(&s->baseline, 0, sizeof(s->baseline));
         s->deliver = NULL;
         s->delivery_opaque = NULL;
+        s->fault_notify = NULL;
+        s->fault_opaque = NULL;
         error_setg(errp, "invalid Mercury mode, rope, bus, or reset straps");
         return false;
     }
@@ -333,6 +359,9 @@ static MemTxResult hp_zx1_ioa_read(void *opaque, hwaddr addr,
 
     if (!hp_zx1_ioa_regs_read(&s->regs, addr, size, data)) {
         *data = 0;
+        hp_zx1_ioa_regs_report_fault(&s->regs,
+                                     HP_ZX1_IOA_FAULT_CSR_DECODE,
+                                     addr, 0);
         return MEMTX_DECODE_ERROR;
     }
     return MEMTX_OK;
@@ -345,6 +374,9 @@ static MemTxResult hp_zx1_ioa_write(void *opaque, hwaddr addr,
     HPZX1IOAState *s = opaque;
 
     if (!hp_zx1_ioa_regs_write(&s->regs, addr, size, value)) {
+        hp_zx1_ioa_regs_report_fault(&s->regs,
+                                     HP_ZX1_IOA_FAULT_CSR_DECODE,
+                                     addr, value);
         return MEMTX_DECODE_ERROR;
     }
     PCI_HOST_BRIDGE(s)->config_reg = s->regs.config_address;
@@ -509,7 +541,8 @@ static bool hp_zx1_ioa_post_load(void *opaque, int version_id, Error **errp)
     uint32_t pcix_status_allowed = IOA_PCIX_STATUS_RESET |
                                    HP_ZX1_IOA_PCIX_STATUS_W1C;
 
-    if (version_id != 1 || !s->setup_done || !bus || !s->deliver ||
+    if (version_id < 1 || version_id > 2 || !s->setup_done || !bus ||
+        !s->deliver ||
         pci_bus_num(bus) != s->baseline.secondary_bus ||
         bus->nirq != hp_zx1_ioa_external_inputs(s)) {
         error_setg(errp, "Mercury migration destination is not configured");
@@ -598,6 +631,16 @@ static bool hp_zx1_ioa_post_load(void *opaque, int version_id, Error **errp)
         error_setg(errp, "Mercury migration changed immutable reset straps");
         return false;
     }
+    if (version_id < 2) {
+        regs->error_status = 0;
+        regs->outbound_error_address = 0;
+    }
+    if ((regs->error_status & ~HP_ZX1_IOA_ERROR_STATUS_MASK) ||
+        (!(regs->error_status & HP_ZX1_IOA_ERROR_SEVERITY_MASK) &&
+         (regs->error_status || regs->outbound_error_address))) {
+        error_setg(errp, "Mercury migration has invalid fault state");
+        return false;
+    }
     if (!hp_zx1_ioa_sapic_valid(s, errp)) {
         return false;
     }
@@ -611,7 +654,7 @@ static bool hp_zx1_ioa_post_load(void *opaque, int version_id, Error **errp)
 
 static const VMStateDescription vmstate_hp_zx1_ioa_route = {
     .name = TYPE_HP_ZX1_IOA "/intx-route",
-    .version_id = 1,
+    .version_id = 2,
     .minimum_version_id = 1,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_EQUAL(packed, HPZX1IOARoute),
@@ -621,7 +664,7 @@ static const VMStateDescription vmstate_hp_zx1_ioa_route = {
 
 static const VMStateDescription vmstate_hp_zx1_ioa = {
     .name = TYPE_HP_ZX1_IOA,
-    .version_id = 1,
+    .version_id = 2,
     .minimum_version_id = 1,
     .post_load_errp = hp_zx1_ioa_post_load,
     .fields = (const VMStateField[]) {
@@ -668,6 +711,8 @@ static const VMStateDescription vmstate_hp_zx1_ioa = {
         VMSTATE_UINT64(regs.bus_mode, HPZX1IOAState),
         VMSTATE_UINT64(regs.slave_control, HPZX1IOAState),
         VMSTATE_UINT32(regs.error_configuration, HPZX1IOAState),
+        VMSTATE_UINT64_V(regs.error_status, HPZX1IOAState, 2),
+        VMSTATE_UINT64_V(regs.outbound_error_address, HPZX1IOAState, 2),
 
         VMSTATE_UINT32(regs.sapic_selector, HPZX1IOAState),
         VMSTATE_UINT32(regs.sapic_in_service, HPZX1IOAState),
@@ -845,4 +890,9 @@ uint8_t hp_zx1_ioa_root_bus_num(const HPZX1IOAState *s)
 {
     g_assert(s && s->setup_done);
     return s->baseline.secondary_bus;
+}
+
+uint8_t hp_zx1_ioa_rope_mask(const HPZX1IOAState *s)
+{
+    return s && s->setup_done ? s->baseline.rope_mask : 0;
 }

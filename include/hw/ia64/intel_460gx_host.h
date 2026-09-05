@@ -44,6 +44,8 @@ typedef struct Intel460GXDecodedStateUpdate {
     Intel460GXBusRange routes[INTEL_460GX_DOWNSTREAM_PORTS];
 } Intel460GXDecodedStateUpdate;
 
+uint32_t intel_460gx_chipset_device_mask(void);
+
 MemoryRegion *intel_460gx_host_conf_region(Intel460GXHostState *s);
 MemoryRegion *intel_460gx_host_data_region(Intel460GXHostState *s);
 

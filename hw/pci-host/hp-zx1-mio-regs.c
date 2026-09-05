@@ -94,6 +94,8 @@ static const HPZX1MIORegDesc hp_zx1_mio_reg_descs[] = {
     REG_RO(HP_ZX1_MIO_F1_CLASS, ZX1_CLASS_VALUE, true),
     REG_RW(HP_ZX1_MIO_ROPE_CONFIG, rope_config, UINT64_C(0x00ff),
            UINT64_C(0xffff), true),
+    REG_RW(HP_ZX1_MIO_ERROR_CONFIG, error_config, 0,
+           HP_ZX1_MIO_ERROR_CONFIG_NOTIFY, true),
     REG_RW(HP_ZX1_MIO_LBA_PORT_CONTROL(0), lba_port_control[0], 0,
            UINT64_C(0x70), true),
     REG_RW(HP_ZX1_MIO_LBA_PORT_CONTROL(1), lba_port_control[1], 0,
@@ -111,6 +113,24 @@ static const HPZX1MIORegDesc hp_zx1_mio_reg_descs[] = {
     REG_RW(HP_ZX1_MIO_LBA_PORT_CONTROL(7), lba_port_control[7], 0,
            UINT64_C(0x70), true),
 };
+
+void hp_zx1_mio_regs_report_fault(HPZX1MIORegs *regs, uint64_t status,
+                                  uint64_t address, uint64_t information)
+{
+    uint64_t reason = status & (HP_ZX1_MIO_ERROR_IOMMU |
+                                HP_ZX1_MIO_ERROR_CSR_DECODE);
+
+    if (!regs || !reason) {
+        return;
+    }
+    if (regs->error_status & HP_ZX1_MIO_ERROR_VALID) {
+        regs->error_status |= reason | HP_ZX1_MIO_ERROR_MULTIPLE;
+        return;
+    }
+    regs->error_status = reason | HP_ZX1_MIO_ERROR_VALID;
+    regs->error_address = address;
+    regs->error_information = information;
+}
 
 static const HPZX1MIORegDesc *hp_zx1_mio_find_reg(uint64_t offset)
 {
@@ -195,6 +215,20 @@ bool hp_zx1_mio_regs_read(const HPZX1MIORegs *regs, uint64_t offset,
         return false;
     }
 
+    switch (offset) {
+    case HP_ZX1_MIO_ERROR_STATUS:
+        *value = regs->error_status;
+        return true;
+    case HP_ZX1_MIO_ERROR_ADDRESS:
+        *value = regs->error_address;
+        return true;
+    case HP_ZX1_MIO_ERROR_INFORMATION:
+        *value = regs->error_information;
+        return true;
+    default:
+        break;
+    }
+
     desc = hp_zx1_mio_find_reg(offset);
     if (!desc) {
         return false;
@@ -219,6 +253,21 @@ bool hp_zx1_mio_regs_write(HPZX1MIORegs *regs, uint64_t offset,
 
     if (!regs) {
         return false;
+    }
+
+    if (base == HP_ZX1_MIO_ERROR_STATUS) {
+        if (!hp_zx1_mio_f1_write_shape_valid(offset, size, base)) {
+            return false;
+        }
+        lane = offset & 7;
+        byte_enable = size == 8 ? UINT8_MAX :
+                      ((1U << size) - 1) << lane;
+        value = size == 8 ? value : value << (lane * 8);
+        return hp_zx1_mio_regs_write_be(regs, base, value, byte_enable);
+    }
+    if (base == HP_ZX1_MIO_ERROR_ADDRESS ||
+        base == HP_ZX1_MIO_ERROR_INFORMATION) {
+        return hp_zx1_mio_f1_write_shape_valid(offset, size, base);
     }
 
     desc = hp_zx1_mio_find_reg(base);
@@ -261,6 +310,21 @@ bool hp_zx1_mio_regs_write_be(HPZX1MIORegs *regs, uint64_t offset,
         return false;
     }
 
+    if (offset == HP_ZX1_MIO_ERROR_STATUS) {
+        value &= hp_zx1_mio_merge_be(0, UINT64_MAX, byte_enable);
+        regs->error_status &= ~(value & HP_ZX1_MIO_ERROR_STATUS_W1C);
+        if (!(regs->error_status & HP_ZX1_MIO_ERROR_VALID)) {
+            regs->error_status = 0;
+            regs->error_address = 0;
+            regs->error_information = 0;
+        }
+        return true;
+    }
+    if (offset == HP_ZX1_MIO_ERROR_ADDRESS ||
+        offset == HP_ZX1_MIO_ERROR_INFORMATION) {
+        return true;
+    }
+
     desc = hp_zx1_mio_find_reg(offset);
     if (!desc || !desc->function1) {
         return false;
@@ -298,6 +362,12 @@ bool hp_zx1_mio_regs_state_valid(const HPZX1MIORegs *regs)
             (desc->reset & ~desc->writable_mask)) {
             return false;
         }
+    }
+    if ((regs->error_status & ~HP_ZX1_MIO_ERROR_STATUS_W1C) ||
+        (!(regs->error_status & HP_ZX1_MIO_ERROR_VALID) &&
+         (regs->error_status || regs->error_address ||
+          regs->error_information))) {
+        return false;
     }
     return true;
 }

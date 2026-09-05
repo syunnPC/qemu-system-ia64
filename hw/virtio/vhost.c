@@ -28,6 +28,7 @@
 #include "migration/qemu-file-types.h"
 #include "system/dma.h"
 #include "system/memory.h"
+#include "system/physmem.h"
 #include "system/ramblock.h"
 #include "trace.h"
 
@@ -1658,6 +1659,7 @@ int vhost_dev_init(struct vhost_dev *hdev, void *opaque,
     hdev->log_size = 0;
     hdev->log_enabled = false;
     hdev->started = false;
+    hdev->external_writer_active = false;
     memory_listener_register(&hdev->memory_listener, &address_space_memory);
     QLIST_INSERT_HEAD(&vhost_devices, hdev, entry);
 
@@ -1715,6 +1717,10 @@ void vhost_dev_cleanup(struct vhost_dev *hdev)
     g_free(hdev->mem_sections);
     if (hdev->vhost_ops) {
         hdev->vhost_ops->vhost_backend_cleanup(hdev);
+    }
+    if (hdev->external_writer_active) {
+        physical_memory_write_external_end();
+        hdev->external_writer_active = false;
     }
     assert(!hdev->log);
 
@@ -2133,6 +2139,8 @@ int vhost_dev_start(struct vhost_dev *hdev, VirtIODevice *vdev, bool vrings)
         VHOST_OPS_DEBUG(r, "vhost_set_mem_table failed");
         goto fail_mem;
     }
+    physical_memory_write_external_begin();
+    hdev->external_writer_active = true;
     for (i = 0; i < hdev->nvqs; ++i) {
         r = vhost_virtqueue_start(hdev,
                                   vdev,
@@ -2222,6 +2230,10 @@ fail_vq:
     }
 
 fail_mem:
+    if (hdev->external_writer_active) {
+        physical_memory_write_external_end();
+        hdev->external_writer_active = false;
+    }
     if (vhost_dev_has_iommu(hdev)) {
         memory_listener_unregister(&hdev->iommu_listener);
     }
@@ -2274,6 +2286,10 @@ static int do_vhost_dev_stop(struct vhost_dev *hdev, VirtIODevice *vdev,
     }
     vhost_stop_config_intr(hdev);
     vhost_log_put(hdev, true);
+    if (hdev->external_writer_active) {
+        physical_memory_write_external_end();
+        hdev->external_writer_active = false;
+    }
     hdev->started = false;
     vdev->vhost_started = false;
     hdev->vdev = NULL;

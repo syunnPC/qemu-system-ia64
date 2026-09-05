@@ -147,6 +147,8 @@ void ia64_cpu_dump_state(CPUState *cs, FILE *f, int flags)
                  cpu->env.cr_dcr, cpu->env.cr_itm, cpu->env.cr[IA64_CR_ITV],
                  cpu->env.cr[IA64_CR_SAPIC_TPR],
                  cpu->env.cr[IA64_CR_SAPIC_EOI]);
+    qemu_fprintf(f, "SAPIC XTP: %02x\n",
+                 ia64_sapic_get_xtp(CPU(cpu)));
     qemu_fprintf(f, "SAPIC IRR: %016" PRIx64 " %016" PRIx64
                  " %016" PRIx64 " %016" PRIx64 "\n",
                  cpu->env.interrupt.sapic_irr[0],

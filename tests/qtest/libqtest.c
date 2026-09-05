@@ -1435,6 +1435,109 @@ void qtest_ia64_alat_active_writer(QTestState *s, bool *setup_hit,
     g_strfreev(args);
 }
 
+void qtest_ia64_alat_smp_writer(QTestState *s, bool *setup_hit,
+                                bool *memory_write_ok, bool *smp_hit)
+{
+    uint64_t values[3];
+    gchar **args;
+    int i;
+    int rc;
+
+    qtest_sendf(s, "ia64-alat-smp-writer\n");
+    args = qtest_rsp_args(s, 4);
+
+    for (i = 0; i < ARRAY_SIZE(values); i++) {
+        rc = qemu_strtou64(args[i + 1], NULL, 0, &values[i]);
+        g_assert(rc == 0);
+        g_assert_cmpuint(values[i], <=, 1);
+    }
+
+    *setup_hit = values[0];
+    *memory_write_ok = values[1];
+    *smp_hit = values[2];
+    g_strfreev(args);
+}
+
+uint64_t qtest_ia64_ras_min_state(QTestState *s)
+{
+    gchar **args;
+    uint64_t result;
+    int rc;
+
+    qtest_sendf(s, "ia64-ras-min-state\n");
+    args = qtest_rsp_args(s, 2);
+    rc = qemu_strtou64(args[1], NULL, 0, &result);
+    g_assert(rc == 0);
+    g_strfreev(args);
+    return result;
+}
+
+bool qtest_ia64_ras_inject_processor(QTestState *s, unsigned int cpu,
+                                     unsigned int severity, uint64_t status,
+                                     uint64_t address, uint64_t information,
+                                     uint8_t cmc_vector)
+{
+    gchar **args;
+    unsigned int accepted;
+
+    qtest_sendf(s, "ia64-ras-inject processor %u %u 0x%" PRIx64
+                " 0x%" PRIx64 " 0x%" PRIx64 " %u\n",
+                cpu, severity, status, address, information, cmc_vector);
+    args = qtest_rsp_args(s, 2);
+    g_assert_cmpint(qemu_strtoui(args[1], NULL, 0, &accepted), ==, 0);
+    g_strfreev(args);
+    return accepted != 0;
+}
+
+bool qtest_ia64_ras_inject_chipset(QTestState *s, unsigned int reason,
+                                   unsigned int severity, uint64_t address,
+                                   uint64_t status, uint64_t information,
+                                   uint32_t requester)
+{
+    gchar **args;
+    unsigned int accepted;
+
+    qtest_sendf(s, "ia64-ras-inject chipset %u %u 0x%" PRIx64
+                " 0x%" PRIx64 " 0x%" PRIx64 " 0x%x\n",
+                reason, severity, address, status, information, requester);
+    args = qtest_rsp_args(s, 2);
+    g_assert_cmpint(qemu_strtoui(args[1], NULL, 0, &accepted), ==, 0);
+    g_strfreev(args);
+    return accepted != 0;
+}
+
+void qtest_ia64_460gx_inject_memory_error(
+    QTestState *s, unsigned int card, unsigned int mac, unsigned int error,
+    uint64_t address, uint64_t data, uint8_t ecc, uint8_t chunk,
+    uint8_t itid)
+{
+    gchar **args;
+
+    qtest_sendf(s, "ia64-460gx-memory-error %u %u %u 0x%" PRIx64
+                " 0x%" PRIx64 " %u %u %u\n",
+                card, mac, error, address, data, ecc, chunk, itid);
+    args = qtest_rsp_args(s, 1);
+    g_strfreev(args);
+}
+
+int64_t qtest_ia64_sapic(QTestState *s, const char *operation,
+                         uint64_t arg0, uint64_t arg1, uint64_t arg2,
+                         uint64_t arg3, uint64_t arg4)
+{
+    gchar **args;
+    int64_t result;
+    int rc;
+
+    qtest_sendf(s, "ia64-sapic %s 0x%" PRIx64 " 0x%" PRIx64
+                " 0x%" PRIx64 " 0x%" PRIx64 " 0x%" PRIx64 "\n",
+                operation, arg0, arg1, arg2, arg3, arg4);
+    args = qtest_rsp_args(s, 2);
+    rc = qemu_strtoi64(args[1], NULL, 0, &result);
+    g_assert(rc == 0);
+    g_strfreev(args);
+    return result;
+}
+
 void qtest_add_func(const char *str, void (*fn)(void))
 {
     gchar *path = g_strdup_printf("/%s/%s", qtest_get_arch(), str);

@@ -19,6 +19,7 @@ typedef struct ProxyMemoryListener {
     MemoryRegionSection *mr_sections;
 
     QIOChannel *ioc;
+    bool external_writer_active;
 } ProxyMemoryListener;
 
 void proxy_memory_listener_configure(ProxyMemoryListener *proxy_listener,

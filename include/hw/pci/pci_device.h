@@ -31,6 +31,9 @@ struct PCIDeviceClass {
     PCIConfigReadFunc *config_read;
     PCIConfigWriteFunc *config_write;
 
+    /* Optional platform notification when a PCIe Root Port receives AER. */
+    void (*aer_notify)(PCIDevice *dev, const PCIEAERMsg *msg);
+
     uint16_t vendor_id;
     uint16_t device_id;
     uint8_t revision;

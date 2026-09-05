@@ -4,6 +4,10 @@ config IA64_VPC
     select GENERIC_LOADER
     select SERIAL_MM
     select PCI
+    select PCI_EXPRESS
+    select MSI_NONBROKEN
+    select PCI_BRIDGE
+    select PCIE_PORT
     select ISA_BUS
     select ACPI
     imply TEST_DEVICES

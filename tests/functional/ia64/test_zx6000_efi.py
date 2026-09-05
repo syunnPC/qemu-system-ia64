@@ -20,8 +20,8 @@ ACPI_DSDT_AML_CAPACITY = 8192
 ZX6000_EFI_TEST_FIRMWARE_OUTPUT = (
     b"Console Out:          Serial 16550",
     b"Graphics Output:      not present",
-    b"Block I/O Protocol:   installed (no media, primary IDE)",
-    b"LocateHandle:         enabled (zx6000 LSI53C1030/CMD649 Block I/O)",
+    b"Block I/O Protocol:   not published (no boot controller)",
+    b"LocateHandle:         enabled (HP PCI root handles)",
     b"SetVirtualAddressMap/ConvertPointer: enabled",
     b"NVRAM Variables:      enabled",
     b"EFI Time Services:    enabled",
@@ -33,7 +33,7 @@ ZX6000_EFI_TEST_FIRMWARE_OUTPUT = (
     b"ACPI SSDT (CPU/UART/PS2): published",
     b"PCI Root Bridge I/O:  published",
     b"PCI Host Bridge:       published",
-    b"BOOT path:            zx6000 LSI53C1030 disk, CMD649 optical + FAT resolver",
+    b"BOOT path:            no boot controller",
     b"Firmware ready.",
 )
 

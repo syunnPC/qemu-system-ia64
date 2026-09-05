@@ -123,6 +123,7 @@ struct vhost_dev {
     uint64_t backend_cap;
     /* @started: is the vhost device started? */
     bool started;
+    bool external_writer_active;
     bool log_enabled;
     uint64_t log_size;
     Error *migration_blocker;

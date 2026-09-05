@@ -43,8 +43,17 @@ static IA64PlatformDescriptor *test_descriptor_init(
     descriptor->HeaderSize = cpu_to_le32(sizeof(*descriptor));
     descriptor->TotalSize = cpu_to_le32(total_size);
     descriptor->PlatformId = cpu_to_le32(platform_id);
-    descriptor->Flags = cpu_to_le32(IA64_PLATFORM_FLAG_NO_MCFG |
-                                    IA64_PLATFORM_FLAG_QEMU_EXTENSION);
+    descriptor->Flags = cpu_to_le32(
+        IA64_PLATFORM_FLAG_NO_MCFG |
+        IA64_PLATFORM_FLAG_QEMU_EXTENSION |
+        (platform_id == IA64_PLATFORM_ID_HP_I2000 ?
+         IA64_PLATFORM_FLAG_FAMILY_HP_I2000 |
+         IA64_PLATFORM_FLAG_PCI_CF8 :
+         IA64_PLATFORM_FLAG_FAMILY_HP_ZX |
+         IA64_PLATFORM_FLAG_PCI_ZX1_LBA |
+         IA64_PLATFORM_FLAG_SPARSE_IO |
+         IA64_PLATFORM_FLAG_EMBEDDED_IO_SAPIC |
+         IA64_PLATFORM_FLAG_ACPI_PM));
     descriptor->RamSize = cpu_to_le64(2 * GiB);
     descriptor->LowRamEnd = cpu_to_le64(1 * GiB);
     descriptor->FirmwareBase = cpu_to_le64(IA64_PLATFORM_FIRMWARE_BASE);
@@ -53,6 +62,22 @@ static IA64PlatformDescriptor *test_descriptor_init(
     descriptor->SocketCount = cpu_to_le32(2);
     descriptor->CoresPerSocket = cpu_to_le32(1);
     descriptor->ThreadsPerCore = cpu_to_le32(1);
+    descriptor->PhysicalAddressBits = cpu_to_le32(
+        platform_id == IA64_PLATFORM_ID_HP_I2000 ?
+        IA64_PLATFORM_I2000_PHYS_ADDR_BITS :
+        IA64_PLATFORM_ZX6000_PHYS_ADDR_BITS);
+    descriptor->MaxSockets = cpu_to_le32(256);
+    descriptor->MaxCoresPerSocket = cpu_to_le32(256);
+    descriptor->MaxThreadsPerCore = cpu_to_le32(256);
+    descriptor->MaxPciRoots = cpu_to_le32(IA64_PLATFORM_MAX_PCI_ROOTS);
+    descriptor->PciRootIdentity = cpu_to_le32(
+        platform_id == IA64_PLATFORM_ID_HP_I2000 ?
+        IA64_PLATFORM_PCI_ROOT_IDENTITY_GENERIC :
+        IA64_PLATFORM_PCI_ROOT_IDENTITY_HP_ZX);
+    descriptor->NumaNodeCount = cpu_to_le32(1);
+    descriptor->NumaNode[0].ProcessorCount = cpu_to_le32(2);
+    descriptor->NumaNode[0].RamRangeMask = cpu_to_le32(3);
+    descriptor->NumaNode[0].Distance[0] = 10;
     descriptor->RamRangeOffset = cpu_to_le32(ram_offset);
     descriptor->RamRangeCount = cpu_to_le32(2);
     descriptor->RamRangeEntrySize =
@@ -81,6 +106,8 @@ static IA64PlatformDescriptor *test_descriptor_init(
     descriptor->NvramSize = cpu_to_le64(64 * KiB);
     descriptor->RtcBase = cpu_to_le64(0xffef0000);
     descriptor->RtcSize = cpu_to_le64(8 * KiB);
+    descriptor->RasBase = cpu_to_le64(IA64_RAS_HUB_DEFAULT_BASE);
+    descriptor->RasSize = cpu_to_le64(IA64_RAS_HUB_SIZE);
     ram = (void *)(storage->bytes + ram_offset);
     ram[0].Size = cpu_to_le64(1 * GiB);
     ram[1].Base = cpu_to_le64(4 * GiB);
@@ -88,7 +115,7 @@ static IA64PlatformDescriptor *test_descriptor_init(
     root = (void *)(storage->bytes + root_offset);
     root->Segment = cpu_to_le16(0);
     root->Bus = 0;
-    if (ia64_platform_is_hp_zx(platform_id)) {
+    if (platform_id != IA64_PLATFORM_ID_HP_I2000) {
         root->ConfigType = IA64_PLATFORM_PCI_CONFIG_ZX1_LBA;
         root->ConfigBase = cpu_to_le64(TEST_ZX1_CONFIG_BASE);
     } else {
@@ -249,29 +276,29 @@ static void test_legacy_io_pal_contract(void)
     const uint64_t size = IA64_PLATFORM_MIN_LEGACY_IO_SIZE;
 
     g_assert_true(ia64_platform_legacy_io_valid(
-        IA64_PLATFORM_ID_HP_I2000, TEST_LEGACY_IO_BASE, size));
+        IA64_PLATFORM_I2000_PHYS_ADDR_BITS, TEST_LEGACY_IO_BASE, size));
     g_assert_true(ia64_platform_legacy_io_valid(
-        IA64_PLATFORM_ID_HP_I2000,
+        IA64_PLATFORM_I2000_PHYS_ADDR_BITS,
         (1ULL << IA64_PLATFORM_I2000_PHYS_ADDR_BITS) - size, size));
     g_assert_false(ia64_platform_legacy_io_valid(
-        IA64_PLATFORM_ID_HP_I2000,
+        IA64_PLATFORM_I2000_PHYS_ADDR_BITS,
         1ULL << IA64_PLATFORM_I2000_PHYS_ADDR_BITS, size));
     g_assert_true(ia64_platform_legacy_io_valid(
-        IA64_PLATFORM_ID_HP_ZX6000,
+        IA64_PLATFORM_ZX6000_PHYS_ADDR_BITS,
         (1ULL << IA64_PLATFORM_ZX6000_PHYS_ADDR_BITS) - size, size));
     g_assert_false(ia64_platform_legacy_io_valid(
-        IA64_PLATFORM_ID_HP_ZX6000,
+        IA64_PLATFORM_ZX6000_PHYS_ADDR_BITS,
         1ULL << IA64_PLATFORM_ZX6000_PHYS_ADDR_BITS, size));
     g_assert_true(ia64_platform_legacy_io_valid(
-        IA64_PLATFORM_ID_HP_RX2660,
+        IA64_PLATFORM_ZX6000_PHYS_ADDR_BITS,
         (1ULL << IA64_PLATFORM_ZX6000_PHYS_ADDR_BITS) - size, size));
     g_assert_false(ia64_platform_legacy_io_valid(
-        IA64_PLATFORM_ID_HP_RX2660,
+        IA64_PLATFORM_ZX6000_PHYS_ADDR_BITS,
         1ULL << IA64_PLATFORM_ZX6000_PHYS_ADDR_BITS, size));
     g_assert_false(ia64_platform_legacy_io_valid(
-        IA64_PLATFORM_ID_HP_I2000, 0xfc000000ULL, size));
+        IA64_PLATFORM_I2000_PHYS_ADDR_BITS, 0xfc000000ULL, size));
     g_assert_false(ia64_platform_legacy_io_valid(
-        IA64_PLATFORM_ID_HP_I2000, TEST_LEGACY_IO_BASE,
+        IA64_PLATFORM_I2000_PHYS_ADDR_BITS, TEST_LEGACY_IO_BASE,
         size + IA64_PLATFORM_RESOURCE_ALIGNMENT));
     g_assert_false(ia64_platform_legacy_io_valid(
         0, TEST_LEGACY_IO_BASE, size));
@@ -349,23 +376,19 @@ static void test_checksum(void)
 static void test_topology(void)
 {
     IA64PlatformTestDescriptor storage;
-    IA64PlatformDescriptor *descriptor = test_descriptor_init(
-        &storage, IA64_PLATFORM_ID_HP_I2000);
+    IA64PlatformDescriptor *descriptor;
 
+    descriptor = test_descriptor_init(&storage,
+                                      IA64_PLATFORM_ID_HP_I2000);
     descriptor->CoresPerSocket = cpu_to_le32(2);
     ia64_platform_desc_finalize(descriptor, sizeof(storage));
     assert_invalid(descriptor, IA64_PLATFORM_ID_HP_I2000);
-}
-
-static void test_rx2660_topology(void)
-{
-    IA64PlatformTestDescriptor storage;
-    IA64PlatformDescriptor *descriptor;
 
     descriptor = test_descriptor_init(&storage,
                                       IA64_PLATFORM_ID_HP_RX2660);
     descriptor->ProcessorCount = cpu_to_le32(1);
     descriptor->SocketCount = cpu_to_le32(1);
+    descriptor->NumaNode[0].ProcessorCount = cpu_to_le32(1);
     ia64_platform_desc_finalize(descriptor, sizeof(storage));
     assert_valid(descriptor, IA64_PLATFORM_ID_HP_RX2660);
 
@@ -375,6 +398,7 @@ static void test_rx2660_topology(void)
     descriptor->SocketCount = cpu_to_le32(2);
     descriptor->CoresPerSocket = cpu_to_le32(2);
     descriptor->ThreadsPerCore = cpu_to_le32(2);
+    descriptor->NumaNode[0].ProcessorCount = cpu_to_le32(8);
     ia64_platform_desc_finalize(descriptor, sizeof(storage));
     assert_valid(descriptor, IA64_PLATFORM_ID_HP_RX2660);
 
@@ -383,6 +407,7 @@ static void test_rx2660_topology(void)
     descriptor->ProcessorCount = cpu_to_le32(7);
     descriptor->CoresPerSocket = cpu_to_le32(2);
     descriptor->ThreadsPerCore = cpu_to_le32(2);
+    descriptor->NumaNode[0].ProcessorCount = cpu_to_le32(7);
     ia64_platform_desc_finalize(descriptor, sizeof(storage));
     assert_invalid(descriptor, IA64_PLATFORM_ID_HP_RX2660);
 
@@ -390,20 +415,31 @@ static void test_rx2660_topology(void)
                                       IA64_PLATFORM_ID_HP_RX2660);
     descriptor->ProcessorCount = cpu_to_le32(3);
     descriptor->SocketCount = cpu_to_le32(3);
+    descriptor->NumaNode[0].ProcessorCount = cpu_to_le32(3);
     ia64_platform_desc_finalize(descriptor, sizeof(storage));
-    assert_invalid(descriptor, IA64_PLATFORM_ID_HP_RX2660);
+    assert_valid(descriptor, IA64_PLATFORM_ID_HP_RX2660);
 
     descriptor = test_descriptor_init(&storage,
                                       IA64_PLATFORM_ID_HP_RX2660);
     descriptor->ProcessorCount = cpu_to_le32(6);
     descriptor->CoresPerSocket = cpu_to_le32(3);
+    descriptor->NumaNode[0].ProcessorCount = cpu_to_le32(6);
     ia64_platform_desc_finalize(descriptor, sizeof(storage));
-    assert_invalid(descriptor, IA64_PLATFORM_ID_HP_RX2660);
+    assert_valid(descriptor, IA64_PLATFORM_ID_HP_RX2660);
 
     descriptor = test_descriptor_init(&storage,
                                       IA64_PLATFORM_ID_HP_RX2660);
     descriptor->ProcessorCount = cpu_to_le32(6);
     descriptor->ThreadsPerCore = cpu_to_le32(3);
+    descriptor->NumaNode[0].ProcessorCount = cpu_to_le32(6);
+    ia64_platform_desc_finalize(descriptor, sizeof(storage));
+    assert_valid(descriptor, IA64_PLATFORM_ID_HP_RX2660);
+
+    descriptor = test_descriptor_init(&storage,
+                                      IA64_PLATFORM_ID_HP_RX2660);
+    descriptor->ProcessorCount = cpu_to_le32(257);
+    descriptor->SocketCount = cpu_to_le32(257);
+    descriptor->NumaNode[0].ProcessorCount = cpu_to_le32(257);
     ia64_platform_desc_finalize(descriptor, sizeof(storage));
     assert_invalid(descriptor, IA64_PLATFORM_ID_HP_RX2660);
 
@@ -411,8 +447,101 @@ static void test_rx2660_topology(void)
                                       IA64_PLATFORM_ID_HP_RX2660);
     descriptor->ProcessorCount = 0;
     descriptor->SocketCount = 0;
+    descriptor->NumaNode[0].ProcessorCount = 0;
     ia64_platform_desc_finalize(descriptor, sizeof(storage));
     assert_invalid(descriptor, IA64_PLATFORM_ID_HP_RX2660);
+}
+
+static void test_policy_limits(void)
+{
+    IA64PlatformTestDescriptor storage;
+    IA64PlatformDescriptor *descriptor;
+
+    descriptor = test_descriptor_init(&storage,
+                                      IA64_PLATFORM_ID_HP_ZX6000);
+    descriptor->PhysicalAddressBits = cpu_to_le32(31);
+    ia64_platform_desc_finalize(descriptor, sizeof(storage));
+    assert_invalid(descriptor, IA64_PLATFORM_ID_HP_ZX6000);
+
+    descriptor = test_descriptor_init(&storage,
+                                      IA64_PLATFORM_ID_HP_ZX6000);
+    descriptor->MaxSockets = cpu_to_le32(1);
+    ia64_platform_desc_finalize(descriptor, sizeof(storage));
+    assert_invalid(descriptor, IA64_PLATFORM_ID_HP_ZX6000);
+
+    descriptor = test_descriptor_init(&storage,
+                                      IA64_PLATFORM_ID_HP_ZX6000);
+    descriptor->MaxPciRoots = 0;
+    ia64_platform_desc_finalize(descriptor, sizeof(storage));
+    assert_invalid(descriptor, IA64_PLATFORM_ID_HP_ZX6000);
+
+    descriptor = test_descriptor_init(&storage,
+                                      IA64_PLATFORM_ID_HP_ZX6000);
+    descriptor->PciRootIdentity = cpu_to_le32(
+        IA64_PLATFORM_PCI_ROOT_IDENTITY_HP_ZX + 1U);
+    ia64_platform_desc_finalize(descriptor, sizeof(storage));
+    assert_invalid(descriptor, IA64_PLATFORM_ID_HP_ZX6000);
+}
+
+static void test_onboard_policy(void)
+{
+    IA64PlatformTestDescriptor storage;
+    IA64PlatformDescriptor *descriptor = test_descriptor_init(
+        &storage, IA64_PLATFORM_ID_HP_ZX6000);
+    IA64PlatformOnboardDevice *device = &descriptor->OnboardDevice[0];
+
+    descriptor->OnboardDeviceCount = cpu_to_le32(1);
+    device->Segment = cpu_to_le16(0);
+    device->Bus = 0;
+    device->Device = 2;
+    device->Function = 0;
+    device->Type = IA64_PLATFORM_ONBOARD_GRAPHICS;
+    device->Bar = 0;
+    device->VendorDeviceId = cpu_to_le32(0x51591002);
+    device->ClassCode = cpu_to_le32(0x030000);
+    device->BarSize = cpu_to_le64(16 * MiB);
+    ia64_platform_desc_finalize(descriptor, sizeof(storage));
+    assert_valid(descriptor, IA64_PLATFORM_ID_HP_ZX6000);
+
+    device->Bus = 1;
+    ia64_platform_desc_finalize(descriptor, sizeof(storage));
+    assert_invalid(descriptor, IA64_PLATFORM_ID_HP_ZX6000);
+
+    device->Bus = 0;
+    device->Bar = UINT8_MAX;
+    ia64_platform_desc_finalize(descriptor, sizeof(storage));
+    assert_invalid(descriptor, IA64_PLATFORM_ID_HP_ZX6000);
+}
+
+static void test_numa_policy(void)
+{
+    IA64PlatformTestDescriptor storage;
+    IA64PlatformDescriptor *descriptor = test_descriptor_init(
+        &storage, IA64_PLATFORM_ID_HP_ZX6000);
+    IA64PlatformNumaNode *node = descriptor->NumaNode;
+
+    descriptor->NumaNodeCount = cpu_to_le32(2);
+    node[0].ProcessorCount = cpu_to_le32(1);
+    node[0].RamRangeMask = cpu_to_le32(1);
+    node[0].Distance[0] = 10;
+    node[0].Distance[1] = 20;
+    node[1].ProximityDomain = cpu_to_le32(1);
+    node[1].ProcessorStart = cpu_to_le32(1);
+    node[1].ProcessorCount = cpu_to_le32(1);
+    node[1].RamRangeMask = cpu_to_le32(2);
+    node[1].Distance[0] = 20;
+    node[1].Distance[1] = 10;
+    ia64_platform_desc_finalize(descriptor, sizeof(storage));
+    assert_valid(descriptor, IA64_PLATFORM_ID_HP_ZX6000);
+
+    node[1].Distance[0] = 21;
+    ia64_platform_desc_finalize(descriptor, sizeof(storage));
+    assert_invalid(descriptor, IA64_PLATFORM_ID_HP_ZX6000);
+
+    node[1].Distance[0] = 20;
+    node[1].RamRangeMask = cpu_to_le32(1);
+    ia64_platform_desc_finalize(descriptor, sizeof(storage));
+    assert_invalid(descriptor, IA64_PLATFORM_ID_HP_ZX6000);
 }
 
 static void test_console_clock(void)
@@ -1212,6 +1341,122 @@ static void test_config_backend(void)
     error_free(err);
 }
 
+static void test_ecam_config_backend(void)
+{
+    const uint8_t first_bus = 0x20;
+    const uint8_t last_bus = 0x2f;
+    const uint64_t ecam_base = 0x0000000500000000ULL;
+    const uint64_t address_limit =
+        1ULL << IA64_PLATFORM_ZX6000_PHYS_ADDR_BITS;
+    IA64PlatformTestDescriptor storage;
+    IA64PlatformDescriptor *descriptor;
+    IA64PlatformPciRoot *root;
+    IA64PlatformIoSapic *sapic;
+    IA64PlatformPciRoute *route;
+
+    g_assert_cmphex(ia64_platform_pci_config_size(
+                        IA64_PLATFORM_PCI_CONFIG_ECAM,
+                        first_bus, last_bus),
+                    ==, 16 * MiB);
+    g_assert_cmphex(ia64_platform_pci_config_offset(
+                        IA64_PLATFORM_PCI_CONFIG_ECAM, first_bus),
+                    ==, 32 * MiB);
+
+    descriptor = test_descriptor_init(&storage,
+                                      IA64_PLATFORM_ID_HP_ZX6000);
+    root = (IA64PlatformPciRoot *)(
+        storage.bytes + le32_to_cpu(descriptor->PciRootOffset));
+    sapic = (IA64PlatformIoSapic *)(
+        storage.bytes + le32_to_cpu(descriptor->IoSapicOffset));
+    route = (IA64PlatformPciRoute *)(
+        storage.bytes + le32_to_cpu(descriptor->PciRouteOffset));
+    descriptor->Flags = cpu_to_le32(
+        (le32_to_cpu(descriptor->Flags) &
+         ~(IA64_PLATFORM_FLAG_NO_MCFG | IA64_PLATFORM_FLAG_PCI_ZX1_LBA)) |
+        IA64_PLATFORM_FLAG_PCI_ECAM);
+    root->Segment = cpu_to_le16(7);
+    root->Bus = first_bus;
+    root->BusEnd = last_bus;
+    root->ConfigType = IA64_PLATFORM_PCI_CONFIG_ECAM;
+    root->ConfigBase = cpu_to_le64(ecam_base);
+    route->Segment = root->Segment;
+    route->Bus = root->Bus;
+    ia64_platform_desc_finalize(descriptor, sizeof(storage));
+    assert_valid(descriptor, IA64_PLATFORM_ID_HP_ZX6000);
+
+    sapic->Base = cpu_to_le64(ecam_base);
+    ia64_platform_desc_finalize(descriptor, sizeof(storage));
+    assert_valid(descriptor, IA64_PLATFORM_ID_HP_ZX6000);
+
+    sapic->Base = cpu_to_le64(
+        ecam_base + ia64_platform_pci_config_offset(
+            root->ConfigType, root->Bus));
+    ia64_platform_desc_finalize(descriptor, sizeof(storage));
+    assert_invalid(descriptor, IA64_PLATFORM_ID_HP_ZX6000);
+
+    sapic->Base = cpu_to_le64(0xfec00000);
+    ia64_platform_desc_finalize(descriptor, sizeof(storage));
+    assert_valid(descriptor, IA64_PLATFORM_ID_HP_ZX6000);
+
+    descriptor->Flags = cpu_to_le32(
+        le32_to_cpu(descriptor->Flags) | IA64_PLATFORM_FLAG_NO_MCFG);
+    ia64_platform_desc_finalize(descriptor, sizeof(storage));
+    assert_invalid(descriptor, IA64_PLATFORM_ID_HP_ZX6000);
+
+    descriptor->Flags = cpu_to_le32(
+        le32_to_cpu(descriptor->Flags) & ~IA64_PLATFORM_FLAG_NO_MCFG);
+    root->ConfigBase = cpu_to_le64(
+        ecam_base + IA64_PLATFORM_PCI_ECAM_BUS_SIZE);
+    ia64_platform_desc_finalize(descriptor, sizeof(storage));
+    assert_invalid(descriptor, IA64_PLATFORM_ID_HP_ZX6000);
+
+    root->ConfigBase = cpu_to_le64(
+        address_limit - IA64_PLATFORM_PCI_ECAM_ALIGNMENT);
+    ia64_platform_desc_finalize(descriptor, sizeof(storage));
+    assert_valid(descriptor, IA64_PLATFORM_ID_HP_ZX6000);
+
+    descriptor->PhysicalAddressBits = cpu_to_le32(44);
+    root->ConfigBase = cpu_to_le64(ecam_base);
+    ia64_platform_desc_finalize(descriptor, sizeof(storage));
+    assert_valid(descriptor, IA64_PLATFORM_ID_HP_ZX6000);
+
+    root->ConfigBase = cpu_to_le64(1ULL << 44);
+    ia64_platform_desc_finalize(descriptor, sizeof(storage));
+    assert_invalid(descriptor, IA64_PLATFORM_ID_HP_ZX6000);
+
+    descriptor->PhysicalAddressBits = cpu_to_le32(
+        IA64_PLATFORM_ZX6000_PHYS_ADDR_BITS);
+
+    root->ConfigBase = cpu_to_le64(
+        address_limit);
+    ia64_platform_desc_finalize(descriptor, sizeof(storage));
+    assert_invalid(descriptor, IA64_PLATFORM_ID_HP_ZX6000);
+
+    root->ConfigBase = cpu_to_le64(
+        0x80000000ULL - (uint64_t)first_bus *
+        IA64_PLATFORM_PCI_ECAM_BUS_SIZE);
+    ia64_platform_desc_finalize(descriptor, sizeof(storage));
+    assert_invalid(descriptor, IA64_PLATFORM_ID_HP_ZX6000);
+
+    descriptor = test_descriptor_init(&storage,
+                                      IA64_PLATFORM_ID_HP_ZX6000);
+    descriptor->Flags = cpu_to_le32(
+        le32_to_cpu(descriptor->Flags) & ~IA64_PLATFORM_FLAG_NO_MCFG);
+    ia64_platform_desc_finalize(descriptor, sizeof(storage));
+    assert_invalid(descriptor, IA64_PLATFORM_ID_HP_ZX6000);
+
+    descriptor = test_descriptor_init(&storage,
+                                      IA64_PLATFORM_ID_HP_I2000);
+    root = (IA64PlatformPciRoot *)(
+        storage.bytes + le32_to_cpu(descriptor->PciRootOffset));
+    descriptor->Flags = cpu_to_le32(
+        le32_to_cpu(descriptor->Flags) & ~IA64_PLATFORM_FLAG_NO_MCFG);
+    root->ConfigType = IA64_PLATFORM_PCI_CONFIG_ECAM;
+    root->ConfigBase = cpu_to_le64(ecam_base);
+    ia64_platform_desc_finalize(descriptor, sizeof(storage));
+    assert_invalid(descriptor, IA64_PLATFORM_ID_HP_I2000);
+}
+
 static void test_zx1_embedded_io_sapic(void)
 {
     IA64PlatformTestDescriptor storage;
@@ -1491,7 +1736,9 @@ static void test_i2000_profile_valid(void)
                     IA64_FW_COMPAT_ALL_MASK);
     g_assert_cmphex(ia64_platform_firmware_compat_flags(
                         IA64_PLATFORM_ID_HP_ZX6000,
-                        le32_to_cpu(descriptor->Flags)), ==, 0);
+                        (le32_to_cpu(descriptor->Flags) &
+                         ~IA64_PLATFORM_FLAG_FAMILY_MASK) |
+                        IA64_PLATFORM_FLAG_FAMILY_HP_ZX), ==, 0);
     g_assert_true(ia64_platform_desc_validate(
         descriptor, size, IA64_PLATFORM_ID_HP_I2000, &err));
     g_assert_null(err);
@@ -1747,8 +1994,9 @@ int main(int argc, char **argv)
                     test_range_and_overlap);
     g_test_add_func("/ia64/platform/checksum", test_checksum);
     g_test_add_func("/ia64/platform/topology", test_topology);
-    g_test_add_func("/ia64/platform/rx2660-topology",
-                    test_rx2660_topology);
+    g_test_add_func("/ia64/platform/policy-limits", test_policy_limits);
+    g_test_add_func("/ia64/platform/onboard-policy", test_onboard_policy);
+    g_test_add_func("/ia64/platform/numa-policy", test_numa_policy);
     g_test_add_func("/ia64/platform/console-clock", test_console_clock);
     g_test_add_func("/ia64/platform/array-alignment",
                     test_array_alignment);
@@ -1782,6 +2030,8 @@ int main(int argc, char **argv)
                     test_build_combined_max_rejected);
     g_test_add_func("/ia64/platform/config-backend",
                     test_config_backend);
+    g_test_add_func("/ia64/platform/ecam-config-backend",
+                    test_ecam_config_backend);
     g_test_add_func("/ia64/platform/zx1-embedded-io-sapic",
                     test_zx1_embedded_io_sapic);
     g_test_add_func("/ia64/platform/build-multi-root",

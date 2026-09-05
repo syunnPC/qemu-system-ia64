@@ -7,6 +7,7 @@
 #ifndef HW_IA64_INTEL_460GX_DMA_H
 #define HW_IA64_INTEL_460GX_DMA_H
 
+#include "hw/ia64/ia64_ras.h"
 #include "qemu/typedefs.h"
 
 #define INTEL_460GX_DMA_ADDRESS_BITS 36
@@ -48,6 +49,9 @@ bool intel_460gx_dma_add_pci_window_alias(Intel460GXDMA *dma,
  * device is realized on the bus.
  */
 bool intel_460gx_dma_seal(Intel460GXDMA *dma, Error **errp);
+void intel_460gx_dma_set_fault_notify(Intel460GXDMA *dma,
+                                      IA64ChipsetFaultNotify notify,
+                                      void *opaque);
 bool intel_460gx_dma_attach_root(Intel460GXDMA *dma, PCIBus *bus,
                                 Error **errp);
 

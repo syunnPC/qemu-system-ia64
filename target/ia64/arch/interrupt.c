@@ -14,6 +14,8 @@
 /* ---- Local SAPIC helpers ---- */
 
 static int sapic_find_isr(CPUIA64State *env);
+static void ia64_sapic_set_special_work(CPUState *cs,
+                                        run_on_cpu_data data);
 
 CPUState *ia64_cpu_by_sapic_id(uint8_t id, uint8_t eid)
 {
@@ -29,6 +31,137 @@ CPUState *ia64_cpu_by_sapic_id(uint8_t id, uint8_t eid)
         }
     }
     return NULL;
+}
+
+void ia64_sapic_set_xtp(CPUState *cs, uint8_t xtp)
+{
+    IA64CPU *cpu = ia64_cpu_from_cpu_state(cs);
+
+    qatomic_set(&cpu->env.interrupt.sapic_xtp,
+                xtp & IA64_SAPIC_XTP_WRITABLE_MASK);
+}
+
+uint8_t ia64_sapic_get_xtp(CPUState *cs)
+{
+    IA64CPU *cpu = ia64_cpu_from_cpu_state(cs);
+
+    return qatomic_read(&cpu->env.interrupt.sapic_xtp);
+}
+
+static CPUState *sapic_redirect_target(CPUState *requested)
+{
+    CPUState *cs;
+    CPUState *selected = NULL;
+    IA64CPU *requested_cpu = ia64_cpu_from_cpu_state(requested);
+    uint64_t requested_eid =
+        qatomic_read(&requested_cpu->env.cr[IA64_CR_SAPIC_LID]) &
+        IA64_SAPIC_LID_EID_MASK;
+    unsigned int requested_index = MAX(requested->cpu_index, 0);
+    unsigned int max_index = requested_index;
+    unsigned int span;
+    unsigned int best_priority = UINT_MAX;
+    unsigned int best_distance = UINT_MAX;
+
+    CPU_FOREACH(cs) {
+        max_index = MAX(max_index, (unsigned int)MAX(cs->cpu_index, 0));
+    }
+    span = max_index + 1;
+
+    CPU_FOREACH(cs) {
+        IA64CPU *cpu = ia64_cpu_from_cpu_state(cs);
+        uint8_t xtp = ia64_sapic_get_xtp(cs);
+        unsigned int priority;
+        unsigned int index;
+        unsigned int distance;
+
+        if ((qatomic_read(&cpu->env.cr[IA64_CR_SAPIC_LID]) &
+             IA64_SAPIC_LID_EID_MASK) != requested_eid ||
+            (xtp & IA64_SAPIC_XTP_DISABLE)) {
+            continue;
+        }
+        priority = xtp & IA64_SAPIC_XTP_PRIORITY_MASK;
+        index = MAX(cs->cpu_index, 0);
+        distance = (index + span - requested_index) % span;
+        if (priority < best_priority ||
+            (priority == best_priority && distance < best_distance)) {
+            selected = cs;
+            best_priority = priority;
+            best_distance = distance;
+        }
+    }
+
+    return selected != NULL ? selected : requested;
+}
+
+static void sapic_deliver_to(CPUState *cs, IA64SapicDeliveryMode delivery,
+                             uint8_t vector)
+{
+    if (delivery == IA64_SAPIC_DELIVERY_PMI ||
+        delivery == IA64_SAPIC_DELIVERY_INIT) {
+        run_on_cpu_data data = RUN_ON_CPU_HOST_INT(
+            ((unsigned int)delivery << 8) | vector);
+
+        if (qemu_cpu_is_self(cs)) {
+            ia64_sapic_set_special_work(cs, data);
+        } else {
+            async_run_on_cpu(cs, ia64_sapic_set_special_work, data);
+        }
+    } else {
+        ia64_sapic_set_irq(cs, vector);
+    }
+}
+
+bool ia64_sapic_deliver(IA64SapicDestinationMode destination_mode,
+                        uint8_t id, uint8_t eid, bool redirect,
+                        IA64SapicDeliveryMode delivery, uint8_t vector)
+{
+    CPUState *cs;
+
+    /* SAPIC interrupt transactions use physical ID/EID addressing. */
+    if (destination_mode != IA64_SAPIC_DESTINATION_PHYSICAL) {
+        return false;
+    }
+
+    switch (delivery) {
+    case IA64_SAPIC_DELIVERY_INT_REDIRECT:
+        redirect = true;
+        /* fall through */
+    case IA64_SAPIC_DELIVERY_INT:
+        if (!ia64_external_interrupt_vector_valid(vector)) {
+            return false;
+        }
+        break;
+    case IA64_SAPIC_DELIVERY_NMI:
+        vector = 2;
+        break;
+    case IA64_SAPIC_DELIVERY_EXTINT:
+        vector = 0;
+        break;
+    case IA64_SAPIC_DELIVERY_PMI:
+        if (vector >= 4) {
+            return false;
+        }
+        break;
+    case IA64_SAPIC_DELIVERY_INIT:
+        vector = 0;
+        break;
+    default:
+        return false;
+    }
+
+    cs = ia64_cpu_by_sapic_id(id, eid);
+    if (cs == NULL) {
+        return false;
+    }
+    if (redirect && delivery != IA64_SAPIC_DELIVERY_NMI &&
+        delivery != IA64_SAPIC_DELIVERY_EXTINT) {
+        cs = sapic_redirect_target(cs);
+        sapic_deliver_to(cs, delivery, vector);
+        return true;
+    }
+
+    sapic_deliver_to(cs, delivery, vector);
+    return true;
 }
 
 static bool sapic_vector_active(const uint64_t bitmap[4], int vector)
@@ -127,8 +260,15 @@ static int sapic_find_isr(CPUIA64State *env)
 void ia64_sapic_update_interrupt(CPUIA64State *env)
 {
     CPUState *cs = env_cpu(env);
+    bool special = (env->pal.pal_mca_pending &&
+                    !(env->psr & IA64_PSR_MC)) ||
+                   (env->interrupt.sapic_init_pending &&
+                    !(env->psr & IA64_PSR_MC)) ||
+                   (env->interrupt.sapic_pmi_pending &&
+                    (env->psr & IA64_PSR_IC) &&
+                    env->pal.pal_pmi_entry != 0);
 
-    if (sapic_find_irr(env) != IA64_SPURIOUS_VECTOR) {
+    if (special || sapic_find_irr(env) != IA64_SPURIOUS_VECTOR) {
         cpu_set_interrupt(cs, CPU_INTERRUPT_HARD);
         qemu_cpu_kick(cs);
     } else {
@@ -140,6 +280,43 @@ bool ia64_sapic_has_pending(CPUIA64State *env)
 {
     int vector = sapic_find_irr(env);
     return vector != IA64_SPURIOUS_VECTOR;
+}
+
+bool ia64_sapic_has_pmi(CPUIA64State *env)
+{
+    return env->interrupt.sapic_pmi_pending != 0;
+}
+
+bool ia64_sapic_has_init(CPUIA64State *env)
+{
+    return env->interrupt.sapic_init_pending;
+}
+
+int ia64_sapic_accept_pmi(CPUIA64State *env)
+{
+    uint16_t pending = env->interrupt.sapic_pmi_pending;
+    int vector;
+
+    if (!pending) {
+        return -1;
+    }
+    vector = 31 - clz32(pending);
+    env->interrupt.sapic_pmi_pending &= ~(1U << vector);
+    trace_ia64_sapic_vector(env_cpu(env)->cpu_index, "accept-pmi", vector);
+    ia64_sapic_update_interrupt(env);
+    return vector;
+}
+
+bool ia64_sapic_accept_init(CPUIA64State *env)
+{
+    if (!env->interrupt.sapic_init_pending) {
+        return false;
+    }
+    env->interrupt.sapic_init_pending = false;
+    env->interrupt.sapic_init_reason = 0;
+    trace_ia64_sapic_vector(env_cpu(env)->cpu_index, "accept-init", 0);
+    ia64_sapic_update_interrupt(env);
+    return true;
 }
 
 static int ia64_itv_vector(CPUIA64State *env)
@@ -314,6 +491,41 @@ void ia64_sapic_set_irq(CPUState *cs, uint8_t vector)
     } else {
         async_run_on_cpu(cs, ia64_sapic_set_irq_work, data);
     }
+}
+
+void ia64_sapic_set_init(CPUState *cs, uint8_t reason)
+{
+    run_on_cpu_data data = RUN_ON_CPU_HOST_INT(
+        ((unsigned int)IA64_SAPIC_DELIVERY_INIT << 8) | reason);
+
+    if (qemu_cpu_is_self(cs)) {
+        ia64_sapic_set_special_work(cs, data);
+    } else {
+        async_run_on_cpu(cs, ia64_sapic_set_special_work, data);
+    }
+}
+
+static void ia64_sapic_set_special_work(CPUState *cs,
+                                        run_on_cpu_data data)
+{
+    IA64CPU *cpu = ia64_cpu_from_cpu_state(cs);
+    unsigned int encoded = data.host_int;
+    IA64SapicDeliveryMode delivery = encoded >> 8;
+    uint8_t vector = encoded;
+
+    if (delivery == IA64_SAPIC_DELIVERY_PMI) {
+        cpu->env.interrupt.sapic_pmi_pending |= 1U << vector;
+        trace_ia64_sapic_vector(cs->cpu_index, "raise-pmi", vector);
+    } else {
+        g_assert(delivery == IA64_SAPIC_DELIVERY_INIT);
+        if (!cpu->env.interrupt.sapic_init_pending ||
+            vector > cpu->env.interrupt.sapic_init_reason) {
+            cpu->env.interrupt.sapic_init_reason = vector;
+        }
+        cpu->env.interrupt.sapic_init_pending = true;
+        trace_ia64_sapic_vector(cs->cpu_index, "raise-init", 0);
+    }
+    ia64_sapic_update_interrupt(&cpu->env);
 }
 
 static void ia64_itm_raise(CPUIA64State *env, uint64_t itm_value)
@@ -496,7 +708,13 @@ bool ia64_cpu_has_work(CPUState *cs)
      * is actually deliverable; PSR.i does not mask NMI vector 2.
      */
     return cpu_test_interrupt(cs, CPU_INTERRUPT_HARD) &&
-           (interrupts_enabled || nmi_pending);
+           (interrupts_enabled || nmi_pending ||
+            (env->pal.pal_mca_pending && !(env->psr & IA64_PSR_MC)) ||
+            (env->interrupt.sapic_pmi_pending &&
+             (env->psr & IA64_PSR_IC) &&
+             env->pal.pal_pmi_entry != 0) ||
+            (env->interrupt.sapic_init_pending &&
+             !(env->psr & IA64_PSR_MC)));
 }
 
 

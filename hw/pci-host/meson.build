@@ -44,7 +44,8 @@ system_ss.add(when: 'CONFIG_HP_SBA_ROUTING',
 system_ss.add(when: 'CONFIG_HP_ZX1_IOMMU',
               if_true: files('hp-zx1-iommu.c'))
 system_ss.add(when: 'CONFIG_HP_ZX1_MIO',
-              if_true: files('hp-zx1-mio-regs.c', 'hp-zx1-mio.c'))
+              if_true: files('hp-zx1-mio-regs.c', 'hp-zx2-mio-regs.c',
+                             'hp-zx1-mio.c'))
 system_ss.add(when: 'CONFIG_HP_ZX1_IOA',
               if_true: files('hp-zx1-ioa-regs.c', 'hp-zx1-ioa.c'))
 

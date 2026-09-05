@@ -139,6 +139,11 @@ void ia64_gr_nat_set(CPUIA64State *env, uint32_t reg, bool nat);
 void ia64_flush_on_pk_change(CPUIA64State *env, uint64_t old_psr);
 
 uint64_t ia64_rse_current_cfm(const CPUIA64State *env);
+void ia64_rse_save_context(CPUIA64State *env,
+                           IA64RSEContextState *state);
+void ia64_rse_restore_context(CPUIA64State *env,
+                              const IA64RSEContextState *state);
+void ia64_rse_return_from_min_state(CPUIA64State *env, uint64_t cfm);
 uint32_t ia64_rse_nat_words_grow(uint64_t addr, uint32_t nregs);
 uint64_t ia64_rse_read_rnat(const CPUIA64State *env);
 uint64_t ia64_rse_read_rnat_defined(const CPUIA64State *env);

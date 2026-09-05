@@ -8,6 +8,8 @@
 #define HW_PCI_HOST_HP_ZX1_MIO_H
 
 #include "hw/core/sysbus.h"
+#include "hw/ia64/ia64_ras.h"
+#include "hw/pci-host/hp-io-sapic.h"
 
 #define TYPE_HP_ZX1_MIO "hp-zx1-mio"
 #define TYPE_HP_ZX2_MIO "hp-zx2-mio"
@@ -28,6 +30,13 @@ bool hp_zx1_mio_configure_iommu_reset(
     HPZX1MIOState *s, const HPZX1MIOIOMMUResetConfig *config,
     Error **errp);
 
+bool hp_zx1_mio_set_fault_notifier(HPZX1MIOState *s,
+                                    IA64ChipsetFaultNotify notify,
+                                    void *opaque, Error **errp);
+bool hp_zx1_mio_set_error_delivery(HPZX1MIOState *s,
+                                    HPIOSAPICDeliver deliver,
+                                    void *opaque, Error **errp);
+
 /*
  * Attach a root-private view of the shared IOC translator to an empty,
  * unowned PCI root.  The MIO retains the bus until detach; failures leave
@@ -35,6 +44,10 @@ bool hp_zx1_mio_configure_iommu_reset(
  */
 bool hp_zx1_mio_attach_pci_root(HPZX1MIOState *s, PCIBus *bus,
                                 Error **errp);
+
+/* The rope mask selects the zx2 translation context for this root. */
+bool hp_zx2_mio_attach_pci_root(HPZX1MIOState *s, PCIBus *bus,
+                                uint16_t ropes, Error **errp);
 
 /*
  * Attach a Mercury root through a root-private DMA frontend.  The frontend

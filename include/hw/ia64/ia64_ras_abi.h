@@ -1,0 +1,89 @@
+/*
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ *
+ * IA-64 firmware RAS mailbox ABI.
+ *
+ * This header is shared with freestanding firmware and must not include
+ * hosted headers.
+ */
+
+#ifndef HW_IA64_RAS_ABI_H
+#define HW_IA64_RAS_ABI_H
+
+#define IA64_RAS_HUB_DEFAULT_BASE       0x00000000fe800000ULL
+#define IA64_RAS_HUB_SIZE               0x0000000000200000ULL
+#define IA64_RAS_HUB_MAGIC              0x4255485341523649ULL /* I6RASHUB */
+#define IA64_RAS_HUB_REVISION           2ULL
+
+#define IA64_RAS_REG_MAGIC              0x0000U
+#define IA64_RAS_REG_REVISION           0x0008U
+#define IA64_RAS_REG_CAPABILITIES       0x0010U
+#define IA64_RAS_REG_MAX_RECORD_SIZE    0x0018U
+#define IA64_RAS_REG_MCA_ENTRY          0x0020U
+#define IA64_RAS_REG_MCA_GP             0x0028U
+#define IA64_RAS_REG_CPE_VECTOR         0x0030U
+#define IA64_RAS_REG_RENDEZVOUS_VECTOR  0x0038U
+#define IA64_RAS_REG_RENDEZVOUS_TIMEOUT 0x0040U
+#define IA64_RAS_REG_RENDEZVOUS_OPTIONS 0x0048U
+#define IA64_RAS_REG_WAKEUP_MECHANISM   0x0050U
+#define IA64_RAS_REG_WAKEUP_VALUE       0x0058U
+#define IA64_RAS_REG_CPU_ONLINE         0x0060U
+#define IA64_RAS_REG_RENDEZVOUS_BEGIN   0x0068U
+#define IA64_RAS_REG_RENDEZVOUS_ACTIVE  0x0070U
+#define IA64_RAS_REG_RENDEZVOUS_REQUIRED 0x0078U
+#define IA64_RAS_REG_RENDEZVOUS_ARRIVED 0x0080U
+#define IA64_RAS_REG_RENDEZVOUS_RELEASE 0x0088U
+#define IA64_RAS_REG_RENDEZVOUS_INIT    0x0090U
+#define IA64_RAS_REG_INIT_ENTRY         0x0098U
+#define IA64_RAS_REG_INIT_GP            0x00a0U
+#define IA64_RAS_REG_INIT_CAPTURE       0x00a8U
+#define IA64_RAS_REG_WAKEUP_PENDING     0x00b0U
+#define IA64_RAS_REG_WAKEUP_ACK         0x00b8U
+#define IA64_RAS_REG_RENDEZVOUS_FALLBACK 0x00c0U
+
+#define IA64_RAS_CAP_MCA                (1ULL << 0)
+#define IA64_RAS_CAP_CMC                (1ULL << 1)
+#define IA64_RAS_CAP_CPE                (1ULL << 2)
+#define IA64_RAS_CAP_RENDEZVOUS         (1ULL << 3)
+#define IA64_RAS_CAP_SAL_RECORDS        (1ULL << 4)
+#define IA64_RAS_CAP_INIT               (1ULL << 5)
+#define IA64_RAS_CAP_MEMORY_WAKEUP      (1ULL << 6)
+
+#define IA64_RAS_RECORD_TYPE_MCA        0U
+#define IA64_RAS_RECORD_TYPE_INIT       1U
+#define IA64_RAS_RECORD_TYPE_CMC        2U
+#define IA64_RAS_RECORD_TYPE_CPE        3U
+#define IA64_RAS_RECORD_TYPE_DECONFIG   4U
+#define IA64_RAS_RECORD_TYPE_COUNT      5U
+
+#define IA64_RAS_MAX_CPUS               64U
+#define IA64_RAS_RECORD_DEPTH           4U
+#define IA64_RAS_MAX_RECORD_SIZE        512U
+
+#define IA64_RAS_RECORD_BANK_BASE       0x00010000ULL
+#define IA64_RAS_RECORD_BANK_STRIDE     0x00001000ULL
+#define IA64_RAS_RECORD_REG_LENGTH      0x000U
+#define IA64_RAS_RECORD_REG_ID          0x008U
+#define IA64_RAS_RECORD_REG_STATUS      0x010U
+#define IA64_RAS_RECORD_REG_CLEAR       0x018U
+#define IA64_RAS_RECORD_DATA            0x100U
+
+#define IA64_RAS_RECORD_STATUS_PRESENT  (1ULL << 0)
+#define IA64_RAS_RECORD_STATUS_MORE     (1ULL << 1)
+#define IA64_RAS_RECORD_STATUS_OVERFLOW (1ULL << 2)
+
+#define IA64_RAS_RECORD_CLEAR_VALUE     1ULL
+
+#define IA64_RAS_SAL_STATUS_RECOVERABLE 0U
+#define IA64_RAS_SAL_STATUS_FATAL       1U
+#define IA64_RAS_SAL_STATUS_CORRECTED   2U
+
+static inline unsigned long long ia64_ras_record_bank_offset(
+    unsigned int cpu, unsigned int type)
+{
+    return IA64_RAS_RECORD_BANK_BASE +
+        ((unsigned long long)cpu * IA64_RAS_RECORD_TYPE_COUNT + type) *
+        IA64_RAS_RECORD_BANK_STRIDE;
+}
+
+#endif /* HW_IA64_RAS_ABI_H */

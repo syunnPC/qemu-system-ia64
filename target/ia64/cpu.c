@@ -16,6 +16,7 @@
 #include "qemu/units.h"
 #include "cpu.h"
 #include "arch/arch.h"
+#include "arch/system.h"
 #include "ia32/ia32.h"
 #include "debug.h"
 #include "exec-access.h"
@@ -27,11 +28,13 @@
 #include "exec/target_page.h"
 #include "exec/translation-block.h"
 #include "hw/core/sysemu-cpu-ops.h"
+#include "hw/ia64/ia64_ras.h"
 #include "accel/tcg/cpu-ops.h"
 #include "tcg/debug-assert.h"
 #include "exec/translator.h"
 #include "exec/helper-proto.h"
 #include "system/memory.h"
+#include "system/address-spaces.h"
 #include "system/physmem.h"
 #include "system/qtest.h"
 #include "system/tcg.h"
@@ -889,6 +892,7 @@ static void ia64_cpu_reset_hold(Object *obj, ResetType type)
     }
     g_assert(!cpu->env.alat_state.write_active);
     memset(&cpu->env, 0, sizeof(cpu->env));
+    cpu->mca_rse_valid = false;
     cpu->env.alat_state.alat_full = cpu->alat_full;
     cpu->env.fp.fr[IA64_FR_ONE_INDEX] = IA64_FR_ONE;
     cpu->env.pr[IA64_PR_TRUE] = 1;
@@ -910,6 +914,9 @@ static void ia64_cpu_reset_hold(Object *obj, ResetType type)
         ia64_sapic_lid(MAX(CPU(cpu)->cpu_index, 0), 0);
     cpu->env.cr[IA64_CR_SAPIC_TPR] = 0;
     cpu->env.cr[IA64_CR_ITV] = IA64_VECTOR_MASKED;
+    cpu->env.cr[IA64_CR_PMV] = IA64_VECTOR_MASKED;
+    cpu->env.cr[IA64_CR_CMCV] = IA64_VECTOR_MASKED;
+    cpu->env.interrupt.sapic_xtp = IA64_SAPIC_XTP_DISABLE;
     if (icc->model == IA64_CPU_MODEL_MERCED) {
         cpu->env.pmc[8] = 0xf00000003ffffff8ULL;
         cpu->env.pmc[9] = 0xf00000003ffffff8ULL;
@@ -954,11 +961,317 @@ typedef struct IA64QTestAlatWriterWork {
     bool active_hit;
     bool active_alloc_hit;
     uint32_t active_alloc_count;
+    bool memory_write_ok;
+    bool smp_hit;
 } IA64QTestAlatWriterWork;
+
+typedef struct IA64QTestRasMinStateWork {
+    uint64_t result;
+} IA64QTestRasMinStateWork;
+
+typedef struct IA64QTestSapicWork {
+    const char *operation;
+    uint64_t value;
+    uint64_t address;
+    unsigned int size;
+    int64_t result;
+} IA64QTestSapicWork;
 
 #define IA64_QTEST_ALAT_VA  UINT64_C(0x8000)
 #define IA64_QTEST_ALAT_PA  (UINT64_C(8) * MiB)
 #define IA64_QTEST_ALAT_REG 22
+#define IA64_QTEST_MCA_SAVE_PA (UINT64_C(16) * MiB)
+
+enum {
+    IA64_QTEST_RAS_ENTERED = BIT(0),
+    IA64_QTEST_RAS_ENTRY_CFM = BIT(1),
+    IA64_QTEST_RAS_ENTRY_CONTROL = BIT(2),
+    IA64_QTEST_RAS_HANDOFF = BIT(3),
+    IA64_QTEST_RAS_RESTORED = BIT(4),
+    IA64_QTEST_RAS_STATIC_STATE = BIT(5),
+    IA64_QTEST_RAS_BANK_VALUES = BIT(6),
+    IA64_QTEST_RAS_BANK_NATS = BIT(7),
+    IA64_QTEST_RAS_RSE_STATE = BIT(8),
+    IA64_QTEST_RAS_SNAPSHOT_CONSUMED = BIT(9),
+    IA64_QTEST_RAS_SECOND_LEVEL_STATE = BIT(10),
+    IA64_QTEST_RAS_NEW_CONTEXT = BIT(11),
+    IA64_QTEST_RAS_PENDING_REDRIVE = BIT(12),
+    IA64_QTEST_RAS_INIT_ENTRY = BIT(13),
+    IA64_QTEST_RAS_INIT_RESUME = BIT(14),
+    IA64_QTEST_RAS_MCA_MASKED = BIT(15),
+    IA64_QTEST_RAS_MCA_UNMASKED = BIT(16),
+};
+
+static void ia64_qtest_ras_min_state_work(CPUState *cs,
+                                           run_on_cpu_data data)
+{
+    IA64QTestRasMinStateWork *work = data.host_ptr;
+    IA64CPU *cpu = ia64_cpu_from_cpu_state(cs);
+    CPUIA64State *env = &cpu->env;
+    const uint64_t save_address =
+        IA64_PHYS_UC_BIT | IA64_QTEST_MCA_SAVE_PA;
+    const uint64_t original_psr = IA64_PSR_BE | IA64_PSR_MFL |
+        IA64_PSR_IC | IA64_PSR_I | IA64_PSR_PK | IA64_PSR_BN;
+    const uint64_t original_rsc = IA64_RSC_MODE | IA64_RSC_BE;
+    const uint16_t bank0_nats = 0x5555;
+    const uint16_t bank1_nats = 0xaaaa;
+    uint64_t original_bsp;
+    uint64_t original_bspstore;
+    uint32_t original_bol;
+    int32_t original_dirty;
+    int32_t original_invalid;
+    uint64_t image[128];
+    unsigned int i;
+
+    if (env->cfm_sof != 0 || env->rse.rse_invalid !=
+        IA64_STACKED_GR_COUNT) {
+        return;
+    }
+
+    ia64_set_psr(env, 0);
+    for (i = 1; i < 16; i++) {
+        env->gr[i] = UINT64_C(0x1100000000000000) + i;
+        ia64_gr_nat_set(env, i, (i & 3) == 1);
+    }
+    for (i = 0; i < 16; i++) {
+        env->gr[16 + i] = UINT64_C(0x2200000000000000) + i;
+        ia64_gr_nat_set(env, 16 + i, (bank0_nats >> i) & 1);
+        env->banked_gr[i] = UINT64_C(0x3300000000000000) + i;
+    }
+    env->banked_nat = bank1_nats;
+    ia64_system_write_pr(env, UINT64_C(0x25), UINT64_MAX);
+    env->br[IA64_BR_RETURN_LINK] = UINT64_C(0x4400000000000000);
+    env->br[IA64_BR_STATIC0] = UINT64_C(0x5500000000000000);
+    env->ip = UINT64_C(0x123450);
+    env->ar_rsc = original_rsc;
+    ia64_rse_alloc(env, 0, 4 | (2 << IA64_CFM_SOL_SHIFT), 0, 0, 0);
+    for (i = 0; i < 4; i++) {
+        env->gr[IA64_STACKED_GR_BASE + i] =
+            UINT64_C(0x6600000000000000) + i;
+        ia64_gr_nat_set(env, IA64_STACKED_GR_BASE + i, i == 1);
+        ia64_rse_mark_gr_dirty(env, IA64_STACKED_GR_BASE + i);
+    }
+    ia64_set_psr(env, original_psr);
+
+    original_bsp = env->ar_bsp;
+    original_bspstore = env->ar_bspstore;
+    original_bol = env->rse.rse_bol;
+    original_dirty = env->rse.rse_dirty;
+    original_invalid = env->rse.rse_invalid;
+    env->pal.pal_mc_save_addr = save_address;
+    env->pal.pal_mca_entry = UINT64_C(0x100000);
+    env->pal.pal_mca_gp = UINT64_C(0x700000);
+    env->pal.pal_mca_pending_record_id = UINT64_C(0x778899);
+    env->pal.pal_mc_severity = 1;
+    env->pal.pal_mc_state_parameter = UINT64_C(0x12340000);
+    env->pal.pal_mca_pending = true;
+    env->pal.pal_mca_active = false;
+
+    /* Masking must neither enter MCA nor discard the pending record. */
+    ia64_set_psr(env, (original_psr | IA64_PSR_MC) & ~IA64_PSR_I);
+    if (ia64_ras_enter_mca(cpu) || !env->pal.pal_mca_pending ||
+        env->pal.pal_mca_active || cpu->mca_rse_valid ||
+        cpu_test_interrupt(cs, CPU_INTERRUPT_HARD) || ia64_cpu_has_work(cs)) {
+        return;
+    }
+    work->result |= IA64_QTEST_RAS_MCA_MASKED;
+
+    /* Unmasking reasserts the request even with ordinary interrupts off. */
+    ia64_set_psr(env, original_psr & ~IA64_PSR_I);
+    if (!cpu_test_interrupt(cs, CPU_INTERRUPT_HARD) ||
+        !ia64_cpu_has_work(cs)) {
+        return;
+    }
+    work->result |= IA64_QTEST_RAS_MCA_UNMASKED;
+    ia64_set_psr(env, original_psr);
+
+    if (!ia64_ras_enter_mca(cpu)) {
+        return;
+    }
+    work->result |= IA64_QTEST_RAS_ENTERED;
+    if (ia64_rse_current_cfm(env) == 0 &&
+        env->ar_bsp != original_bsp) {
+        work->result |= IA64_QTEST_RAS_ENTRY_CFM;
+    }
+    if (env->psr == (IA64_PSR_MC | IA64_PSR_MFL | IA64_PSR_PK |
+                     IA64_PSR_BN) &&
+        env->ar_rsc == (original_rsc & ~IA64_RSC_MODE)) {
+        work->result |= IA64_QTEST_RAS_ENTRY_CONTROL;
+    }
+    if (env->gr[IA64_RAS_GR_SAL_MIN_STATE] == save_address + 1024 &&
+        env->gr[IA64_RAS_GR_PAL_MIN_STATE] == save_address &&
+        env->gr[IA64_RAS_GR_PROCESSOR_STATE] == UINT64_C(0x12340000) &&
+        env->gr[IA64_RAS_GR_PALE_RETURN] == 0 &&
+        env->gr[IA64_RAS_GR_SALE_ENTRY_STATE] == 1) {
+        work->result |= IA64_QTEST_RAS_HANDOFF;
+    }
+    ia64_cpu_request_mca(cs, UINT64_C(0x100000), UINT64_C(0x700000),
+                         UINT64_C(0x77889a), 0);
+    if (ia64_ras_enter_mca(cpu) || !env->pal.pal_mca_pending ||
+        env->pal.pal_mca_pending_record_id != UINT64_C(0x77889a)) {
+        return;
+    }
+
+    ia64_rse_alloc(env, 0, 3, 0, 0, 0);
+    env->gr[IA64_GR_GLOBAL_POINTER] = 0;
+    env->gr[IA64_RAS_GR_SAL_MIN_STATE] = 0;
+    env->banked_gr[0] = 0;
+    env->ip = 0;
+    env->gr[IA64_PAL_GR_INDEX] = 0x1a;
+    env->gr[IA64_PAL_GR_ARG1] = 0;
+    env->gr[IA64_PAL_GR_ARG2] = save_address;
+    env->gr[IA64_PAL_GR_ARG3] = 0;
+    if (!(ia64_pal_dispatch(env, 0) & IA64_PAL_DISPATCH_RESUMED)) {
+        return;
+    }
+    work->result |= IA64_QTEST_RAS_RESTORED;
+
+    if (env->psr == original_psr && env->ar_rsc == original_rsc &&
+        env->ip == UINT64_C(0x123450) &&
+        env->gr[IA64_GR_GLOBAL_POINTER] ==
+            UINT64_C(0x1100000000000001) &&
+        ia64_gr_nat_get(env, IA64_GR_GLOBAL_POINTER) &&
+        env->gr[IA64_GR_RETURN0] == UINT64_C(0x1100000000000008) &&
+        env->gr[IA64_GR_RETURN1] == UINT64_C(0x1100000000000009) &&
+        !ia64_gr_nat_get(env, IA64_GR_RETURN0) &&
+        ia64_gr_nat_get(env, IA64_GR_RETURN1) &&
+        ia64_system_read_pr(env) == UINT64_C(0x25) &&
+        env->br[IA64_BR_RETURN_LINK] == UINT64_C(0x4400000000000000) &&
+        env->br[IA64_BR_STATIC0] == UINT64_C(0x5500000000000000)) {
+        work->result |= IA64_QTEST_RAS_STATIC_STATE;
+    }
+    for (i = 0; i < 16; i++) {
+        if (env->banked_gr[i] != UINT64_C(0x2200000000000000) + i ||
+            env->gr[16 + i] != UINT64_C(0x3300000000000000) + i) {
+            break;
+        }
+    }
+    if (i == 16) {
+        work->result |= IA64_QTEST_RAS_BANK_VALUES;
+    }
+    for (i = 0; i < 16; i++) {
+        if (((env->banked_nat >> i) & 1) !=
+                ((bank0_nats >> i) & 1) ||
+            ia64_gr_nat_get(env, 16 + i) !=
+                ((bank1_nats >> i) & 1)) {
+            break;
+        }
+    }
+    if (i == 16) {
+        work->result |= IA64_QTEST_RAS_BANK_NATS;
+    }
+    if (ia64_rse_current_cfm(env) ==
+            (4 | (2 << IA64_CFM_SOL_SHIFT)) &&
+        env->ar_bsp == original_bsp &&
+        env->ar_bspstore == original_bspstore &&
+        env->rse.rse_bol == original_bol &&
+        env->rse.rse_dirty == original_dirty &&
+        env->rse.rse_invalid == original_invalid &&
+        env->gr[IA64_STACKED_GR_BASE] == UINT64_C(0x6600000000000000) &&
+        env->gr[IA64_STACKED_GR_BASE + 1] ==
+            UINT64_C(0x6600000000000001) &&
+        ia64_gr_nat_get(env, IA64_STACKED_GR_BASE + 1)) {
+        work->result |= IA64_QTEST_RAS_RSE_STATE;
+    }
+    if (!cpu->mca_rse_valid && !env->pal.pal_mca_active) {
+        work->result |= IA64_QTEST_RAS_SNAPSHOT_CONSUMED;
+    }
+    if (!ia64_ras_enter_mca(cpu) ||
+        env->pal.pal_mca_active_record_id != UINT64_C(0x77889a)) {
+        return;
+    }
+    env->gr[IA64_PAL_GR_INDEX] = 0x1a;
+    env->gr[IA64_PAL_GR_ARG1] = 0;
+    env->gr[IA64_PAL_GR_ARG2] = save_address;
+    env->gr[IA64_PAL_GR_ARG3] = 0;
+    if (!(ia64_pal_dispatch(env, 0) & IA64_PAL_DISPATCH_RESUMED) ||
+        env->pal.pal_mca_pending || env->pal.pal_mca_active ||
+        cpu->mca_rse_valid) {
+        return;
+    }
+    work->result |= IA64_QTEST_RAS_PENDING_REDRIVE;
+
+    ia64_set_psr(env, original_psr & ~IA64_PSR_IC);
+    env->cr_iip = UINT64_C(0xabc000);
+    env->cr_ipsr = original_psr;
+    env->cr_ifs = IA64_IFS_V | ia64_rse_current_cfm(env);
+    if (!ia64_ras_save_min_state(env, save_address) ||
+        !ia64_exec_physical_rw(ia64_physical_address(save_address), image,
+                               sizeof(image), false)) {
+        return;
+    }
+    if (le64_to_cpu(image[54]) == UINT64_C(0xabc000) &&
+        le64_to_cpu(image[55]) == original_psr &&
+        le64_to_cpu(image[56]) ==
+            (IA64_IFS_V | ia64_rse_current_cfm(env))) {
+        work->result |= IA64_QTEST_RAS_SECOND_LEVEL_STATE;
+    }
+
+    image[1] = cpu_to_le64(UINT64_C(0x7100000000000001));
+    image[49] = cpu_to_le64(UINT64_C(0x7200000000000000));
+    image[50] = cpu_to_le64(original_rsc);
+    image[51] = cpu_to_le64(UINT64_C(0x730000));
+    image[52] = cpu_to_le64(original_psr &
+                            ~(IA64_PSR_IC | IA64_PSR_I));
+    image[53] = cpu_to_le64(
+        IA64_IFS_V | (4 | (2 << IA64_CFM_SOL_SHIFT)));
+    image[54] = cpu_to_le64(UINT64_C(0x740000));
+    image[55] = cpu_to_le64(original_psr);
+    image[56] = cpu_to_le64(
+        IA64_IFS_V | (4 | (2 << IA64_CFM_SOL_SHIFT)));
+    image[57] = cpu_to_le64(UINT64_C(0x7500000000000000));
+    if (!ia64_exec_physical_rw(ia64_physical_address(save_address), image,
+                               sizeof(image), true)) {
+        return;
+    }
+
+    ia64_rse_cover(env);
+    env->br[IA64_BR_STATIC0] = UINT64_C(0x7600000000000000);
+    env->pal.pal_mca_active = true;
+    env->gr[IA64_PAL_GR_INDEX] = 0x1a;
+    env->gr[IA64_PAL_GR_ARG1] = 0;
+    env->gr[IA64_PAL_GR_ARG2] = save_address;
+    env->gr[IA64_PAL_GR_ARG3] = 1;
+    if (!(ia64_pal_dispatch(env, 0) & IA64_PAL_DISPATCH_RESUMED)) {
+        return;
+    }
+    if (env->ip == UINT64_C(0x730000) &&
+        env->psr == (original_psr & ~(IA64_PSR_IC | IA64_PSR_I)) &&
+        env->gr[IA64_GR_GLOBAL_POINTER] ==
+            UINT64_C(0x7100000000000001) &&
+        env->br[IA64_BR_RETURN_LINK] == UINT64_C(0x7200000000000000) &&
+        env->br[IA64_BR_STATIC0] == UINT64_C(0x7600000000000000) &&
+        env->cr_iip == UINT64_C(0x740000) &&
+        env->cr_ipsr == original_psr &&
+        env->cr_ifs ==
+            (IA64_IFS_V | (4 | (2 << IA64_CFM_SOL_SHIFT))) &&
+        ia64_rse_current_cfm(env) ==
+            (4 | (2 << IA64_CFM_SOL_SHIFT)) &&
+        !cpu->mca_rse_valid && !env->pal.pal_mca_active) {
+        work->result |= IA64_QTEST_RAS_NEW_CONTEXT;
+    }
+
+    ia64_cpu_set_init_entry(cs, UINT64_C(0x101000),
+                            UINT64_C(0x701000));
+    ia64_sapic_set_init(cs, 1);
+    if (!ia64_ras_enter_init(cpu)) {
+        return;
+    }
+    if (env->pal.pal_init_active && cpu->mca_rse_valid &&
+        env->ip == UINT64_C(0x101000) &&
+        env->gr[IA64_GR_RETURN0] == 1 &&
+        env->gr[IA64_GR_RETURN1] == save_address) {
+        work->result |= IA64_QTEST_RAS_INIT_ENTRY;
+    }
+    env->gr[IA64_PAL_GR_INDEX] = 0x1a;
+    env->gr[IA64_PAL_GR_ARG1] = 0;
+    env->gr[IA64_PAL_GR_ARG2] = save_address;
+    env->gr[IA64_PAL_GR_ARG3] = 0;
+    if ((ia64_pal_dispatch(env, 0) & IA64_PAL_DISPATCH_RESUMED) &&
+        !env->pal.pal_init_active && !cpu->mca_rse_valid) {
+        work->result |= IA64_QTEST_RAS_INIT_RESUME;
+    }
+}
 
 static void ia64_qtest_stale_victim_load_work(CPUState *cs,
                                                run_on_cpu_data data)
@@ -1070,6 +1383,42 @@ static void ia64_qtest_alat_writer_active_work(CPUState *cs,
         env, IA64_QTEST_ALAT_REG, IA64_QTEST_ALAT_VA, 8, false);
 }
 
+static void ia64_qtest_alat_smp_store_work(CPUState *cs,
+                                           run_on_cpu_data data)
+{
+    IA64QTestAlatWriterWork *work = data.host_ptr;
+    CPUIA64State *env = cpu_env(cs);
+    uint64_t value = UINT64_C(0x0123456789abcdef);
+
+    /* Exercise a CPU store, independently of the external/DMA generation. */
+    ia64_exec_store_mmuidx(env, IA64_QTEST_ALAT_PA, value, 8, false,
+                           MMU_PHYS_IDX, 0);
+    work->memory_write_ok = ia64_exec_load_mmuidx(
+        env, IA64_QTEST_ALAT_PA, 8, false, MMU_PHYS_IDX, 0) == value;
+}
+
+static void ia64_qtest_alat_writer_begin_work(CPUState *cs,
+                                              run_on_cpu_data data)
+{
+    ia64_alat_write_begin(cpu_env(cs));
+}
+
+static void ia64_qtest_alat_writer_cancel_work(CPUState *cs,
+                                               run_on_cpu_data data)
+{
+    ia64_alat_write_cancel(cpu_env(cs));
+}
+
+static void ia64_qtest_alat_smp_check_work(CPUState *cs,
+                                           run_on_cpu_data data)
+{
+    IA64QTestAlatWriterWork *work = data.host_ptr;
+    CPUIA64State *env = cpu_env(cs);
+
+    work->smp_hit = ia64_alat_check_load_addr(
+        env, IA64_QTEST_ALAT_REG, IA64_QTEST_ALAT_VA, 8, false);
+}
+
 static bool ia64_qtest_alat_writer_command(CharFrontend *chr, gchar **words)
 {
     IA64QTestAlatWriterWork work = { 0 };
@@ -1106,13 +1455,365 @@ static bool ia64_qtest_alat_writer_command(CharFrontend *chr, gchar **words)
     }
 
     observed = physical_memory_write_begin();
+    physical_memory_write_external_begin();
+    physical_memory_write_end(observed);
     run_on_cpu(cs, ia64_qtest_alat_writer_active_work,
                RUN_ON_CPU_HOST_PTR(&work));
-    physical_memory_write_end(observed);
+    physical_memory_write_external_cancel();
+
+    other_cs = qemu_get_cpu(1);
+    if (other_cs) {
+        IA64QTestAlatWriterWork cpu_work = { 0 };
+
+        run_on_cpu(cs, ia64_qtest_alat_writer_setup_work,
+                   RUN_ON_CPU_HOST_PTR(&cpu_work));
+        run_on_cpu(other_cs, ia64_qtest_alat_writer_begin_work,
+                   RUN_ON_CPU_NULL);
+        run_on_cpu(cs, ia64_qtest_alat_writer_active_work,
+                   RUN_ON_CPU_HOST_PTR(&cpu_work));
+        run_on_cpu(other_cs, ia64_qtest_alat_writer_cancel_work,
+                   RUN_ON_CPU_NULL);
+        work.setup_hit &= cpu_work.setup_hit;
+        work.active_hit |= cpu_work.active_hit;
+        work.active_alloc_count += cpu_work.active_alloc_count;
+        work.active_alloc_hit |= cpu_work.active_alloc_hit;
+    }
 
     qtest_sendf(chr, "OK %u %u %u %u\n",
                 work.setup_hit, work.active_hit,
                 work.active_alloc_count, work.active_alloc_hit);
+    return true;
+}
+
+static bool ia64_qtest_alat_smp_writer_command(CharFrontend *chr,
+                                                gchar **words)
+{
+    IA64QTestAlatWriterWork work = { 0 };
+    CPUState *cs;
+    CPUState *other_cs;
+
+    if (words[1]) {
+        qtest_sendf(chr, "FAIL command takes no arguments\n");
+        return true;
+    }
+    if (!tcg_enabled()) {
+        qtest_sendf(chr, "FAIL command requires TCG\n");
+        return true;
+    }
+
+    cs = qemu_get_cpu(0);
+    other_cs = qemu_get_cpu(1);
+    if (!cs || !other_cs || qemu_get_cpu(2)) {
+        qtest_sendf(chr, "FAIL command requires two CPUs\n");
+        return true;
+    }
+    if (!cpu_is_stopped(cs) || !cpu_is_stopped(other_cs)) {
+        qtest_sendf(chr, "FAIL command requires stopped CPUs\n");
+        return true;
+    }
+
+    run_on_cpu(cs, ia64_qtest_alat_writer_setup_work,
+               RUN_ON_CPU_HOST_PTR(&work));
+    if (!work.full_model || !work.model_ready) {
+        qtest_sendf(chr, "FAIL command requires a full ALAT model\n");
+        return true;
+    }
+
+    run_on_cpu(other_cs, ia64_qtest_alat_smp_store_work,
+               RUN_ON_CPU_HOST_PTR(&work));
+    run_on_cpu(cs, ia64_qtest_alat_smp_check_work,
+               RUN_ON_CPU_HOST_PTR(&work));
+    qtest_sendf(chr, "OK %u %u %u\n", work.setup_hit,
+                work.memory_write_ok, work.smp_hit);
+    return true;
+}
+
+static bool ia64_qtest_ras_min_state_command(CharFrontend *chr,
+                                              gchar **words)
+{
+    IA64QTestRasMinStateWork work = { 0 };
+    CPUState *cs;
+
+    if (words[1]) {
+        qtest_sendf(chr, "FAIL command takes no arguments\n");
+        return true;
+    }
+    if (!tcg_enabled()) {
+        qtest_sendf(chr, "FAIL command requires TCG\n");
+        return true;
+    }
+    cs = qemu_get_cpu(0);
+    if (!cs || qemu_get_cpu(1) || !cpu_is_stopped(cs)) {
+        qtest_sendf(chr, "FAIL command requires one stopped CPU\n");
+        return true;
+    }
+
+    run_on_cpu(cs, ia64_qtest_ras_min_state_work,
+               RUN_ON_CPU_HOST_PTR(&work));
+    qtest_sendf(chr, "OK 0x%016" PRIx64 "\n", work.result);
+    return true;
+}
+
+typedef struct IA64QTestRasInjectWork {
+    IA64RasHubState *hub;
+    IA64RasSeverity severity;
+    uint64_t status;
+    uint64_t address;
+    uint64_t information;
+    uint8_t cmc_vector;
+    bool accepted;
+} IA64QTestRasInjectWork;
+
+static void ia64_qtest_ras_inject_processor_work(CPUState *cs,
+                                                  run_on_cpu_data data)
+{
+    IA64QTestRasInjectWork *work = data.host_ptr;
+    CPUIA64State *env = cpu_env(cs);
+
+    if (work->severity == IA64_RAS_SEVERITY_CORRECTED) {
+        env->cr[IA64_CR_CMCV] = work->cmc_vector;
+    }
+    work->accepted = ia64_ras_hub_report_processor_error(
+        work->hub, cs, work->severity, work->status,
+        work->address, work->information);
+}
+
+static bool ia64_qtest_ras_inject_command(CharFrontend *chr, gchar **words)
+{
+    IA64QTestRasInjectWork work = { 0 };
+    IA64RasHubState *hub;
+    uint64_t args[6];
+    CPUState *cs;
+    bool ambiguous;
+    unsigned int i;
+    int ret = 0;
+
+    if (!words[1] || !words[2] || !words[3] || !words[4] || !words[5] ||
+        !words[6] || !words[7] || words[8]) {
+        qtest_sendf(chr, "FAIL expected KIND ARG0 ARG1 ARG2 ARG3 ARG4 ARG5\n");
+        return true;
+    }
+    for (i = 0; i < ARRAY_SIZE(args); i++) {
+        ret |= qemu_strtou64(words[i + 2], NULL, 0, &args[i]);
+    }
+    if (ret) {
+        qtest_sendf(chr, "FAIL invalid argument\n");
+        return true;
+    }
+    hub = IA64_RAS_HUB(object_resolve_path_type(
+        "", TYPE_IA64_RAS_HUB, &ambiguous));
+    if (!hub || ambiguous) {
+        qtest_sendf(chr, "FAIL requires one IA-64 RAS hub\n");
+        return true;
+    }
+
+    if (strcmp(words[1], "processor") == 0) {
+        if (args[0] > INT_MAX || args[1] > IA64_RAS_SEVERITY_CORRECTED ||
+            args[5] > UINT8_MAX ||
+            (args[1] == IA64_RAS_SEVERITY_CORRECTED &&
+             !ia64_external_interrupt_vector_valid(args[5]))) {
+            qtest_sendf(chr, "FAIL invalid processor error\n");
+            return true;
+        }
+        cs = qemu_get_cpu(args[0]);
+        if (!cs || !cpu_is_stopped(cs)) {
+            qtest_sendf(chr, "FAIL command requires a stopped CPU\n");
+            return true;
+        }
+        work.hub = hub;
+        work.severity = args[1];
+        work.status = args[2];
+        work.address = args[3];
+        work.information = args[4];
+        work.cmc_vector = args[5];
+        run_on_cpu(cs, ia64_qtest_ras_inject_processor_work,
+                   RUN_ON_CPU_HOST_PTR(&work));
+    } else if (strcmp(words[1], "chipset") == 0) {
+        IA64ChipsetFault fault;
+
+        if (args[0] > IA64_CHIPSET_FAULT_POWER ||
+            args[1] > IA64_RAS_SEVERITY_CORRECTED ||
+            args[5] > UINT32_MAX) {
+            qtest_sendf(chr, "FAIL invalid chipset error\n");
+            return true;
+        }
+        fault = (IA64ChipsetFault) {
+            .source = IA64_CHIPSET_FAULT_460GX,
+            .reason = args[0],
+            .severity = args[1],
+            .address = args[2],
+            .status = args[3],
+            .information = args[4],
+            .requester = args[5],
+        };
+        work.accepted = ia64_ras_hub_report_chipset_fault(hub, &fault);
+    } else {
+        qtest_sendf(chr, "FAIL invalid error kind\n");
+        return true;
+    }
+    qtest_sendf(chr, "OK %u\n", work.accepted);
+    return true;
+}
+
+static void ia64_qtest_sapic_cpu_work(CPUState *cs, run_on_cpu_data data)
+{
+    IA64QTestSapicWork *work = data.host_ptr;
+    CPUIA64State *env = cpu_env(cs);
+
+    if (strcmp(work->operation, "pib-read") == 0) {
+        uint8_t bytes[8] = { 0 };
+
+        if (ia64_exec_physical_rw(work->address, bytes, work->size, false)) {
+            work->result = ldq_le_p(bytes);
+        } else {
+            work->result = -1;
+        }
+    } else if (strcmp(work->operation, "pib-write") == 0) {
+        uint8_t bytes[8] = { 0 };
+
+        stq_le_p(bytes, work->value);
+        work->result = ia64_exec_physical_rw(
+            work->address, bytes, work->size, true);
+    } else if (strcmp(work->operation, "xtp") == 0) {
+        ia64_sapic_set_xtp(cs, work->value);
+        work->result = ia64_sapic_get_xtp(cs);
+    } else if (strcmp(work->operation, "state") == 0) {
+        unsigned int vector = work->value;
+
+        work->result = ia64_sapic_get_xtp(cs) |
+            ((env->interrupt.sapic_irr[vector / 64] >>
+              (vector % 64)) & 1) << 8 |
+            ((env->interrupt.sapic_isr[vector / 64] >>
+              (vector % 64)) & 1) << 9 |
+            ((vector < 16 ? env->interrupt.sapic_pmi_pending >> vector : 0)
+             & 1) << 10 |
+            (uint64_t)env->interrupt.sapic_init_pending << 11;
+    } else if (strcmp(work->operation, "halt-state") == 0) {
+        work->result = cs->halted |
+            (uint64_t)env->interrupt.pal_halt_wake << 1;
+    } else if (strcmp(work->operation, "accept") == 0) {
+        work->result = ia64_sapic_accept(env);
+    } else if (strcmp(work->operation, "accept-pmi") == 0) {
+        work->result = ia64_sapic_accept_pmi(env);
+    } else if (strcmp(work->operation, "accept-init") == 0) {
+        work->result = ia64_sapic_accept_init(env);
+    } else if (strcmp(work->operation, "ras-arm") == 0) {
+        IA64CPU *cpu = ia64_cpu_from_cpu_state(cs);
+
+        if (env->pal.pal_mca_pending || env->pal.pal_mca_active ||
+            cpu->mca_rse_valid) {
+            work->result = 0;
+            return;
+        }
+        env->pal.pal_mc_save_addr =
+            IA64_PHYS_UC_BIT | IA64_QTEST_MCA_SAVE_PA;
+        ia64_cpu_record_machine_check(
+            cs, IA64_RAS_SEVERITY_RECOVERABLE,
+            UINT64_C(0x1111222233334444), UINT64_C(0x12345000),
+            UINT64_C(0x5555666677778888));
+        ia64_cpu_request_mca(cs, UINT64_C(0x100000), UINT64_C(0x700000),
+                             UINT64_C(0x778899),
+                             IA64_RAS_SEVERITY_RECOVERABLE);
+        work->result = ia64_ras_enter_mca(cpu) &&
+            env->pal.pal_mca_active && cpu->mca_rse_valid;
+    } else if (strcmp(work->operation, "ras-resume") == 0) {
+        IA64CPU *cpu = ia64_cpu_from_cpu_state(cs);
+        uint64_t save_address = env->pal.pal_mc_save_addr;
+
+        if (!env->pal.pal_mca_active || !cpu->mca_rse_valid) {
+            work->result = 0;
+            return;
+        }
+        env->gr[IA64_PAL_GR_INDEX] = 0x1a;
+        env->gr[IA64_PAL_GR_ARG1] = 0;
+        env->gr[IA64_PAL_GR_ARG2] = save_address;
+        env->gr[IA64_PAL_GR_ARG3] = 0;
+        work->result =
+            !!(ia64_pal_dispatch(env, 0) & IA64_PAL_DISPATCH_RESUMED) &&
+            !env->pal.pal_mca_active && !cpu->mca_rse_valid;
+    } else if (strcmp(work->operation, "ras-state") == 0) {
+        work->result = (uint64_t)env->pal.pal_mca_pending |
+            (uint64_t)env->pal.pal_mca_active << 1 |
+            (uint64_t)env->pal.pal_cmc_pending << 2 |
+            (uint64_t)env->pal.pal_mc_log_valid << 3;
+    } else {
+        g_assert(strcmp(work->operation, "eoi") == 0);
+        ia64_sapic_eoi(env);
+        work->result = 0;
+    }
+}
+
+static bool ia64_qtest_sapic_command(CharFrontend *chr, gchar **words)
+{
+    static const char *const cpu_operations[] = {
+        "xtp", "state", "halt-state", "accept", "accept-pmi",
+        "accept-init", "eoi", "ras-arm", "ras-resume", "ras-state",
+        "pib-read", "pib-write",
+    };
+    IA64QTestSapicWork work = { 0 };
+    uint64_t args[5];
+    CPUState *cs;
+    unsigned int i;
+    int ret = 0;
+
+    if (!words[1] || !words[2] || !words[3] || !words[4] || !words[5] ||
+        !words[6] || words[7]) {
+        qtest_sendf(chr, "FAIL expected OP ARG0 ARG1 ARG2 ARG3 ARG4\n");
+        return true;
+    }
+    for (i = 0; i < ARRAY_SIZE(args); i++) {
+        ret |= qemu_strtou64(words[i + 2], NULL, 0, &args[i]);
+    }
+    if (ret) {
+        qtest_sendf(chr, "FAIL invalid argument\n");
+        return true;
+    }
+
+    if (strcmp(words[1], "deliver") == 0) {
+        uint8_t id = args[1] >> 8;
+        uint8_t eid = args[1];
+
+        if (args[0] > IA64_SAPIC_DESTINATION_LOGICAL ||
+            args[1] > UINT16_MAX || args[2] > 7 || args[3] > 1 ||
+            args[4] > UINT8_MAX) {
+            qtest_sendf(chr, "FAIL invalid delivery\n");
+            return true;
+        }
+        work.result = ia64_sapic_deliver(
+            args[0], id, eid, args[3], args[2], args[4]);
+        qtest_sendf(chr, "OK %" PRId64 "\n", work.result);
+        return true;
+    }
+
+    for (i = 0; i < ARRAY_SIZE(cpu_operations); i++) {
+        if (strcmp(words[1], cpu_operations[i]) == 0) {
+            break;
+        }
+    }
+    if (i == ARRAY_SIZE(cpu_operations) || args[0] > INT_MAX ||
+        (strcmp(words[1], "state") == 0 && args[1] > UINT8_MAX) ||
+        (strcmp(words[1], "xtp") == 0 && args[1] > UINT8_MAX) ||
+        ((strcmp(words[1], "pib-read") == 0 ||
+          strcmp(words[1], "pib-write") == 0) &&
+         args[2] != 1 && args[2] != 4 && args[2] != 8)) {
+        qtest_sendf(chr, "FAIL invalid operation\n");
+        return true;
+    }
+    cs = qemu_get_cpu(args[0]);
+    if (!cs || !cpu_is_stopped(cs)) {
+        qtest_sendf(chr, "FAIL command requires a stopped CPU\n");
+        return true;
+    }
+    work.operation = words[1];
+    work.value = args[1];
+    if (strcmp(words[1], "pib-read") == 0 ||
+        strcmp(words[1], "pib-write") == 0) {
+        work.address = args[1];
+        work.size = args[2];
+        work.value = args[3];
+    }
+    run_on_cpu(cs, ia64_qtest_sapic_cpu_work, RUN_ON_CPU_HOST_PTR(&work));
+    qtest_sendf(chr, "OK %" PRId64 "\n", work.result);
     return true;
 }
 
@@ -1124,6 +1825,18 @@ static bool ia64_qtest_command(CharFrontend *chr, gchar **words)
 
     if (strcmp(words[0], "ia64-alat-active-writer") == 0) {
         return ia64_qtest_alat_writer_command(chr, words);
+    }
+    if (strcmp(words[0], "ia64-alat-smp-writer") == 0) {
+        return ia64_qtest_alat_smp_writer_command(chr, words);
+    }
+    if (strcmp(words[0], "ia64-ras-min-state") == 0) {
+        return ia64_qtest_ras_min_state_command(chr, words);
+    }
+    if (strcmp(words[0], "ia64-ras-inject") == 0) {
+        return ia64_qtest_ras_inject_command(chr, words);
+    }
+    if (strcmp(words[0], "ia64-sapic") == 0) {
+        return ia64_qtest_sapic_command(chr, words);
     }
     if (strcmp(words[0], "ia64-stale-victim-load") != 0) {
         return false;
@@ -1170,7 +1883,7 @@ static void ia64_register_qtest_command(void)
 
     if (qtest_driver() && !registered) {
         registered = true;
-        qtest_set_command_cb(ia64_qtest_command);
+        qtest_add_command_cb(ia64_qtest_command);
     }
 }
 
@@ -1180,6 +1893,10 @@ static void ia64_cpu_realize(DeviceState *dev, Error **errp)
     IA64CPU *cpu = IA64_CPU(dev);
     IA64CPUClass *icc = IA64_CPU_GET_CLASS(dev);
     Error *local_err = NULL;
+
+    cpu->semantic_profile_id = icc->semantic_profile_id;
+    cpu->semantic_profile_abi = icc->semantic_profile_abi;
+    cpu->migration_alat_full = cpu->alat_full;
 
     cpu_exec_realizefn(cs, &local_err);
     if (local_err != NULL) {
@@ -1306,6 +2023,7 @@ static void ia64_cpu_class_init(ObjectClass *oc, const void *data)
     cc->tcg_ops = &ia64_tcg_ops;
     dc->vmsd = &vmstate_ia64_cpu;
 
+    icc->semantic_profile_abi = 1;
     icc->model = IA64_CPU_MODEL_MONTECITO;
     icc->cpuid_version = 0x0000000020000704ULL;
     icc->cpuid_features = IA64_CPUID4_LB | IA64_CPUID4_AO;
@@ -1316,6 +2034,8 @@ static void ia64_cpu_class_init(ObjectClass *oc, const void *data)
     icc->itc_frequency_hz = 400000000;
     icc->pal_l3_cache_size = 12 * MiB;
     icc->pal_package_cache_size = 24 * MiB;
+    icc->pal_processor_frequency_hz = 1600000000ULL;
+    icc->pal_bus_frequency_hz = 533333333ULL;
     icc->processor_frequency_ratio = IA64_FREQUENCY_RATIO(16, 1);
     icc->bus_frequency_ratio = IA64_FREQUENCY_RATIO(16, 3);
     icc->itc_frequency_ratio = IA64_FREQUENCY_RATIO(4, 1);
@@ -1352,6 +2072,7 @@ static void ia64_cpu_class_init(ObjectClass *oc, const void *data)
 }
 
 typedef struct IA64CPUModelDef {
+    uint64_t semantic_profile_id;
     IA64CPUModel model;
     uint64_t cpuid_version;
     uint64_t cpuid_features;
@@ -1361,6 +2082,8 @@ typedef struct IA64CPUModelDef {
     uint32_t itc_frequency_hz;
     uint32_t pal_l3_cache_size;
     uint32_t pal_package_cache_size;
+    uint64_t pal_processor_frequency_hz;
+    uint64_t pal_bus_frequency_hz;
     uint64_t processor_frequency_ratio;
     uint64_t bus_frequency_ratio;
     uint64_t itc_frequency_ratio;
@@ -1401,6 +2124,7 @@ static void ia64_cpu_model_class_init(ObjectClass *oc, const void *data)
     IA64CPUClass *icc = IA64_CPU_CLASS(oc);
     const IA64CPUModelDef *model = data;
 
+    icc->semantic_profile_id = model->semantic_profile_id;
     icc->model = model->model;
     icc->cpuid_version = model->cpuid_version;
     icc->cpuid_features = model->cpuid_features;
@@ -1410,6 +2134,8 @@ static void ia64_cpu_model_class_init(ObjectClass *oc, const void *data)
     icc->itc_frequency_hz = model->itc_frequency_hz;
     icc->pal_l3_cache_size = model->pal_l3_cache_size;
     icc->pal_package_cache_size = model->pal_package_cache_size;
+    icc->pal_processor_frequency_hz = model->pal_processor_frequency_hz;
+    icc->pal_bus_frequency_hz = model->pal_bus_frequency_hz;
     icc->processor_frequency_ratio = model->processor_frequency_ratio;
     icc->bus_frequency_ratio = model->bus_frequency_ratio;
     icc->itc_frequency_ratio = model->itc_frequency_ratio;
@@ -1474,6 +2200,7 @@ static void ia64_cpu_model_class_init(ObjectClass *oc, const void *data)
 }
 
 static const IA64CPUModelDef ia64_cpu_model_merced = {
+    .semantic_profile_id = 0x6d65726365640001ULL,
     .model = IA64_CPU_MODEL_MERCED,
     .cpuid_version = 0x0000000007000804ULL,
     .cpuid_features = 0,
@@ -1545,6 +2272,7 @@ static const IA64CPUModelDef ia64_cpu_model_merced = {
 };
 
 static const IA64CPUModelDef ia64_cpu_model_madison = {
+    .semantic_profile_id = 0x6d616469736f0001ULL,
     .model = IA64_CPU_MODEL_MADISON,
     /* Family 0x1f, model 1, revision 5, CPUID[4] is the last register. */
     .cpuid_version = 0x000000001f010504ULL,
@@ -1584,7 +2312,7 @@ static const IA64CPUModelDef ia64_cpu_model_madison = {
     .perf_counter_width = 48,
     .memory_attribute_mask = IA64_ITANIUM2_MEMORY_ATTRIBUTE_MASK,
     .pal_l3_associativity = 12,
-    .pal_l3_load_latency = 12,
+    .pal_l3_load_latency = 14,
     .pal_l3_tag_lsb = 18,
     /* Intel order 251110-003, section 5.8: each fc invalidates 128 bytes. */
     .fc_line_size = 128,
@@ -1600,6 +2328,7 @@ static const IA64CPUModelDef ia64_cpu_model_madison = {
 };
 
 static const IA64CPUModelDef ia64_cpu_model_montecito = {
+    .semantic_profile_id = 0x6d6f6e7465630001ULL,
     .model = IA64_CPU_MODEL_MONTECITO,
     /* Family 0x20, model 0, C2 revision 7, CPUID[4] is the last register. */
     .cpuid_version = 0x0000000020000704ULL,
@@ -1608,15 +2337,13 @@ static const IA64CPUModelDef ia64_cpu_model_montecito = {
     /* Latest documented PAL release for the selected C2 model. */
     .pal_version = 0x0000096801000968ULL,
     .pal_brand = "QEMU Montecito-compatible IA-64 CPU 1.60GHz 24MB",
-    /*
-     * This model's ITC is one quarter of its 1.6 GHz processor clock.
-     * Advertising a 4:1 ratio while advancing a different host-side rate
-     * makes operating-system timer calibration internally inconsistent.
-     */
+    /* Keep ITC advancement consistent with the advertised 4:1 ratio. */
     .frequency_base_hz = 100000000,
     .itc_frequency_hz = 400000000,
     .pal_l3_cache_size = 12 * MiB,
     .pal_package_cache_size = 24 * MiB,
+    .pal_processor_frequency_hz = 1600000000ULL,
+    .pal_bus_frequency_hz = 533333333ULL,
     .processor_frequency_ratio = IA64_FREQUENCY_RATIO(16, 1),
     .bus_frequency_ratio = IA64_FREQUENCY_RATIO(16, 3),
     .itc_frequency_ratio = IA64_FREQUENCY_RATIO(4, 1),
@@ -1659,34 +2386,56 @@ static const IA64CPUModelDef ia64_cpu_model_montecito = {
     .is_montecito = true,
 };
 
-static void ia64_cpu_madison_zx6000_class_init(ObjectClass *oc,
-                                                const void *data)
+typedef struct IA64CPUVariantDef {
+    uint64_t semantic_profile_id;
+    const char *brand;
+    uint64_t cpuid_version;
+    uint64_t pal_version;
+    uint32_t itc_frequency_hz;
+    uint32_t l3_cache_size;
+    uint32_t package_cache_size;
+    uint64_t processor_frequency_hz;
+    uint64_t bus_frequency_hz;
+    uint64_t processor_ratio;
+    uint64_t bus_ratio;
+    uint64_t itc_ratio;
+    uint8_t l3_associativity;
+    uint8_t l3_load_latency;
+    uint8_t l3_tag_lsb;
+    bool disable_ht;
+} IA64CPUVariantDef;
+
+static void ia64_cpu_variant_class_init(ObjectClass *oc, const void *data)
 {
     IA64CPUClass *icc = IA64_CPU_CLASS(oc);
+    const IA64CPUVariantDef *variant = data;
 
-    /* 1.5 GHz Madison with a 6 MiB, 24-way, 128-byte-line L3 cache. */
-    icc->model = IA64_CPU_MODEL_MADISON;
-    icc->cpuid_version = 0x000000001f010504ULL;
-    icc->cpuid_features = IA64_CPUID4_LB;
-    icc->pal_version = 0x0000057301000573ULL;
-    icc->pal_brand =
-        "QEMU Madison zx6000-compatible IA-64 CPU 1.50GHz 6MB";
-    icc->frequency_base_hz = 100000000;
-    icc->itc_frequency_hz = 1500000000;
-    icc->pal_l3_cache_size = 6 * MiB;
-    icc->pal_package_cache_size = 6 * MiB;
-    icc->processor_frequency_ratio = IA64_FREQUENCY_RATIO(15, 1);
-    icc->bus_frequency_ratio = IA64_FREQUENCY_RATIO(4, 1);
-    icc->itc_frequency_ratio = IA64_FREQUENCY_RATIO(15, 1);
-    icc->ia32_cpuid_version = 0x00000673;
-    icc->ia32_cpuid_leaf2[0] = 0x7e776701;
-    icc->ia32_cpuid_leaf2[1] = 0x0000008d;
-    icc->ia32_cpuid_leaf2[2] = 0;
-    icc->ia32_cpuid_leaf2[3] = 0x80000000;
-    icc->pal_l3_associativity = 24;
-    icc->pal_l3_load_latency = 14;
-    icc->pal_l3_tag_lsb = 18;
-    icc->has_native_ia32 = true;
+    icc->semantic_profile_id = variant->semantic_profile_id;
+    icc->pal_brand = variant->brand;
+    if (variant->cpuid_version) {
+        icc->cpuid_version = variant->cpuid_version;
+    }
+    if (variant->pal_version) {
+        icc->pal_version = variant->pal_version;
+    }
+    icc->itc_frequency_hz = variant->itc_frequency_hz;
+    icc->pal_l3_cache_size = variant->l3_cache_size;
+    icc->pal_package_cache_size = variant->package_cache_size;
+    icc->pal_processor_frequency_hz = variant->processor_frequency_hz;
+    icc->pal_bus_frequency_hz = variant->bus_frequency_hz;
+    icc->processor_frequency_ratio = variant->processor_ratio;
+    icc->bus_frequency_ratio = variant->bus_ratio;
+    icc->itc_frequency_ratio = variant->itc_ratio;
+    icc->pal_l3_associativity = variant->l3_associativity;
+    if (variant->l3_load_latency) {
+        icc->pal_l3_load_latency = variant->l3_load_latency;
+    }
+    if (variant->l3_tag_lsb) {
+        icc->pal_l3_tag_lsb = variant->l3_tag_lsb;
+    }
+    if (variant->disable_ht) {
+        icc->pal_proc_feature_available &= ~PAL_PROC_MONTECITO_HT;
+    }
 
     g_assert((uint64_t)icc->frequency_base_hz *
              (icc->itc_frequency_ratio >> 32) /
@@ -1694,30 +2443,224 @@ static void ia64_cpu_madison_zx6000_class_init(ObjectClass *oc,
              icc->itc_frequency_hz);
 }
 
-static void ia64_cpu_montecito_9010_class_init(ObjectClass *oc,
-                                                const void *data)
-{
-    IA64CPUClass *icc = IA64_CPU_CLASS(oc);
+#define IA64_SINGLE_CORE_VARIANT(_name, _brand, _mhz, _cache_kib, _assoc) \
+    static const IA64CPUVariantDef _name = {                          \
+        .semantic_profile_id = UINT64_C(0x1000000000000000) |        \
+                               ((uint64_t)(_mhz) << 20) |            \
+                               (_cache_kib),                         \
+        .brand = (_brand),                                            \
+        .itc_frequency_hz = (_mhz) * 1000000U,                        \
+        .l3_cache_size = (_cache_kib) * KiB,                          \
+        .package_cache_size = (_cache_kib) * KiB,                     \
+        .processor_frequency_hz = (_mhz) * 1000000ULL,                \
+        .bus_frequency_hz = 400000000ULL,                             \
+        .processor_ratio = IA64_FREQUENCY_RATIO((_mhz), 100),         \
+        .bus_ratio = IA64_FREQUENCY_RATIO(4, 1),                      \
+        .itc_ratio = IA64_FREQUENCY_RATIO((_mhz), 100),               \
+        .l3_associativity = (_assoc),                                 \
+    }
 
-    icc->pal_brand =
-        "QEMU Montecito 9010-compatible IA-64 CPU 1.60GHz 6MB";
-    icc->pal_l3_cache_size = 6 * MiB;
-    icc->pal_package_cache_size = 6 * MiB;
-    icc->pal_l3_associativity = 6;
-    icc->pal_proc_feature_available &= ~PAL_PROC_MONTECITO_HT;
-}
+static const IA64CPUVariantDef ia64_cpu_mckinley = {
+    .semantic_profile_id = 0x6d636b696e6c0001ULL,
+    .brand = "QEMU McKinley-compatible IA-64 CPU 1.00GHz 3MB",
+    .cpuid_version = 0x000000001f000704ULL,
+    .pal_version = 0x0000077901000779ULL,
+    .itc_frequency_hz = 1000000000U,
+    .l3_cache_size = 3 * MiB,
+    .package_cache_size = 3 * MiB,
+    .processor_frequency_hz = 1000000000ULL,
+    .bus_frequency_hz = 400000000ULL,
+    .processor_ratio = IA64_FREQUENCY_RATIO(10, 1),
+    .bus_ratio = IA64_FREQUENCY_RATIO(4, 1),
+    .itc_ratio = IA64_FREQUENCY_RATIO(10, 1),
+    .l3_associativity = 12,
+    .l3_load_latency = 12,
+    .l3_tag_lsb = 18,
+};
 
-static void ia64_cpu_montecito_9040_class_init(ObjectClass *oc,
-                                                const void *data)
-{
-    IA64CPUClass *icc = IA64_CPU_CLASS(oc);
+IA64_SINGLE_CORE_VARIANT(ia64_cpu_mckinley_900,
+    "QEMU McKinley-compatible IA-64 CPU 900MHz 1.5MB", 900, 1536, 6);
+IA64_SINGLE_CORE_VARIANT(ia64_cpu_deerfield,
+    "QEMU Deerfield-compatible IA-64 CPU 1.00GHz 1.5MB", 1000, 1536, 6);
+IA64_SINGLE_CORE_VARIANT(ia64_cpu_madison_1500k,
+    "QEMU Madison-compatible IA-64 CPU 1.40GHz 1.5MB", 1400, 1536, 6);
+IA64_SINGLE_CORE_VARIANT(ia64_cpu_madison_3m,
+    "QEMU Madison-compatible IA-64 CPU 1.60GHz 3MB", 1600, 3072, 12);
+IA64_SINGLE_CORE_VARIANT(ia64_cpu_madison_4m,
+    "QEMU Madison-compatible IA-64 CPU 1.40GHz 4MB", 1400, 4096, 16);
+IA64_SINGLE_CORE_VARIANT(ia64_cpu_madison_6m,
+    "QEMU Madison-compatible IA-64 CPU 1.50GHz 6MB", 1500, 6144, 24);
+static const IA64CPUVariantDef ia64_cpu_madison_9m = {
+    .semantic_profile_id = 0x6d6164396d000001ULL,
+    .brand = "QEMU Madison-compatible IA-64 CPU 1.60GHz 9MB",
+    .cpuid_version = 0x000000001f020204ULL,
+    .pal_version = 0x0000022501000225ULL,
+    .itc_frequency_hz = 1600000000U,
+    .l3_cache_size = 9 * MiB,
+    .package_cache_size = 9 * MiB,
+    .processor_frequency_hz = 1600000000ULL,
+    .bus_frequency_hz = 533333333ULL,
+    .processor_ratio = IA64_FREQUENCY_RATIO(16, 1),
+    .bus_ratio = IA64_FREQUENCY_RATIO(16, 3),
+    .itc_ratio = IA64_FREQUENCY_RATIO(16, 1),
+    .l3_associativity = 18,
+    .l3_load_latency = 14,
+    .l3_tag_lsb = 19,
+};
 
-    icc->pal_brand =
-        "QEMU Montecito 9040-compatible IA-64 CPU 1.60GHz 18MB";
-    icc->pal_l3_cache_size = 9 * MiB;
-    icc->pal_package_cache_size = 18 * MiB;
-    icc->pal_l3_associativity = 9;
-}
+static const IA64CPUVariantDef ia64_cpu_madison_zx6000 = {
+    .semantic_profile_id = 0x6d61647a78360001ULL,
+    .brand = "QEMU Madison zx6000-compatible IA-64 CPU 1.50GHz 6MB",
+    .itc_frequency_hz = 1500000000U,
+    .l3_cache_size = 6 * MiB,
+    .package_cache_size = 6 * MiB,
+    .processor_frequency_hz = 1500000000ULL,
+    .bus_frequency_hz = 400000000ULL,
+    .processor_ratio = IA64_FREQUENCY_RATIO(15, 1),
+    .bus_ratio = IA64_FREQUENCY_RATIO(4, 1),
+    .itc_ratio = IA64_FREQUENCY_RATIO(15, 1),
+    .l3_associativity = 24,
+    .l3_load_latency = 14,
+};
+
+static const IA64CPUVariantDef ia64_cpu_montecito_9010 = {
+    .semantic_profile_id = 0x6d6f6e0039303130ULL,
+    .brand = "QEMU Montecito 9010-compatible IA-64 CPU 1.60GHz 6MB",
+    .itc_frequency_hz = 400000000U,
+    .l3_cache_size = 6 * MiB,
+    .package_cache_size = 6 * MiB,
+    .processor_frequency_hz = 1600000000ULL,
+    .bus_frequency_hz = 533333333ULL,
+    .processor_ratio = IA64_FREQUENCY_RATIO(16, 1),
+    .bus_ratio = IA64_FREQUENCY_RATIO(16, 3),
+    .itc_ratio = IA64_FREQUENCY_RATIO(4, 1),
+    .l3_associativity = 6,
+    .disable_ht = true,
+};
+
+static const IA64CPUVariantDef ia64_cpu_montecito_9015 = {
+    .semantic_profile_id = 0x6d6f6e0039303135ULL,
+    .brand = "QEMU Montecito 9015-compatible IA-64 CPU 1.40GHz 12MB",
+    .itc_frequency_hz = 350000000U,
+    .l3_cache_size = 6 * MiB,
+    .package_cache_size = 12 * MiB,
+    .processor_frequency_hz = 1400000000ULL,
+    .bus_frequency_hz = 400000000ULL,
+    .processor_ratio = IA64_FREQUENCY_RATIO(14, 1),
+    .bus_ratio = IA64_FREQUENCY_RATIO(4, 1),
+    .itc_ratio = IA64_FREQUENCY_RATIO(7, 2),
+    .l3_associativity = 6,
+};
+
+static const IA64CPUVariantDef ia64_cpu_montecito_9020 = {
+    .semantic_profile_id = 0x6d6f6e0039303230ULL,
+    .brand = "QEMU Montecito 9020-compatible IA-64 CPU 1.42GHz 12MB",
+    .itc_frequency_hz = 355000000U,
+    .l3_cache_size = 6 * MiB,
+    .package_cache_size = 12 * MiB,
+    .processor_frequency_hz = 1420000000ULL,
+    .bus_frequency_hz = 533333333ULL,
+    .processor_ratio = IA64_FREQUENCY_RATIO(142, 10),
+    .bus_ratio = IA64_FREQUENCY_RATIO(16, 3),
+    .itc_ratio = IA64_FREQUENCY_RATIO(71, 20),
+    .l3_associativity = 6,
+};
+
+static const IA64CPUVariantDef ia64_cpu_montecito_9030 = {
+    .semantic_profile_id = 0x6d6f6e0039303330ULL,
+    .brand = "QEMU Montecito 9030-compatible IA-64 CPU 1.60GHz 8MB",
+    .itc_frequency_hz = 400000000U,
+    .l3_cache_size = 4 * MiB,
+    .package_cache_size = 8 * MiB,
+    .processor_frequency_hz = 1600000000ULL,
+    .bus_frequency_hz = 533333333ULL,
+    .processor_ratio = IA64_FREQUENCY_RATIO(16, 1),
+    .bus_ratio = IA64_FREQUENCY_RATIO(16, 3),
+    .itc_ratio = IA64_FREQUENCY_RATIO(4, 1),
+    .l3_associativity = 4,
+};
+
+static const IA64CPUVariantDef ia64_cpu_montecito_9040 = {
+    .semantic_profile_id = 0x6d6f6e0039303430ULL,
+    .brand = "QEMU Montecito 9040-compatible IA-64 CPU 1.60GHz 18MB",
+    .itc_frequency_hz = 400000000U,
+    .l3_cache_size = 9 * MiB,
+    .package_cache_size = 18 * MiB,
+    .processor_frequency_hz = 1600000000ULL,
+    .bus_frequency_hz = 533333333ULL,
+    .processor_ratio = IA64_FREQUENCY_RATIO(16, 1),
+    .bus_ratio = IA64_FREQUENCY_RATIO(16, 3),
+    .itc_ratio = IA64_FREQUENCY_RATIO(4, 1),
+    .l3_associativity = 9,
+};
+
+static const IA64CPUVariantDef ia64_cpu_montecito_9050 = {
+    .semantic_profile_id = 0x6d6f6e0039303530ULL,
+    .brand = "QEMU Montecito 9050-compatible IA-64 CPU 1.60GHz 24MB",
+    .itc_frequency_hz = 400000000U,
+    .l3_cache_size = 12 * MiB,
+    .package_cache_size = 24 * MiB,
+    .processor_frequency_hz = 1600000000ULL,
+    .bus_frequency_hz = 533333333ULL,
+    .processor_ratio = IA64_FREQUENCY_RATIO(16, 1),
+    .bus_ratio = IA64_FREQUENCY_RATIO(16, 3),
+    .itc_ratio = IA64_FREQUENCY_RATIO(4, 1),
+    .l3_associativity = 12,
+};
+
+#define IA64_MONTVALE_VARIANT(_name, _number, _mhz, _l3_mb, _package_mb, \
+                              _bus_num, _bus_den, _assoc, _no_ht)       \
+    static const IA64CPUVariantDef _name = {                           \
+        .semantic_profile_id = UINT64_C(0x2000000000000000) |         \
+                               ((uint64_t)(_mhz) << 24) |             \
+                               ((uint64_t)(_package_mb) << 8) |       \
+                               (_l3_mb),                             \
+        .brand = "QEMU Montvale " #_number                            \
+                 "-compatible IA-64 CPU " #_mhz "MHz "                \
+                 #_package_mb "MB",                                  \
+        .itc_frequency_hz = ((_mhz) * 1000000U) / 4,                  \
+        .l3_cache_size = (_l3_mb) * MiB,                              \
+        .package_cache_size = (_package_mb) * MiB,                    \
+        .processor_frequency_hz = (_mhz) * 1000000ULL,                \
+        .bus_frequency_hz =                                           \
+            (100000000ULL * (_bus_num)) / (_bus_den),                 \
+        .processor_ratio = IA64_FREQUENCY_RATIO((_mhz), 100),         \
+        .bus_ratio = IA64_FREQUENCY_RATIO((_bus_num), (_bus_den)),    \
+        .itc_ratio = IA64_FREQUENCY_RATIO((_mhz), 400),               \
+        .l3_associativity = (_assoc),                                 \
+        .disable_ht = (_no_ht),                                       \
+    }
+
+IA64_MONTVALE_VARIANT(ia64_cpu_montvale_9110n, 9110N, 1600, 12, 12,
+                       16, 3, 12, true);
+IA64_MONTVALE_VARIANT(ia64_cpu_montvale_9120n, 9120N, 1420, 6, 12,
+                       16, 3, 6, false);
+IA64_MONTVALE_VARIANT(ia64_cpu_montvale_9130m, 9130M, 1666, 4, 8,
+                       20, 3, 4, true);
+IA64_MONTVALE_VARIANT(ia64_cpu_montvale_9140m, 9140M, 1666, 9, 18,
+                       20, 3, 9, false);
+IA64_MONTVALE_VARIANT(ia64_cpu_montvale_9140n, 9140N, 1600, 9, 18,
+                       16, 3, 9, false);
+IA64_MONTVALE_VARIANT(ia64_cpu_montvale_9150m, 9150M, 1666, 12, 24,
+                       20, 3, 12, false);
+IA64_MONTVALE_VARIANT(ia64_cpu_montvale_9152m, 9152M, 1666, 12, 24,
+                       20, 3, 12, false);
+
+static const IA64CPUVariantDef ia64_cpu_montvale = {
+    .semantic_profile_id = 0x6d6f6e0039313530ULL,
+    .brand = "QEMU Montvale 9150N-compatible IA-64 CPU 1600MHz 24MB",
+    .cpuid_version = 0x0000000020010104ULL,
+    .pal_version = 0x0000010801000108ULL,
+    .itc_frequency_hz = 400000000U,
+    .l3_cache_size = 12 * MiB,
+    .package_cache_size = 24 * MiB,
+    .processor_frequency_hz = 1600000000ULL,
+    .bus_frequency_hz = 533333333ULL,
+    .processor_ratio = IA64_FREQUENCY_RATIO(16, 1),
+    .bus_ratio = IA64_FREQUENCY_RATIO(16, 3),
+    .itc_ratio = IA64_FREQUENCY_RATIO(4, 1),
+    .l3_associativity = 12,
+};
 
 static const TypeInfo ia64_cpu_type_info[] = {
     {
@@ -1743,9 +2686,62 @@ static const TypeInfo ia64_cpu_type_info[] = {
         .class_data = &ia64_cpu_model_madison,
     },
     {
+        .name = IA64_CPU_TYPE_NAME("mckinley"),
+        .parent = IA64_CPU_TYPE_NAME("madison"),
+        .class_init = ia64_cpu_variant_class_init,
+        .class_data = &ia64_cpu_mckinley,
+    },
+    {
+        .name = IA64_CPU_TYPE_NAME("mckinley-900"),
+        .parent = IA64_CPU_TYPE_NAME("mckinley"),
+        .class_init = ia64_cpu_variant_class_init,
+        .class_data = &ia64_cpu_mckinley_900,
+    },
+    {
+        .name = IA64_CPU_TYPE_NAME("mckinley-1000"),
+        .parent = IA64_CPU_TYPE_NAME("mckinley"),
+    },
+    {
+        .name = IA64_CPU_TYPE_NAME("deerfield"),
+        .parent = IA64_CPU_TYPE_NAME("madison"),
+        .class_init = ia64_cpu_variant_class_init,
+        .class_data = &ia64_cpu_deerfield,
+    },
+    {
+        .name = IA64_CPU_TYPE_NAME("madison-1.5m"),
+        .parent = IA64_CPU_TYPE_NAME("madison"),
+        .class_init = ia64_cpu_variant_class_init,
+        .class_data = &ia64_cpu_madison_1500k,
+    },
+    {
+        .name = IA64_CPU_TYPE_NAME("madison-3m"),
+        .parent = IA64_CPU_TYPE_NAME("madison"),
+        .class_init = ia64_cpu_variant_class_init,
+        .class_data = &ia64_cpu_madison_3m,
+    },
+    {
+        .name = IA64_CPU_TYPE_NAME("madison-4m"),
+        .parent = IA64_CPU_TYPE_NAME("madison"),
+        .class_init = ia64_cpu_variant_class_init,
+        .class_data = &ia64_cpu_madison_4m,
+    },
+    {
+        .name = IA64_CPU_TYPE_NAME("madison-6m"),
+        .parent = IA64_CPU_TYPE_NAME("madison"),
+        .class_init = ia64_cpu_variant_class_init,
+        .class_data = &ia64_cpu_madison_6m,
+    },
+    {
+        .name = IA64_CPU_TYPE_NAME("madison-9m"),
+        .parent = IA64_CPU_TYPE_NAME("madison"),
+        .class_init = ia64_cpu_variant_class_init,
+        .class_data = &ia64_cpu_madison_9m,
+    },
+    {
         .name = IA64_CPU_TYPE_NAME("madison-zx6000"),
         .parent = IA64_CPU_TYPE_NAME("madison"),
-        .class_init = ia64_cpu_madison_zx6000_class_init,
+        .class_init = ia64_cpu_variant_class_init,
+        .class_data = &ia64_cpu_madison_zx6000,
     },
     {
         .name = IA64_CPU_TYPE_NAME("montecito"),
@@ -1756,12 +2752,90 @@ static const TypeInfo ia64_cpu_type_info[] = {
     {
         .name = IA64_CPU_TYPE_NAME("montecito-9010"),
         .parent = IA64_CPU_TYPE_NAME("montecito"),
-        .class_init = ia64_cpu_montecito_9010_class_init,
+        .class_init = ia64_cpu_variant_class_init,
+        .class_data = &ia64_cpu_montecito_9010,
+    },
+    {
+        .name = IA64_CPU_TYPE_NAME("montecito-9015"),
+        .parent = IA64_CPU_TYPE_NAME("montecito"),
+        .class_init = ia64_cpu_variant_class_init,
+        .class_data = &ia64_cpu_montecito_9015,
+    },
+    {
+        .name = IA64_CPU_TYPE_NAME("montecito-9020"),
+        .parent = IA64_CPU_TYPE_NAME("montecito"),
+        .class_init = ia64_cpu_variant_class_init,
+        .class_data = &ia64_cpu_montecito_9020,
+    },
+    {
+        .name = IA64_CPU_TYPE_NAME("montecito-9030"),
+        .parent = IA64_CPU_TYPE_NAME("montecito"),
+        .class_init = ia64_cpu_variant_class_init,
+        .class_data = &ia64_cpu_montecito_9030,
     },
     {
         .name = IA64_CPU_TYPE_NAME("montecito-9040"),
         .parent = IA64_CPU_TYPE_NAME("montecito"),
-        .class_init = ia64_cpu_montecito_9040_class_init,
+        .class_init = ia64_cpu_variant_class_init,
+        .class_data = &ia64_cpu_montecito_9040,
+    },
+    {
+        .name = IA64_CPU_TYPE_NAME("montecito-9050"),
+        .parent = IA64_CPU_TYPE_NAME("montecito"),
+        .class_init = ia64_cpu_variant_class_init,
+        .class_data = &ia64_cpu_montecito_9050,
+    },
+    {
+        .name = IA64_CPU_TYPE_NAME("montvale"),
+        .parent = IA64_CPU_TYPE_NAME("montecito"),
+        .class_init = ia64_cpu_variant_class_init,
+        .class_data = &ia64_cpu_montvale,
+    },
+    {
+        .name = IA64_CPU_TYPE_NAME("montvale-9110n"),
+        .parent = IA64_CPU_TYPE_NAME("montvale"),
+        .class_init = ia64_cpu_variant_class_init,
+        .class_data = &ia64_cpu_montvale_9110n,
+    },
+    {
+        .name = IA64_CPU_TYPE_NAME("montvale-9120n"),
+        .parent = IA64_CPU_TYPE_NAME("montvale"),
+        .class_init = ia64_cpu_variant_class_init,
+        .class_data = &ia64_cpu_montvale_9120n,
+    },
+    {
+        .name = IA64_CPU_TYPE_NAME("montvale-9130m"),
+        .parent = IA64_CPU_TYPE_NAME("montvale"),
+        .class_init = ia64_cpu_variant_class_init,
+        .class_data = &ia64_cpu_montvale_9130m,
+    },
+    {
+        .name = IA64_CPU_TYPE_NAME("montvale-9140m"),
+        .parent = IA64_CPU_TYPE_NAME("montvale"),
+        .class_init = ia64_cpu_variant_class_init,
+        .class_data = &ia64_cpu_montvale_9140m,
+    },
+    {
+        .name = IA64_CPU_TYPE_NAME("montvale-9140n"),
+        .parent = IA64_CPU_TYPE_NAME("montvale"),
+        .class_init = ia64_cpu_variant_class_init,
+        .class_data = &ia64_cpu_montvale_9140n,
+    },
+    {
+        .name = IA64_CPU_TYPE_NAME("montvale-9150m"),
+        .parent = IA64_CPU_TYPE_NAME("montvale"),
+        .class_init = ia64_cpu_variant_class_init,
+        .class_data = &ia64_cpu_montvale_9150m,
+    },
+    {
+        .name = IA64_CPU_TYPE_NAME("montvale-9150n"),
+        .parent = IA64_CPU_TYPE_NAME("montvale"),
+    },
+    {
+        .name = IA64_CPU_TYPE_NAME("montvale-9152m"),
+        .parent = IA64_CPU_TYPE_NAME("montvale"),
+        .class_init = ia64_cpu_variant_class_init,
+        .class_data = &ia64_cpu_montvale_9152m,
     },
     {
         .name = IA64_CPU_TYPE_NAME("itanium"),
