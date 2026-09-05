@@ -61,6 +61,8 @@ typedef struct ATIVGARegs {
     uint32_t crtc_gen_cntl;
     uint32_t crtc_ext_cntl;
     uint32_t dac_cntl;
+    uint32_t dac_ext_cntl;
+    uint32_t dac_macro_cntl;
     uint32_t gpio_vga_ddc;
     uint32_t gpio_dvi_ddc;
     uint32_t gpio_monid;
@@ -152,6 +154,10 @@ typedef struct ATI3DState {
     uint32_t se_cntl_status;
     uint8_t fog_table[ATI_3D_FOG_TABLE_ENTRIES];
     uint8_t fog_table_index;
+    /* CP scaler palette, independent of the display DAC palette. */
+    uint32_t scaler_palette[256];
+    uint8_t scaler_palette_format;
+    bool scaler_palette_valid;
 
     uint32_t cp_rb_base;
     uint32_t cp_rb_cntl;
@@ -241,6 +247,7 @@ struct ATIVGAState {
     ATIVGARegs regs;
     ATIHostDataState host_data;
     ATI3DState r100_3d;
+    bool default_rom;
 };
 
 static inline bool ati_is_rv100_family(const ATIVGAState *s)

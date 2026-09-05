@@ -4,6 +4,7 @@
  * Implements a post-ExitBootServices INT 10h subset.  X86 option-ROM
  * execution is not implemented; the real-mode stub forwards calls to QEMU C
  * code through a dedicated PCI I/O window.
+ * Technical references are listed in docs/devel/gpu-emulation-provenance.rst.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -11,6 +12,8 @@
 #include "qemu/osdep.h"
 
 #include "exec/cpu-common.h"
+#include "hw/display/ati_int.h"
+#include "hw/display/ati_regs.h"
 #include "hw/display/bochs-vbe.h"
 #include "hw/display/edid.h"
 #include "hw/display/vga_regs.h"
@@ -85,6 +88,9 @@
 #define HP_INT10_ATI_VENDOR_ID        0x1002U
 #define HP_INT10_ATI_RAGE128_DEVICE_ID 0x5046U
 #define HP_INT10_ATI_ES1000_DEVICE_ID 0x515eU
+#define HP_INT10_ATI_RV100_DEVICE_ID  0x5159U
+#define HP_INT10_ATI_CLOCK_REF        2700U
+#define HP_INT10_ATI_CLOCK_REF_DIV    27U
 
 #define HP_INT10_NVIDIA_VENDOR_ID     0x10deU
 #define HP_INT10_NVIDIA_BMP_MAJOR     0x05U
@@ -1244,6 +1250,50 @@ static void hp_int10_install_ati_clock_range(uint8_t *pll, size_t offset,
     stl_le_p(pll + offset + 8, maximum);
 }
 
+static ATIVGAState *hp_int10_default_ati_vga(PCIDevice *vga)
+{
+    if (!object_dynamic_cast(OBJECT(vga), TYPE_ATI_VGA) ||
+        !ATI_VGA(vga)->default_rom) {
+        return NULL;
+    }
+    return ATI_VGA(vga);
+}
+
+static bool hp_int10_default_radeon(PCIDevice *vga)
+{
+    uint16_t device = pci_get_word(vga->config + PCI_DEVICE_ID);
+
+    return hp_int10_default_ati_vga(vga) &&
+        (device == HP_INT10_ATI_RV100_DEVICE_ID ||
+         device == HP_INT10_ATI_ES1000_DEVICE_ID);
+}
+
+static void hp_int10_post_ati_clocks(PCIDevice *vga)
+{
+    ATIVGAState *ati;
+    uint32_t clock, feedback;
+
+    if (!hp_int10_default_radeon(vga)) {
+        return;
+    }
+    ati = ATI_VGA(vga);
+    clock = ati->dev_id == HP_INT10_ATI_ES1000_DEVICE_ID ? 20000 : 16600;
+
+    /*
+     * The bridge initializes the memory and system clocks described by its
+     * COMBIOS tables.  With a /2 output, the clock is
+     * 2 * reference * feedback / reference_divider / 2.  A 27 MHz reference
+     * and /27 divider represent both advertised defaults exactly.
+     */
+    feedback = clock * HP_INT10_ATI_CLOCK_REF_DIV / HP_INT10_ATI_CLOCK_REF;
+    g_assert(feedback <= UINT8_MAX);
+    ati->regs.pll[R100_M_SPLL_REF_FB_DIV] =
+        HP_INT10_ATI_CLOCK_REF_DIV | feedback << 8 | feedback << 16;
+    ati->regs.pll[R100_SCLK_CNTL] = R100_PLL_SRC_DIV2;
+    ati->regs.pll[R100_MCLK_CNTL] =
+        R100_PLL_SRC_DIV2 | R100_PLL_SRC_DIV2 << R100_YCLKA_SRC_SHIFT;
+}
+
 static void hp_int10_install_ati_bios_info(uint8_t *rom, PCIDevice *vga,
                                            uint32_t memory_size)
 {
@@ -1271,6 +1321,8 @@ static void hp_int10_install_ati_bios_info(uint8_t *rom, PCIDevice *vga,
     uint32_t memory_mb = MIN(memory_size / MiB, 256U);
     uint32_t memory_step = memory_mb > UINT8_MAX ? 2 : 1;
     uint32_t memory_units = memory_mb / memory_step;
+    uint16_t clock_divider = hp_int10_default_radeon(vga) ?
+        HP_INT10_ATI_CLOCK_REF_DIV : 12;
 
     if (vendor != HP_INT10_ATI_VENDOR_ID) {
         return;
@@ -1351,9 +1403,11 @@ static void hp_int10_install_ati_bios_info(uint8_t *rom, PCIDevice *vga,
         hp_int10_install_ati_clock_range(pll, 0x0e,
                                          2700, 60, 12000, 35000);
         hp_int10_install_ati_clock_range(pll, 0x1a,
-                                         2700, 12, 20000, 40000);
+                                         HP_INT10_ATI_CLOCK_REF,
+                                         clock_divider, 20000, 40000);
         hp_int10_install_ati_clock_range(pll, 0x26,
-                                         2700, 12, 20000, 40000);
+                                         HP_INT10_ATI_CLOCK_REF,
+                                         clock_divider, 20000, 40000);
         pll[0x32] = 1;
         pll[0x33] = 0x12;
         stw_le_p(pll + 0x34, 2700);
@@ -1489,6 +1543,21 @@ static void hp_int10_install_rom(HPIA64Int10 *s)
     }
     rom[sizeof(rom) - 1] = -checksum;
 
+    /*
+     * Mirror the bridge-generated default ROM so the legacy shadow and PCI
+     * ROM BAR expose identical COMBIOS tables.  User-supplied ROMs retain
+     * their own contents.
+     */
+    if (s->vga->has_rom && hp_int10_default_ati_vga(s->vga)) {
+        uint8_t *pci_rom = memory_region_get_ram_ptr(&s->vga->rom);
+        uint64_t pci_rom_size = memory_region_size(&s->vga->rom);
+
+        g_assert(pci_rom_size >= sizeof(rom));
+        memset(pci_rom, 0xff, pci_rom_size);
+        memcpy(pci_rom, rom, sizeof(rom));
+        memory_region_set_dirty(&s->vga->rom, 0, pci_rom_size);
+    }
+
     cpu_physical_memory_write(HP_INT10_ROM_BASE, rom, sizeof(rom));
 
     stw_le_p(vector, HP_INT10_ROM_HANDLER);
@@ -1562,6 +1631,7 @@ void hp_ia64_int10_reset(HPIA64Int10 *s)
     s->dpms_state = 0;
     s->legacy_mode = 3;
     s->legacy_columns = 80;
+    hp_int10_post_ati_clocks(s->vga);
     hp_int10_install_rom(s);
 }
 

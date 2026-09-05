@@ -1,6 +1,9 @@
 /*
  * IA-64 EFI firmware
  *
+ * PCI protocol and device-path references are listed in
+ * docs/devel/device-emulation-provenance.rst.
+ *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
@@ -31796,21 +31799,36 @@ static BOOLEAN fw_platform_pci_mmio_bar(
 {
     const IA64PlatformPciRoot *root;
     UINT32 raw;
+    UINT32 type;
     UINT64 base;
 
     if (Location == NULL || RawBar == NULL || CpuBase == NULL ||
-        Location->RootIndex >= mPlatformProfile.PciRootCount || Length == 0) {
+        Location->RootIndex >= mPlatformProfile.PciRootCount ||
+        BarIndex >= 6 || Length == 0) {
         return 0;
     }
     root = &mPlatformProfile.PciRoot[Location->RootIndex];
     raw = (UINT32)pci_config_read_value(
         Location->Segment, Location->Bus, Location->Device,
         Location->Function, PCI_BAR_OFFSET(BarIndex), 4);
+    type = raw & 0x6U;
     if (raw == 0 || raw == 0xffffffffU || (raw & 1U) != 0 ||
-        (raw & 0x6U) == 0x4U) {
+        (type != 0 && type != 0x4U)) {
         return 0;
     }
-    base = raw & ~(UINT64)0xfU;
+    if (type == 0x4U) {
+        UINT32 high;
+
+        if (BarIndex >= 5) {
+            return 0;
+        }
+        high = (UINT32)pci_config_read_value(
+            Location->Segment, Location->Bus, Location->Device,
+            Location->Function, PCI_BAR_OFFSET(BarIndex + 1U), 4);
+        base = ((UINT64)high << 32) | (raw & ~(UINT64)0xfU);
+    } else {
+        base = raw & ~(UINT64)0xfU;
+    }
     if (base < root->Mmio32Base ||
         Length > root->Mmio32Size ||
         base - root->Mmio32Base > root->Mmio32Size - Length ||
@@ -32022,6 +32040,40 @@ static BOOLEAN fw_platform_lsi_init(VOID)
     return 1;
 }
 
+static BOOLEAN fw_platform_mpt_init(VOID)
+{
+    FW_PLATFORM_PCI_LOCATION location;
+    UINT32 expected_id;
+    UINT32 raw_bar;
+    UINT64 cpu_base;
+    FW_PCI_IO_DEVICE *lsi = &mPciIoDevices[4];
+
+    if (fw_platform_pci_find(MPT_LSI53C1030_VENDOR_DEVICE_ID,
+                             0x010000U, &location)) {
+        expected_id = MPT_LSI53C1030_VENDOR_DEVICE_ID;
+    } else if (fw_platform_pci_find(MPT_LSISAS1068_VENDOR_DEVICE_ID,
+                                    0x010000U, &location)) {
+        expected_id = MPT_LSISAS1068_VENDOR_DEVICE_ID;
+    } else {
+        return 0;
+    }
+    if (!fw_platform_pci_mmio_bar(&location, 1, MPT_MMIO_SIZE,
+                                  &raw_bar, &cpu_base)) {
+        return 0;
+    }
+    fw_platform_pci_device_location(lsi, &location);
+    lsi->ExpectedId = expected_id;
+    lsi->ExpectedBarValue = raw_bar;
+    lsi->ExpectedBarLength = MPT_MMIO_SIZE;
+    if (!fw_platform_pci_path_location(
+            lsi, &mPciLsiDevicePath, 4, location.RootIndex,
+            location.Device, location.Function)) {
+        return 0;
+    }
+    mPciLsiHandle = FW_HANDLE_PCI_LSI;
+    return 1;
+}
+
 static BOOLEAN fw_vpc_graphics_init(VOID)
 {
     FW_PCI_IO_DEVICE *graphics = &mPciIoDevices[5];
@@ -32091,6 +32143,7 @@ static void fw_platform_pci_devices_init(void)
                                         PCI_VGA_ATI_RV100_FB_SIZE);
         (void)fw_platform_ohci_init(PCI_NEC_OHCI_ID,
                                     PCI_NEC_OHCI_MMIO_SIZE);
+        (void)fw_platform_mpt_init();
     }
 }
 

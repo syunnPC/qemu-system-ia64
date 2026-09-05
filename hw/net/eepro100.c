@@ -72,7 +72,9 @@
 
 #define TRACE(flag, command) ((flag) ? (command) : (void)0)
 
-#define missing(text) fprintf(stderr, "eepro100: feature is missing in this emulation: " text "\n")
+#define missing(fmt, ...) \
+    fprintf(stderr, "eepro100: feature is missing in this emulation: " \
+            fmt "\n", ## __VA_ARGS__)
 
 #define MAX_ETH_FRAME_SIZE 1514
 
@@ -866,7 +868,8 @@ static void dump_statistics(EEPRO100State * s)
                    s->statistics.xmt_tco_frames, attrs);
     stw_le_pci_dma(&s->dev, s->statsaddr + 78,
                    s->statistics.rcv_tco_frames, attrs);
-    missing("CU dump statistical counters");
+    missing("CU dump statistical counters: address=0x%08x, size=%u",
+            s->statsaddr, s->stats_size);
 #endif
 }
 
@@ -1063,7 +1066,8 @@ static bool action_command(EEPRO100State *s, cu_queue_t queue)
             break;
         case CmdTx:
             if (bit_nc) {
-                missing("CmdTx: NC = 0");
+                missing("transmit with NC=1: command=0x%04x, cb=0x%08x",
+                        s->tx.command, s->cb_address);
                 ok_status = 0;
                 break;
             }
@@ -1080,7 +1084,9 @@ static bool action_command(EEPRO100State *s, cu_queue_t queue)
             s->tx.status = 0;
             break;
         default:
-            missing("undefined command");
+            missing("action command: opcode=0x%x, command=0x%04x, "
+                    "cb=0x%08x", s->tx.command & COMMAND_CMD,
+                    s->tx.command, s->cb_address);
             ok_status = 0;
             break;
         }
@@ -1312,7 +1318,9 @@ static void eepro100_cu_command(EEPRO100State * s, uint8_t val)
         eepro100_cu_static_resume(s);
         break;
     default:
-        missing("Undefined CU command");
+        missing("CU command: opcode=0x%02x, scb_command=0x%02x, "
+                "pointer=0x%08x", val, s->mem[SCBCmd],
+                e100_read_reg4(s, SCBPointer));
     }
 }
 
@@ -1360,7 +1368,9 @@ static void eepro100_ru_command(EEPRO100State * s, uint8_t val)
         break;
     default:
         logout("val=0x%02x (undefined RU command)\n", val);
-        missing("Undefined SU command");
+        missing("RU command: opcode=0x%02x, scb_command=0x%02x, "
+                "pointer=0x%08x", val, s->mem[SCBCmd],
+                e100_read_reg4(s, SCBPointer));
     }
 }
 
@@ -1419,7 +1429,6 @@ static void eepro100_write_eeprom(eeprom_t * eeprom, uint8_t val)
  *
  ****************************************************************************/
 
-#if defined(DEBUG_EEPRO100)
 static const char * const mdi_op_name[] = {
     "opcode 0",
     "write",
@@ -1437,6 +1446,7 @@ static const char * const mdi_reg_name[] = {
     "Auto-Negotiation Expansion"
 };
 
+#if defined(DEBUG_EEPRO100)
 static const char *reg2name(uint8_t reg)
 {
     static char buffer[10];
@@ -1448,7 +1458,21 @@ static const char *reg2name(uint8_t reg)
     }
     return p;
 }
-#endif                          /* DEBUG_EEPRO100 */
+#endif
+
+static void eepro100_missing_mdi(uint32_t val, const char *reason)
+{
+    uint8_t opcode = (val & BITS(27, 26)) >> 26;
+    uint8_t phy = (val & BITS(25, 21)) >> 21;
+    uint8_t reg = (val & BITS(20, 16)) >> 16;
+    uint16_t data = val & BITS(15, 0);
+    const char *reg_name = reg < ARRAY_SIZE(mdi_reg_name) ?
+                          mdi_reg_name[reg] : "unnamed";
+
+    missing("MDI %s: opcode=%u (%s), phy=%u, reg=0x%02x (%s), "
+            "data=0x%04x, raw=0x%08x", reason, opcode,
+            mdi_op_name[opcode], phy, reg, reg_name, data, val);
+}
 
 static uint32_t eepro100_read_mdi(EEPRO100State * s)
 {
@@ -1508,18 +1532,18 @@ static void eepro100_write_mdi(EEPRO100State *s)
                 }
                 break;
             case 1:            /* Status Register */
-                missing("not writable");
+                eepro100_missing_mdi(val, "write to read-only register");
                 break;
             case 2:            /* PHY Identification Register (Word 1) */
             case 3:            /* PHY Identification Register (Word 2) */
-                missing("not implemented");
+                eepro100_missing_mdi(val, "register write not implemented");
                 break;
             case 4:            /* Auto-Negotiation Advertisement Register */
             case 5:            /* Auto-Negotiation Link Partner Ability Register */
                 break;
             case 6:            /* Auto-Negotiation Expansion Register */
             default:
-                missing("not implemented");
+                eepro100_missing_mdi(val, "register write not implemented");
             }
             s->mdimem[reg] &= eepro100_mdi_mask[reg];
             s->mdimem[reg] |= data & ~eepro100_mdi_mask[reg];
@@ -1611,7 +1635,9 @@ static void eepro100_write_port(EEPRO100State *s)
         break;
     default:
         logout("val=0x%08x\n", val);
-        missing("unknown port selection");
+        missing("PORT command: selection=%u (%s), raw=0x%08x, "
+                "address=0x%08x", selection,
+                selection == PORT_DUMP ? "dump" : "unknown", val, address);
     }
 }
 
@@ -1669,7 +1695,8 @@ static uint8_t eepro100_read1(EEPRO100State * s, uint32_t addr)
         break;
     default:
         logout("addr=%s val=0x%02x\n", regname(addr), val);
-        missing("unknown byte read");
+        missing("register read: offset=0x%08x, size=1, returned=0x%02x",
+                addr, val);
     }
     return val;
 }
@@ -1700,7 +1727,8 @@ static uint16_t eepro100_read2(EEPRO100State * s, uint32_t addr)
         break;
     default:
         logout("addr=%s val=0x%04x\n", regname(addr), val);
-        missing("unknown word read");
+        missing("register read: offset=0x%08x, size=2, returned=0x%04x",
+                addr, val);
     }
     return val;
 }
@@ -1733,7 +1761,8 @@ static uint32_t eepro100_read4(EEPRO100State * s, uint32_t addr)
         break;
     default:
         logout("addr=%s val=0x%08x\n", regname(addr), val);
-        missing("unknown longword read");
+        missing("register read: offset=0x%08x, size=4, returned=0x%08x",
+                addr, val);
     }
     return val;
 }
@@ -1806,7 +1835,8 @@ static void eepro100_write1(EEPRO100State * s, uint32_t addr, uint8_t val)
         break;
     default:
         logout("addr=%s val=0x%02x\n", regname(addr), val);
-        missing("unknown byte write");
+        missing("register write: offset=0x%08x, size=1, value=0x%02x",
+                addr, val);
     }
 }
 
@@ -1855,7 +1885,8 @@ static void eepro100_write2(EEPRO100State * s, uint32_t addr, uint16_t val)
         break;
     default:
         logout("addr=%s val=0x%04x\n", regname(addr), val);
-        missing("unknown word write");
+        missing("register write: offset=0x%08x, size=2, value=0x%04x",
+                addr, val);
     }
 }
 
@@ -1884,7 +1915,8 @@ static void eepro100_write4(EEPRO100State * s, uint32_t addr, uint32_t val)
         break;
     default:
         logout("addr=%s val=0x%08x\n", regname(addr), val);
-        missing("unknown longword write");
+        missing("register write: offset=0x%08x, size=4, value=0x%08x",
+                addr, val);
     }
 }
 
@@ -2088,7 +2120,9 @@ static ssize_t nic_receive(NetClientState *nc, const uint8_t * buf, size_t size)
 #endif
     /* Receive CRC Transfer not supported. */
     if (s->configuration[18] & BIT(2)) {
-        missing("Receive CRC Transfer");
+        missing("Receive CRC Transfer: configuration[18]=0x%02x, "
+                "rfd=0x%08x, size=%zu", s->configuration[18],
+                s->ru_base + s->ru_offset, size);
         return -1;
     }
     /* TODO: check stripping enable bit. */

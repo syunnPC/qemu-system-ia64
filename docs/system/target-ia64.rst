@@ -39,10 +39,14 @@ on bus 04.  Its fixed devices are the Intel programmable interrupt device at
 Ethernet at ``00:05.0``, QLogic ISP12160 at ``01:00.0``, IHPC functions at
 ``01:0f.0`` and ``02:0f.0``, and Quadro2 Pro at ``03:00.0``.
 
-The programmable interrupt device, IHPC, and most 460GX configuration functions
-implement PCI enumeration only.  The 460GX memory-card A/B configuration
-functions are not implemented.  The CS4281 implements a subset of its PCI and
-AC '97 interfaces, including playback and capture on DMA channels 0 and 1.
+The programmable interrupt device's PCI function supplies its identity; the
+interrupt delivery path uses the separate 460GX SAPIC model.  IHPC and most
+460GX configuration functions implement enumeration and register storage only.
+The 460GX memory-card A/B configuration functions are not implemented.  The
+CS4281 supports primary AC '97 playback and capture routed through any of its
+four DMA channels, including continuous DMA and half/terminal-count interrupts.
+Its legacy audio, FM synthesis, game port, MIDI, secondary codec and non-PCM
+serial slots remain unimplemented.
 The ISP12160 models mailboxes, queues, and SCSI I/O; its onboard RISC firmware
 does not execute.  The 82559 Flash aperture contains no Flash storage.
 ``-vga ati`` places an ATI adapter at ``03:00.0``.
@@ -72,11 +76,52 @@ and two BCM5704 functions.  The MIO exposes zx2 IDs, but its registers and the
 root adapters reuse zx1 behavior; zx2 multi-rope LBA grouping is not
 implemented.
 
-PCIe, Core-I/O management, and iLO/BMC are not implemented.  Core-I/O
-functions ``103c:1303``, ``103c:1302``, and ``103c:1048`` enumerate at
-``00:01``.
+PCIe, Core-I/O management, and iLO/BMC are not implemented.  Management
+functions ``103c:1303`` and ``103c:1302`` enumerate at ``00:01`` but do not
+provide management services.  The ``103c:1048`` console function implements
+a 16550 UART at BAR1, including FIFOs, interrupts and migration.  It uses the
+third serial backend; for example ``-serial none -serial none -serial stdio``
+connects this UART to the terminal while leaving the two PDH UARTs disconnected.
 
-The BCM5701 and BCM5704 expose PCI configuration only.
+Broadcom Ethernet
+-----------------
+
+The BCM5701 and BCM5704 implement PCI configuration and power-management
+capabilities, PHY discovery, EEPROM/NVRAM access, indirect register/SRAM access,
+descriptor DMA, transmit/receive, VLAN insertion/removal, transmit checksums,
+IPv4 TCP segmentation, statistics/status DMA and INTx interrupts.  Embedded
+processor execution is not implemented; reset supplies the modeled board data
+and firmware-mailbox handshake.  The option-ROM aperture contains no boot
+firmware, and network boot is unavailable.
+
+The zx6000's default network backend is attached to its Intel 82550.  To use
+the onboard Broadcom instead, select ``-nic user,model=bcm5701``.  The rx2660
+defaults to ``bcm5704``.
+
+Graphics coverage
+-----------------
+
+The ATI models support high-color/true-color scanout and VBE modes.
+The HP bridge supplies matching ATI COMBIOS metadata in the legacy ROM shadow
+and the default PCI option ROM, and initializes the default Radeon memory and
+system clocks consistently with those tables.  Explicitly supplied option ROMs
+are preserved.  Radeon CRT detection and DDC/EDID are implemented.
+The Radeon command processor handles rectangle fills and copies, transparent
+copies, scanline spans, clipping, character bitmaps and indexed host bitmap
+uploads, including the setup-only packets used before character drawing.
+Scaler palettes are separate from the display DAC palette and are preserved
+across migration.  CRTC offset locking works through both register aliases.
+ATI hardware cursors are composited into the display at the programmed
+position.
+
+Graphics emulation remains partial.  ATI overlay/scaler output, tiled scanout,
+some 2D operations and parts of the 3D pipeline remain unimplemented.  Quadro2
+supports framebuffer/VBE and part of its 2D engine, but NV15 3D object classes
+and tiled VRAM access are not implemented.
+
+Technical references for these models are recorded in
+:doc:`../devel/device-emulation-provenance` and
+:doc:`../devel/gpu-emulation-provenance`.
 
 Building and running
 --------------------

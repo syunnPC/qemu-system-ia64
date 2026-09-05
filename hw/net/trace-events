@@ -534,3 +534,11 @@ xen_netdev_rx(int dev, int idx, int status, int flags) "vif%u idx %d status %d f
 ethlite_pkt_lost(uint32_t rx_ctrl) "rx_ctrl:0x%" PRIx32
 ethlite_pkt_size_too_big(uint64_t size) "size:0x%" PRIx64
 ethlite_pkt_tx_size_too_big(uint64_t size) "size:0x%" PRIx64
+
+# bcm5704.c
+bcm57xx_mmio_read(uint64_t addr, uint32_t value, unsigned size) "addr=0x%08" PRIx64 " value=0x%08" PRIx32 " size=%u"
+bcm57xx_mmio_write(uint64_t addr, uint64_t value, unsigned size) "addr=0x%08" PRIx64 " value=0x%08" PRIx64 " size=%u"
+bcm57xx_config_read(uint32_t addr, uint32_t value, unsigned size) "addr=0x%02" PRIx32 " value=0x%08" PRIx32 " size=%u"
+bcm57xx_config_write(uint32_t addr, uint32_t value, unsigned size) "addr=0x%02" PRIx32 " value=0x%08" PRIx32 " size=%u"
+bcm57xx_tx_descriptor(unsigned ring, uint32_t flags, uint32_t vlan_mss, uint64_t addr) "ring=%u flags=0x%08" PRIx32 " vlan_mss=0x%08" PRIx32 " dma=0x%016" PRIx64
+bcm57xx_tso(unsigned len, unsigned mss, unsigned header) "len=%u mss=%u header=%u"

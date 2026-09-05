@@ -6,6 +6,7 @@
 
 #include "qemu/osdep.h"
 
+#include "hw/display/ati_regs.h"
 #include "hw/ia64/hp_zx6000.h"
 #include "hw/ia64/ia64_platform_abi.h"
 #include "hw/net/bcm5704.h"
@@ -13,6 +14,7 @@
 #include "hw/pci-host/hp-zx1-ioa-regs.h"
 #include "libqtest.h"
 #include "qemu/bswap.h"
+#include "qemu/sockets.h"
 #include "qemu/timer.h"
 #include "qemu/units.h"
 #include "qobject/qdict.h"
@@ -26,6 +28,7 @@
 #define RX2660_SPARSE_IO_BASE UINT64_C(0x00000ffffc000000)
 
 #define RX2660_ATI_ES1000_ID  UINT32_C(0x515e1002)
+#define RX2660_ATI_MMIO       UINT64_C(0x88020000)
 #define RX2660_NEC_OHCI_ID    UINT32_C(0x00351033)
 #define RX2660_NEC_EHCI_ID    UINT32_C(0x00e01033)
 #define RX2660_LSI_SAS1068_ID UINT32_C(0x00541000)
@@ -33,6 +36,27 @@
 #define RX2660_MANAGEMENT_ID  UINT32_C(0x1303103c)
 #define RX2660_MP_INTERFACE_ID UINT32_C(0x1302103c)
 #define RX2660_CONSOLE_ID     UINT32_C(0x1048103c)
+#define RX2660_CONSOLE_MMIO   UINT64_C(0x88033000)
+#define RX2660_CONSOLE_RELOCATED_MMIO UINT64_C(0x88035000)
+
+#define UART_RBR_THR_DLL 0
+#define UART_IER_DLM     1
+#define UART_IIR_FCR     2
+#define UART_LCR         3
+#define UART_MCR         4
+#define UART_LSR         5
+#define UART_SCR         7
+#define UART_LSR_DR      0x01
+#define UART_LSR_EMPTY   0x60
+#define UART_IER_RDI     0x01
+#define UART_IER_THRI    0x02
+#define UART_IIR_NONE    0x01
+#define UART_IIR_THRI    0x02
+#define UART_IIR_RDI     0x04
+#define UART_FCR_CLEAR   0x07
+#define UART_LCR_DLAB    0x80
+#define UART_LCR_8N1     0x03
+#define UART_MCR_LOOP    0x10
 
 #define RX2660_OHCI0_MMIO     UINT64_C(0x88032000)
 #define RX2660_OHCI1_MMIO     UINT64_C(0x88031000)
@@ -675,6 +699,49 @@ static void test_hp_rx2660_smoke_and_pci(void)
     qtest_quit(qts);
 }
 
+static void test_hp_rx2660_radeon_clocks(void)
+{
+    QTestState *qts = qtest_init(
+        "-machine hp-rx2660,nvram=none,firmware=none "
+        "-m 1G -S -display none -serial none -monitor none -net none");
+    unsigned int pass, clock;
+
+    for (pass = 0; pass < 2; pass++) {
+        uint16_t header = qtest_readw(qts, 0xc0048);
+        uint16_t pll = qtest_readw(qts, 0xc0000 + header + 0x30);
+        uint32_t divisors;
+
+        qtest_writeb(qts, RX2660_ATI_MMIO + CLOCK_CNTL_INDEX,
+                      R100_M_SPLL_REF_FB_DIV);
+        divisors = qtest_readl(qts, RX2660_ATI_MMIO + CLOCK_CNTL_DATA);
+        for (clock = 0; clock < 2; clock++) {
+            uint32_t reference = qtest_readw(qts, 0xc0000 + pll +
+                                              (clock ? 0x1a : 0x26));
+            uint32_t divider = qtest_readw(qts, 0xc0000 + pll +
+                                            (clock ? 0x1c : 0x28));
+            uint32_t feedback = (divisors >> (8 + clock * 8)) & 0xff;
+
+            g_assert_cmpuint(divider, >, 0);
+            g_assert_cmpuint(divisors & 0xff, ==, divider);
+            g_assert_cmpuint(qtest_readw(qts, 0xc0000 + pll +
+                                          8 + clock * 2), ==, 20000);
+            qtest_writeb(qts, RX2660_ATI_MMIO + CLOCK_CNTL_INDEX,
+                          clock ? R100_SCLK_CNTL : R100_MCLK_CNTL);
+            g_assert_cmphex(qtest_readl(qts, RX2660_ATI_MMIO +
+                                        CLOCK_CNTL_DATA) & 7, ==, 2);
+            g_assert_cmpuint(2 * reference * feedback / divider / 2,
+                             ==, 20000);
+        }
+        if (pass == 0) {
+            qtest_writeb(qts, RX2660_ATI_MMIO + CLOCK_CNTL_INDEX,
+                          PLL_WR_EN | R100_M_SPLL_REF_FB_DIV);
+            qtest_writel(qts, RX2660_ATI_MMIO + CLOCK_CNTL_DATA, 0);
+            qtest_system_reset(qts);
+        }
+    }
+    qtest_quit(qts);
+}
+
 static void test_hp_rx2660_default_usb_input(void)
 {
     QTestState *qts = qtest_init(
@@ -705,6 +772,113 @@ static void test_hp_rx2660_ohci_port_resume(void)
     qtest_quit(qts);
 }
 
+static void rx2660_console_assert_irq(QTestState *qts, bool asserted)
+{
+    uint16_t status = rx2660_config_readw(qts, 0, PCI_DEVFN(1, 2),
+                                         PCI_STATUS);
+
+    g_assert_cmphex(status & PCI_STATUS_INTERRUPT, ==,
+                    asserted ? PCI_STATUS_INTERRUPT : 0);
+}
+
+static void test_hp_rx2660_console(void)
+{
+    g_autofree char *dir = g_dir_make_tmp("qtest-rx2660-console-XXXXXX", NULL);
+    g_autofree char *path = NULL;
+    g_autofree char *quoted_path = NULL;
+    QTestState *qts;
+    uint64_t base = RX2660_CONSOLE_MMIO;
+    uint8_t byte;
+    int listener;
+    int fd;
+    int64_t deadline;
+    GPollFD pollfd;
+
+    g_assert_nonnull(dir);
+    path = g_build_filename(dir, "serial", NULL);
+    quoted_path = g_shell_quote(path);
+    listener = qtest_socket_server(path);
+    qts = qtest_initf(
+        "-machine hp-rx2660,nvram=none,firmware=none -m 1G -S "
+        "-display vnc=none -monitor none -net none "
+        "-chardev socket,id=console,path=%s "
+        "-serial none -serial none -serial chardev:console", quoted_path);
+    fd = qemu_accept(listener, NULL, NULL);
+    g_assert_cmpint(fd, >=, 0);
+    close(listener);
+    g_assert_cmpint(g_unlink(path), ==, 0);
+    g_assert_cmpint(g_rmdir(dir), ==, 0);
+
+    g_assert_cmphex(qtest_readb(qts, base + UART_LSR), ==, UART_LSR_EMPTY);
+    g_assert_cmphex(qtest_readb(qts, base + UART_IIR_FCR), ==, UART_IIR_NONE);
+    rx2660_console_assert_irq(qts, false);
+
+    /* Exercise the scratch register and divisor latch. */
+    qtest_writeb(qts, base + UART_SCR, 0xa5);
+    g_assert_cmphex(qtest_readb(qts, base + UART_SCR), ==, 0xa5);
+    qtest_writeb(qts, base + UART_LCR, UART_LCR_DLAB | UART_LCR_8N1);
+    qtest_writeb(qts, base + UART_RBR_THR_DLL, 1);
+    qtest_writeb(qts, base + UART_IER_DLM, 0);
+    g_assert_cmphex(qtest_readb(qts, base + UART_RBR_THR_DLL), ==, 1);
+    g_assert_cmphex(qtest_readb(qts, base + UART_IER_DLM), ==, 0);
+    qtest_writeb(qts, base + UART_LCR, UART_LCR_8N1);
+    qtest_writeb(qts, base + UART_IIR_FCR, UART_FCR_CLEAR);
+
+    /* Transmit to the third serial backend and acknowledge its PCI INTA. */
+    qtest_writeb(qts, base + UART_IER_DLM, UART_IER_THRI);
+    rx2660_console_assert_irq(qts, true);
+    g_assert_cmphex(qtest_readb(qts, base + UART_IIR_FCR), ==,
+                    0xc0 | UART_IIR_THRI);
+    rx2660_console_assert_irq(qts, false);
+    qtest_writeb(qts, base + UART_RBR_THR_DLL, 'Q');
+    pollfd = (GPollFD) { .fd = fd, .events = G_IO_IN };
+    g_assert_cmpint(g_poll(&pollfd, 1, 5000), ==, 1);
+    g_assert_cmpint(recv(fd, &byte, 1, 0), ==, 1);
+    g_assert_cmphex(byte, ==, 'Q');
+    rx2660_console_assert_irq(qts, true);
+
+    /* Receive from the host, including FIFO and interrupt acknowledgement. */
+    qtest_writeb(qts, base + UART_IER_DLM, UART_IER_RDI);
+    rx2660_console_assert_irq(qts, false);
+    g_assert_cmpint(qemu_send_full(fd, "R", 1), ==, 1);
+    deadline = g_get_monotonic_time() + 5 * G_TIME_SPAN_SECOND;
+    while (!(qtest_readb(qts, base + UART_LSR) & UART_LSR_DR)) {
+        g_assert_cmpint(g_get_monotonic_time(), <, deadline);
+    }
+    rx2660_console_assert_irq(qts, true);
+    g_assert_cmphex(qtest_readb(qts, base + UART_IIR_FCR), ==,
+                    0xc0 | UART_IIR_RDI);
+    g_assert_cmphex(qtest_readb(qts, base + UART_RBR_THR_DLL), ==, 'R');
+    rx2660_console_assert_irq(qts, false);
+
+    /* Loopback and FIFO reset work without involving a host backend. */
+    qtest_writeb(qts, base + UART_MCR, UART_MCR_LOOP);
+    qtest_writeb(qts, base + UART_RBR_THR_DLL, 0x5a);
+    g_assert_cmphex(qtest_readb(qts, base + UART_RBR_THR_DLL), ==, 0x5a);
+    qtest_writeb(qts, base + UART_RBR_THR_DLL, 0xa5);
+    rx2660_console_assert_irq(qts, true);
+    qtest_writeb(qts, base + UART_IIR_FCR, UART_FCR_CLEAR);
+    g_assert_cmphex(qtest_readb(qts, base + UART_LSR) & UART_LSR_DR, ==, 0);
+    rx2660_console_assert_irq(qts, false);
+
+    /* PCI resource reassignment must move the UART along with BAR1. */
+    rx2660_config_select(qts, 0, PCI_DEVFN(1, 2), PCI_BASE_ADDRESS_1);
+    qtest_writel(qts, rx2660_ioa[0] + HP_ZX1_IOA_CONFIG_DATA,
+                 RX2660_CONSOLE_RELOCATED_MMIO);
+    g_assert_cmphex(qtest_readb(qts, base + UART_SCR), !=, 0xa5);
+    qtest_writeb(qts, base + UART_SCR, 0x5a);
+    g_assert_cmphex(qtest_readb(qts, RX2660_CONSOLE_RELOCATED_MMIO + UART_SCR),
+                    ==, 0xa5);
+
+    qtest_system_reset(qts);
+    g_assert_cmphex(qtest_readb(qts, base + UART_SCR), ==, 0);
+    g_assert_cmphex(qtest_readb(qts, base + UART_IER_DLM), ==, 0);
+    g_assert_cmphex(qtest_readb(qts, base + UART_LSR), ==, UART_LSR_EMPTY);
+    rx2660_console_assert_irq(qts, false);
+    close(fd);
+    qtest_quit(qts);
+}
+
 int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
@@ -716,5 +890,7 @@ int main(int argc, char **argv)
                    test_hp_rx2660_default_usb_input);
     qtest_add_func("/hp-rx2660/ohci-port-resume",
                    test_hp_rx2660_ohci_port_resume);
+    qtest_add_func("/hp-rx2660/console", test_hp_rx2660_console);
+    qtest_add_func("/hp-rx2660/radeon-clocks", test_hp_rx2660_radeon_clocks);
     return g_test_run();
 }

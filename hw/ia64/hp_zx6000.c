@@ -1,12 +1,17 @@
 /*
  * HP zx6000 workstation
  *
+ * Technical references are listed in
+ * docs/devel/device-emulation-provenance.rst.
+ *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
 #include "qemu/osdep.h"
 #include CONFIG_DEVICES
 
+#include "hw/char/serial.h"
+#include "hw/core/irq.h"
 #include "hw/core/qdev-properties.h"
 #include "hw/core/sysbus.h"
 #include "hw/display/ati_int.h"
@@ -26,6 +31,7 @@
 #include "hw/scsi/scsi.h"
 #include "hw/usb/nec-usb.h"
 #include "hw/usb/usb.h"
+#include "migration/vmstate.h"
 #include "net/net.h"
 #include "qapi/error.h"
 #include "qemu/bswap.h"
@@ -159,6 +165,12 @@ typedef struct HPRX2660ManagementState {
     MemoryRegion bar1;
     MemoryRegion bar3;
 } HPRX2660ManagementState;
+
+typedef struct HPRX2660ConsoleState {
+    PCIDevice parent_obj;
+    MemoryRegion bar1;
+    SerialState uart;
+} HPRX2660ConsoleState;
 
 typedef struct HPZX6000RootLayout {
     uint64_t cpu_mmio_base;
@@ -795,18 +807,65 @@ static void hp_rx2660_management_realize(PCIDevice *dev, Error **errp)
                          PCI_BASE_ADDRESS_MEM_TYPE_64 |
                          PCI_BASE_ADDRESS_MEM_PREFETCH,
                          &s->bar3);
-    } else if (object_dynamic_cast(OBJECT(dev), TYPE_HP_RX2660_CONSOLE)) {
-        memory_region_init_io(&s->bar1, OBJECT(s),
-                              &hp_rx2660_management_ops, s,
-                              "hp-rx2660-console-mmio", 4 * KiB);
-        pci_register_bar(dev, 1,
-                         PCI_BASE_ADDRESS_SPACE_MEMORY |
-                         PCI_BASE_ADDRESS_MEM_TYPE_64,
-                         &s->bar1);
-        pci_set_byte(dev->config + PCI_CLASS_PROG, 0x02);
-        pci_set_byte(dev->config + PCI_INTERRUPT_PIN, 1);
     }
 }
+
+static void hp_rx2660_console_realize(PCIDevice *dev, Error **errp)
+{
+    HPRX2660ConsoleState *s = OBJECT_CHECK(
+        HPRX2660ConsoleState, dev, TYPE_HP_RX2660_CONSOLE);
+
+    if (!qdev_realize(DEVICE(&s->uart), NULL, errp)) {
+        return;
+    }
+
+    /*
+     * The RMP3 Diva (103c:1048, subsystem 103c:1301) has one 16550 at BAR1
+     * offset zero with byte register spacing and a 115200 baud base.
+     */
+    memory_region_init(&s->bar1, OBJECT(s),
+                       "hp-rx2660-console-mmio", 4 * KiB);
+    memory_region_init_io(&s->uart.io, OBJECT(s), &serial_io_ops, &s->uart,
+                          "hp-rx2660-console-uart", 8);
+    memory_region_add_subregion(&s->bar1, 0, &s->uart.io);
+    pci_register_bar(dev, 1,
+                     PCI_BASE_ADDRESS_SPACE_MEMORY |
+                     PCI_BASE_ADDRESS_MEM_TYPE_64, &s->bar1);
+    pci_set_byte(dev->config + PCI_CLASS_PROG, 0x02);
+    pci_set_byte(dev->config + PCI_INTERRUPT_PIN, 1);
+    s->uart.irq = pci_allocate_irq(dev);
+}
+
+static void hp_rx2660_console_exit(PCIDevice *dev)
+{
+    HPRX2660ConsoleState *s = OBJECT_CHECK(
+        HPRX2660ConsoleState, dev, TYPE_HP_RX2660_CONSOLE);
+
+    memory_region_del_subregion(&s->bar1, &s->uart.io);
+    qdev_unrealize(DEVICE(&s->uart));
+    qemu_free_irq(s->uart.irq);
+}
+
+static void hp_rx2660_console_init(Object *obj)
+{
+    HPRX2660ConsoleState *s = OBJECT_CHECK(
+        HPRX2660ConsoleState, obj, TYPE_HP_RX2660_CONSOLE);
+
+    object_initialize_child(obj, "uart", &s->uart, TYPE_SERIAL);
+    qdev_alias_all_properties(DEVICE(&s->uart), obj);
+}
+
+static const VMStateDescription vmstate_hp_rx2660_console = {
+    .name = TYPE_HP_RX2660_CONSOLE,
+    .version_id = 1,
+    .minimum_version_id = 1,
+    .fields = (const VMStateField[]) {
+        VMSTATE_PCI_DEVICE(parent_obj, HPRX2660ConsoleState),
+        VMSTATE_STRUCT(uart, HPRX2660ConsoleState, 0,
+                       vmstate_serial, SerialState),
+        VMSTATE_END_OF_LIST()
+    },
+};
 
 typedef struct HPRX2660ManagementInfo {
     uint16_t device_id;
@@ -833,6 +892,19 @@ static void hp_rx2660_management_class_init(ObjectClass *klass,
     dc->vmsd = &vmstate_pci_device;
     dc->user_creatable = false;
     set_bit(DEVICE_CATEGORY_MISC, dc->categories);
+}
+
+static void hp_rx2660_console_class_init(ObjectClass *klass,
+                                         const void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    PCIDeviceClass *pc = PCI_DEVICE_CLASS(klass);
+
+    hp_rx2660_management_class_init(klass, data);
+    pc->realize = hp_rx2660_console_realize;
+    pc->exit = hp_rx2660_console_exit;
+    dc->vmsd = &vmstate_hp_rx2660_console;
+    dc->hotpluggable = false;
 }
 
 static const HPRX2660ManagementInfo hp_rx2660_management_info[] = {
@@ -878,9 +950,15 @@ static const TypeInfo hp_rx2660_management_types[] = {
         .class_data = &hp_rx2660_management_info[1],
     }, {
         .name = TYPE_HP_RX2660_CONSOLE,
-        .parent = TYPE_HP_RX2660_MANAGEMENT_BASE,
-        .class_init = hp_rx2660_management_class_init,
+        .parent = TYPE_PCI_DEVICE,
+        .instance_size = sizeof(HPRX2660ConsoleState),
+        .instance_init = hp_rx2660_console_init,
+        .class_init = hp_rx2660_console_class_init,
         .class_data = &hp_rx2660_management_info[2],
+        .interfaces = (const InterfaceInfo[]) {
+            { INTERFACE_CONVENTIONAL_PCI_DEVICE },
+            { },
+        },
     },
 };
 
@@ -1000,6 +1078,10 @@ static bool hp_rx2660_create_pci_devices(HPZX6000MachineState *s,
         s->management[function] = pci_new_multifunction(
             PCI_DEVFN(HP_RX2660_MANAGEMENT_SLOT, function),
             management_types[function]);
+        if (function == 2 && serial_hd(2)) {
+            qdev_prop_set_chr(DEVICE(s->management[function]), "chardev",
+                              serial_hd(2));
+        }
         if (!hp_zx6000_realize_pci_device(s->management[function], core,
                                            errp)) {
             return false;

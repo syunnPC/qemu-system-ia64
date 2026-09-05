@@ -7,12 +7,14 @@
 #include "qemu/osdep.h"
 
 #include "hw/acpi/acpi.h"
+#include "hw/display/ati_regs.h"
 #include "hw/display/bochs-vbe.h"
 #include "hw/ia64/hp_zx6000.h"
 #include "hw/ia64/hp_zx6000_pdh.h"
 #include "hw/ia64/ia64_platform_abi.h"
 #include "hw/pci/pci.h"
 #include "hw/pci-host/hp-zx1-ioa-regs.h"
+#include "hw/scsi/mpi.h"
 #include "libqtest.h"
 #include "qemu/bswap.h"
 #include "qemu/units.h"
@@ -567,6 +569,154 @@ static void test_hp_zx6000_mpt_doorbell(void)
     qtest_quit(qts);
 }
 
+static void hp_mpt_send_handshake(QTestState *qts, uint64_t base,
+                                   const void *request, size_t size)
+{
+    const uint8_t *bytes = request;
+    size_t i;
+
+    g_assert_cmpuint(size % sizeof(uint32_t), ==, 0);
+    qtest_writel(qts, base + MPI_DOORBELL_OFFSET,
+                 (MPI_FUNCTION_HANDSHAKE << MPI_DOORBELL_FUNCTION_SHIFT) |
+                 ((size / sizeof(uint32_t)) << MPI_DOORBELL_ADD_DWORDS_SHIFT));
+    g_assert_cmphex(qtest_readl(qts, base + MPI_HOST_INTERRUPT_STATUS_OFFSET) &
+                    MPI_HIS_DOORBELL_INTERRUPT, ==,
+                    MPI_HIS_DOORBELL_INTERRUPT);
+    qtest_writel(qts, base + MPI_HOST_INTERRUPT_STATUS_OFFSET, 0);
+    for (i = 0; i < size; i += sizeof(uint32_t)) {
+        qtest_writel(qts, base + MPI_DOORBELL_OFFSET, ldl_le_p(bytes + i));
+    }
+    g_assert_cmphex(qtest_readl(qts, base + MPI_HOST_INTERRUPT_STATUS_OFFSET) &
+                    MPI_HIS_DOORBELL_INTERRUPT, ==,
+                    MPI_HIS_DOORBELL_INTERRUPT);
+}
+
+static void hp_mpt_ioc_init(QTestState *qts, uint64_t base)
+{
+    MPIMsgIOCInit request = {
+        .WhoInit = MPI_WHOINIT_HOST_DRIVER,
+        .Function = MPI_FUNCTION_IOC_INIT,
+        .MaxDevices = 16,
+        .MaxBuses = 1,
+        .ReplyFrameSize = cpu_to_le16(sizeof(MPIMsgIOCFactsReply)),
+        .MsgVersion = cpu_to_le16(0x0105),
+    };
+    MPIMsgIOCInitReply reply;
+    uint8_t *bytes = (uint8_t *)&reply;
+    size_t i;
+
+    hp_mpt_send_handshake(qts, base, &request, sizeof(request));
+    for (i = 0; i < sizeof(reply); i += sizeof(uint16_t)) {
+        stw_le_p(bytes + i, qtest_readl(qts, base + MPI_DOORBELL_OFFSET));
+        qtest_writel(qts, base + MPI_HOST_INTERRUPT_STATUS_OFFSET, 0);
+    }
+    g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==, MPI_IOCSTATUS_SUCCESS);
+    g_assert_cmphex(qtest_readl(qts, base + MPI_DOORBELL_OFFSET) &
+                    (MPI_IOC_STATE_READY | MPI_IOC_STATE_OPERATIONAL |
+                     MPI_IOC_STATE_FAULT | MPI_DOORBELL_ACTIVE), ==,
+                    MPI_IOC_STATE_OPERATIONAL);
+    qtest_writel(qts, base + MPI_HOST_INTERRUPT_STATUS_OFFSET, 0);
+}
+
+#define HP_MPT_REQUEST_ADDRESS UINT64_C(0x00040000)
+#define HP_MPT_REPLY_ADDRESS   UINT64_C(0x00050000)
+#define HP_MPT_SPARE_ADDRESS   UINT64_C(0x00060000)
+
+static void hp_mpt_post_facts(QTestState *qts, uint64_t base)
+{
+    MPIMsgIOCFacts request = {
+        .Function = MPI_FUNCTION_IOC_FACTS,
+        .MsgContext = cpu_to_le32(0x12345678),
+    };
+    MPIMsgIOCFactsReply reply;
+    unsigned i;
+
+    qtest_memwrite(qts, HP_MPT_REQUEST_ADDRESS, &request, sizeof(request));
+    qtest_memset(qts, HP_MPT_REPLY_ADDRESS, 0xff, sizeof(reply));
+    qtest_writel(qts, base + MPI_REPLY_FREE_FIFO_OFFSET, HP_MPT_REPLY_ADDRESS);
+    qtest_writel(qts, base + MPI_REQUEST_POST_FIFO_OFFSET,
+                 HP_MPT_REQUEST_ADDRESS);
+    for (i = 0; i < 100; i++) {
+        if (qtest_readl(qts, base + MPI_HOST_INTERRUPT_STATUS_OFFSET) &
+            MPI_HIS_REPLY_MESSAGE_INTERRUPT) {
+            break;
+        }
+        qtest_clock_step(qts, 1000000);
+    }
+    g_assert_cmpuint(i, <, 100);
+    qtest_memread(qts, HP_MPT_REPLY_ADDRESS, &reply, sizeof(reply));
+    g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==, MPI_IOCSTATUS_SUCCESS);
+    g_assert_cmphex(reply.Function, ==, MPI_FUNCTION_IOC_FACTS);
+    g_assert_cmphex(le32_to_cpu(reply.MsgContext), ==, 0x12345678);
+}
+
+static void test_hp_zx6000_mpt_io_unit_reset(void)
+{
+    static const struct {
+        const char *machine;
+        uint64_t base;
+    } machines[] = {
+        { "hp-zx6000", ZX6000_LSI0_MMIO_BASE },
+        { "hp-rx2660", UINT64_C(0xa0470000) },
+    };
+    const uint8_t resets[] = {
+        MPI_FUNCTION_IO_UNIT_RESET,
+        MPI_FUNCTION_IOC_MESSAGE_UNIT_RESET,
+    };
+    MPIMsgIOCFacts request = { .Function = MPI_FUNCTION_IOC_FACTS };
+    unsigned m, i;
+
+    for (m = 0; m < ARRAY_SIZE(machines); m++) {
+        uint64_t base = machines[m].base;
+        QTestState *qts;
+
+        qts = qtest_initf(
+            "-machine %s,nvram=none,firmware=none -m 1G -S "
+            "-display vnc=none -monitor none -serial none -net none",
+            machines[m].machine);
+        for (i = 0; i < ARRAY_SIZE(resets); i++) {
+            hp_mpt_ioc_init(qts, base);
+            qtest_writel(qts, base + MPI_HOST_INTERRUPT_MASK_OFFSET,
+                         MPI_HIM_RIM);
+
+            /* Discard a posted reply and an unused free frame. */
+            hp_mpt_post_facts(qts, base);
+            qtest_writel(qts, base + MPI_REPLY_FREE_FIFO_OFFSET,
+                         HP_MPT_SPARE_ADDRESS);
+
+            /* Leave a separate handshake in READ state with an unread reply. */
+            hp_mpt_send_handshake(qts, base, &request, sizeof(request));
+            g_assert_cmphex(qtest_readl(qts, base +
+                                        MPI_HOST_INTERRUPT_STATUS_OFFSET), ==,
+                            MPI_HIS_DOORBELL_INTERRUPT |
+                            MPI_HIS_REPLY_MESSAGE_INTERRUPT);
+            qtest_writel(qts, base + MPI_DOORBELL_OFFSET,
+                         resets[i] << MPI_DOORBELL_FUNCTION_SHIFT);
+            g_assert_cmphex(qtest_readl(qts, base + MPI_DOORBELL_OFFSET) &
+                            (MPI_IOC_STATE_READY | MPI_IOC_STATE_OPERATIONAL |
+                             MPI_IOC_STATE_FAULT | MPI_DOORBELL_ACTIVE), ==,
+                            MPI_IOC_STATE_READY);
+            g_assert_cmphex(qtest_readl(qts, base +
+                                        MPI_HOST_INTERRUPT_STATUS_OFFSET), ==,
+                            0);
+            g_assert_cmphex(qtest_readl(qts, base +
+                                        MPI_HOST_INTERRUPT_MASK_OFFSET), ==,
+                            MPI_HIM_RIM);
+            g_assert_cmphex(qtest_readl(qts, base + MPI_REPLY_POST_FIFO_OFFSET),
+                            ==, UINT32_MAX);
+        }
+
+        /* Initialization and DMA must work without any stale handshake/FIFO. */
+        hp_mpt_ioc_init(qts, base);
+        hp_mpt_post_facts(qts, base);
+        g_assert_cmphex(qtest_readl(qts, base + MPI_REPLY_POST_FIFO_OFFSET), ==,
+                        MPI_ADDRESS_REPLY_A_BIT | (HP_MPT_REPLY_ADDRESS >> 1));
+        g_assert_cmphex(qtest_readl(qts, base + MPI_REPLY_POST_FIFO_OFFSET), ==,
+                        UINT32_MAX);
+        qtest_quit(qts);
+    }
+}
+
 static uint8_t zx6000_checksum(const void *data, size_t size)
 {
     const uint8_t *bytes = data;
@@ -659,6 +809,7 @@ static void zx6000_assert_int10_rom(QTestState *qts)
         0x11, 0x11, 0x00, 0x23, 0x00, 0x00,
     };
     uint8_t rom[ZX6000_INT10_ROM_SIZE];
+    uint8_t pci_rom[ZX6000_INT10_ROM_SIZE];
     uint8_t zero[ZX6000_INT10_ATI_BIOS_SUPPORT_SIZE] = { 0 };
     uint8_t expected_mem[ZX6000_INT10_ATI_MEM_REGION_SIZE] = { 0 };
     uint8_t vector[4];
@@ -667,9 +818,14 @@ static void zx6000_assert_int10_rom(QTestState *qts)
     uint16_t ati_header;
     uint16_t ati_pll;
     uint16_t pcir;
+    uint32_t clock_divisors;
     size_t i;
 
     qtest_memread(qts, ZX6000_INT10_ROM_BASE, rom, sizeof(rom));
+    qtest_memread(qts, ZX6000_RV100_ROM_BASE, pci_rom, sizeof(pci_rom));
+    g_assert_cmpmem(pci_rom, sizeof(pci_rom), rom, sizeof(rom));
+    g_assert_cmphex(qtest_readl(qts, ZX6000_RV100_ROM_BASE + sizeof(rom)),
+                    ==, UINT32_MAX);
     g_assert_cmphex(lduw_le_p(rom), ==, 0xaa55);
     g_assert_cmpuint(rom[2] * 512U, ==, sizeof(rom));
     g_assert_cmphex(rom[3], !=, 0xcb);
@@ -740,7 +896,7 @@ static void zx6000_assert_int10_rom(QTestState *qts)
 
         g_assert_cmpuint(lduw_le_p(rom + offset), ==, 2700);
         g_assert_cmpuint(lduw_le_p(rom + offset + 2), ==,
-                         i == 0 ? 60 : 12);
+                         i == 0 ? 60 : 27);
         g_assert_cmpuint(ldl_le_p(rom + offset + 4), ==,
                          i == 0 ? 12000 : 20000);
         g_assert_cmpuint(ldl_le_p(rom + offset + 8), ==,
@@ -753,12 +909,29 @@ static void zx6000_assert_int10_rom(QTestState *qts)
     g_assert_cmpuint(ldl_le_p(rom + ati_pll + 0x3a), ==, 3000);
     g_assert_cmpuint(ldl_le_p(rom + ati_pll + 0x3e), ==, 12000);
     g_assert_cmpuint(ldl_le_p(rom + ati_pll + 0x42), ==, 35000);
+
+    /* ROM clock tables and PLL registers describe the same clocks. */
+    qtest_writeb(qts, ZX6000_RV100_MMIO_BASE + CLOCK_CNTL_INDEX,
+                  R100_M_SPLL_REF_FB_DIV);
+    clock_divisors = qtest_readl(qts, ZX6000_RV100_MMIO_BASE + CLOCK_CNTL_DATA);
+    g_assert_cmpuint(clock_divisors & 0xff, ==,
+                     lduw_le_p(rom + ati_pll + 0x1c));
+    for (i = 0; i < 2; i++) {
+        uint32_t feedback = (clock_divisors >> (8 + i * 8)) & 0xff;
+        uint32_t reference = lduw_le_p(rom + ati_pll + 0x26 - i * 12);
+
+        qtest_writeb(qts, ZX6000_RV100_MMIO_BASE + CLOCK_CNTL_INDEX,
+                      i ? R100_SCLK_CNTL : R100_MCLK_CNTL);
+        g_assert_cmphex(qtest_readl(qts, ZX6000_RV100_MMIO_BASE +
+                                    CLOCK_CNTL_DATA) & 7, ==, 2);
+        g_assert_cmpuint(2 * reference * feedback /
+                         (clock_divisors & 0xff) / 2, ==,
+                         lduw_le_p(rom + ati_pll + 8 + i * 2));
+    }
+    qtest_writeb(qts, ZX6000_RV100_MMIO_BASE + CLOCK_CNTL_INDEX, 0);
+
     g_assert_cmphex(zx6000_checksum(rom, sizeof(rom)), ==, 0);
     g_assert_cmphex(rom[ZX6000_INT10_HANDLER_OFFSET], !=, 0xcb);
-
-    /* The platform shadow must not overwrite a supplied PCI option ROM. */
-    g_assert_cmphex(qtest_readw(qts, ZX6000_RV100_ROM_BASE), ==, 0xaa55);
-    g_assert_cmphex(qtest_readb(qts, ZX6000_RV100_ROM_BASE + 2), !=, rom[2]);
 
     qtest_memread(qts, ZX6000_INT10_VECTOR_ADDR, vector, sizeof(vector));
     g_assert_cmphex(lduw_le_p(vector), ==, ZX6000_INT10_HANDLER_OFFSET);
@@ -1378,6 +1551,48 @@ static void test_hp_zx6000_pci_layout(void)
     qtest_quit(qts);
 }
 
+static void test_hp_zx6000_custom_vga_rom(void)
+{
+    g_autofree char *path = g_build_filename(
+        g_get_tmp_dir(), "hp-zx6000-vga-rom.XXXXXX", NULL);
+    g_autofree char *quoted = NULL;
+    g_autofree char *options = NULL;
+    g_autoptr(GError) error = NULL;
+    uint8_t rom[512] = { 0x55, 0xaa, 0x01, 0xcb };
+    uint8_t actual[sizeof(rom)];
+    QTestState *qts;
+    int fd = g_mkstemp(path);
+
+    g_assert_cmpint(fd, >=, 0);
+    close(fd);
+    memcpy(rom + 0x60, "Custom ATI ROM", sizeof("Custom ATI ROM"));
+    rom[sizeof(rom) - 1] = -zx6000_checksum(rom, sizeof(rom) - 1);
+    g_assert_true(g_file_set_contents(path, (const char *)rom, sizeof(rom),
+                                      &error));
+    g_assert_no_error(error);
+    quoted = g_shell_quote(path);
+    options = g_strdup_printf("-nodefaults -vga ati "
+                               "-global ati-vga.romfile=%s", quoted);
+    qts = zx6000_start_with_options("", options);
+    qtest_memread(qts, ZX6000_RV100_ROM_BASE, actual, sizeof(actual));
+    g_assert_cmpmem(actual, sizeof(actual), rom, sizeof(rom));
+    qtest_system_reset(qts);
+    qtest_memread(qts, ZX6000_RV100_ROM_BASE, actual, sizeof(actual));
+    g_assert_cmpmem(actual, sizeof(actual), rom, sizeof(rom));
+    qtest_quit(qts);
+    g_assert_cmpint(g_unlink(path), ==, 0);
+
+    /* An explicit selection of the stock filename is also a user override. */
+    qts = zx6000_start_with_options(
+        "", "-nodefaults -vga ati -global ati-vga.romfile=vgabios-ati.bin");
+    g_assert_cmpuint(qtest_readb(qts, ZX6000_RV100_ROM_BASE + 2), >,
+                     ZX6000_INT10_ROM_SIZE / 512);
+    qtest_system_reset(qts);
+    g_assert_cmpuint(qtest_readb(qts, ZX6000_RV100_ROM_BASE + 2), >,
+                     ZX6000_INT10_ROM_SIZE / 512);
+    qtest_quit(qts);
+}
+
 static void test_hp_zx6000_vga_legacy_io(void)
 {
     QTestState *qts = zx6000_start();
@@ -1452,6 +1667,9 @@ static void test_hp_zx6000_int10(void)
 
     qtest_writeb(qts, ZX6000_INT10_ROM_BASE, 0);
     qtest_writel(qts, ZX6000_INT10_VECTOR_ADDR, 0);
+    qtest_writeb(qts, ZX6000_RV100_MMIO_BASE + CLOCK_CNTL_INDEX,
+                  PLL_WR_EN | R100_M_SPLL_REF_FB_DIV);
+    qtest_writel(qts, ZX6000_RV100_MMIO_BASE + CLOCK_CNTL_DATA, 0);
     zx6000_outw(qts, ZX6000_INT10_IO_BASE, 0xffff);
     qtest_system_reset(qts);
     zx6000_assert_int10_rom(qts);
@@ -1684,12 +1902,15 @@ int main(int argc, char **argv)
                    test_hp_zx6000_storage_defaults);
     qtest_add_func("/hp-zx6000/mpt-doorbell",
                    test_hp_zx6000_mpt_doorbell);
+    qtest_add_func("/hp-zx6000/mpt-io-unit-reset",
+                   test_hp_zx6000_mpt_io_unit_reset);
     qtest_add_func("/hp-zx6000/descriptor", test_hp_zx6000_descriptor);
     qtest_add_func("/hp-zx6000/acpi-pm", test_hp_zx6000_acpi_pm);
     qtest_add_func("/hp-zx6000/pci-layout", test_hp_zx6000_pci_layout);
     qtest_add_func("/hp-zx6000/vga-legacy-io",
                    test_hp_zx6000_vga_legacy_io);
     qtest_add_func("/hp-zx6000/int10", test_hp_zx6000_int10);
+    qtest_add_func("/hp-zx6000/custom-vga-rom", test_hp_zx6000_custom_vga_rom);
     qtest_add_func("/hp-zx6000/default-usb-input",
                    test_hp_zx6000_default_usb_input);
     qtest_add_func("/hp-zx6000/graphics-options",

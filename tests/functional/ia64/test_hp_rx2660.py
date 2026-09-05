@@ -23,7 +23,7 @@ SBA0_PATH = b"\x5c\x2e_SB_SBA0"
 PCI0_PATH = b"\x5c\x2e_SB_PCI0"
 SMOKE_CASES = {
     "entry", "system-table", "loaded-image", "device-path",
-    "root-device-path", "console-output",
+    "root-device-path", "controller-device-path", "console-output",
 }
 
 

@@ -173,6 +173,7 @@
 #define HP_I2000_CS4281_ACSDA          0x047cU
 #define HP_I2000_CS4281_ACSTS2         0x04e4U
 #define HP_I2000_CS4281_SSPM           0x0740U
+#define HP_I2000_CS4281_SRCSA          0x075cU
 #define HP_I2000_CS4281_PPLVC          0x0760U
 #define HP_I2000_CS4281_ACCTL_TC       BIT(6)
 #define HP_I2000_CS4281_ACCTL_CRW      BIT(4)
@@ -180,12 +181,17 @@
 #define HP_I2000_CS4281_ACCTL_VFRM     BIT(2)
 #define HP_I2000_CS4281_ACCTL_ESYN     BIT(1)
 #define HP_I2000_CS4281_DMR_DMA        BIT(29)
+#define HP_I2000_CS4281_DMR_MONO       BIT(17)
+#define HP_I2000_CS4281_DMR_SIZE8      BIT(16)
 #define HP_I2000_CS4281_DMR_AUTO       BIT(4)
 #define HP_I2000_CS4281_DMR_TR_WRITE   (1U << 2)
 #define HP_I2000_CS4281_DMR_TR_READ    (2U << 2)
 #define HP_I2000_CS4281_DCR_HTCIE      BIT(17)
 #define HP_I2000_CS4281_DCR_TCIE       BIT(16)
 #define HP_I2000_CS4281_FCR_FEN        BIT(31)
+#define HP_I2000_CS4281_FCR_PLAYBACK   (0U << 16 | 1U << 24)
+#define HP_I2000_CS4281_FCR_CAPTURE    (10U << 16 | 11U << 24)
+#define HP_I2000_CS4281_FCR_UNROUTED   (31U << 16 | 31U << 24)
 #define HP_I2000_CS4281_HDSR_DHTC      BIT(17)
 #define HP_I2000_CS4281_HDSR_DTC       BIT(16)
 #define HP_I2000_CS4281_HDSR_DRUN      BIT(15)
@@ -651,6 +657,7 @@ static void hp_i2000_cs4281_init(QTestState *qts)
                  HP_I2000_CS4281_ACCTL_ESYN);
     g_assert_cmphex(qtest_readl(qts, ba0 + HP_I2000_CS4281_ACISV), ==, 3);
     qtest_writel(qts, ba0 + HP_I2000_CS4281_ACOSV, 3);
+    qtest_writel(qts, ba0 + HP_I2000_CS4281_SRCSA, 0x0b0a0100);
 }
 
 static uint16_t hp_i2000_cs4281_codec_read(QTestState *qts, uint8_t reg)
@@ -1463,15 +1470,208 @@ static void test_hp_i2000_pci_dma_ram_map(void)
     qtest_quit(qts);
 }
 
+static void hp_i2000_cs4281_dma_transfer(QTestState *qts, unsigned channel,
+                                         bool capture, bool interrupt)
+{
+    const uint64_t ba0 = HP_I2000_CS4281_BA0;
+    const uint32_t dma_base = 0x40000 + channel * 0x1000;
+    const unsigned dma_reg = channel * 0x10;
+    const unsigned control_reg = channel * 8;
+    const unsigned fifo_reg = channel * 4;
+    const uint32_t direction = capture ? HP_I2000_CS4281_DMR_TR_WRITE :
+                                        HP_I2000_CS4281_DMR_TR_READ;
+    const uint32_t irq_mask = HP_I2000_CS4281_HISR_DMAI | BIT(8 + channel);
+    uint8_t samples[64 * 4];
+    uint8_t result[sizeof(samples)];
+    uint32_t hdsr;
+    unsigned i;
+
+    memset(samples, 0xa5, sizeof(samples));
+    qtest_memwrite(qts, dma_base, samples, sizeof(samples));
+    qtest_writel(qts, dma_base - 4, 0x12345678);
+    qtest_writel(qts, dma_base + sizeof(samples), 0x87654321);
+    qtest_writel(qts, ba0 + HP_I2000_CS4281_DMR0 + control_reg, 0);
+    (void)qtest_readl(qts, ba0 + HP_I2000_CS4281_HDSR0 + fifo_reg);
+    qtest_writel(qts, ba0 + HP_I2000_CS4281_DBA0 + dma_reg, dma_base);
+    qtest_writel(qts, ba0 + HP_I2000_CS4281_DBC0 + dma_reg, 63);
+    qtest_writel(qts, ba0 + HP_I2000_CS4281_DCR0 + control_reg,
+                 interrupt ? HP_I2000_CS4281_DCR_HTCIE |
+                             HP_I2000_CS4281_DCR_TCIE : 0);
+    qtest_writel(qts, ba0 + HP_I2000_CS4281_FCR0 + fifo_reg,
+                 HP_I2000_CS4281_FCR_FEN | HP_I2000_CS4281_FCR_UNROUTED);
+    qtest_writel(qts, ba0 + HP_I2000_CS4281_HIMR, 0x7fffffff & ~irq_mask);
+    qtest_writel(qts, ba0 + HP_I2000_CS4281_HICR, 3);
+    qtest_writel(qts, ba0 + HP_I2000_CS4281_DMR0 + control_reg,
+                 HP_I2000_CS4281_DMR_DMA | direction);
+
+    /* DMA cannot consume an unassigned serial slot. */
+    qtest_clock_step(qts, 50000000);
+    g_assert_cmphex(qtest_readl(qts, ba0 + HP_I2000_CS4281_DCA0 + dma_reg),
+                    ==, dma_base);
+    g_assert_cmphex(qtest_readl(qts, ba0 + HP_I2000_CS4281_HISR) & irq_mask,
+                    ==, 0);
+    qtest_writel(qts, ba0 + HP_I2000_CS4281_FCR0 + fifo_reg,
+                 HP_I2000_CS4281_FCR_FEN |
+                 (capture ? HP_I2000_CS4281_FCR_CAPTURE :
+                            HP_I2000_CS4281_FCR_PLAYBACK));
+
+    /* Pending half-count status must not stop transfer to terminal count. */
+    for (i = 0; i < 1000; i++) {
+        qtest_clock_step(qts, 1000000);
+        if (!(qtest_readl(qts, ba0 + HP_I2000_CS4281_DMR0 + control_reg) &
+              HP_I2000_CS4281_DMR_DMA)) {
+            break;
+        }
+    }
+    g_assert_cmpuint(i, <, 1000);
+    g_assert_cmphex(qtest_readl(qts, ba0 + HP_I2000_CS4281_DCA0 + dma_reg),
+                    ==, dma_base + sizeof(samples));
+    g_assert_cmphex(qtest_readl(qts, ba0 + HP_I2000_CS4281_DCC0 + dma_reg),
+                    ==, 0);
+    if (interrupt) {
+        hp_i2000_cs4281_wait_hisr(qts, irq_mask);
+    }
+    g_assert_cmphex(qtest_readl(qts, ba0 + HP_I2000_CS4281_HISR) & irq_mask,
+                    ==, interrupt ? irq_mask : 0);
+    g_assert_cmphex(hp_i2000_config_readw(qts, 0, PCI_DEVFN(4, 0),
+                                         PCI_STATUS) & PCI_STATUS_INTERRUPT,
+                    ==, interrupt ? PCI_STATUS_INTERRUPT : 0);
+    hdsr = qtest_readl(qts, ba0 + HP_I2000_CS4281_HDSR0 + fifo_reg);
+    g_assert_cmphex(hdsr, ==,
+                    HP_I2000_CS4281_HDSR_DHTC | HP_I2000_CS4281_HDSR_DTC);
+    g_assert_cmphex(qtest_readl(qts, ba0 + HP_I2000_CS4281_HISR) & irq_mask,
+                    ==, 0);
+    qtest_memread(qts, dma_base, result, sizeof(result));
+    if (capture) {
+        memset(samples, 0, sizeof(samples));
+    }
+    g_assert_cmpmem(result, sizeof(result), samples, sizeof(samples));
+    g_assert_cmphex(qtest_readl(qts, dma_base - 4), ==, 0x12345678);
+    g_assert_cmphex(qtest_readl(qts, dma_base + sizeof(samples)), ==,
+                    0x87654321);
+}
+
+static void test_hp_i2000_cs4281_dma(void)
+{
+    QTestState *qts = hp_i2000_start("2G");
+    const uint64_t ba0 = HP_I2000_CS4281_BA0;
+    const uint32_t dma_base = 0x50000;
+    uint8_t samples[64 * 4];
+    uint8_t result[sizeof(samples)];
+    unsigned channel;
+    unsigned i;
+
+    hp_i2000_cs4281_init(qts);
+    qtest_qmp_assert_success(qts, "{'execute':'cont'}");
+    for (channel = 0; channel < 4; channel++) {
+        hp_i2000_cs4281_dma_transfer(qts, channel, false, true);
+        hp_i2000_cs4281_dma_transfer(qts, channel, true, true);
+    }
+    hp_i2000_cs4281_dma_transfer(qts, 2, false, false);
+    hp_i2000_cs4281_dma_transfer(qts, 3, true, false);
+
+    /* Automatic reload continues across unacknowledged period interrupts. */
+    qtest_writel(qts, ba0 + HP_I2000_CS4281_DBA0 + 3 * 0x10, dma_base);
+    qtest_writel(qts, ba0 + HP_I2000_CS4281_DBC0 + 3 * 0x10, 63);
+    qtest_writel(qts, ba0 + HP_I2000_CS4281_DCR0 + 3 * 8,
+                 HP_I2000_CS4281_DCR_HTCIE | HP_I2000_CS4281_DCR_TCIE);
+    qtest_writel(qts, ba0 + HP_I2000_CS4281_DMR0 + 3 * 8,
+                 HP_I2000_CS4281_DMR_DMA | HP_I2000_CS4281_DMR_AUTO |
+                 HP_I2000_CS4281_DMR_TR_WRITE);
+    memset(samples, 0xa5, sizeof(samples));
+    for (i = 0; i < 2; i++) {
+        qtest_memwrite(qts, dma_base, samples, sizeof(samples));
+        qtest_clock_step(qts, 50000000);
+        qtest_memread(qts, dma_base, result, sizeof(result));
+        g_assert_cmpmem(result, sizeof(result),
+                        (uint8_t[sizeof(result)]) { 0 }, sizeof(result));
+    }
+    g_assert_cmphex(qtest_readl(qts, ba0 + HP_I2000_CS4281_DMR0 + 3 * 8) &
+                    HP_I2000_CS4281_DMR_DMA, ==, HP_I2000_CS4281_DMR_DMA);
+    g_assert_cmphex(qtest_readl(qts, ba0 + HP_I2000_CS4281_HDSR0 + 3 * 4) &
+                    (HP_I2000_CS4281_HDSR_DHTC | HP_I2000_CS4281_HDSR_DTC),
+                    ==, HP_I2000_CS4281_HDSR_DHTC | HP_I2000_CS4281_HDSR_DTC);
+    qtest_writel(qts, ba0 + HP_I2000_CS4281_DMR0 + 3 * 8, 0);
+    qtest_quit(qts);
+}
+
+static void test_hp_i2000_cs4281_handoff(void)
+{
+    QTestState *qts = hp_i2000_start_with_options("-display vnc=none");
+    const uint64_t ba0 = HP_I2000_CS4281_BA0;
+    unsigned channel, i;
+
+    hp_i2000_cs4281_init(qts);
+    for (channel = 0; channel < 4; channel++) {
+        bool capture = channel & 1;
+        bool mono = channel >= 2;
+        uint32_t dma_base = 0x40000 + channel * 0x1000;
+        unsigned bytes = 64 * (mono ? 1 : 4);
+
+        qtest_memset(qts, dma_base, 0xa5, bytes);
+        qtest_writel(qts, dma_base - 4, 0x12345678);
+        qtest_writel(qts, dma_base + bytes, 0x87654321);
+        qtest_writel(qts, ba0 + HP_I2000_CS4281_DBA0 + channel * 0x10,
+                     dma_base);
+        qtest_writel(qts, ba0 + HP_I2000_CS4281_DBC0 + channel * 0x10, 63);
+        qtest_writel(qts, ba0 + HP_I2000_CS4281_DCR0 + channel * 8,
+                     HP_I2000_CS4281_DCR_HTCIE | HP_I2000_CS4281_DCR_TCIE);
+        qtest_writel(qts, ba0 + HP_I2000_CS4281_FCR0 + channel * 4,
+                     HP_I2000_CS4281_FCR_FEN |
+                     (capture ? (10U << 16) | ((mono ? 31U : 11U) << 24) :
+                                HP_I2000_CS4281_FCR_PLAYBACK));
+        qtest_writel(qts, ba0 + HP_I2000_CS4281_DMR0 + channel * 8,
+                     HP_I2000_CS4281_DMR_DMA |
+                     (capture ? HP_I2000_CS4281_DMR_TR_WRITE :
+                                HP_I2000_CS4281_DMR_TR_READ) |
+                     (mono ? HP_I2000_CS4281_DMR_MONO |
+                             HP_I2000_CS4281_DMR_SIZE8 : 0));
+    }
+
+    /* Each direction hands off from stereo 16-bit to mono 8-bit PCM. */
+    qtest_qmp_assert_success(qts, "{'execute':'cont'}");
+    for (i = 0; i < 1000; i++) {
+        uint32_t running = 0;
+
+        qtest_clock_step(qts, 1000000);
+        for (channel = 0; channel < 4; channel++) {
+            running |= qtest_readl(qts, ba0 + HP_I2000_CS4281_DMR0 +
+                                        channel * 8);
+        }
+        if (!(running & HP_I2000_CS4281_DMR_DMA)) {
+            break;
+        }
+    }
+    g_assert_cmpuint(i, <, 1000);
+    for (channel = 0; channel < 4; channel++) {
+        uint32_t dma_base = 0x40000 + channel * 0x1000;
+        unsigned bytes = 64 * (channel >= 2 ? 1 : 4);
+        uint8_t expected[256], result[256];
+
+        g_assert_cmphex(qtest_readl(qts, ba0 + HP_I2000_CS4281_DCA0 +
+                                         channel * 0x10), ==, dma_base + bytes);
+        g_assert_cmphex(qtest_readl(qts, ba0 + HP_I2000_CS4281_HDSR0 +
+                                         channel * 4), ==,
+                        HP_I2000_CS4281_HDSR_DHTC | HP_I2000_CS4281_HDSR_DTC);
+        memset(expected, (channel & 1) ? 0 : 0xa5, bytes);
+        qtest_memread(qts, dma_base, result, bytes);
+        g_assert_cmpmem(result, bytes, expected, bytes);
+        g_assert_cmphex(qtest_readl(qts, dma_base - 4), ==, 0x12345678);
+        g_assert_cmphex(qtest_readl(qts, dma_base + bytes), ==, 0x87654321);
+    }
+    qtest_system_reset(qts);
+    hp_i2000_cs4281_init(qts);
+    hp_i2000_cs4281_dma_transfer(qts, 2, false, true);
+    hp_i2000_cs4281_dma_transfer(qts, 3, true, true);
+    qtest_quit(qts);
+}
+
 static void test_hp_i2000_cs4281(void)
 {
     const unsigned int devfn = PCI_DEVFN(4, 0);
     const uint64_t ba0 = HP_I2000_CS4281_BA0;
     const uint64_t ba1 = HP_I2000_CS4281_BA1;
     const uint32_t dma_base = 0x00040000;
-    uint8_t samples[64 * 4] = { 0 };
-    uint8_t captured[sizeof(samples) / 2];
-    uint32_t hdsr;
     uint16_t status;
 
     QTestState *qts = hp_i2000_start("2G");
@@ -1563,98 +1763,11 @@ static void test_hp_i2000_cs4281(void)
     qtest_writel(qts, ba1 + 0x40, 0x5a4281a5);
     g_assert_cmphex(qtest_readl(qts, ba1 + 0x40), ==, 0x5a4281a5);
 
-    /* Stereo S16 playback reaches half and terminal count through PCI DMA. */
-    qtest_memwrite(qts, dma_base, samples, sizeof(samples));
     hp_i2000_pid_write(qts, hp_i2000_pid_rte_low(16), 0x61);
-    qtest_writel(qts, ba0 + HP_I2000_CS4281_DBA0, dma_base);
-    qtest_writel(qts, ba0 + HP_I2000_CS4281_DBC0, 63);
-    qtest_writel(qts, ba0 + HP_I2000_CS4281_DMR0,
-                 HP_I2000_CS4281_DMR_AUTO |
-                 HP_I2000_CS4281_DMR_TR_READ);
-    qtest_writel(qts, ba0 + HP_I2000_CS4281_DCR0,
-                 HP_I2000_CS4281_DCR_HTCIE |
-                 HP_I2000_CS4281_DCR_TCIE);
-    qtest_writel(qts, ba0 + HP_I2000_CS4281_FCR0,
-                 HP_I2000_CS4281_FCR_FEN);
-    qtest_writel(qts, ba0 + HP_I2000_CS4281_HIMR,
-                 0x7fffffff & ~(HP_I2000_CS4281_HISR_DMAI |
-                                HP_I2000_CS4281_HISR_DMA0));
-    qtest_writel(qts, ba0 + HP_I2000_CS4281_HICR, 3);
-    qtest_writel(qts, ba0 + HP_I2000_CS4281_DMR0,
-                 HP_I2000_CS4281_DMR_DMA |
-                 HP_I2000_CS4281_DMR_AUTO |
-                 HP_I2000_CS4281_DMR_TR_READ);
     qtest_qmp_assert_success(qts, "{'execute':'cont'}");
-
-    g_assert_cmphex(hp_i2000_cs4281_wait_hisr(
-                        qts, HP_I2000_CS4281_HISR_DMAI |
-                             HP_I2000_CS4281_HISR_DMA0) & BIT(31), ==,
-                    BIT(31));
+    hp_i2000_cs4281_dma_transfer(qts, 0, false, true);
     g_assert_true(hp_i2000_sapic_irr_wait_for_vector(qts, 0x61));
-    hdsr = qtest_readl(qts, ba0 + HP_I2000_CS4281_HDSR0);
-    g_assert_cmphex(hdsr & (HP_I2000_CS4281_HDSR_DHTC |
-                           HP_I2000_CS4281_HDSR_DRUN |
-                           HP_I2000_CS4281_HDSR_RQ), ==,
-                    HP_I2000_CS4281_HDSR_DHTC |
-                    HP_I2000_CS4281_HDSR_DRUN |
-                    HP_I2000_CS4281_HDSR_RQ);
-    g_assert_cmphex(qtest_readl(qts, ba0 + HP_I2000_CS4281_DCA0), ==,
-                    dma_base + sizeof(samples) / 2);
-    g_assert_cmphex(qtest_readl(qts, ba0 + HP_I2000_CS4281_DCC0), ==, 31);
-    g_assert_cmphex(qtest_readl(qts, ba0 + HP_I2000_CS4281_HISR) &
-                    (HP_I2000_CS4281_HISR_DMAI |
-                     HP_I2000_CS4281_HISR_DMA0), ==, 0);
-
-    hp_i2000_cs4281_wait_hisr(qts, HP_I2000_CS4281_HISR_DMAI |
-                                   HP_I2000_CS4281_HISR_DMA0);
-    hdsr = qtest_readl(qts, ba0 + HP_I2000_CS4281_HDSR0);
-    g_assert_cmphex(hdsr & (HP_I2000_CS4281_HDSR_DTC |
-                           HP_I2000_CS4281_HDSR_DRUN |
-                           HP_I2000_CS4281_HDSR_RQ), ==,
-                    HP_I2000_CS4281_HDSR_DTC |
-                    HP_I2000_CS4281_HDSR_DRUN |
-                    HP_I2000_CS4281_HDSR_RQ);
-    g_assert_cmphex(qtest_readl(qts, ba0 + HP_I2000_CS4281_DCA0), ==,
-                    dma_base);
-    g_assert_cmphex(qtest_readl(qts, ba0 + HP_I2000_CS4281_DCC0), ==, 63);
-    qtest_writel(qts, ba0 + HP_I2000_CS4281_DMR0, 0);
-
-    /* The capture engine writes silence from the null backend into RAM. */
-    memset(samples, 0xa5, sizeof(samples));
-    qtest_memwrite(qts, dma_base + 0x1000, samples, sizeof(samples));
-    qtest_writel(qts, ba0 + HP_I2000_CS4281_DBA1, dma_base + 0x1000);
-    qtest_writel(qts, ba0 + HP_I2000_CS4281_DBC1, 63);
-    qtest_writel(qts, ba0 + HP_I2000_CS4281_DMR1,
-                 HP_I2000_CS4281_DMR_AUTO |
-                 HP_I2000_CS4281_DMR_TR_WRITE);
-    qtest_writel(qts, ba0 + HP_I2000_CS4281_DCR1,
-                 HP_I2000_CS4281_DCR_HTCIE |
-                 HP_I2000_CS4281_DCR_TCIE);
-    qtest_writel(qts, ba0 + HP_I2000_CS4281_FCR1,
-                 HP_I2000_CS4281_FCR_FEN);
-    qtest_writel(qts, ba0 + HP_I2000_CS4281_HIMR,
-                 0x7fffffff & ~(HP_I2000_CS4281_HISR_DMAI |
-                                HP_I2000_CS4281_HISR_DMA1));
-    qtest_writel(qts, ba0 + HP_I2000_CS4281_DMR1,
-                 HP_I2000_CS4281_DMR_DMA |
-                 HP_I2000_CS4281_DMR_AUTO |
-                 HP_I2000_CS4281_DMR_TR_WRITE);
-    hp_i2000_cs4281_wait_hisr(qts, HP_I2000_CS4281_HISR_DMAI |
-                                   HP_I2000_CS4281_HISR_DMA1);
-    hdsr = qtest_readl(qts, ba0 + HP_I2000_CS4281_HDSR1);
-    g_assert_cmphex(hdsr & (HP_I2000_CS4281_HDSR_DHTC |
-                           HP_I2000_CS4281_HDSR_DRUN |
-                           HP_I2000_CS4281_HDSR_RQ), ==,
-                    HP_I2000_CS4281_HDSR_DHTC |
-                    HP_I2000_CS4281_HDSR_DRUN |
-                    HP_I2000_CS4281_HDSR_RQ);
-    g_assert_cmphex(qtest_readl(qts, ba0 + HP_I2000_CS4281_DCA1), ==,
-                    dma_base + 0x1000 + sizeof(captured));
-    g_assert_cmphex(qtest_readl(qts, ba0 + HP_I2000_CS4281_DCC1), ==, 31);
-    qtest_memread(qts, dma_base + 0x1000, captured, sizeof(captured));
-    g_assert_cmpmem(captured, sizeof(captured),
-                    (uint8_t[sizeof(captured)]) { 0 }, sizeof(captured));
-    qtest_writel(qts, ba0 + HP_I2000_CS4281_DMR1, 0);
+    hp_i2000_cs4281_dma_transfer(qts, 1, true, true);
     qtest_qmp_assert_success(qts, "{'execute':'stop'}");
 
     qtest_writel(qts, ba0 + HP_I2000_CS4281_DBA2, dma_base);
@@ -1664,7 +1777,7 @@ static void test_hp_i2000_cs4281(void)
                  HP_I2000_CS4281_DMR_TR_READ);
     qtest_writel(qts, ba0 + HP_I2000_CS4281_DCR2, 0);
     qtest_writel(qts, ba0 + HP_I2000_CS4281_FCR2,
-                 HP_I2000_CS4281_FCR_FEN);
+                 HP_I2000_CS4281_FCR_FEN | HP_I2000_CS4281_FCR_PLAYBACK);
     qtest_writel(qts, ba0 + HP_I2000_CS4281_DMR2,
                  HP_I2000_CS4281_DMR_DMA |
                  HP_I2000_CS4281_DMR_AUTO |
@@ -3928,6 +4041,8 @@ int main(int argc, char **argv)
     qtest_add_func("/hp-i2000/pci-dma-ram-map",
                    test_hp_i2000_pci_dma_ram_map);
     qtest_add_func("/hp-i2000/cs4281", test_hp_i2000_cs4281);
+    qtest_add_func("/hp-i2000/cs4281-dma", test_hp_i2000_cs4281_dma);
+    qtest_add_func("/hp-i2000/cs4281-handoff", test_hp_i2000_cs4281_handoff);
     qtest_add_func("/hp-i2000/pci-layout-reset",
                    test_hp_i2000_pci_layout_and_reset);
     qtest_add_func("/hp-i2000/acpi-pm", test_hp_i2000_acpi_pm);

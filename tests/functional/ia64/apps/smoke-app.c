@@ -5,6 +5,7 @@
 static UINT8 loaded_image_guid[16] = IA64_GUID_LOADED_IMAGE;
 static UINT8 device_path_guid[16] = IA64_GUID_DEVICE_PATH;
 static UINT8 pci_root_guid[16] = IA64_GUID_PCI_ROOT_IO;
+static UINT8 pci_io_guid[16] = IA64_GUID_PCI_IO;
 
 static BOOLEAN system_table_crc_valid(EFI_SYSTEM_TABLE *SystemTable)
 {
@@ -41,6 +42,7 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
     VOID *device_path = NULL;
     VOID *remaining = NULL;
     EFI_HANDLE root_handle = NULL;
+    EFI_HANDLE controller_handle = NULL;
     UINTN columns = 0;
     UINTN rows = 0;
     EFI_STATUS status;
@@ -92,6 +94,22 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
             ((UINT8 *)remaining)[0] == 0x01 &&
             ((UINT8 *)remaining)[1] == 0x01,
         status, "pci-root-prefix");
+
+    remaining = device_path;
+    if (remaining != NULL &&
+        SystemTable->BootServices->LocateDevicePath != NULL) {
+        status = SystemTable->BootServices->LocateDevicePath(
+            pci_io_guid, &remaining, &controller_handle);
+        if (status == EFI_SUCCESS) {
+            ia64_test_check(
+                &context, "controller-device-path",
+                controller_handle != NULL && remaining != NULL &&
+                    remaining != device_path &&
+                    ((UINT8 *)remaining)[0] == 0x03 &&
+                    ((UINT8 *)remaining)[1] == 0x02,
+                status, "pci-controller-prefix");
+        }
+    }
 
     ia64_test_check(&context, "console-output",
                     SystemTable != NULL && SystemTable->ConOut != NULL &&

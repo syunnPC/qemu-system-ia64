@@ -2,9 +2,11 @@
  * Cirrus Logic CS4281 PCI audio controller
  *
  * Models selected PCI and BA0/BA1 registers, primary AC '97 playback and
- * capture on DMA channels 0 and 1, and a subset of a CS4297A codec.  Legacy
+ * capture on all four DMA channels, and a subset of a CS4297A codec.  Legacy
  * audio interfaces, FM synthesis, game port, MIDI data, a secondary codec,
- * and DMA channels 2 and 3 are not implemented.
+ * and non-PCM serial slots are not implemented.
+ * Technical references are listed in
+ * docs/devel/device-emulation-provenance.rst.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -16,6 +18,7 @@
 #include "migration/vmstate.h"
 #include "qemu/audio.h"
 #include "qemu/log.h"
+#include "qemu/main-loop.h"
 #include "qemu/module.h"
 #include "qom/object.h"
 #include "trace.h"
@@ -67,6 +70,7 @@
 #define BA0_SSPM       0x0740
 #define BA0_DACSR      0x0744
 #define BA0_ADCSR      0x0748
+#define BA0_SRCSA      0x075c
 #define BA0_PPLVC      0x0760
 #define BA0_PPRVC      0x0764
 
@@ -103,6 +107,13 @@
 #define DCR_MSK        BIT(0)
 
 #define FCR_FEN        BIT(31)
+#define FCR_LS(v)      (((v) >> 16) & 0x1f)
+#define FCR_RS(v)      (((v) >> 24) & 0x1f)
+#define SLOT_PCM_OUT_L 0
+#define SLOT_PCM_OUT_R 1
+#define SLOT_PCM_IN_L  10
+#define SLOT_PCM_IN_R  11
+#define SLOT_DISABLED 31
 
 #define EPPMC_FPDN     BIT(14)
 #define SPMC_RSTN      BIT(0)
@@ -168,6 +179,10 @@ struct CS4281State {
     struct audsettings in_settings;
     bool out_settings_valid;
     bool in_settings_valid;
+    /* Active channels follow the DMA direction and codec FIFO slot routing. */
+    unsigned playback_channel;
+    unsigned capture_channel;
+    QEMUBH *streams_bh;
 };
 
 #define CS_REG(s, reg) ((s)->regs[(reg) >> 2])
@@ -407,6 +422,11 @@ static struct audsettings cs4281_dma_settings(CS4281State *s,
                                                unsigned channel)
 {
     uint32_t dmr = CS_REG(s, BA0_DMR0 + channel * 8);
+    uint32_t fcr = CS_REG(s, BA0_FCR0 + channel * 4);
+    bool capture = (dmr & DMR_TR_MASK) == DMR_TR_WRITE;
+    uint32_t srcsa = CS_REG(s, BA0_SRCSA) >> (capture ? 16 : 0);
+    bool src = (srcsa & 0x1f) == FCR_LS(fcr) &&
+               ((dmr & DMR_MONO) || ((srcsa >> 8) & 0x1f) == FCR_RS(fcr));
     AudioFormat format;
 
     if (dmr & DMR_SIZE8) {
@@ -418,7 +438,8 @@ static struct audsettings cs4281_dma_settings(CS4281State *s,
     }
 
     return (struct audsettings) {
-        .freq = cs4281_rate(CS_REG(s, channel ? BA0_ADCSR : BA0_DACSR)),
+        .freq = src ? cs4281_rate(CS_REG(s, capture ? BA0_ADCSR : BA0_DACSR)) :
+                      48000,
         .nchannels = dmr & DMR_MONO ? 1 : 2,
         .fmt = format,
         .big_endian = dmr & DMR_BEND,
@@ -435,11 +456,12 @@ static bool cs4281_settings_equal(const struct audsettings *a,
 static void cs4281_playback_callback(void *opaque, int free);
 static void cs4281_capture_callback(void *opaque, int avail);
 
-static void cs4281_open_voice(CS4281State *s, unsigned channel, bool force)
+static void cs4281_open_voice(CS4281State *s, unsigned channel, bool capture,
+                              bool force)
 {
     struct audsettings settings = cs4281_dma_settings(s, channel);
 
-    if (channel == 0) {
+    if (!capture) {
         if (force || !s->out_settings_valid ||
             !cs4281_settings_equal(&settings, &s->out_settings)) {
             s->voice_out = audio_be_open_out(s->audio_be, s->voice_out,
@@ -465,27 +487,71 @@ static void cs4281_open_voice(CS4281State *s, unsigned channel, bool force)
 
 static bool cs4281_stream_active(CS4281State *s, unsigned channel)
 {
-    uint32_t direction = CS_REG(s, BA0_DMR0 + channel * 8) & DMR_TR_MASK;
+    uint32_t dmr;
+    uint32_t fcr;
+    bool routed;
 
-    return cs4281_codec_ready(s) &&
+    if (channel >= CS4281_DMA_CHANNELS) {
+        return false;
+    }
+    dmr = CS_REG(s, BA0_DMR0 + channel * 8);
+    fcr = CS_REG(s, BA0_FCR0 + channel * 4);
+    switch (dmr & DMR_TR_MASK) {
+    case DMR_TR_READ:
+        routed = FCR_LS(fcr) == SLOT_PCM_OUT_L &&
+                 (FCR_RS(fcr) == SLOT_PCM_OUT_R ||
+                  ((dmr & DMR_MONO) && FCR_RS(fcr) == SLOT_DISABLED));
+        break;
+    case DMR_TR_WRITE:
+        routed = FCR_LS(fcr) == SLOT_PCM_IN_L &&
+                 (FCR_RS(fcr) == SLOT_PCM_IN_R ||
+                  ((dmr & DMR_MONO) && FCR_RS(fcr) == SLOT_DISABLED));
+        break;
+    default:
+        return false;
+    }
+
+    return routed && cs4281_codec_ready(s) &&
            (CS_REG(s, BA0_ACCTL) & ACCTL_VFRM) &&
-           cs4281_dma_running(s, channel) &&
-           ((channel == 0 && direction == DMR_TR_READ) ||
-            (channel == 1 && direction == DMR_TR_WRITE));
+           cs4281_dma_running(s, channel);
 }
 
 static void cs4281_update_streams(CS4281State *s, bool force)
 {
-    cs4281_open_voice(s, 0, force);
-    cs4281_open_voice(s, 1, force);
+    unsigned channel;
+
+    s->playback_channel = CS4281_DMA_CHANNELS;
+    s->capture_channel = CS4281_DMA_CHANNELS;
+    for (channel = 0; channel < CS4281_DMA_CHANNELS; channel++) {
+        bool capture;
+        unsigned *selected;
+
+        if (!cs4281_stream_active(s, channel)) {
+            continue;
+        }
+        capture = (CS_REG(s, BA0_DMR0 + channel * 8) & DMR_TR_MASK) ==
+                  DMR_TR_WRITE;
+        selected = capture ? &s->capture_channel : &s->playback_channel;
+        if (*selected == CS4281_DMA_CHANNELS) {
+            *selected = channel;
+            cs4281_open_voice(s, channel, capture, force);
+        }
+    }
     if (s->voice_out) {
         audio_be_set_active_out(s->audio_be, s->voice_out,
-                                cs4281_stream_active(s, 0));
+                                s->playback_channel < CS4281_DMA_CHANNELS);
     }
     if (s->voice_in) {
         audio_be_set_active_in(s->audio_be, s->voice_in,
-                               cs4281_stream_active(s, 1));
+                               s->capture_channel < CS4281_DMA_CHANNELS);
     }
+}
+
+static void cs4281_update_streams_bh(void *opaque)
+{
+    CS4281State *s = opaque;
+
+    cs4281_update_streams(s, false);
 }
 
 static void cs4281_dma_event(CS4281State *s, unsigned channel,
@@ -528,7 +594,7 @@ static void cs4281_dma_advance(CS4281State *s, unsigned channel,
         CS_REG(s, dca_reg) += bytes;
     }
 
-    if (frames >= old_count + 1) {
+    if (frames > old_count) {
         cs4281_dma_event(s, channel, HDSR_DTC);
         if (dmr & DMR_AUTO) {
             CS_REG(s, dca_reg) = CS_REG(s, dba_reg);
@@ -568,23 +634,27 @@ static void cs4281_dma_error(CS4281State *s, unsigned channel)
     qemu_log_mask(LOG_GUEST_ERROR,
                   "cs4281: channel %u PCI DMA transaction failed\n", channel);
     CS_REG(s, BA0_DCR0 + channel * 8) |= DCR_MSK;
-    cs4281_update_streams(s, false);
+    qemu_bh_schedule(s->streams_bh);
 }
 
 static void cs4281_playback_callback(void *opaque, int free)
 {
     CS4281State *s = opaque;
+    unsigned channel = s->playback_channel;
     uint8_t buffer[4096];
-    unsigned frame_bytes = cs4281_frame_bytes(s, 0);
+    unsigned frame_bytes;
 
-    while (free >= frame_bytes && cs4281_stream_active(s, 0) &&
-           !(s->dma[0].hdsr & (HDSR_DHTC | HDSR_DTC))) {
-        uint32_t dmr = CS_REG(s, BA0_DMR0);
-        uint32_t address = CS_REG(s, BA0_DCA0);
+    if (!cs4281_stream_active(s, channel)) {
+        return;
+    }
+    frame_bytes = cs4281_frame_bytes(s, channel);
+    while (free >= frame_bytes && cs4281_stream_active(s, channel)) {
+        uint32_t dmr = CS_REG(s, BA0_DMR0 + channel * 8);
+        uint32_t address = CS_REG(s, BA0_DCA0 + channel * 0x10);
         size_t amount = MIN((size_t)free, sizeof(buffer));
         size_t copied;
 
-        amount = cs4281_dma_limit(s, 0, amount, frame_bytes);
+        amount = cs4281_dma_limit(s, channel, amount, frame_bytes);
         if (dmr & DMR_DEC) {
             amount = MIN(amount, (size_t)frame_bytes);
         }
@@ -592,7 +662,7 @@ static void cs4281_playback_callback(void *opaque, int free)
             break;
         }
         if (pci_dma_read(&s->parent_obj, address, buffer, amount) != MEMTX_OK) {
-            cs4281_dma_error(s, 0);
+            cs4281_dma_error(s, channel);
             break;
         }
         copied = audio_be_write(s->audio_be, s->voice_out, buffer, amount);
@@ -600,25 +670,31 @@ static void cs4281_playback_callback(void *opaque, int free)
         if (!copied) {
             break;
         }
-        cs4281_dma_advance(s, 0, copied / frame_bytes, frame_bytes);
+        cs4281_dma_advance(s, channel, copied / frame_bytes, frame_bytes);
         free -= copied;
     }
+    /* Defer voice reconfiguration until after the audio callback returns. */
+    qemu_bh_schedule(s->streams_bh);
 }
 
 static void cs4281_capture_callback(void *opaque, int avail)
 {
     CS4281State *s = opaque;
+    unsigned channel = s->capture_channel;
     uint8_t buffer[4096];
-    unsigned frame_bytes = cs4281_frame_bytes(s, 1);
+    unsigned frame_bytes;
 
-    while (avail >= frame_bytes && cs4281_stream_active(s, 1) &&
-           !(s->dma[1].hdsr & (HDSR_DHTC | HDSR_DTC))) {
-        uint32_t dmr = CS_REG(s, BA0_DMR0 + 8);
-        uint32_t address = CS_REG(s, BA0_DCA0 + 0x10);
+    if (!cs4281_stream_active(s, channel)) {
+        return;
+    }
+    frame_bytes = cs4281_frame_bytes(s, channel);
+    while (avail >= frame_bytes && cs4281_stream_active(s, channel)) {
+        uint32_t dmr = CS_REG(s, BA0_DMR0 + channel * 8);
+        uint32_t address = CS_REG(s, BA0_DCA0 + channel * 0x10);
         size_t amount = MIN((size_t)avail, sizeof(buffer));
         size_t acquired;
 
-        amount = cs4281_dma_limit(s, 1, amount, frame_bytes);
+        amount = cs4281_dma_limit(s, channel, amount, frame_bytes);
         if (dmr & DMR_DEC) {
             amount = MIN(amount, (size_t)frame_bytes);
         }
@@ -632,12 +708,13 @@ static void cs4281_capture_callback(void *opaque, int avail)
         }
         if (pci_dma_write(&s->parent_obj, address, buffer, acquired) !=
             MEMTX_OK) {
-            cs4281_dma_error(s, 1);
+            cs4281_dma_error(s, channel);
             break;
         }
-        cs4281_dma_advance(s, 1, acquired / frame_bytes, frame_bytes);
+        cs4281_dma_advance(s, channel, acquired / frame_bytes, frame_bytes);
         avail -= acquired;
     }
+    qemu_bh_schedule(s->streams_bh);
 }
 
 static uint32_t cs4281_hdsr_read(CS4281State *s, unsigned channel)
@@ -767,24 +844,16 @@ static void cs4281_ba0_write(void *opaque, hwaddr addr, uint64_t value,
                     CS_REG(s, BA0_DBC0 + channel * 0x10);
                 s->dma[channel].half_fired = false;
             }
-            if (channel < 2) {
-                cs4281_update_streams(s, false);
-            }
         } else {
             CS_REG(s, addr) = value & (DCR_HTCIE | DCR_TCIE | DCR_MSK);
-            if (channel < 2) {
-                cs4281_update_streams(s, false);
-            }
         }
+        cs4281_update_streams(s, false);
         return;
     }
 
     if (addr >= BA0_FCR0 && addr < BA0_FCR0 + 4 * 4) {
         CS_REG(s, addr) = value;
-        channel = cs4281_dma_channel(addr, BA0_FCR0, 4);
-        if (channel < 2) {
-            cs4281_update_streams(s, false);
-        }
+        cs4281_update_streams(s, false);
         return;
     }
     if (addr >= BA0_FSIC0 && addr < BA0_FSIC0 + 4 * 4) {
@@ -867,6 +936,7 @@ static void cs4281_ba0_write(void *opaque, hwaddr addr, uint64_t value,
         return;
     case BA0_DACSR:
     case BA0_ADCSR:
+    case BA0_SRCSA:
         CS_REG(s, addr) = value;
         cs4281_update_streams(s, false);
         return;
@@ -971,6 +1041,7 @@ static void cs4281_reset(DeviceState *dev)
     CS4281State *s = CS4281(dev);
     unsigned channel;
 
+    qemu_bh_cancel(s->streams_bh);
     memset(s->regs, 0, sizeof(s->regs));
     memset(s->fifo, 0, sizeof(s->fifo));
     memset(s->dma, 0, sizeof(s->dma));
@@ -1001,6 +1072,7 @@ static int cs4281_post_load(void *opaque, int version_id)
 {
     CS4281State *s = opaque;
 
+    qemu_bh_cancel(s->streams_bh);
     cs4281_sync_vendor_config(s);
     cs4281_update_clock(s);
     cs4281_update_link(s);
@@ -1083,6 +1155,8 @@ static void cs4281_realize(PCIDevice *pdev, Error **errp)
     pci_register_bar(pdev, 1, PCI_BASE_ADDRESS_SPACE_MEMORY, &s->ba1);
 
     pdev->config_write = cs4281_config_write;
+    s->streams_bh = qemu_bh_new_guarded(cs4281_update_streams_bh, s,
+                                       &DEVICE(s)->mem_reentrancy_guard);
     cs4281_reset(DEVICE(s));
 }
 
@@ -1090,6 +1164,9 @@ static void cs4281_exit(PCIDevice *pdev)
 {
     CS4281State *s = CS4281(pdev);
 
+    qemu_bh_cancel(s->streams_bh);
+    qemu_bh_delete(s->streams_bh);
+    s->streams_bh = NULL;
     audio_be_close_out(s->audio_be, s->voice_out);
     audio_be_close_in(s->audio_be, s->voice_in);
 }

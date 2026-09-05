@@ -8,6 +8,9 @@
  *
  * Authors: Don Slutz, Paolo Bonzini
  *
+ * Technical references are listed in
+ * docs/devel/device-emulation-provenance.rst.
+ *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
@@ -841,6 +844,13 @@ static void mptsas_soft_reset(MPTSASState *s)
     s->request_post_head = 0;
     qemu_bh_cancel(s->request_bh);
 
+    /* Discard an unfinished handshake along with the message FIFOs. */
+    s->doorbell_state = DOORBELL_NONE;
+    s->doorbell_idx = 0;
+    s->doorbell_cnt = 0;
+    s->doorbell_reply_idx = 0;
+    s->doorbell_reply_size = 0;
+
     s->state = MPI_IOC_STATE_READY;
 }
 
@@ -900,10 +910,9 @@ static void mptsas_doorbell_write(MPTSASState *s, uint32_t val)
 
     switch ((val & MPI_DOORBELL_FUNCTION_MASK) >> MPI_DOORBELL_FUNCTION_SHIFT) {
     case MPI_FUNCTION_IOC_MESSAGE_UNIT_RESET:
-        mptsas_soft_reset(s);
-        break;
     case MPI_FUNCTION_IO_UNIT_RESET:
-        /* I/O unit reset is not implemented. */
+        /* Both requests use the model's existing soft-reset path. */
+        mptsas_soft_reset(s);
         break;
     case MPI_FUNCTION_HANDSHAKE:
         s->doorbell_state = DOORBELL_WRITE;

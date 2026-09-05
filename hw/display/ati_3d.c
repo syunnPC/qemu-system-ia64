@@ -57,6 +57,7 @@
 #include "qemu/bswap.h"
 #include "qemu/log.h"
 #include "migration/vmstate.h"
+#include "trace.h"
 
 #define R100_CONTEXT_BASE 0x1c00
 #define R100_CONTEXT_END  0x1dff
@@ -3352,8 +3353,8 @@ static void r100_2d_settings_apply(ATIVGAState *s, const uint32_t *payload,
     g_assert(word == settings->dwords);
 }
 
-static uint32_t r100_bitblt_engine_xy(const ATIVGAState *s, uint32_t xy,
-                                      uint32_t width_height)
+static uint32_t r100_2d_engine_xy(const ATIVGAState *s, uint32_t xy,
+                                  uint32_t width_height)
 {
     int x = sextract32(xy, 16, 14);
     int y = sextract32(xy, 0, 14);
@@ -3361,7 +3362,7 @@ static uint32_t r100_bitblt_engine_xy(const ATIVGAState *s, uint32_t xy,
     unsigned int height = extract32(width_height, 0, 14);
 
     /*
-     * BITBLT_MULTI coordinates name the top-left corner.  The 2D registers,
+     * The multi-rectangle packets name the top-left corner.  The 2D registers,
      * however, name the first pixel visited, as selected by DP_CNTL.
      */
     if (!(s->regs.dp_cntl & DST_X_LEFT_TO_RIGHT) && width) {
@@ -3373,31 +3374,150 @@ static uint32_t r100_bitblt_engine_xy(const ATIVGAState *s, uint32_t xy,
     return ((uint32_t)x & 0x3fff) << 16 | ((uint32_t)y & 0x3fff);
 }
 
-static bool r100_bitblt_multi(ATIVGAState *s, const uint32_t *payload,
-                              unsigned int count)
+static bool r100_paint_multi(ATIVGAState *s, const uint32_t *payload,
+                             unsigned int count)
 {
     ATI3DState *r = &s->r100_3d;
     R1002DSettings settings;
     unsigned int word;
 
     if (!r100_2d_settings_info(payload, count, &settings) ||
-        count < settings.dwords + 3 ||
-        (count - settings.dwords) % 3) {
+        count < settings.dwords + 2 ||
+        (count - settings.dwords) % 2) {
+        return false;
+    }
+    r100_2d_settings_apply(s, payload, &settings);
+
+    for (word = settings.dwords; word < count; word += 2) {
+        uint32_t width_height = payload[word + 1];
+
+        ati_mmio_write(s, DST_X_Y,
+                       r100_2d_engine_xy(s, payload[word], width_height),
+                       sizeof(payload[0]));
+        ati_mmio_write(s, DST_WIDTH_HEIGHT, width_height,
+                       sizeof(payload[0]));
+        if (r->command_budget_exhausted) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool r100_scanline_spans(ATIVGAState *s, uint32_t height_top,
+                                const uint32_t *spans, unsigned int count)
+{
+    unsigned int height = extract32(height_top, 16, 14);
+
+    for (unsigned int word = 0; word < count; word++) {
+        int start = sextract32(spans[word], 0, 16);
+        int end = sextract32(spans[word], 16, 16);
+        uint32_t width_height;
+        uint32_t xy;
+
+        if (!height || end <= start) {
+            continue;
+        }
+        /* Scanline endpoints are exclusive, as with rectangle right edges. */
+        width_height = ((end - start) & 0x3fffU) << 16 | height;
+        xy = ((uint32_t)start & 0x3fff) << 16 | (height_top & 0x3fff);
+        ati_mmio_write(s, DST_X_Y,
+                       r100_2d_engine_xy(s, xy, width_height),
+                       sizeof(spans[0]));
+        ati_mmio_write(s, DST_WIDTH_HEIGHT, width_height, sizeof(spans[0]));
+        if (s->r100_3d.command_budget_exhausted) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool r100_polyscanlines(ATIVGAState *s, const uint32_t *payload,
+                               unsigned int count)
+{
+    R1002DSettings settings;
+    unsigned int scans;
+    unsigned int word;
+
+    if (!r100_2d_settings_info(payload, count, &settings)) {
+        return false;
+    }
+    word = settings.dwords;
+    if (word == count) {
+        /* Establish brush and destination for later PLY_NEXTSCAN packets. */
+        r100_2d_settings_apply(s, payload, &settings);
+        return true;
+    }
+    scans = payload[word++];
+    if (scans > (count - word) / 2) {
+        return false;
+    }
+    /* Validate every counted subpacket before changing the drawing state. */
+    for (unsigned int scan = 0; scan < scans; scan++) {
+        unsigned int spans;
+
+        if (count - word < 2) {
+            return false;
+        }
+        spans = payload[word] & 0x3fff;
+        word += 2;
+        if (spans > count - word) {
+            return false;
+        }
+        word += spans;
+    }
+    if (word != count) {
+        return false;
+    }
+
+    r100_2d_settings_apply(s, payload, &settings);
+    word = settings.dwords + 1;
+    for (unsigned int scan = 0; scan < scans; scan++) {
+        unsigned int spans = payload[word++] & 0x3fff;
+        uint32_t height_top = payload[word++];
+
+        if (!r100_scanline_spans(s, height_top, payload + word, spans)) {
+            return false;
+        }
+        word += spans;
+    }
+    return true;
+}
+
+static bool r100_bitblt(ATIVGAState *s, unsigned int opcode,
+                         const uint32_t *payload, unsigned int count)
+{
+    ATI3DState *r = &s->r100_3d;
+    R1002DSettings settings;
+    bool transparent = opcode == R100_PACKET3_CNTL_TRANS_BITBLT;
+    unsigned int extra = transparent ? 3 : 0;
+    unsigned int rectangles;
+    unsigned int word;
+
+    if (!r100_2d_settings_info(payload, count, &settings) ||
+        count < settings.dwords + extra + 3) {
+        return false;
+    }
+    rectangles = count - settings.dwords - extra;
+    if (rectangles % 3 ||
+        (opcode != R100_PACKET3_CNTL_BITBLT_MULTI && rectangles != 3)) {
         return false;
     }
     r100_2d_settings_apply(s, payload, &settings);
     word = settings.dwords;
+    if (transparent) {
+        ati_mmio_write(s, CLR_CMP_CNTL, payload[word++], sizeof(payload[0]));
+        ati_mmio_write(s, CLR_CMP_CLR_SRC, payload[word++], sizeof(payload[0]));
+        ati_mmio_write(s, CLR_CMP_CLR_DST, payload[word++], sizeof(payload[0]));
+    }
 
     while (word < count) {
         uint32_t width_height = payload[word + 2];
 
         ati_mmio_write(s, SRC_X_Y,
-                       r100_bitblt_engine_xy(s, payload[word],
-                                             width_height),
+                       r100_2d_engine_xy(s, payload[word], width_height),
                        sizeof(payload[0]));
         ati_mmio_write(s, DST_X_Y,
-                       r100_bitblt_engine_xy(s, payload[word + 1],
-                                             width_height),
+                       r100_2d_engine_xy(s, payload[word + 1], width_height),
                        sizeof(payload[0]));
         ati_mmio_write(s, DST_WIDTH_HEIGHT, width_height,
                        sizeof(payload[0]));
@@ -3409,24 +3529,159 @@ static bool r100_bitblt_multi(ATIVGAState *s, const uint32_t *payload,
     return true;
 }
 
+static bool r100_nextchar(ATIVGAState *s, const uint32_t *payload,
+                           unsigned int count)
+{
+    uint32_t source = s->regs.dp_mix & DP_SRC_SOURCE;
+    uint32_t source_type = s->regs.dp_datatype & DP_SRC_DATATYPE;
+    uint32_t destination_type = s->regs.dp_datatype & DP_DST_DATATYPE;
+    uint64_t row_bits;
+    unsigned int width;
+    unsigned int height;
+    uint32_t xy;
+
+    if (count < 3 ||
+        (source != DP_SRC_HOST && source != DP_SRC_HOST_BYTEALIGN) ||
+        (source_type != SRC_MONO_FRGD_BKGD &&
+         source_type != SRC_MONO_FRGD && source_type != SRC_COLOR) ||
+        destination_type < DST_8BPP || destination_type > DST_32BPP) {
+        return false;
+    }
+    width = extract32(payload[1], 0, 14);
+    height = extract32(payload[1], 16, 14);
+    if (!width || !height || (uint64_t)width * height > ATI_2D_MAX_PIXELS) {
+        return false;
+    }
+    if (source_type == SRC_COLOR) {
+        unsigned int bytes_per_pixel = destination_type == DST_8BPP ? 1 :
+                                       destination_type <= DST_16BPP ? 2 :
+                                       destination_type == DST_24BPP ? 3 : 4;
+
+        row_bits = (uint64_t)width * bytes_per_pixel * 8;
+    } else {
+        row_bits = source == DP_SRC_HOST_BYTEALIGN ?
+                   QEMU_ALIGN_UP(width, 8) : width;
+    }
+    /* Validate the complete inline bitmap before changing the 2D state. */
+    if (DIV_ROUND_UP(row_bits * height, 32) != count - 2) {
+        return false;
+    }
+
+    /* NEXTCHAR uses Y:X and H:W ordering, and names the top-left corner. */
+    xy = r100_2d_engine_xy(s, rol32(payload[0], 16),
+                           rol32(payload[1], 16));
+    ati_mmio_write(s, DST_Y_X, rol32(xy, 16), sizeof(payload[0]));
+    ati_mmio_write(s, DST_HEIGHT_WIDTH, payload[1], sizeof(payload[0]));
+    if (!s->host_data.active || s->r100_3d.command_budget_exhausted) {
+        return false;
+    }
+    for (unsigned int word = 2; word < count; word++) {
+        bool last = word + 1 == count;
+        bool active = ati_host_data_write(s, payload[word], last);
+
+        if (s->r100_3d.command_budget_exhausted || active == last) {
+            ati_host_data_finish(s);
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool r100_load_palette(ATIVGAState *s, const uint32_t *payload,
+                               unsigned int count)
+{
+    ATI3DState *r = &s->r100_3d;
+    unsigned int entries;
+
+    if (!count || (payload[0] != 1 && payload[0] != 2)) {
+        return false;
+    }
+    entries = payload[0] == 1 ? 16 : 256;
+    if (count != entries + 1) {
+        return false;
+    }
+    /* LOAD_PALETTE entries are already encoded in the destination format. */
+    memcpy(r->scaler_palette, payload + 1, entries * sizeof(payload[0]));
+    r->scaler_palette_format = payload[0];
+    r->scaler_palette_valid = true;
+    return true;
+}
+
+static uint32_t r100_indexed_host_word(uint32_t data, uint32_t swap)
+{
+    switch (swap & HOST_DATA_SWAP_MASK) {
+    case HOST_DATA_SWAP_16BIT:
+        return ((data & 0x00ff00ff) << 8) | ((data & 0xff00ff00) >> 8);
+    case HOST_DATA_SWAP_32BIT:
+        return bswap32(data);
+    case HOST_DATA_SWAP_HDW:
+        return rol32(data, 16);
+    default:
+        return data;
+    }
+}
+
+static bool r100_hostdata_indexed(ATIVGAState *s, const uint32_t *raster,
+                                   unsigned int pixels, unsigned int dst_bits,
+                                   uint32_t swap)
+{
+    ATI3DState *r = &s->r100_3d;
+    uint32_t packed = 0;
+    uint32_t mask = MAKE_64BIT_MASK(0, dst_bits);
+    unsigned int packed_bits = 0;
+
+    for (unsigned int pixel = 0; pixel < pixels; pixel++) {
+        uint32_t data = r100_indexed_host_word(raster[pixel / 4], swap);
+        unsigned int index = (data >> ((pixel % 4) * 8)) & 0xff;
+        bool last = pixel + 1 == pixels;
+
+        packed |= (r->scaler_palette[index] & mask) << packed_bits;
+        packed_bits += dst_bits;
+        if (packed_bits == 32 || last) {
+            bool active = ati_host_data_write(s, packed, last);
+
+            if (r->command_budget_exhausted || active == last) {
+                ati_host_data_finish(s);
+                return false;
+            }
+            packed = 0;
+            packed_bits = 0;
+        }
+    }
+    return true;
+}
+
 static bool r100_hostdata_blt(ATIVGAState *s, const uint32_t *payload,
                               unsigned int count)
 {
     ATI3DState *r = &s->r100_3d;
     R1002DSettings settings;
     unsigned int word;
+    unsigned int dst_bits;
+    unsigned int source_type;
+    uint32_t datatype, mix, guicntl;
+    bool indexed;
+    bool success = true;
 
-    if (!r100_2d_settings_info(payload, count, &settings) ||
-        ((settings.gui & GMC_DP_SRC_SOURCE_MASK) != GMC_DP_SRC_HOST &&
+    if (!r100_2d_settings_info(payload, count, &settings)) {
+        return false;
+    }
+    /* RV100 GMC_SRC_DATATYPE2 extends the source type at bits 13:12. */
+    source_type = extract32(settings.gui, 12, 2) |
+                  (extract32(settings.gui, 27, 1) << 2);
+    indexed = source_type == 5;
+    if ((source_type >= 4 && !indexed) ||
+        (indexed && !r->scaler_palette_valid)) {
+        return false;
+    }
+    if ((!indexed &&
+         (settings.gui & GMC_DP_SRC_SOURCE_MASK) != GMC_DP_SRC_HOST &&
          (settings.gui & GMC_DP_SRC_SOURCE_MASK) !=
          GMC_DP_SRC_HOST_BYTEALIGN) ||
         count < settings.dwords + 2) {
         return false;
     }
     word = settings.dwords + 2;
-    if (word == count) {
-        return false;
-    }
     while (word < count) {
         unsigned int data_dwords;
 
@@ -3437,6 +3692,16 @@ static bool r100_hostdata_blt(ATIVGAState *s, const uint32_t *payload,
         if (!data_dwords || data_dwords > count - word - 3) {
             return false;
         }
+        if (indexed) {
+            unsigned int width = extract32(payload[word + 1], 0, 14);
+            unsigned int height = extract32(payload[word + 1], 16, 14);
+            uint64_t pixels = (uint64_t)width * height;
+
+            if (!pixels || pixels > ATI_2D_MAX_PIXELS ||
+                DIV_ROUND_UP(pixels, 4) != data_dwords) {
+                return false;
+            }
+        }
         word += 3 + data_dwords;
     }
     if (word != count) {
@@ -3444,18 +3709,42 @@ static bool r100_hostdata_blt(ATIVGAState *s, const uint32_t *payload,
     }
 
     r100_2d_settings_apply(s, payload, &settings);
+    datatype = s->regs.dp_datatype;
+    mix = s->regs.dp_mix;
+    guicntl = s->regs.rbbm_guicntl;
+    dst_bits = extract32(settings.gui, 8, 4);
+    dst_bits = dst_bits == 6 ? 32 : dst_bits == 2 ? 8 : 16;
+    if (indexed) {
+        /* Expanded pixels use the existing ROP/clipping/write-mask path. */
+        s->regs.dp_datatype =
+            (datatype & ~(DP_SRC_DATATYPE | R100_DP_SRC_DATATYPE2)) | SRC_COLOR;
+        s->regs.dp_mix = (mix & ~DP_SRC_SOURCE) | DP_SRC_HOST;
+        s->regs.rbbm_guicntl &= ~HOST_DATA_SWAP_MASK;
+    }
     word = settings.dwords;
     ati_mmio_write(s, DP_SRC_FRGD_CLR, payload[word++], sizeof(payload[0]));
     ati_mmio_write(s, DP_SRC_BKGD_CLR, payload[word++], sizeof(payload[0]));
     while (word < count) {
         unsigned int data_dwords = payload[word + 2] & 0x3fffU;
+        unsigned int pixels = extract32(payload[word + 1], 0, 14) *
+                              extract32(payload[word + 1], 16, 14);
 
         ati_mmio_write(s, DST_Y_X, payload[word++], sizeof(payload[0]));
         ati_mmio_write(s, DST_HEIGHT_WIDTH, payload[word++],
                        sizeof(payload[0]));
         word++;
         if (!s->host_data.active || r->command_budget_exhausted) {
-            return false;
+            success = false;
+            break;
+        }
+        if (indexed) {
+            success = r100_hostdata_indexed(s, payload + word, pixels,
+                                            dst_bits, guicntl);
+            if (!success) {
+                break;
+            }
+            word += data_dwords;
+            continue;
         }
         for (unsigned int i = 0; i < data_dwords; i++) {
             bool last = i + 1 == data_dwords;
@@ -3463,11 +3752,18 @@ static bool r100_hostdata_blt(ATIVGAState *s, const uint32_t *payload,
 
             if (r->command_budget_exhausted || active == last) {
                 ati_host_data_finish(s);
-                return false;
+                success = false;
+                break;
             }
         }
+        if (!success) {
+            break;
+        }
     }
-    return true;
+    s->regs.dp_datatype = datatype;
+    s->regs.dp_mix = mix;
+    s->regs.rbbm_guicntl = guicntl;
+    return success;
 }
 
 static bool r100_process_packet3(ATIVGAState *s, unsigned int opcode,
@@ -3477,6 +3773,13 @@ static bool r100_process_packet3(ATIVGAState *s, unsigned int opcode,
     ATI3DState *r = &s->r100_3d;
 
     switch (opcode) {
+    case R100_PACKET3_SET_SCISSORS:
+        if (count != 2) {
+            return false;
+        }
+        ati_mmio_write(s, SC_TOP_LEFT, payload[0], sizeof(payload[0]));
+        ati_mmio_write(s, SC_BOTTOM_RIGHT, payload[1], sizeof(payload[1]));
+        return true;
     case R100_PACKET3_NOP:
         return true;
     case R100_PACKET3_WAIT_FOR_IDLE:
@@ -3502,6 +3805,7 @@ static bool r100_process_packet3(ATIVGAState *s, unsigned int opcode,
         return count >= 2 && r100_draw_vbuf(s, payload[0], payload[1]);
     case R100_PACKET3_3D_DRAW_VBUF_2:
         return count >= 1 && r100_draw_vbuf(s, r->se_vtx_fmt, payload[0]);
+    case R100_PACKET3_3D_RNDR_GEN_PRIM:
     case R100_PACKET3_3D_DRAW_IMMD:
         return count >= 2 && r100_draw_immediate(s, payload[0], payload[1],
                                                  payload + 2, count - 2);
@@ -3516,11 +3820,29 @@ static bool r100_process_packet3(ATIVGAState *s, unsigned int opcode,
         return count >= 1 && r100_draw_indexed(s, r->se_vtx_fmt,
                                                payload[0], payload + 1,
                                                count - 1);
+    case R100_PACKET3_NEXT_CHAR:
+        return r100_nextchar(s, payload, count);
+    case R100_PACKET3_PLY_NEXTSCAN:
+        return count >= 2 &&
+               r100_scanline_spans(s, payload[0], payload + 1, count - 1);
+    case R100_PACKET3_CNTL_POLYSCANLINES:
+        return r100_polyscanlines(s, payload, count);
+    case R100_PACKET3_LOAD_PALETTE:
+        return r100_load_palette(s, payload, count);
     case R100_PACKET3_CNTL_HOSTDATA_BLT:
         return r100_hostdata_blt(s, payload, count);
+    case R100_PACKET3_CNTL_PAINT_MULTI:
+        return r100_paint_multi(s, payload, count);
+    case R100_PACKET3_CNTL_BITBLT:
     case R100_PACKET3_CNTL_BITBLT_MULTI:
-        return r100_bitblt_multi(s, payload, count);
+    case R100_PACKET3_CNTL_TRANS_BITBLT:
+        return r100_bitblt(s, opcode, payload, count);
     default:
+        trace_ati_cp_packet3_unknown(opcode, count,
+                                    count > 0 ? payload[0] : 0,
+                                    count > 1 ? payload[1] : 0,
+                                    count > 2 ? payload[2] : 0,
+                                    count > 3 ? payload[3] : 0);
         qemu_log_mask(LOG_UNIMP,
                       "ati-r100: unimplemented PACKET3 opcode 0x%x\n",
                       opcode);
@@ -3581,6 +3903,10 @@ static bool r100_process_stream(ATIVGAState *s, R100Stream *stream)
 
         if (type == R100_CP_PACKET3 &&
             (extract32(header, 8, 8) == R100_PACKET3_CNTL_HOSTDATA_BLT ||
+             extract32(header, 8, 8) == R100_PACKET3_NEXT_CHAR ||
+             extract32(header, 8, 8) == R100_PACKET3_PLY_NEXTSCAN ||
+             extract32(header, 8, 8) == R100_PACKET3_CNTL_POLYSCANLINES ||
+             extract32(header, 8, 8) == R100_PACKET3_CNTL_PAINT_MULTI ||
              extract32(header, 8, 8) == R100_PACKET3_CNTL_BITBLT_MULTI)) {
             max_count = R100_MAX_PACKET_DWORDS;
         }
@@ -3872,7 +4198,9 @@ int ati_3d_post_load(ATIVGAState *s)
                         R100_TCL_BYPASS;
     if (r->vertex_array_count > ATI_3D_MAX_VERTEX_ARRAYS ||
         r->port_data_count > ATI_3D_MAX_VERTEX_DWORDS ||
-        r->port_data_expected > ATI_3D_MAX_VERTEX_DWORDS) {
+        r->port_data_expected > ATI_3D_MAX_VERTEX_DWORDS ||
+        r->scaler_palette_format > 2 ||
+        (r->scaler_palette_valid && !r->scaler_palette_format)) {
         return -EINVAL;
     }
     return 0;

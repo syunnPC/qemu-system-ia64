@@ -11,7 +11,7 @@ from pathlib import Path
 from qemu_test import QemuSystemTest, wait_for_console_pattern
 
 from ia64.efi_build import app_path
-from ia64.media import make_el_torito_iso
+from ia64.media import make_el_torito_iso, make_fat_disk
 from ia64.protocol import wait_for_suite
 
 
@@ -19,6 +19,8 @@ SMOKE_CASES = {
     "entry", "system-table", "loaded-image", "device-path",
     "root-device-path", "console-output",
 }
+
+MPT_SMOKE_CASES = SMOKE_CASES | {"controller-device-path"}
 
 GRAPHICS_CASES = {
     "protocols", "protocol-list", "pci-location", "pci-dma",
@@ -251,6 +253,30 @@ class HPZx6000Boot(QemuSystemTest):
         )
         self.assertEqual(result.failed, 0)
         self.assertTrue(vm.is_running(), "QEMU exited after optical boot")
+
+    def test_scsi_disk_boot(self):
+        self.require_accelerator("tcg")
+        path = self.media_path("mpt-disk.img")
+        make_fat_disk(path, app_path("smoke"))
+
+        vm = self.get_vm()
+        vm.set_machine("hp-zx6000,nvram=none")
+        vm.set_console()
+        vm.add_args(
+            "-accel", "tcg",
+            "-m", "512M",
+            "-display", "none",
+            "-net", "none",
+            "-drive", f"file={path},format=raw,if=scsi,index=0",
+        )
+        vm.launch()
+
+        result = wait_for_suite(
+            vm.console_socket, "smoke", MPT_SMOKE_CASES, 40.0,
+            process_alive=vm.is_running,
+        )
+        self.assertEqual(result.failed, 0)
+        self.assertTrue(vm.is_running(), "QEMU exited after SCSI disk boot")
 
     def test_graphics_protocols(self):
         self.require_accelerator("tcg")

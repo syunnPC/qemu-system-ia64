@@ -13,6 +13,7 @@ Details about QEMU's various subsystems including how to add features to them.
    rcu
    block-coroutine-wrapper
    clocks
+   device-emulation-provenance
    gpu-emulation-provenance
    ia64-internals
    ebpf_rss
