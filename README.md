@@ -183,6 +183,22 @@ and device support remain experimental.
       />
     </td>
   </tr>
+  <tr>
+    <td width="50%">
+      <img
+        width="100%"
+        alt="HP-UX 11i v3"
+        src="https://github.com/user-attachments/assets/a6df474a-ea5e-4cff-b5e1-d8ac91958a6e"
+      />
+    </td>
+    <td width="100%">
+     <img
+       width="100%"
+       alt="OpenVMS V8.4 IA-64"
+       src="https://github.com/user-attachments/assets/72834d75-a537-447f-b0a1-ada4fee4a283" 
+     />
+    </td>
+  </tr>
 </table>
 
 ## Legal disclaimer
