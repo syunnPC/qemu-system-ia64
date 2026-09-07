@@ -58,8 +58,9 @@ static MemTxResult ia64_pib_write(void *opaque, hwaddr addr, uint64_t value,
         return MEMTX_OK;
     }
 
+    /* Address bit 3 is the redirection hint, not an alignment constraint. */
     if (addr >= IA64_PIB_IPI_LIMIT ||
-        !((size == 8 && (addr & 15) == 0) ||
+        !((size == 8 && (addr & 7) == 0) ||
           (size == 4 && (addr & 3) == 0 && !attrs.unspecified))) {
         return MEMTX_OK;
     }

@@ -80,3 +80,7 @@ elroy_pci_config_data_read(uint64_t addr, int size, uint64_t val) "addr 0x%"PRIx
 elroy_pci_config_data_write(uint64_t addr, int size, uint64_t val) "addr 0x%"PRIx64" size %d val 0x%"PRIx64
 iosapic_reg_write(uint64_t reg_select, int size, uint64_t val) "reg_select 0x%"PRIx64" size %d val 0x%"PRIx64
 iosapic_reg_read(uint64_t reg_select, int size, uint64_t val) "reg_select 0x%"PRIx64" size %d val 0x%"PRIx64
+
+# hp-zx1-mio.c
+hp_zx1_mio_read(uint64_t addr, uint64_t value, unsigned size, bool ok) "addr=0x%04" PRIx64 " value=0x%016" PRIx64 " size=%u ok=%d"
+hp_zx1_mio_write(uint64_t addr, uint64_t value, unsigned size, bool ok) "addr=0x%04" PRIx64 " value=0x%016" PRIx64 " size=%u ok=%d"

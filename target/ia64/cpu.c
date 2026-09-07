@@ -98,6 +98,8 @@ static TCGTBCPUState ia64_get_tb_cpu_state(CPUState *cs)
     flags |= (psr & IA64_PSR_TB) ? IA64_TB_FLAG_PSR_TB : 0;
     flags |= (psr & IA64_PSR_SS) ? IA64_TB_FLAG_PSR_SS : 0;
     flags |= (psr & IA64_PSR_DB) ? IA64_TB_FLAG_PSR_DB : 0;
+    flags |= cpu->env.exception_state.psr_i_deferred ?
+             IA64_TB_FLAG_IRQ_DEFER : 0;
     if (likely((cpu->env.nat[0] | cpu->env.nat[1]) == 0)) {
         flags |= IA64_TB_FLAG_NAT_CLEAR;
     }
@@ -495,9 +497,8 @@ static bool ia64_cpu_tlb_fill(CPUState *cs, vaddr addr, int size,
         goto raise_exception;
     }
 
-    if (ia64_firmware_identity_pa(cpu->env.cr_iva,
-                                  is_ifetch ? addr : cpu->env.ip,
-                                  cpu->env.psr, addr, &pa)) {
+    if (ia64_firmware_identity_pa(cpu->env.cr_iva, cpu->env.psr,
+                                  addr, &pa)) {
         int prot = is_ifetch ? PAGE_EXEC : (PAGE_READ | PAGE_WRITE);
 
         ia64_tlb_set_entry_page(cs, addr, pa, TARGET_PAGE_SIZE, prot,

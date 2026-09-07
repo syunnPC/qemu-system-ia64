@@ -233,6 +233,139 @@ typedef struct MPIDefaultReply {
     uint32_t                IOCLogInfo;
 } QEMU_PACKED MPIDefaultReply;
 
+typedef struct MPIFWUploadTCSGE {
+    uint8_t Reserved;
+    uint8_t ContextSize;
+    uint8_t DetailsLength;
+    uint8_t Flags;
+    uint32_t Reserved1;
+    uint32_t ImageOffset;
+    uint32_t ImageSize;
+} QEMU_PACKED MPIFWUploadTCSGE;
+
+typedef struct MPIMsgFWUpload {
+    uint8_t ImageType;
+    uint8_t Reserved;
+    uint8_t ChainOffset;
+    uint8_t Function;
+    uint8_t Reserved1[3];
+    uint8_t MsgFlags;
+    uint32_t MsgContext;
+    MPIFWUploadTCSGE TC;
+    MPISGEntry SGL;
+} QEMU_PACKED MPIMsgFWUpload;
+
+typedef MPIMsgFWUpload MPIMsgFWDownload;
+
+typedef struct MPIMsgFWUploadReply {
+    uint8_t ImageType;
+    uint8_t Reserved;
+    uint8_t MsgLength;
+    uint8_t Function;
+    uint8_t Reserved1[3];
+    uint8_t MsgFlags;
+    uint32_t MsgContext;
+    uint16_t Reserved2;
+    uint16_t IOCStatus;
+    uint32_t IOCLogInfo;
+    uint32_t ActualImageSize;
+} QEMU_PACKED MPIMsgFWUploadReply;
+
+#define MPI_FW_UPLOAD_ITYPE_FW_IOC_MEM 0x00
+#define MPI_FW_UPLOAD_ITYPE_FW_FLASH   0x01
+#define MPI_FW_DOWNLOAD_ITYPE_FW       0x01
+#define MPI_FW_DOWNLOAD_LAST_SEGMENT   0x01
+#define MPI_FW_HEADER_SIZE            0x88
+#define MPI_FW_HEADER_SIGNATURE_0     0x5aeaa55a
+#define MPI_FW_HEADER_SIGNATURE_1     0xa55aeaa5
+#define MPI_FW_HEADER_SIGNATURE_2     0x5aa55aea
+#define MPI_FW_HEADER_WHAT_SIGNATURE  0x29232840
+#define MPI_EXT_IMAGE_HEADER_SIZE     0x18
+#define MPI_EXT_IMAGE_TYPE_NVDATA     0x03
+
+typedef struct MPIMsgToolboxClean {
+    uint8_t Tool;
+    uint8_t Reserved;
+    uint8_t ChainOffset;
+    uint8_t Function;
+    uint8_t Reserved1[3];
+    uint8_t MsgFlags;
+    uint32_t MsgContext;
+    uint32_t Flags;
+} QEMU_PACKED MPIMsgToolboxClean;
+
+#define MPI_TOOLBOX_CLEAN_TOOL                  0x00
+#define MPI_TOOLBOX_CLEAN_NVSRAM                0x00000001
+#define MPI_TOOLBOX_CLEAN_SEEPROM               0x00000002
+#define MPI_TOOLBOX_CLEAN_BOOTLOADER            0x04000000
+#define MPI_TOOLBOX_CLEAN_FW_BACKUP             0x08000000
+#define MPI_TOOLBOX_CLEAN_OTHER_PERSIST_PAGES   0x20000000
+#define MPI_TOOLBOX_CLEAN_PERSIST_MANUFACT_PAGES 0x40000000
+#define MPI_TOOLBOX_CLEAN_BOOT_SERVICES         0x80000000
+
+typedef struct MPIMsgSASIOUnitControl {
+    uint8_t Operation;
+    uint8_t Reserved;
+    uint8_t ChainOffset;
+    uint8_t Function;
+    uint16_t DevHandle;
+    uint8_t IOCParameter;
+    uint8_t MsgFlags;
+    uint32_t MsgContext;
+    uint8_t TargetID;
+    uint8_t Bus;
+    uint8_t PhyNum;
+    uint8_t PrimFlags;
+    uint32_t Primitive;
+    uint64_t SASAddress;
+    uint32_t IOCParameterValue;
+} QEMU_PACKED MPIMsgSASIOUnitControl;
+
+#define MPI_SAS_OP_CLEAR_NOT_PRESENT    0x01
+#define MPI_SAS_OP_CLEAR_ALL_PERSISTENT 0x02
+
+typedef struct MPIMsgSEP {
+    uint8_t TargetID;
+    uint8_t Bus;
+    uint8_t ChainOffset;
+    uint8_t Function;
+    uint8_t Action;
+    uint8_t Flags;
+    uint8_t Reserved1;
+    uint8_t MsgFlags;
+    uint32_t MsgContext;
+    uint32_t SlotStatus;
+    uint32_t Reserved2[3];
+    uint16_t Slot;
+    uint16_t EnclosureHandle;
+} QEMU_PACKED MPIMsgSEP;
+
+typedef struct MPIMsgSEPReply {
+    uint8_t TargetID;
+    uint8_t Bus;
+    uint8_t MsgLength;
+    uint8_t Function;
+    uint8_t Action;
+    uint8_t Reserved1[2];
+    uint8_t MsgFlags;
+    uint32_t MsgContext;
+    uint16_t Reserved2;
+    uint16_t IOCStatus;
+    uint32_t IOCLogInfo;
+    uint32_t SlotStatus;
+    uint32_t Reserved3;
+    uint16_t Slot;
+    uint16_t EnclosureHandle;
+} QEMU_PACKED MPIMsgSEPReply;
+
+#define MPI_SEP_ACTION_WRITE_STATUS 0x00
+#define MPI_SEP_ACTION_READ_STATUS  0x01
+#define MPI_SEP_ENCLOSURE_SLOT_ADDRESS 0x01
+#define MPI_SEP_SLOTSTATUS_DEV_FAULTY 0x00000002
+#define MPI_SEP_SLOTSTATUS_IDENTIFY_REQUEST 0x00020000
+#define MPI_SAS_ENCLS0_FLAGS_START_BUS_ID_VALID 0x0010
+#define MPI_SAS_ENCLS0_FLAGS_MNG_IOC_SGPIO 0x0002
+
 /* MsgFlags definition for all replies */
 
 #define MPI_MSGFLAGS_CONTINUATION_REPLY         (0x80)
@@ -1098,6 +1231,7 @@ enum {
     MPI_IOUNITPAGE1_MULTI_FUNCTION              = 0x00000000,
     MPI_IOUNITPAGE1_SINGLE_FUNCTION             = 0x00000001,
     MPI_IOUNITPAGE1_DISABLE_IR                  = 0x00000040,
+    MPI_IOUNITPAGE1_SATA_WRITE_CACHE_DISABLE    = 0x00000200,
 
     MPI_IOCPAGE1_EEDP_MODE_MASK                 = 0x07000000,
     MPI_IOCPAGE1_INITIATOR_CONTEXT_REPLY_DISABLE = 0x00000010,

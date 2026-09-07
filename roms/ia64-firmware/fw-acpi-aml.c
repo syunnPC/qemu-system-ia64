@@ -733,7 +733,7 @@ BOOLEAN fw_acpi_ssdt_reparent_legacy_devices(UINT8 *aml, UINTN length,
             matches++;
         }
     }
-    if (matches != 2U) {
+    if (matches != 1U) {
         return 0;
     }
     for (i = 0; i <= length - sizeof(pci0_path); i++) {
@@ -1018,6 +1018,10 @@ static BOOLEAN fw_aml_root_prt(FWAcpiAmlBuilder *builder,
 {
     UINTN count = fw_aml_root_route_count(root, routes, route_count);
     UINTN i;
+
+    if (count == 0) {
+        return 1;
+    }
 
     if (!fw_acpi_aml_name(builder, "_PRT") ||
         !fw_acpi_aml_package_begin(builder, (UINT8)count)) {

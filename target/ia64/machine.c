@@ -223,6 +223,9 @@ static int ia64_cpu_post_load(void *opaque, int version_id)
         env->pal.pal_init_entry = 0;
         env->pal.pal_init_gp = 0;
     }
+    if (version_id < 11) {
+        env->exception_state.psr_i_deferred = false;
+    }
 
     /* Migration stops vCPUs only at instruction boundaries. */
     env->rse.rse_access = false;
@@ -309,7 +312,7 @@ static int ia64_cpu_post_load(void *opaque, int version_id)
 
 const VMStateDescription vmstate_ia64_cpu = {
     .name = "cpu",
-    .version_id = 10,
+    .version_id = 11,
     .minimum_version_id = 3,
     .pre_save = ia64_cpu_pre_save,
     .post_load = ia64_cpu_post_load,
@@ -352,6 +355,7 @@ const VMStateDescription vmstate_ia64_cpu = {
                        3),
         VMSTATE_UINT64_V(env.exception_state.psr_before_insn, IA64CPU, 3),
         VMSTATE_BOOL(env.exception_state.psr_ic_inflight, IA64CPU),
+        VMSTATE_BOOL_V(env.exception_state.psr_i_deferred, IA64CPU, 11),
         VMSTATE_UINT64(env.exception_state.psr_suppression_before_insn,
                        IA64CPU),
 

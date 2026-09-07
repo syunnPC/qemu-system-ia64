@@ -133,6 +133,89 @@ typedef struct {
 typedef TEST_SAL_RETURN (*TEST_SAL_PROC)(UINT64, UINT64, UINT64, UINT64,
                                         UINT64, UINT64, UINT64, UINT64);
 
+/*
+ * Flush the outer frame in its original byte order before changing the RSE
+ * mode for the inner frame, whose local value must survive a SAL call.
+ * Keep return state in preserved static registers so a corrupt local value
+ * can be reported without corrupting the test harness's return path.
+ */
+__asm__(
+    ".pushsection .text.test_sal_rse_call, \"ax\"\n"
+    ".align 16\n"
+    ".global test_sal_rse_call\n"
+    ".type test_sal_rse_call, @function\n"
+    ".proc test_sal_rse_call\n"
+    ".explicit\n"
+    "test_sal_rse_call:\n"
+    "  alloc r35 = ar.pfs, 3, 7, 3, 0\n"
+    "  ;;\n"
+    "  mov r36 = b0\n"
+    "  mov r37 = r1\n"
+    "  mov r38 = r4\n"
+    "  mov r39 = r5\n"
+    "  mov r40 = r6\n"
+    "  mov r41 = r7\n"
+    "  mov r42 = r32\n"
+    "  mov r43 = r33\n"
+    "  mov r44 = r34\n"
+    "  ;;\n"
+    "  br.call.sptk.many b0 = .Lsal_rse_inner\n"
+    "  ;;\n"
+    "  mov b0 = r36\n"
+    "  mov r1 = r37\n"
+    "  mov r4 = r38\n"
+    "  mov r5 = r39\n"
+    "  mov r6 = r40\n"
+    "  mov r7 = r41\n"
+    "  mov ar.pfs = r35\n"
+    "  ;;\n"
+    "  br.ret.sptk.many b0\n"
+    "  ;;\n"
+    ".Lsal_rse_inner:\n"
+    "  alloc r35 = ar.pfs, 3, 1, 8, 0\n"
+    "  ;;\n"
+    "  mov r4 = ar.rsc\n"
+    "  mov r5 = r35\n"
+    "  mov r6 = b0\n"
+    "  mov r7 = r1\n"
+    "  ;;\n"
+    "  flushrs\n"
+    "  ;;\n"
+    "  mov b6 = r32\n"
+    "  mov r1 = r33\n"
+    "  mov ar.rsc = r34\n"
+    "  ;;\n"
+    "  movl r35 = 0x1122334455667788\n"
+    "  movl r36 = 0x01000002\n"
+    "  mov r37 = r0\n"
+    "  mov r38 = r0\n"
+    "  mov r39 = r0\n"
+    "  mov r40 = r0\n"
+    "  mov r41 = r0\n"
+    "  mov r42 = r0\n"
+    "  mov r43 = r0\n"
+    "  ;;\n"
+    "  br.call.sptk.many b0 = b6\n"
+    "  ;;\n"
+    "  cmp.eq p6, p7 = r8, r0\n"
+    "  movl r14 = 0x1122334455667788\n"
+    "  mov r8 = r0\n"
+    "  ;;\n"
+    "(p6) cmp.eq p6, p7 = r14, r35\n"
+    "  ;;\n"
+    "(p6) mov r8 = 1\n"
+    "  mov ar.rsc = r4\n"
+    "  mov ar.pfs = r5\n"
+    "  mov b0 = r6\n"
+    "  mov r1 = r7\n"
+    "  ;;\n"
+    "  br.ret.sptk.many b0\n"
+    "  ;;\n"
+    ".endp test_sal_rse_call\n"
+    ".size test_sal_rse_call, . - test_sal_rse_call\n"
+    ".popsection\n"
+);
+
 typedef struct {
     EFI_MEMORY_DESCRIPTOR *Buffer;
     UINTN MapSize;
@@ -212,7 +295,7 @@ typedef struct {
 #define TEST_SPARSE_IO_BASE          IA64_TEST_LEGACY_IO_BASE
 #define TEST_SPARSE_IO_SIZE          IA64_TEST_LEGACY_IO_SIZE
 #define TEST_PM_IO_BASE              0x2000U
-#define TEST_HCDP_LENGTH             129U
+#define TEST_HCDP_LENGTH             241U
 #define TEST_HCDP_UART_HID           0x0105d041U
 #define TEST_HCDP_UART_BASE_FLAGS    0x41U
 #define TEST_HCDP_UART_PRIMARY       0x04U
@@ -563,6 +646,9 @@ static BOOLEAN test_memory_services(EFI_SYSTEM_TABLE *SystemTable)
     UINTN map_size = 0;
     UINTN map_key = 0;
     UINTN descriptor_size = 0;
+    UINTN capacity;
+    UINTN offset;
+    UINTN i;
     UINT32 descriptor_version = 0;
     EFI_STATUS status;
     BOOLEAN ok = 0;
@@ -574,14 +660,37 @@ static BOOLEAN test_memory_services(EFI_SYSTEM_TABLE *SystemTable)
         return 0;
     }
     map_size += 4U * descriptor_size;
-    if (bs->AllocatePool(EfiLoaderData, map_size, (VOID **)&map) !=
+    capacity = map_size + 16U;
+    if (bs->AllocatePool(EfiLoaderData, capacity, (VOID **)&map) !=
         EFI_SUCCESS) {
         return 0;
     }
+    bs->SetMem(map, capacity, 0xa5);
     status = bs->GetMemoryMap(&map_size, map, &map_key, &descriptor_size,
                               &descriptor_version);
-    if (status != EFI_SUCCESS || descriptor_version != 1U) {
+    if (status != EFI_SUCCESS || descriptor_version != 1U ||
+        descriptor_size <= sizeof(EFI_MEMORY_DESCRIPTOR) ||
+        (descriptor_size & 15U) != 0 || map_size % descriptor_size != 0 ||
+        map_size > capacity - 16U) {
         goto out;
+    }
+    for (offset = 0; offset < map_size; offset += descriptor_size) {
+        EFI_MEMORY_DESCRIPTOR *entry =
+            (EFI_MEMORY_DESCRIPTOR *)((UINT8 *)map + offset);
+
+        if (entry->NumberOfPages == 0 || (entry->PhysicalStart & 0xfffU)) {
+            goto out;
+        }
+        for (i = sizeof(*entry); i < descriptor_size; i++) {
+            if (((UINT8 *)entry)[i] != 0) {
+                goto out;
+            }
+        }
+    }
+    for (i = map_size; i < capacity; i++) {
+        if (((UINT8 *)map)[i] != 0xa5) {
+            goto out;
+        }
     }
     if (bs->AllocatePages(AllocateAnyPages, EfiLoaderData, 2, &pages) !=
             EFI_SUCCESS ||
@@ -1221,6 +1330,142 @@ typedef struct {
     VOID *Interface;
     BOOLEAN UseExit;
 } TEST_START_IMAGE_CHILD_OPTIONS;
+
+static VOID test_pe_write16(UINT8 *Address, UINT16 Value)
+{
+    Address[0] = (UINT8)Value;
+    Address[1] = (UINT8)(Value >> 8);
+}
+
+static VOID test_pe_write32(UINT8 *Address, UINT32 Value)
+{
+    test_pe_write16(Address, (UINT16)Value);
+    test_pe_write16(Address + 2, (UINT16)(Value >> 16));
+}
+
+/* A relocatable image whose final section crosses the declared image end. */
+static VOID test_pe_section_image(UINT8 *Source, UINT16 Magic,
+                                   UINT16 Subsystem, UINT32 VirtualSize)
+{
+    UINT8 *optional = Source + 0x98;
+    UINT8 *sections = Source + 0x188;
+    UINTN i;
+
+    zero_bytes(Source, 0x1600);
+    test_pe_write16(Source, 0x5a4d);
+    test_pe_write32(Source + 0x3c, 0x80);
+    test_pe_write32(Source + 0x80, 0x4550);
+    test_pe_write16(Source + 0x84, 0x200); /* IA-64 */
+    test_pe_write16(Source + 0x86, 2);
+    test_pe_write16(Source + 0x94, 0xf0);
+    test_pe_write16(Source + 0x96, 0x202);
+    test_pe_write16(optional, Magic);
+    test_pe_write32(optional + 16, 0x1000); /* Entry point descriptor. */
+    test_pe_write32(optional + 32, 0x1000);
+    test_pe_write32(optional + 36, 0x200);
+    test_pe_write32(optional + 56, 0x3000);
+    test_pe_write32(optional + 60, 0x200);
+    test_pe_write16(optional + 68, Subsystem);
+    /* Use the 64-bit data-directory layout accepted by the IA-64 loader. */
+    test_pe_write32(optional + 108, 16);
+    test_pe_write32(optional + 112 + 5 * 8, 0x1020);
+    test_pe_write32(optional + 116 + 5 * 8, 12);
+    test_pe_write32(sections + 8, 0x200);
+    test_pe_write32(sections + 12, 0x1000);
+    test_pe_write32(sections + 16, 0x200);
+    test_pe_write32(sections + 20, 0x200);
+    test_pe_write32(sections + 36, 0xc0000040);
+    sections += 40;
+    test_pe_write32(sections + 8, VirtualSize);
+    test_pe_write32(sections + 12, 0x2000);
+    test_pe_write32(sections + 16, 0x1200);
+    test_pe_write32(sections + 20, 0x400);
+    test_pe_write32(sections + 36, 0xc0000040);
+    test_pe_write32(Source + 0x200, 0x1100);
+    test_pe_write32(Source + 0x208, 0x2000);
+    test_pe_write32(Source + 0x220, 0x1000);
+    test_pe_write32(Source + 0x224, 12);
+    test_pe_write16(Source + 0x228, 0xa000);
+    test_pe_write16(Source + 0x22a, 0xa008);
+    for (i = 0x400; i < 0x1600; i++) {
+        Source[i] = 0xa5;
+    }
+}
+
+static BOOLEAN test_image_section_extents(EFI_HANDLE ImageHandle,
+                                           EFI_SYSTEM_TABLE *SystemTable)
+{
+    static UINT8 source[0x1600] __attribute__((aligned(8)));
+    EFI_BOOT_SERVICES *bs = SystemTable->BootServices;
+    UINTN pass;
+
+    for (pass = 0; pass < 8; pass++) {
+        EFI_HANDLE image = NULL;
+        EFI_LOADED_IMAGE_PROTOCOL *loaded = NULL;
+        UINT16 magic = (pass & 1U) != 0 ? 0x20b : 0x10b;
+        UINT16 subsystem = (pass & 2U) != 0 ? 12 : 10;
+        UINT32 virtual_size = (pass & 4U) != 0 ? 0x1800 : 0x1098;
+        UINTN copied_size = (pass & 4U) != 0 ? 0x1200 : 0x1098;
+        UINT8 *base;
+        BOOLEAN ok;
+
+        test_pe_section_image(source, magic, subsystem, virtual_size);
+        if (bs->LoadImage(0, ImageHandle, NULL, source, sizeof(source),
+                          &image) != EFI_SUCCESS) {
+            return 0;
+        }
+        ok = bs->HandleProtocol(image, loaded_image_guid,
+                                 (VOID **)&loaded) == EFI_SUCCESS &&
+             loaded != NULL && loaded->ImageSize == 0x4000;
+        if (ok) {
+            base = loaded->ImageBase;
+            ok = *(UINT32 *)(base + 0x98 + 56) == 0x4000 &&
+                 *(UINT32 *)(source + 0x98 + 56) == 0x3000 &&
+                 *(UINT64 *)(base + 0x1000) == (UINTN)base + 0x1100 &&
+                 *(UINT64 *)(base + 0x1008) == (UINTN)base + 0x2000 &&
+                 base[0x2000 + copied_size - 1U] == 0xa5 &&
+                 base[0x2000 + copied_size] == 0 && base[0x3fff] == 0;
+        }
+        if (bs->UnloadImage(image) != EFI_SUCCESS || !ok) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static BOOLEAN test_image_section_bounds(EFI_HANDLE ImageHandle,
+                                          EFI_SYSTEM_TABLE *SystemTable)
+{
+    static UINT8 source[0x1600] __attribute__((aligned(8)));
+    EFI_BOOT_SERVICES *bs = SystemTable->BootServices;
+    UINTN pass;
+
+    for (pass = 0; pass < 4; pass++) {
+        EFI_HANDLE image = NULL;
+        UINTN source_size = sizeof(source);
+        EFI_STATUS status;
+
+        test_pe_section_image(source, 0x10b, 10, 0x1098);
+        if (pass == 0) {
+            source_size--; /* Truncated final section. */
+        } else if (pass == 1) {
+            /* Section end cannot be represented by SizeOfImage. */
+            test_pe_write32(source + 0x188 + 40 + 12, 0xfffff000);
+        } else {
+            /* Expansion requires a nonzero power-of-two alignment. */
+            test_pe_write32(source + 0x98 + 32, pass == 2 ? 0 : 0x1800);
+        }
+        status = bs->LoadImage(0, ImageHandle, NULL, source, source_size,
+                               &image);
+        if (status != EFI_LOAD_ERROR || image != NULL) {
+            if (image != NULL) {
+                (void)bs->UnloadImage(image);
+            }
+            return 0;
+        }
+    }
+    return 1;
+}
 
 static EFI_HANDLE test_start_image_controller;
 static UINTN test_start_image_start_count;
@@ -2456,9 +2701,10 @@ static BOOLEAN test_acpi_console_tables(const TEST_TABLE_CONTEXT *Context)
         get_u16(hcdp + 82U) != TEST_HCDP_UART_CONOUT_INDEX ||
         get_u32(hcdp + 84U) != 0 ||
         hcdp[88U] != 0x0aU || (hcdp[89U] & (UINT8)~1U) != 0 ||
-        get_u16(hcdp + 90U) != 41U || get_u16(hcdp + 92U) != 0 ||
+        get_u16(hcdp + 90U) != 153U || get_u16(hcdp + 92U) != 0 ||
         hcdp[94U] != 1U || get_u16(hcdp + 96U) != 34U ||
-        hcdp[99U] != 0 || hcdp[100U] != 5U || hcdp[101U] != 0) {
+        hcdp[99U] != 0 || hcdp[100U] != 5U || hcdp[101U] != 0 ||
+        hcdp[128U] != 2U) {
         return 0;
     }
     if (Context->Dbgp != NULL) {
@@ -2603,6 +2849,24 @@ static BOOLEAN test_sal_state_info_no_log(EFI_SYSTEM_TABLE *SystemTable)
 out:
     put_memory_map(SystemTable, &map);
     return ok;
+}
+
+static BOOLEAN test_sal_rse_byte_order(EFI_SYSTEM_TABLE *SystemTable)
+{
+    UINT8 *sal = (UINT8 *)find_config_table(SystemTable, sal_guid);
+    static const UINT64 modes[] = { 0, 3, 0x10, 0x13 };
+    UINTN i;
+
+    if (sal == NULL || get_u32(sal + 4U) < 144U || sal[96U] != 0U) {
+        return 0;
+    }
+    for (i = 0; i < sizeof(modes) / sizeof(modes[0]); i++) {
+        if (!test_sal_rse_call(get_u64(sal + 112U), get_u64(sal + 120U),
+                               modes[i])) {
+            return 0;
+        }
+    }
+    return 1;
 }
 
 static BOOLEAN test_sal_smbios_tables(EFI_SYSTEM_TABLE *SystemTable,
@@ -2779,6 +3043,12 @@ EFI_STATUS ia64_services_main(EFI_HANDLE ImageHandle,
                         test_image_services(ImageHandle, SystemTable),
                         EFI_DEVICE_ERROR,
                         "load-file-fallback-parameter");
+        ia64_test_check(&context, "image-section-extents",
+                        test_image_section_extents(ImageHandle, SystemTable),
+                        EFI_DEVICE_ERROR, "section-size-copy-relocation");
+        ia64_test_check(&context, "image-section-bounds",
+                        test_image_section_bounds(ImageHandle, SystemTable),
+                        EFI_DEVICE_ERROR, "section-file-range-size-alignment");
         {
             BOOLEAN start_connect_ok =
                 test_start_image_connect(ImageHandle, SystemTable);
@@ -2815,6 +3085,9 @@ EFI_STATUS ia64_services_main(EFI_HANDLE ImageHandle,
         ia64_test_check(&context, "sal-state-info-no-log",
                         test_sal_state_info_no_log(SystemTable),
                         EFI_DEVICE_ERROR, "size-empty-clear");
+        ia64_test_check(&context, "sal-rse-byte-order",
+                        test_sal_rse_byte_order(SystemTable),
+                        EFI_DEVICE_ERROR, "lazy-eager-caller-registers");
     }
     ia64_test_done(&context);
     return context.Failed == 0 ? EFI_SUCCESS : EFI_DEVICE_ERROR;

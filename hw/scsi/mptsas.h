@@ -6,6 +6,7 @@
 #include "hw/scsi/scsi.h"
 
 #define MPTSAS_NUM_PORTS 8
+#define MPTSAS_ENCLOSURE_HANDLE (2 * MPTSAS_NUM_PORTS + 1)
 #define MPTSPI_NUM_PORTS 1
 #define MPTSPI_MAX_TARGETS 16
 #define MPTSPI_HOST_ID 7
@@ -16,9 +17,22 @@
 #define MPTSAS_MAX_FRAMES 2048     /* Firmware limit at 65535 */
 
 #define MPTSAS_REQUEST_QUEUE_DEPTH 128
-#define MPTSAS_REPLY_QUEUE_DEPTH   128
+#define MPTSAS_REPLY_QUEUE_DEPTH_V0 128
+#define MPTSAS_REPLY_QUEUE_DEPTH   256
 
 #define MPTSAS_MAXIMUM_CHAIN_DEPTH 0x22
+
+enum {
+    MPTSAS_CONFIG_MANUFACTURING_1,
+    MPTSAS_CONFIG_MANUFACTURING_4,
+    MPTSAS_CONFIG_IO_UNIT_1,
+    MPTSAS_CONFIG_SAS_IO_UNIT_1,
+    MPTSAS_CONFIG_SAS_IO_UNIT_2,
+    MPTSAS_CONFIG_PAGE_COUNT,
+};
+
+#define MPTSAS_CONFIG_PAGE_DATA_SIZE 256
+#define MPTSAS_CONFIG_PAGE_MASK ((1U << MPTSAS_CONFIG_PAGE_COUNT) - 1)
 
 typedef struct MPTSASRequest MPTSASRequest;
 
@@ -99,6 +113,16 @@ struct MPTSASState {
     uint16_t max_buses;
     uint16_t reply_frame_size;
 
+    uint32_t fw_image_size;
+    uint8_t *fw_image;
+    uint8_t config_nvram[MPTSAS_CONFIG_PAGE_COUNT]
+                        [MPTSAS_CONFIG_PAGE_DATA_SIZE];
+    uint8_t config_nvram_written;
+    uint8_t config_current[MPTSAS_CONFIG_PAGE_COUNT]
+                          [MPTSAS_CONFIG_PAGE_DATA_SIZE];
+    uint8_t config_current_written;
+    uint32_t enclosure_status[MPTSAS_NUM_PORTS];
+
     /* IOC configuration page 1 current values. */
     uint32_t ioc1_flags;
     uint32_t ioc1_coalescing_timeout;
@@ -152,5 +176,6 @@ void mptsas_fix_event_notification_reply_endianness(MPIMsgEventNotifyReply *repl
 void mptsas_reply(MPTSASState *s, MPIDefaultReply *reply);
 
 void mptsas_process_config(MPTSASState *s, MPIMsgConfig *req);
+unsigned mptsas_first_slot(const MPTSASState *s);
 
 #endif /* MPTSAS_H */

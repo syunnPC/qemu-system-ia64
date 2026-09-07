@@ -190,13 +190,13 @@ static int test_ssdt_legacy_device_parent(void)
         ssdt_aml[i] = mSsdtAmlTemplate[i];
     }
     CHECK(count_bytes(ssdt_aml, sizeof(ssdt_aml),
-                      pci0_path, sizeof(pci0_path)) == 2U);
+                      pci0_path, sizeof(pci0_path)) == 1U);
     CHECK(fw_acpi_ssdt_reparent_legacy_devices(
         ssdt_aml, sizeof(ssdt_aml), sba0));
     CHECK(count_bytes(ssdt_aml, sizeof(ssdt_aml),
                       pci0_path, sizeof(pci0_path)) == 0);
     CHECK(count_bytes(ssdt_aml, sizeof(ssdt_aml),
-                      sba0_path, sizeof(sba0_path)) == 2U);
+                      sba0_path, sizeof(sba0_path)) == 1U);
     CHECK(!fw_acpi_ssdt_reparent_legacy_devices(
         ssdt_aml, sizeof(ssdt_aml), sba0));
     CHECK(!fw_acpi_ssdt_reparent_legacy_devices(
@@ -773,9 +773,7 @@ static int test_optional_root_apertures(void)
           data[46] == 0x79U && data[47] == 0);
 
     offset = find_name(aml, length, "_PRT", 0);
-    CHECK(offset != ~(UINTN)0 && offset <= length - 3U &&
-          aml[offset] == 0x12U && aml[offset + 1U] == 2U &&
-          aml[offset + 2U] == 0);
+    CHECK(offset == ~(UINTN)0);
     return 0;
 }
 

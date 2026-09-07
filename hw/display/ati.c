@@ -884,7 +884,7 @@ static uint32_t ati_dac_read(const ATIVGAState *s)
     return value;
 }
 
-static uint64_t ati_mm_read(void *opaque, hwaddr addr, unsigned int size)
+static uint64_t ati_reg_read(void *opaque, hwaddr addr, unsigned int size)
 {
     ATIVGAState *s = opaque;
     uint32_t val = 0;
@@ -906,7 +906,7 @@ static uint64_t ati_mm_read(void *opaque, hwaddr addr, unsigned int size)
 
             val = ldn_le_p(s->vga.vram_ptr + idx, size);
         } else if (s->regs.mm_index > MM_DATA + 3) {
-            val = ati_mm_read(s, s->regs.mm_index + addr - MM_DATA, size);
+            val = ati_reg_read(s, s->regs.mm_index + addr - MM_DATA, size);
         } else {
             qemu_log_mask(LOG_GUEST_ERROR,
                 "ati_mm_read: mm_index too small: %u\n", s->regs.mm_index);
@@ -1962,10 +1962,60 @@ void ati_mmio_write(ATIVGAState *s, hwaddr addr, uint64_t data,
     }
 }
 
+static bool ati_mm_swap(ATIVGAState *s, hwaddr addr)
+{
+    unsigned int mode;
+
+    if (!ati_is_rv100_family(s)) {
+        return false;
+    }
+    mode = extract32(s->regs.config_cntl, R100_APER_REG_ENDIAN_SHIFT, 2);
+    return mode == R100_APER_REG_ENDIAN_BOTH ||
+           mode == (addr & (ATI_R100_MMIO_SIZE / 2) ?
+                    R100_APER_REG_ENDIAN_1 : R100_APER_REG_ENDIAN_0);
+}
+
+static uint64_t ati_mm_swap_value(uint64_t value, unsigned int size)
+{
+    switch (size) {
+    case 2:
+        return bswap16(value);
+    case 4:
+        return bswap32(value);
+    default:
+        return value;
+    }
+}
+
+static uint64_t ati_mm_read(void *opaque, hwaddr addr, unsigned int size)
+{
+    ATIVGAState *s = opaque;
+    bool swap = ati_mm_swap(s, addr);
+    uint64_t value;
+
+    if (swap) {
+        addr ^= 4 - size;
+    }
+    if (ati_is_rv100_family(s)) {
+        addr &= ATI_R100_MMIO_SIZE / 2 - 1;
+    }
+    value = ati_reg_read(s, addr, size);
+    return swap ? ati_mm_swap_value(value, size) : value;
+}
+
 static void ati_mm_write(void *opaque, hwaddr addr, uint64_t data,
                          unsigned int size)
 {
-    ati_mmio_write(opaque, addr, data, size);
+    ATIVGAState *s = opaque;
+
+    if (ati_mm_swap(s, addr)) {
+        addr ^= 4 - size;
+        data = ati_mm_swap_value(data, size);
+    }
+    if (ati_is_rv100_family(s)) {
+        addr &= ATI_R100_MMIO_SIZE / 2 - 1;
+    }
+    ati_mmio_write(s, addr, data, size);
 }
 
 static const MemoryRegionOps ati_mm_ops = {

@@ -20,6 +20,7 @@
 #include "qemu/module.h"
 #include "qemu/thread.h"
 #include "system/address-spaces.h"
+#include "trace.h"
 
 #define TYPE_HP_ZX1_MIO_IOMMU_MEMORY_REGION \
     TYPE_HP_ZX1_MIO ".iommu-memory-region"
@@ -394,6 +395,7 @@ static MemTxResult hp_zx1_mio_read(void *opaque, hwaddr addr,
     }
     qemu_rec_mutex_unlock(&s->iommu_lock);
 
+    trace_hp_zx1_mio_read(addr, ok ? *data : 0, size, ok);
     if (!ok) {
         *data = 0;
         qemu_rec_mutex_lock(&s->iommu_lock);
@@ -439,6 +441,7 @@ static MemTxResult hp_zx1_mio_write(void *opaque, hwaddr addr,
     }
     qemu_rec_mutex_unlock(&s->iommu_lock);
 
+    trace_hp_zx1_mio_write(addr, value, size, ok);
     if (!ok) {
         qemu_rec_mutex_lock(&s->iommu_lock);
         hp_zx1_mio_report_fault(s, HP_ZX1_MIO_ERROR_CSR_DECODE,

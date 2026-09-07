@@ -1157,6 +1157,12 @@ void ia64_set_psr(CPUIA64State *env, uint64_t value)
     if (changed & IA64_PSR_IC) {
         env->exception_state.psr_ic_inflight = true;
     }
+    if (!(value & IA64_PSR_I) || (value & IA64_PSR_IS)) {
+        env->exception_state.psr_i_deferred = false;
+    } else if ((changed & IA64_PSR_I) &&
+               env->exception_state.psr_ic_inflight) {
+        env->exception_state.psr_i_deferred = true;
+    }
     if (changed & IA64_PSR_BN) {
         ia64_swap_banked_gr(env);
     }

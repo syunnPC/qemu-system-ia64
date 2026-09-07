@@ -275,6 +275,7 @@ struct HPZX6000MachineProfile {
     unsigned int secondary_network_root;
     unsigned int secondary_network_slot;
     unsigned int management_root;
+    bool pci_console;
     unsigned int management_slot;
     const char *vga_model;
     uint32_t vga_memory_mb;
@@ -1161,11 +1162,11 @@ static bool hp_zx6000_create_pdh(HPZX6000MachineState *s, Error **errp)
 
     G_STATIC_ASSERT(G_N_ELEMENTS(bases) == HP_ZX6000_PDH_MMIO_COUNT);
     s->pdh = HP_ZX6000_PDH(dev);
-    chardev = serial_hd(0);
+    chardev = serial_hd(s->profile->pci_console ? 1 : 0);
     if (chardev) {
         qdev_prop_set_chr(dev, "chardev0", chardev);
     }
-    chardev = serial_hd(1);
+    chardev = serial_hd(s->profile->pci_console ? 2 : 1);
     if (chardev) {
         qdev_prop_set_chr(dev, "chardev1", chardev);
     }
@@ -1531,9 +1532,9 @@ static bool hp_rx2660_create_pci_devices(HPZX6000MachineState *s,
         s->management[function] = pci_new_multifunction(
             PCI_DEVFN(s->profile->management_slot, function),
             management_types[function]);
-        if (function == 2 && serial_hd(2)) {
+        if (function == 2 && serial_hd(0)) {
             qdev_prop_set_chr(DEVICE(s->management[function]), "chardev",
-                              serial_hd(2));
+                              serial_hd(0));
         }
         if (!hp_zx6000_realize_pci_device(s->management[function],
                                            management,
@@ -1807,7 +1808,8 @@ static void hp_rx2660_configure_pci(HPZX6000MachineState *s)
     }
     hp_zx6000_enable_pci_device(
         s->management[2], PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER,
-        0);
+        hp_zx6000_device_gsi(s, s->profile->management_root,
+                             s->profile->management_slot, 0));
 
 }
 
@@ -2016,11 +2018,15 @@ static bool hp_zx6000_install_descriptor(HPZX6000MachineState *s,
         .LegacyIoSize = cpu_to_le64(HP_ZX6000_LEGACY_IO_SIZE),
         .LocalSapicBase = cpu_to_le64(HP_ZX6000_PIB_BASE),
         .LocalSapicSize = cpu_to_le64(HP_ZX6000_PIB_SIZE),
-        .ConsoleBase = cpu_to_le64(HP_ZX6000_PDH_UART0_BASE),
+        .ConsoleBase = cpu_to_le64(s->profile->pci_console ?
+            s->profile->pci_resources->console_bars[1] :
+            HP_ZX6000_PDH_UART0_BASE),
         .ConsoleRegisterStride = cpu_to_le32(1),
         .ConsoleClockHz = cpu_to_le32(
             HP_ZX6000_PDH_UART_INPUT_CLOCK_HZ),
-        .ConsoleIrq = cpu_to_le32(
+        .ConsoleIrq = cpu_to_le32(s->profile->pci_console ?
+            hp_zx6000_device_gsi(s, s->profile->management_root,
+                                 s->profile->management_slot, 0) :
             hp_zx_root_layout(s, s->profile->core_root)->gsi_base + 8),
         .NvramBase = cpu_to_le64(HP_ZX6000_PDH_NVRAM_BASE),
         .NvramSize = cpu_to_le64(HP_ZX6000_PDH_NVRAM_SIZE),
@@ -2106,7 +2112,8 @@ static bool hp_zx6000_install_descriptor(HPZX6000MachineState *s,
             s, &header, s->management[root],
             root == 2 ? IA64_PLATFORM_ONBOARD_UART :
                         IA64_PLATFORM_ONBOARD_MGMT,
-            s->profile->management_root, UINT8_MAX, 0);
+            s->profile->management_root,
+            root == 2 ? 1 : UINT8_MAX, root == 2 ? 0x1000 : 0);
     }
 
     if (hp_zx6000_pdh_nvram_persistent(s->pdh)) {
@@ -2582,6 +2589,7 @@ static const HPZX6000CPUProfile hp_rx2660_cpus[] = {
 };
 
 static const HPZX6000MachineProfile hp_rx2660_profile = {
+    .pci_console = true,
     .machine_type = TYPE_HP_RX2660_MACHINE,
     .region_prefix = "hp-rx2660",
     .pib_region_name = "hp-rx2660.pib",

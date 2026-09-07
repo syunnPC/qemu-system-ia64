@@ -39,8 +39,8 @@ void hp_zx2_mio_regs_reset(HPZX2MIORegs *regs)
     for (group = 0; group < HP_ZX2_MIO_GROUP_COUNT; group++) {
         regs->group_ropes[group] =
             (UINT64_C(0x0303) << (group * 2)) & HP_ZX2_MIO_ROPE_MASK;
-        regs->group_control[group] = HP_ZX2_MIO_GROUP_ENABLE |
-            ((uint64_t)group << HP_ZX2_MIO_GROUP_CONTEXT_SHIFT);
+        /* The common IOC bank controls DMA until groups are remapped. */
+        regs->group_control[group] = HP_ZX2_MIO_GROUP_ENABLE;
     }
 }
 

@@ -34,9 +34,7 @@ static void test_reset_and_groups(void)
                         (UINT64_C(0x0303) << (index * 2)) &
                         HP_ZX2_MIO_ROPE_MASK);
         g_assert_cmphex(read64(&regs, HP_ZX2_MIO_GROUP_CONTROL(index)), ==,
-                        HP_ZX2_MIO_GROUP_ENABLE |
-                        ((uint64_t)index <<
-                         HP_ZX2_MIO_GROUP_CONTEXT_SHIFT));
+                        HP_ZX2_MIO_GROUP_ENABLE);
     }
     g_assert_true(hp_zx2_mio_regs_state_valid(&regs));
     g_assert_true(hp_zx2_mio_regs_group_for_ropes(&regs, 0x03,
@@ -46,11 +44,11 @@ static void test_reset_and_groups(void)
     g_assert_true(hp_zx2_mio_regs_group_for_ropes(&regs, 0xc0,
                                                   &group, &context));
     g_assert_cmpuint(group, ==, 3);
-    g_assert_cmpuint(context, ==, 3);
+    g_assert_cmpuint(context, ==, 0);
     g_assert_true(hp_zx2_mio_regs_group_for_ropes(&regs, 0x8000,
                                                   &group, &context));
     g_assert_cmpuint(group, ==, 3);
-    g_assert_cmpuint(context, ==, 3);
+    g_assert_cmpuint(context, ==, 0);
     g_assert_false(hp_zx2_mio_regs_group_for_ropes(&regs, 0x05,
                                                    &group, &context));
 }

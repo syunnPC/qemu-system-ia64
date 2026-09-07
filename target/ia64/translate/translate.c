@@ -275,7 +275,7 @@ static bool ia64_instruction_address_matches_physical_entry(CPUIA64State *env,
         return address == entry_pa;
     }
 
-    if (ia64_firmware_identity_pa(env->cr_iva, address, env->psr,
+    if (ia64_firmware_identity_pa(env->cr_iva, env->psr,
                                   address, &pa)) {
         return pa == entry_pa;
     }
@@ -372,10 +372,12 @@ bool ia64_insn_must_end_group(const Ia64Instruction *insn)
     case IA64_OP_COVER:
     case IA64_OP_ITC_D:
     case IA64_OP_ITC_I:
-    case IA64_OP_PTC_G:
-    case IA64_OP_PTC_GA:
     case IA64_OP_RFI:
         return true;
+    case IA64_OP_PTC_G:
+    case IA64_OP_PTC_GA:
+        /* Global purges without a stop are undefined, not required to fault. */
+        return false;
     default:
         return false;
     }
@@ -2415,6 +2417,15 @@ void ia64_gen_exit_to_completed(DisasContext *ctx, uint64_t ip,
     ia64_gen_exit_to(ctx, ip);
 }
 
+static void ia64_gen_lookup_or_exit(DisasContext *ctx)
+{
+    if (ctx->base.tb->flags & IA64_TB_FLAG_IRQ_DEFER) {
+        tcg_gen_exit_tb(NULL, 0);
+    } else {
+        tcg_gen_lookup_and_goto_ptr();
+    }
+}
+
 void ia64_gen_lookup_tcg_completed(DisasContext *ctx, TCGv_i64 ip,
                                    uint64_t completed_ip,
                                    bool record_iipa,
@@ -2430,7 +2441,7 @@ void ia64_gen_lookup_tcg_completed(DisasContext *ctx, TCGv_i64 ip,
     ia64_gen_save_fault_slot_from_ri();
     ia64_gen_clear_ri();
     tcg_gen_mov_i64(cpu_ip, ip);
-    tcg_gen_lookup_and_goto_ptr();
+    ia64_gen_lookup_or_exit(ctx);
 }
 
 void ia64_gen_lookup_current_completed(DisasContext *ctx,
@@ -2454,7 +2465,7 @@ void ia64_gen_lookup_current_completed(DisasContext *ctx,
     ia64_gen_store_instruction_group_start(true);
     ia64_gen_save_fault_slot_from_ri();
     ia64_gen_clear_ri();
-    tcg_gen_lookup_and_goto_ptr();
+    ia64_gen_lookup_or_exit(ctx);
 }
 
 static void ia64_gen_exit_to_slot(DisasContext *ctx, uint64_t ip, uint8_t slot)
@@ -4177,6 +4188,9 @@ static void ia64_tr_init_disas_context(DisasContextBase *db, CPUState *cs)
     uint32_t flags = ctx->base.tb->flags;
 
     ctx->env = cpu_env(cs);
+    if (flags & IA64_TB_FLAG_IRQ_DEFER) {
+        ctx->base.max_insns = 1;
+    }
     ctx->memory.mmu_idx = (flags & IA64_TB_FLAG_DT) ?
         MMU_IDX_VIRT_CPL((flags & IA64_TB_FLAG_CPL_MASK) >>
                          IA64_TB_FLAG_CPL_SHIFT) :
@@ -4222,6 +4236,10 @@ static void ia64_tr_init_disas_context(DisasContextBase *db, CPUState *cs)
 
 static void ia64_tr_tb_start(DisasContextBase *db, CPUState *cs)
 {
+    if (db->tb->flags & IA64_TB_FLAG_IRQ_DEFER) {
+        tcg_gen_st8_i32(tcg_constant_i32(0), tcg_env,
+                       offsetof(CPUIA64State, exception_state.psr_i_deferred));
+    }
 }
 
 static void ia64_tr_insn_start(DisasContextBase *db, CPUState *cs)
@@ -4439,13 +4457,14 @@ void ia64_gen_goto_tb_group(DisasContext *ctx, uint64_t dest,
     ia64_gen_clear_ri();
     tcg_gen_movi_i64(cpu_ip, dest);
     if (slot < 2 && ctx->memory.direct_chain_nat_safe &&
+        !(ctx->base.tb->flags & IA64_TB_FLAG_IRQ_DEFER) &&
         ia64_all_gr_nats_known_clear(ctx) &&
         translator_use_goto_tb(&ctx->base, dest)) {
         ctx->branch.goto_tb_slots = slot + 1;
         tcg_gen_goto_tb(slot);
         tcg_gen_exit_tb(ctx->base.tb, slot);
     } else {
-        tcg_gen_lookup_and_goto_ptr();
+        ia64_gen_lookup_or_exit(ctx);
     }
 }
 

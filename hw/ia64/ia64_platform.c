@@ -498,8 +498,37 @@ static bool ia64_platform_range_in_single_ram(
     return false;
 }
 
+static bool ia64_platform_pci_console_range(
+    const IA64PlatformDescriptor *descriptor, const IA64PlatformPciRoot *root,
+    uint64_t base, uint64_t size)
+{
+    uint64_t console_base = le64_to_cpu(descriptor->ConsoleBase);
+    uint64_t console_size = 8ULL *
+        le32_to_cpu(descriptor->ConsoleRegisterStride);
+    uint32_t count = le32_to_cpu(descriptor->OnboardDeviceCount);
+    uint32_t i;
+
+    if (!root || count > IA64_PLATFORM_MAX_ONBOARD_DEVICES ||
+        console_base < base || console_size > size ||
+        console_base - base > size - console_size) {
+        return false;
+    }
+    for (i = 0; i < count; i++) {
+        const IA64PlatformOnboardDevice *device = &descriptor->OnboardDevice[i];
+
+        if (device->Type == IA64_PLATFORM_ONBOARD_UART && device->Bar < 6 &&
+            le64_to_cpu(device->BarSize) >= console_size &&
+            device->Segment == root->Segment && device->Bus >= root->Bus &&
+            device->Bus <= root->BusEnd) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static bool ia64_platform_range_overlaps_fixed(
-    const IA64PlatformDescriptor *descriptor, uint64_t base, uint64_t size)
+    const IA64PlatformDescriptor *descriptor, uint64_t base, uint64_t size,
+    const IA64PlatformPciRoot *root)
 {
     uint64_t console_size = 8 * (uint64_t)le32_to_cpu(
         descriptor->ConsoleRegisterStride);
@@ -513,9 +542,10 @@ static bool ia64_platform_range_overlaps_fixed(
            ia64_platform_u64_ranges_overlap(
                base, size, le64_to_cpu(descriptor->LocalSapicBase),
                le64_to_cpu(descriptor->LocalSapicSize)) ||
-           ia64_platform_u64_ranges_overlap(
+           (!ia64_platform_pci_console_range(descriptor, root, base, size) &&
+            ia64_platform_u64_ranges_overlap(
                base, size, le64_to_cpu(descriptor->ConsoleBase),
-               console_size) ||
+               console_size)) ||
            ia64_platform_u64_ranges_overlap(
                base, size, le64_to_cpu(descriptor->NvramBase),
                le64_to_cpu(descriptor->NvramSize)) ||
@@ -839,9 +869,9 @@ static bool ia64_platform_desc_validate_entries(
             ia64_platform_range_overlaps_ram(
                 descriptor, cpu_mmio64_base, mmio64_size) ||
             ia64_platform_range_overlaps_fixed(
-                descriptor, cpu_mmio32_base, mmio32_size) ||
+                descriptor, cpu_mmio32_base, mmio32_size, root) ||
             ia64_platform_range_overlaps_fixed(
-                descriptor, cpu_mmio64_base, mmio64_size) ||
+                descriptor, cpu_mmio64_base, mmio64_size, root) ||
             ia64_platform_range_overlaps_io_sapic(
                 descriptor, cpu_mmio32_base, mmio32_size) ||
             ia64_platform_range_overlaps_io_sapic(
@@ -850,7 +880,7 @@ static bool ia64_platform_desc_validate_entries(
              (ia64_platform_range_overlaps_ram(
                   descriptor, config_window_base, config_size) ||
               ia64_platform_range_overlaps_fixed(
-                  descriptor, config_window_base, config_size) ||
+                  descriptor, config_window_base, config_size, NULL) ||
               !ia64_platform_root_config_io_sapics_valid(
                   descriptor, root, config_window_base, config_size))) ||
             ia64_platform_u64_ranges_overlap(

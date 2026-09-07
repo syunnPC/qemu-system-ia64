@@ -455,6 +455,39 @@ test_async_timer_interrupt_records_boundary_ri = require_registers(
     }, entry=0x10)
 
 
+def test_timer_interrupt_waits_for_collection_serialization(qemu):
+    for serialize in (srlz_d, srlz_i):
+        run_program(qemu, [
+            (0x10, 0x00, adds(3, 0xef, 0), nop_i(), nop_i()),
+            (0x20, 0x00, mov_m_gr_cr(3, IA64_CR_ITV), nop_i(), nop_i()),
+            (0x30, 0x00, mov_m_ar_gr(3, 44), nop_i(), nop_i()),
+            (0x40, 0x00, addl(4, IA64_ITC_TICKS_PER_MILLISECOND, 3),
+             nop_i(), nop_i()),
+            (0x50, 0x00, mov_m_gr_cr(4, IA64_CR_ITM), nop_i(), nop_i()),
+            # Pend the timer before enabling interrupts and collection together.
+            (0x60, 0x00, mov_m_cr_gr(4, IA64_CR_SAPIC_IRR3),
+             nop_i(), nop_i()),
+            (0x70, 0x00, nop_m(), cmp_eq_imm(6, 7, 0, 4), nop_i()),
+            (0x80, 0x10, nop_m(), nop_i(), br_cond(0x80, 0x60, qp=6)),
+            (0x90, 0x01, ssm(IA64_PSR_IC | IA64_PSR_I), nop_i(), nop_i()),
+            (0xa0, 0x01, serialize(), nop_i(), nop_i()),
+            (0xb0, 0x10, nop_m(), nop_i(), br_cond(0xb0, 0xb0)),
+            (0x3000, 0x00, mov_m_cr_gr(8, 19), nop_i(), nop_i()),
+            (0x3010, 0x00, mov_m_cr_gr(9, 16), nop_i(), nop_i()),
+            (0x3020, 0x00, mov_m_cr_gr(10, 17), nop_i(), nop_i()),
+            (0x3030, 0x00, mov_m_cr_gr(11, IA64_CR_SAPIC_IVR),
+             nop_i(), nop_i()),
+            (0x3040, 0x10, nop_m(), nop_i(), br_cond(0x3040, 0x3040)),
+        ], terminal_ip=0x3040, expected={
+            "ip": 0x3040,
+            "exception": IA64_EXCP_NONE,
+            "r8": 0xa0,
+            "r9": IA64_PSR_IC | IA64_PSR_I | (1 << 41),
+            "r10": 1 << IA64_ISR_EI_SHIFT,
+            "r11": 0xef,
+        }, name=f"timer_collection_{serialize.__name__}")
+
+
 # flushrs exposes an interrupt window after each mandatory store.  Enabling
 # PSR.i in slot 0 and starting flushrs in slot 1 of the same bundle prevents
 # the ordinary execution loop from accepting the already-pended timer first.
@@ -1041,10 +1074,11 @@ test_nested_timer_rfi_preserves_leaf_saved_return_branch = require_registers(
         (0x30c0, *movl_mlx(5, IA64_TPR_MMI)),
         (0x30d0, 0x00, mov_m_gr_cr(5, IA64_CR_SAPIC_TPR),
          nop_i(), nop_i()),
-        (0x30e0, 0x00, ssm(IA64_PSR_IC | IA64_PSR_I),
+        (0x30e0, 0x01, ssm(IA64_PSR_IC | IA64_PSR_I),
          nop_i(), nop_i()),
-        (0x30f0, 0x00, mov_m_cr_gr(7, IA64_CR_SAPIC_IRR3),
-         nop_i(), nop_i()),
+        # Serialize collection while TPR still masks the nested interrupt.
+        (0x30f0, 0x08, srlz_d(), mov_m_cr_gr(7, IA64_CR_SAPIC_IRR3),
+         nop_i()),
         (0x3100, 0x00, nop_m(), cmp_eq_imm(6, 7, 0, 7), nop_i()),
         (0x3110, 0x10, nop_m(), nop_i(),
          br_cond(0x3110, 0x30f0, qp=6)),
@@ -6105,6 +6139,7 @@ CASE_NAMES = (
     'timer_interrupt_exits_chained_loop_after_virtual_deadline',
     'tpr_mmi_masks_timer_until_cleared',
     'tpr_preserves_mmi_and_mic',
+    'timer_interrupt_waits_for_collection_serialization',
     'unimplemented_physical_instruction_traps',
 )
 

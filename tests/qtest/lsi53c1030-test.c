@@ -873,6 +873,62 @@ static void mptsas1068_test_compat(void *obj, void *data,
                     MPI_IOCSTATUS_CONFIG_INVALID_TYPE);
 }
 
+static uint64_t mptsas1068_read_sas_address(QMptSpi *mpt, uint16_t handle,
+                                           uint64_t buffer)
+{
+    MPIMsgConfig request = {
+        .Action = MPI_CONFIG_ACTION_PAGE_READ_CURRENT,
+        .Function = MPI_FUNCTION_CONFIG,
+        .ExtPageType = MPI_CONFIG_EXTPAGETYPE_SAS_DEVICE,
+        .PageType = MPI_CONFIG_PAGETYPE_EXTENDED,
+    };
+    MPIMsgConfigReply reply;
+    uint8_t page[64];
+
+    request.PageAddress = cpu_to_le32(0x20000000U | handle);
+    request.PageBufferSGE.FlagsLength = cpu_to_le32(
+        MPI_SGE_FLAGS_SIMPLE_ELEMENT | MPI_SGE_FLAGS_LAST_ELEMENT |
+        MPI_SGE_FLAGS_END_OF_BUFFER | MPI_SGE_FLAGS_END_OF_LIST | sizeof(page));
+    request.PageBufferSGE.u.Address32 = cpu_to_le32(buffer);
+    mptspi_handshake(mpt, &request, sizeof(request), &reply, sizeof(reply));
+    g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==, MPI_IOCSTATUS_SUCCESS);
+    qtest_memread(mpt->dev.bus->qts, buffer, page, sizeof(page));
+    return ldq_le_p(page + 12);
+}
+
+static void mptsas1068_test_sas_addresses(void *obj, void *data,
+                                         QGuestAllocator *alloc)
+{
+    QMptSpi *first = obj;
+    QMptSpi second = { 0 };
+    QPCIAddress address = { .devfn = QPCI_DEVFN(5, 1) };
+    uint64_t buffer = guest_alloc(alloc, 64);
+    uint64_t sas_addresses[18];
+    unsigned int count = 0;
+    unsigned int controller, phy, i;
+
+    qpci_device_init(&second.dev, first->dev.bus, &address);
+    qpci_device_enable(&second.dev);
+    second.bar = qpci_iomap(&second.dev, 1, NULL);
+
+    for (controller = 0; controller < 2; controller++) {
+        QMptSpi *mpt = controller ? &second : first;
+
+        for (phy = 0; phy < 9; phy++) {
+            uint64_t sas_address = mptsas1068_read_sas_address(
+                mpt, phy + 1, buffer);
+
+            g_assert_cmpuint(sas_address, !=, 0);
+            for (i = 0; i < count; i++) {
+                g_assert_cmphex(sas_address, !=, sas_addresses[i]);
+            }
+            sas_addresses[count++] = sas_address;
+        }
+    }
+    qpci_iounmap(&second.dev, second.bar);
+    guest_free(alloc, buffer);
+}
+
 static void mptsas1068_test_savevm(void *obj, void *data,
                                    QGuestAllocator *alloc)
 {
@@ -910,8 +966,15 @@ static void mptspi_register_nodes(void)
         .extra_device_opts = "addr=04.0,id=mptspi",
     };
     QOSGraphEdgeOptions sas_opts = {
-        .extra_device_opts = "addr=05.0,id=mptsas,x-pci-64bit-bars=on,"
+        .extra_device_opts = "addr=05.0,id=mptsas,multifunction=on,"
+                             "x-pci-64bit-bars=on,"
                              "x-pci-rom-size=4194304",
+    };
+    QOSGraphTestOptions sas_address_opts = {
+        .edge.after_cmd_line =
+            "-device mptsas1068,addr=05.1,id=mptsas1 "
+            "-device scsi-cd,bus=mptsas.0,scsi-id=0 "
+            "-device scsi-cd,bus=mptsas1.0,scsi-id=0",
     };
     QOSGraphTestOptions snapshot_opts = {
         .before = mptspi_snapshot_setup,
@@ -932,6 +995,8 @@ static void mptspi_register_nodes(void)
     qos_node_consumes("mptsas1068", "pci-bus", &sas_opts);
     qos_node_produces("mptsas1068", "pci-device");
     qos_add_test("compat", "mptsas1068", mptsas1068_test_compat, NULL);
+    qos_add_test("sas-addresses", "mptsas1068",
+                 mptsas1068_test_sas_addresses, &sas_address_opts);
     qos_add_test("compat-savevm", "mptsas1068",
                  mptsas1068_test_savevm, &snapshot_opts);
 }

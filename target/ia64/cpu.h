@@ -188,15 +188,14 @@ static inline bool ia64_firmware_owns_iva(uint64_t iva)
     return iva == 0 || iva == IA64_FIRMWARE_IVT_BASE;
 }
 
-static inline bool ia64_firmware_identity_pa(uint64_t iva, uint64_t ip,
+static inline bool ia64_firmware_identity_pa(uint64_t iva,
                                              uint64_t psr, uint64_t va,
                                              uint64_t *pa)
 {
+    /* An address in the bootstrap range does not identify its owner. */
     bool firmware_context =
         (psr & IA64_PSR_CPL_MASK) == 0 &&
-        (ia64_firmware_owns_iva(iva) ||
-         (ip >= IA64_FW_IDENTITY_BASE &&
-          ip < IA64_FW_IDENTITY_BASE + IA64_FW_IDENTITY_SIZE));
+        ia64_firmware_owns_iva(iva);
 
     if (firmware_context &&
         va >= IA64_FW_IDENTITY_BASE &&
@@ -577,17 +576,19 @@ static inline uint8_t ia64_tlb_effective_perm(uint8_t ar, uint8_t pl,
         if (access_level > pl) {
             return 0;
         }
-        return access_level < pl ? (IA64_TLB_R | IA64_TLB_W) : IA64_TLB_R;
+        return access_level == 0 || access_level < pl ?
+               (IA64_TLB_R | IA64_TLB_W) : IA64_TLB_R;
     case 5:
         if (access_level > pl) {
             return 0;
         }
-        return access_level < pl ? IA64_TLB_ALL : (IA64_TLB_R | IA64_TLB_X);
+        return access_level == 0 ? IA64_TLB_ALL : (IA64_TLB_R | IA64_TLB_X);
     case 6:
         if (access_level > pl) {
             return 0;
         }
-        return access_level < pl ? IA64_TLB_ALL : (IA64_TLB_R | IA64_TLB_W);
+        return access_level != 0 && access_level == pl ?
+               IA64_TLB_ALL : (IA64_TLB_R | IA64_TLB_W);
     case 7:
         return access_level == 0 ? (IA64_TLB_R | IA64_TLB_X) : IA64_TLB_X;
     default:

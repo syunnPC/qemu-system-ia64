@@ -3,6 +3,8 @@
 #ifndef IA64_FIRMWARE_FW_UART_H
 #define IA64_FIRMWARE_FW_UART_H
 
+#define FW_SERIAL_DEVICE_PATH_MAX 64U
+
 #include "fw-device-path.h"
 #include "fw-uart-policy.h"
 

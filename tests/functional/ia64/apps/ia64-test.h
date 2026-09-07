@@ -22,6 +22,10 @@ typedef VOID *EFI_EVENT;
 typedef UINT8 BOOLEAN;
 typedef UINTN EFI_TPL;
 
+EFI_STATUS test_call_virtual_procedure(
+    const UINT64 *Descriptor, UINT64 TargetPsr, UINT64 Arg1, UINT64 Arg2,
+    UINT64 Arg3, UINT64 Arg4, UINT64 Arg5);
+
 #define NULL ((VOID *)0)
 #define EFI_ERROR_BIT                 0x8000000000000000ULL
 #define EFIERR(Value)                 (EFI_ERROR_BIT | (Value))

@@ -5,6 +5,8 @@
 
 #include "../ia64-test.h"
 
+UINT64 test_sal_rse_call(UINT64 Entry, UINT64 Gp, UINT64 Rsc);
+
 EFI_STATUS ia64_services_main(EFI_HANDLE image_handle,
                               EFI_SYSTEM_TABLE *system_table,
                               BOOLEAN tables_only);

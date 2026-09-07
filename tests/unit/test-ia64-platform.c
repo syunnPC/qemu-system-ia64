@@ -513,6 +513,38 @@ static void test_onboard_policy(void)
     assert_invalid(descriptor, IA64_PLATFORM_ID_HP_ZX6000);
 }
 
+static void test_pci_console_resource(void)
+{
+    IA64PlatformTestDescriptor storage;
+    IA64PlatformDescriptor *descriptor = test_descriptor_init(
+        &storage, IA64_PLATFORM_ID_HP_RX2660);
+    IA64PlatformOnboardDevice *device = &descriptor->OnboardDevice[0];
+
+    descriptor->ConsoleBase = cpu_to_le64(0x88033000);
+    ia64_platform_desc_finalize(descriptor, sizeof(storage));
+    assert_invalid(descriptor, IA64_PLATFORM_ID_HP_RX2660);
+
+    descriptor->OnboardDeviceCount = cpu_to_le32(1);
+    device->Device = 1;
+    device->Function = 2;
+    device->Type = IA64_PLATFORM_ONBOARD_UART;
+    device->Bar = 1;
+    device->VendorDeviceId = cpu_to_le32(0x1048103c);
+    device->ClassCode = cpu_to_le32(0x070002);
+    device->BarSize = cpu_to_le64(0x1000);
+    ia64_platform_desc_finalize(descriptor, sizeof(storage));
+    assert_valid(descriptor, IA64_PLATFORM_ID_HP_RX2660);
+
+    device->Type = IA64_PLATFORM_ONBOARD_MGMT;
+    ia64_platform_desc_finalize(descriptor, sizeof(storage));
+    assert_invalid(descriptor, IA64_PLATFORM_ID_HP_RX2660);
+
+    device->Type = IA64_PLATFORM_ONBOARD_UART;
+    descriptor->ConsoleBase = cpu_to_le64(0x8ffffffc);
+    ia64_platform_desc_finalize(descriptor, sizeof(storage));
+    assert_invalid(descriptor, IA64_PLATFORM_ID_HP_RX2660);
+}
+
 static void test_numa_policy(void)
 {
     IA64PlatformTestDescriptor storage;
@@ -1996,6 +2028,8 @@ int main(int argc, char **argv)
     g_test_add_func("/ia64/platform/topology", test_topology);
     g_test_add_func("/ia64/platform/policy-limits", test_policy_limits);
     g_test_add_func("/ia64/platform/onboard-policy", test_onboard_policy);
+    g_test_add_func("/ia64/platform/pci-console-resource",
+                    test_pci_console_resource);
     g_test_add_func("/ia64/platform/numa-policy", test_numa_policy);
     g_test_add_func("/ia64/platform/console-clock", test_console_clock);
     g_test_add_func("/ia64/platform/array-alignment",

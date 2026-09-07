@@ -4,12 +4,13 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 from pathlib import Path
+import struct
 
 from qemu_test import QemuSystemTest
 
 from ia64.console import Ia64FirmwareTest
 from ia64.efi_build import app_path
-from ia64.media import (file_sha256, make_el_torito_iso, make_fat_disk,
+from ia64.media import (crc32, file_sha256, make_el_torito_iso, make_fat_disk,
                         make_udf_bridge_iso)
 
 
@@ -152,6 +153,48 @@ class Ia64Storage(Ia64FirmwareTest):
 
     def test_scsi_gpt_fat32(self):
         self.run_scsi_layout("gpt", fat32=True)
+
+    def run_gpt_invalid_entries(self, esp_first):
+        name = "gpt-invalid-" + ("after-esp" if esp_first else "before-esp")
+        media = Path(self.scratch_file(name + ".img"))
+        make_fat_disk(
+            media, app_path("storage"), layout="gpt",
+            extra_boot_files=((b"START   EFI", app_path("start-image-child")),))
+        data = bytearray(media.read_bytes())
+        esp = data[1024:1152]
+        first_usable, last_usable = struct.unpack_from("<QQ", data, 512 + 40)
+        entries = []
+        for index, (first, last) in enumerate((
+                (0, first_usable - 1), (first_usable + 1, first_usable),
+                (last_usable + 1, last_usable + 1))):
+            entry = bytearray(esp)
+            entry[16] ^= index + 1
+            struct.pack_into("<QQ", entry, 32, first, last)
+            entries.append(entry)
+        missing_signature = bytearray(esp)
+        missing_signature[16:32] = bytes(16)
+        entries.append(missing_signature)
+        entries.insert(0 if esp_first else len(entries), esp)
+        table = b"".join(entries).ljust(128 * 128, b"\0")
+        for offset in (512, len(data) - 512):
+            table_lba = struct.unpack_from("<Q", data, offset + 72)[0]
+            data[table_lba * 512:table_lba * 512 + len(table)] = table
+            struct.pack_into("<I", data, offset + 88, crc32(table))
+            struct.pack_into("<I", data, offset + 16, 0)
+            struct.pack_into("<I", data, offset + 16,
+                             crc32(data[offset:offset + 92]))
+        media.write_bytes(data)
+        self.run_scenario(
+            name, media,
+            required_cases=("logical-partition-handle",
+                            "short-form-hard-drive-path",
+                            "partition-driver-contracts"))
+
+    def test_scsi_gpt_invalid_entries_before_esp(self):
+        self.run_gpt_invalid_entries(False)
+
+    def test_scsi_gpt_invalid_entries_after_esp(self):
+        self.run_gpt_invalid_entries(True)
 
     def test_scsi_mbr_fat(self):
         self.run_scsi_layout("mbr")

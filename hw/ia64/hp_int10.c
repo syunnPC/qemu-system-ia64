@@ -1287,11 +1287,17 @@ static void hp_int10_post_ati_clocks(PCIDevice *vga)
      */
     feedback = clock * HP_INT10_ATI_CLOCK_REF_DIV / HP_INT10_ATI_CLOCK_REF;
     g_assert(feedback <= UINT8_MAX);
-    ati->regs.pll[R100_M_SPLL_REF_FB_DIV] =
-        HP_INT10_ATI_CLOCK_REF_DIV | feedback << 8 | feedback << 16;
-    ati->regs.pll[R100_SCLK_CNTL] = R100_PLL_SRC_DIV2;
-    ati->regs.pll[R100_MCLK_CNTL] =
-        R100_PLL_SRC_DIV2 | R100_PLL_SRC_DIV2 << R100_YCLKA_SRC_SHIFT;
+    ati_mmio_write(ati, CLOCK_CNTL_INDEX,
+                   PLL_WR_EN | R100_M_SPLL_REF_FB_DIV, 4);
+    ati_mmio_write(ati, CLOCK_CNTL_DATA,
+                   HP_INT10_ATI_CLOCK_REF_DIV | feedback << 8 | feedback << 16,
+                   4);
+    ati_mmio_write(ati, CLOCK_CNTL_INDEX, PLL_WR_EN | R100_SCLK_CNTL, 4);
+    ati_mmio_write(ati, CLOCK_CNTL_DATA, R100_PLL_SRC_DIV2, 4);
+    ati_mmio_write(ati, CLOCK_CNTL_INDEX, PLL_WR_EN | R100_MCLK_CNTL, 4);
+    ati_mmio_write(ati, CLOCK_CNTL_DATA,
+                   R100_PLL_SRC_DIV2 |
+                   R100_PLL_SRC_DIV2 << R100_YCLKA_SRC_SHIFT, 4);
 }
 
 static void hp_int10_install_ati_bios_info(uint8_t *rom, PCIDevice *vga,

@@ -24,7 +24,7 @@ typedef enum {
     FwLsiScriptDeviceError,
 } FW_LSI_SCRIPT_RESULT;
 
-#define FW_SCSI_DEVICE_MAX  7U
+#define FW_SCSI_DEVICE_MAX  16U
 #define FW_SCSI_HOST_ID     7U
 #define FW_SCSI_CDB_MAX     16U
 #define FW_SCSI_BOUNCE_SIZE (64U * 1024U)
@@ -49,17 +49,22 @@ EFI_HANDLE fw_pci_root_handle(VOID);
 
 BOOLEAN fw_scsi_controller_present(VOID);
 BOOLEAN fw_scsi_device_present(UINTN target);
+BOOLEAN fw_scsi_target_valid(UINT32 target, UINT64 lun);
+UINT32 fw_scsi_adapter_id(VOID);
+UINT64 fw_scsi_sas_address(UINT32 target);
 EFI_HANDLE fw_scsi_controller_handle(VOID);
 FW_LSI_SCRIPT_RESULT fw_scsi_execute_buffered(
     UINT8 target, const UINT8 *cdb, UINTN cdb_length, VOID *data,
     UINT32 data_length, BOOLEAN write_to_device, UINT64 timeout_100ns,
-    UINT8 *target_status);
+    UINT8 *target_status, UINT32 *transferred, VOID *sense_data,
+    UINT8 *sense_length);
 EFI_STATUS fw_scsi_reset_channel(VOID);
 FW_LSI_SCRIPT_RESULT fw_scsi_reset_target(UINT8 target,
                                            UINT64 timeout_100ns);
 
 VOID *fw_serial_device_path(VOID);
 UINTN fw_serial_device_path_size(VOID);
+UINTN fw_platform_console_pci_path(UINT8 *Buffer, UINTN Capacity);
 
 BOOLEAN fw_legacy_io_protocols_install(VOID);
 

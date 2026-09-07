@@ -311,6 +311,10 @@ static void rx2660_assert_descriptor(QTestState *qts)
     g_assert_cmphex(le64_to_cpu(descriptor->RamSize), ==, 4 * GiB);
     g_assert_cmphex(le64_to_cpu(descriptor->LowRamEnd), ==,
                     RX2660_LOW_RAM_SIZE);
+    g_assert_cmphex(le64_to_cpu(descriptor->ConsoleBase), ==,
+                    RX2660_CONSOLE_MMIO);
+    g_assert_cmpuint(le32_to_cpu(descriptor->ConsoleRegisterStride), ==, 1);
+    g_assert_cmpuint(le32_to_cpu(descriptor->ConsoleIrq), ==, 16);
     g_assert_cmpuint(le32_to_cpu(descriptor->ProcessorCount), ==, 2);
     g_assert_cmpuint(le32_to_cpu(descriptor->SocketCount), ==, 2);
     g_assert_cmpuint(le32_to_cpu(descriptor->CoresPerSocket), ==, 1);
@@ -592,7 +596,7 @@ static void rx2660_assert_pci_layout(QTestState *qts)
     rx2660_assert_pci_device(qts, 0, PCI_DEVFN(1, 2),
                              RX2660_CONSOLE_ID,
                              PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER,
-                             0, 1);
+                             16, 1);
     g_assert_cmphex(rx2660_config_readl(
                         qts, 0, PCI_DEVFN(1, 2), PCI_CLASS_REVISION) >> 8,
                     ==, 0x070002);
@@ -1026,7 +1030,7 @@ static void test_hp_rx2660_zx2_iommu_fault(void)
                          RX2660_ZX2_TARGET2, true);
     rx2660_zx2_write_pte(qts, RX2660_ZX2_PDIR2, 1,
                          RX2660_ZX2_TARGET3, false);
-    rx2660_zx2_configure_context(qts, 1, RX2660_ZX2_PDIR1);
+    rx2660_zx2_configure_context(qts, 0, RX2660_ZX2_PDIR1);
     rx2660_zx2_configure_context(qts, 2, RX2660_ZX2_PDIR2);
 
     g_assert_cmphex(qtest_readq(qts, HP_ZX6000_MIO_BASE +
@@ -1042,8 +1046,7 @@ static void test_hp_rx2660_zx2_iommu_fault(void)
     g_assert_cmphex(assigned_ropes, ==, HP_ZX2_MIO_ROPE_MASK);
     g_assert_cmphex(qtest_readq(qts, HP_ZX6000_MIO_BASE +
                                 HP_ZX2_MIO_GROUP_CONTROL(1)), ==,
-                    HP_ZX2_MIO_GROUP_ENABLE |
-                    (UINT64_C(1) << HP_ZX2_MIO_GROUP_CONTEXT_SHIFT));
+                    HP_ZX2_MIO_GROUP_ENABLE);
     rx2660_zx2_expect_dma_success(qts, iova0, RX2660_ZX2_TARGET1);
 
     qtest_writeq(qts, HP_ZX6000_MIO_BASE +
@@ -1217,6 +1220,8 @@ static void test_hp_rx2660_radeon_clocks(void)
         uint16_t pll = qtest_readw(qts, 0xc0000 + header + 0x30);
         uint32_t divisors;
 
+        g_assert_cmphex(qtest_readl(qts, RX2660_ATI_MMIO + CLOCK_CNTL_INDEX),
+                        ==, PLL_WR_EN | R100_MCLK_CNTL);
         qtest_writeb(qts, RX2660_ATI_MMIO + CLOCK_CNTL_INDEX,
                       R100_M_SPLL_REF_FB_DIV);
         divisors = qtest_readl(qts, RX2660_ATI_MMIO + CLOCK_CNTL_DATA);
@@ -1287,6 +1292,56 @@ static void rx2660_console_assert_irq(QTestState *qts, bool asserted)
                     asserted ? PCI_STATUS_INTERRUPT : 0);
 }
 
+static bool rx2660_sapic_wait_for_vector(QTestState *qts, uint8_t vector)
+{
+    unsigned int attempt;
+
+    for (attempt = 0; attempt < 1000; attempt++) {
+        g_autofree char *registers = qtest_hmp(qts, "info registers");
+        const char *line = strstr(registers, "SAPIC IRR:");
+        uint64_t irr[4];
+
+        g_assert_nonnull(line);
+        g_assert_cmpint(sscanf(line, "SAPIC IRR: %" SCNx64 " %" SCNx64
+                              " %" SCNx64 " %" SCNx64,
+                              &irr[0], &irr[1], &irr[2], &irr[3]), ==, 4);
+        if (irr[vector / 64] & BIT_ULL(vector % 64)) {
+            return true;
+        }
+        g_usleep(1000);
+    }
+    return false;
+}
+
+static void test_hp_rx2660_console_interrupt_delivery(void)
+{
+    const uint8_t vector = 0xdf;
+    const uint64_t select = rx2660_ioa[0] + HP_ZX1_IOA_IOREGSEL;
+    const uint64_t window = rx2660_ioa[0] + HP_ZX1_IOA_IOWIN;
+    unsigned int delivery;
+
+    for (delivery = 0; delivery <= 1; delivery++) {
+        QTestState *qts = qtest_init(
+            "-machine hp-rx2660,nvram=none,firmware=none -m 1G -S "
+            "-display none -serial null -monitor none -net none");
+
+        g_test_message("Console interrupt delivery mode %u", delivery);
+        qtest_writel(qts, select, HP_IO_SAPIC_RTE_BASE + 1);
+        qtest_writel(qts, window, 0);
+        qtest_writel(qts, select, HP_IO_SAPIC_RTE_BASE);
+        qtest_writel(qts, window, HP_IO_SAPIC_RTE_TRIGGER |
+                     HP_IO_SAPIC_RTE_POLARITY | (delivery << 8) | vector);
+
+        /* Follow PCI INTA through the I/O SAPIC to the destination CPU. */
+        qtest_writeb(qts, RX2660_CONSOLE_MMIO + UART_IER_DLM, UART_IER_THRI);
+        rx2660_console_assert_irq(qts, true);
+        g_assert_true(rx2660_sapic_wait_for_vector(qts, vector));
+        qtest_writeb(qts, RX2660_CONSOLE_MMIO + UART_IER_DLM, 0);
+        rx2660_console_assert_irq(qts, false);
+        qtest_quit(qts);
+    }
+}
+
 static void test_hp_rx2660_console(void)
 {
     g_autofree char *dir = g_dir_make_tmp("qtest-rx2660-console-XXXXXX", NULL);
@@ -1308,7 +1363,7 @@ static void test_hp_rx2660_console(void)
         "-machine hp-rx2660,nvram=none,firmware=none -m 1G -S "
         "-display vnc=none -monitor none -net none "
         "-chardev socket,id=console,path=%s "
-        "-serial none -serial none -serial chardev:console", quoted_path);
+        "-serial chardev:console", quoted_path);
     fd = qemu_accept(listener, NULL, NULL);
     g_assert_cmpint(fd, >=, 0);
     close(listener);
@@ -1403,6 +1458,8 @@ int main(int argc, char **argv)
     qtest_add_func("/hp-rx2660/ohci-port-resume",
                    test_hp_rx2660_ohci_port_resume);
     qtest_add_func("/hp-rx2660/console", test_hp_rx2660_console);
+    qtest_add_func("/hp-rx2660/console-interrupt-delivery",
+                   test_hp_rx2660_console_interrupt_delivery);
     qtest_add_func("/hp-rx2660/radeon-clocks", test_hp_rx2660_radeon_clocks);
     return g_test_run();
 }

@@ -326,7 +326,7 @@ static int test_platform_ssdt_legacy_policy(void)
         mSsdtAmlTemplate, sizeof(mSsdtAmlTemplate),
         ps2m_device, sizeof(ps2m_device));
 
-    if (IA64_SSDT_AML_SIZE != 2258U ||
+    if (IA64_SSDT_AML_SIZE != 2242U ||
         pci0_scope_offset == ~(UINTN)0 || uart_offset == ~(UINTN)0 ||
         ps2k_offset == ~(UINTN)0 || ps2m_offset == ~(UINTN)0 ||
         uart_offset <= pci0_scope_offset || ps2k_offset <= uart_offset ||

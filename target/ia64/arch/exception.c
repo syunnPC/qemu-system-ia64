@@ -757,6 +757,15 @@ static bool ia64_external_interrupt_enabled(CPUIA64State *env)
     bool nmi_pending = env->interrupt.sapic_irr[0] & (1ULL << 2);
     bool interrupt_enabled = (env->psr & IA64_PSR_I) || nmi_pending;
 
+    if (!nmi_pending && env->exception_state.psr_i_deferred) {
+        /*
+         * Interrupt unmasking need not take effect immediately (SDM 5.8.2.1).
+         * The next native TB consumes this delay when execution begins;
+         * retries in the host execution loop must not consume it early.
+         */
+        return false;
+    }
+
     if ((env->psr & IA64_PSR_IS) && !nmi_pending) {
         uint32_t eflags = cpu_compute_eflags(&env->ia32);
         bool virtual_if = !(env->ar_cflg & (1ULL << 7)) ||

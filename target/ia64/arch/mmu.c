@@ -168,7 +168,7 @@ static bool ia64_data_address_to_mapped_phys_attr(CPUIA64State *env,
     uint32_t rid;
     const IA64TlbEntry *entry;
 
-    if (ia64_firmware_identity_pa(env->cr_iva, env->ip, env->psr, va,
+    if (ia64_firmware_identity_pa(env->cr_iva, env->psr, va,
                                   pa)) {
         if (spec) {
             *spec = IA64_MEM_SPECULATIVE;
@@ -268,7 +268,7 @@ ia64_translate_nonaccess(CPUIA64State *env, uint64_t va,
 
         /* Preserve the synthetic firmware identity window used at boot. */
         if (!is_tpa &&
-            ia64_firmware_identity_pa(env->cr_iva, env->ip, env->psr,
+            ia64_firmware_identity_pa(env->cr_iva, env->psr,
                                       va, pa)) {
             return IA64_EXCP_NONE;
         }
@@ -864,6 +864,7 @@ void ia64_tlb_serialize(CPUIA64State *env, uint32_t serialize_data,
 
     if (serialize_data) {
         env->exception_state.psr_ic_inflight = false;
+        env->exception_state.psr_i_deferred = false;
         if (env->mmu.pending_purge_data_count != 0) {
             data_purged = ia64_complete_pending_purges(
                 env, env->mmu.tlb_data, &env->mmu.tlb_data_count,
@@ -1294,7 +1295,7 @@ static uint64_t ia64_probe_address(CPUIA64State *env, uint64_t va,
         return 0;
     }
 
-    if (ia64_firmware_identity_pa(env->cr_iva, env->ip, env->psr, va,
+    if (ia64_firmware_identity_pa(env->cr_iva, env->psr, va,
                                   &pa)) {
         return 1;
     }
@@ -1508,7 +1509,7 @@ ia64_data_reference_exception(CPUIA64State *env, uint64_t va,
             (va & IA64_PHYS_UC_BIT) ? IA64_PTE_MA_UC : IA64_PTE_MA_WB);
         return IA64_EXCP_NONE;
     }
-    if (ia64_firmware_identity_pa(env->cr_iva, env->ip, env->psr, va,
+    if (ia64_firmware_identity_pa(env->cr_iva, env->psr, va,
                                   &pa)) {
         ia64_set_data_reference_result(result, pa, IA64_MEM_SPECULATIVE,
                                        IA64_PTE_MA_WB);
@@ -2442,7 +2443,8 @@ uint64_t ia64_mmu_tak(CPUIA64State *env, uint64_t va)
     rid = ia64_region_rid(env, va);
     entry = ia64_tlb_find_cached(env, va, rid, false);
     if (entry && ia64_tlb_entry_present(entry)) {
-        return entry->key;
+        /* Bits 31:8 hold the key; bit zero distinguishes a translation miss. */
+        return (uint64_t)entry->key << 8;
     }
 
     if ((env->psr & IA64_PSR_DT) &&
@@ -2451,7 +2453,7 @@ uint64_t ia64_mmu_tak(CPUIA64State *env, uint64_t va)
             &pa, &perm, &pte, NULL, &entry) &&
         (pte & IA64_PTE_PRESENT)) {
         if (entry && ia64_tlb_entry_present(entry)) {
-            return entry->key;
+            return (uint64_t)entry->key << 8;
         }
     }
 
@@ -2495,20 +2497,11 @@ static uint64_t ia64_vhpt_hpn(CPUIA64State *env, uint64_t va)
 
 static uint64_t ia64_vhpt_long_tag(CPUIA64State *env, uint64_t va)
 {
-    uint8_t rr_ps = ia64_region_preferred_ps(env, va);
-    uint8_t impl_va_msb = ia64_env_cpu_class(env)->impl_va_msb;
-    uint8_t hpn_bits = rr_ps > impl_va_msb ? 0 :
-                       impl_va_msb + 1 - rr_ps;
     uint64_t hpn = ia64_vhpt_hpn(env, va);
     uint64_t rid = ia64_region_rid(env, va);
 
-    if (ia64_env_cpu_class(env)->model == IA64_CPU_MODEL_MERCED) {
-        return hpn ^ (rid << 39);
-    }
-    if (hpn_bits == 0) {
-        return rid;
-    }
-    return (rid << hpn_bits) | (hpn & ((1ULL << hpn_bits) - 1));
+    /* The index disambiguates overlapping bits; bit 63 remains clear. */
+    return hpn ^ (rid << 39);
 }
 
 static uint64_t ia64_vhpt_short_hash_address(CPUIA64State *env, uint64_t va,
@@ -2535,11 +2528,7 @@ static uint64_t ia64_vhpt_long_hash_address(CPUIA64State *env, uint64_t va,
     uint64_t offset;
     uint64_t mask = (1ULL << size) - 1;
 
-    if (ia64_env_cpu_class(env)->model == IA64_CPU_MODEL_MERCED) {
-        hash = hpn ^ ia64_region_rid(env, va);
-    } else {
-        hash = hpn ^ (hpn >> 7) ^ ia64_region_rid(env, va);
-    }
+    hash = hpn ^ ia64_region_rid(env, va);
     hash &= entries - 1;
     offset = hash << 5;
 
@@ -2584,7 +2573,7 @@ static IA64VhptEntryStatus ia64_vhpt_entry_phys(CPUIA64State *env,
     uint8_t perm;
     uint32_t rid;
 
-    if (ia64_firmware_identity_pa(env->cr_iva, env->ip, env->psr,
+    if (ia64_firmware_identity_pa(env->cr_iva, env->psr,
                                   entry_va, entry_pa)) {
         return IA64_VHPT_ENTRY_TRANSLATED;
     }
@@ -2782,7 +2771,7 @@ bool ia64_mmu_translate_debug(CPUIA64State *env, uint64_t va, uint64_t *pa)
         *pa = va;
         return true;
     }
-    if (ia64_firmware_identity_pa(env->cr_iva, va, env->psr, va, pa)) {
+    if (ia64_firmware_identity_pa(env->cr_iva, env->psr, va, pa)) {
         return true;
     }
 

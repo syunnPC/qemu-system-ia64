@@ -15,10 +15,12 @@ from ia64.media import make_fat_disk
 SERVICE_CASES = {
     "memory-services", "event-services", "protocol-services",
     "multiple-protocol-services",
-    "controller-services", "image-services", "start-image-connect",
+    "controller-services", "image-services", "image-section-extents",
+    "image-section-bounds", "start-image-connect",
     "memory-primitives", "time-services", "variable-services",
     "block-disk-protocols", "pci-root-io", "pci-io",
     "graphics-output", "tcg-no-tpm", "sal-state-info-no-log",
+    "sal-rse-byte-order",
 }
 EXITBS_CASES = {
     "memory-map", "exit-boot-services", "system-table-handoff",
@@ -28,6 +30,7 @@ EXITBS_CASES = {
     "legacy-text-handoff", "convert-pointer-reserved-bits",
     "runtime-get-time",
     "set-virtual-address-map", "runtime-virtual-boot-variable",
+    "sal-wakeup-address",
 }
 
 

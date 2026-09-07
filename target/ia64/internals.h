@@ -38,6 +38,7 @@ typedef struct IA64ExceptionState {
 
     /* Transient state spanning one serialization/fault-suppression window. */
     bool psr_ic_inflight;
+    bool psr_i_deferred;
     uint64_t psr_suppression_before_insn;
     uint64_t suppressed_tlb_pages[IA64_SUPPRESSED_TLB_MAX];
     uint16_t suppressed_tlb_idxmaps[IA64_SUPPRESSED_TLB_MAX];

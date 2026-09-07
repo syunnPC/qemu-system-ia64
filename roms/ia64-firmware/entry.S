@@ -59,6 +59,9 @@ pal_proc_entry:
     .equ SAL_RUNTIME_BACKING_SIZE,          0x4000
     .equ SAL_RUNTIME_STACK_FRAME_SIZE,      0x100
     .equ SAL_RUNTIME_RSC_EAGER_PL0,         3
+    .equ SAL_FUNC_MC_SET_PARAMS,            0x01000005
+    .equ SAL_MC_WAKEUP_PARAM,               2
+    .equ SAL_MC_MEMORY_MECHANISM,           2
 
     .section .text.sal_proc_entry, "ax"
     .align 16
@@ -148,12 +151,44 @@ sal_proc_capture_ip:
 
 sal_proc_mode_valid:
     /*
+     * A wakeup memory variable uses the caller's address space.  Resolve
+     * its fixed physical location before leaving the virtual context.
+     * An aligned eight-byte variable cannot span a translation page.
+     */
+(p9) br.cond.sptk.few sal_proc_flush_caller
+    ;;
+    zxt4 r30 = r14
+    movl r31 = SAL_FUNC_MC_SET_PARAMS
+    ;;
+    cmp.ne p6, p7 = r30, r31
+    ;;
+(p6) br.cond.sptk.few sal_proc_flush_caller
+    cmp.ne p6, p7 = SAL_MC_WAKEUP_PARAM, r15
+    ;;
+(p6) br.cond.sptk.few sal_proc_flush_caller
+    cmp.ne p6, p7 = SAL_MC_MEMORY_MECHANISM, r16
+    ;;
+(p6) br.cond.sptk.few sal_proc_flush_caller
+    and r30 = 7, r17
+    ;;
+    cmp.ne p6, p7 = r30, r0
+    ;;
+(p6) br.cond.sptk.few sal_proc_flush_caller
+    ;;
+    tpa r17 = r17
+    ;;
+
+sal_proc_flush_caller:
+    /*
      * Explicit flushrs may fault on the caller's backing store.  Perform it
      * before changing translation or interruption-collection state.
      */
     rsm psr.i
     ;;
-    mov ar.rsc = r0
+    /* Enter lazy mode while retaining the caller's backing-store byte order. */
+    dep r31 = r0, r27, 0, 2
+    ;;
+    mov ar.rsc = r31
     ;;
     flushrs
     ;;
@@ -296,6 +331,11 @@ sal_proc_physical:
     mov ar.pfs = r22
     mov cr.ipsr = r17
     ;;
+    /* Restore the caller's stack before RFI can re-enable interruptions. */
+    mov b0 = r14
+    mov r1 = r15
+    mov r12 = r16
+    ;;
     mov cr.iip = r31
     mov cr.ifs = r0
     mov ar.rsc = r19
@@ -304,10 +344,6 @@ sal_proc_physical:
     ;;
 
 sal_proc_return:
-    mov b0 = r14
-    mov r1 = r15
-    mov r12 = r16
-    ;;
     mov r8 = r23
     mov r9 = r24
     mov r10 = r25

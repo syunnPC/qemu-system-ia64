@@ -77,14 +77,16 @@ five PCI/PCI-X roots with ACPI UIDs 0, 0x200, 0x300, 0x600, and 0x700,
 RN50/ES1000 VGA, two NEC OHCI functions and one EHCI function, an LSI SAS1068,
 and two BCM5704 functions.  The MIO exposes zx2 IDs and four IOMMU contexts
 selected through rope-group mappings.  The IOMMU translation engine and
-PCI/PCI-X root adapters reuse zx1 behavior.
+PCI/PCI-X root adapters reuse zx1 behavior.  All rope groups initially use
+context zero, which is configured through the common IOC register bank.
 
 PCIe, Core-I/O management, and iLO/BMC are not implemented.  Management
 functions ``103c:1303`` and ``103c:1302`` enumerate at ``00:01`` but do not
 provide management services.  The ``103c:1048`` console function implements
 a 16550 UART at BAR1, including FIFOs, interrupts and migration.  It uses the
-third serial backend; for example ``-serial none -serial none -serial stdio``
-connects this UART to the terminal while leaving the two PDH UARTs disconnected.
+first serial backend, so ``-serial stdio`` connects this UART to the terminal.
+The firmware console descriptor and EFI device path identify this PCI UART.
+The two PDH UARTs use the second and third serial backends.
 
 Broadcom Ethernet
 -----------------

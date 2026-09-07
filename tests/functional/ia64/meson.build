@@ -15,7 +15,7 @@ ia64_functional_test_apps = []
 foreach app : [
   'smoke', 'services', 'tables', 'exitbs', 'storage', 'input', 'graphics',
   'smp', 'smp-merced', 'pci-bridge', 'i2000-pci-root', 'i2000-runtime',
-  'i2000-loader', 'ras',
+  'i2000-loader', 'ras', 'scsi-pass-thru',
 ]
   app_source = files('apps/' + app + '-app.c')
   app_linker_script = ia64_app_linker_script
@@ -102,6 +102,7 @@ tests_ia64_system_quick = [
 
 tests_ia64_system_thorough = [
   'storage',
+  'scsi_pass_thru',
   'input',
 ]
 
@@ -119,5 +120,6 @@ test_ia64_timeouts = {
   'hp_zx6000': 120,
   'hp_rx2660': 120,
   'storage': 300,
+  'scsi_pass_thru': 120,
   'input': 120,
 }

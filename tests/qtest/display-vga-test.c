@@ -1642,6 +1642,68 @@ static void ati_source_datatype_alias(void)
     }
 }
 
+static void ati_register_endian(void)
+{
+    static const char *const models[] = { "rv100", "es1000" };
+
+    for (unsigned int i = 0; i < ARRAY_SIZE(models); i++) {
+        QTestState *qts = qtest_initf(
+            "-machine ia64-vpc,nvram=none -m 256M -S "
+            "-vga ati -global ati-vga.model=%s", models[i]);
+
+        ati_pci_enable(qts);
+        for (unsigned int mode = 0; mode < 4; mode++) {
+            uint32_t control = mode << 4;
+
+            qtest_writel(qts, IA64_RV100_MMIO_BASE + ATI_CNFG_CNTL,
+                         control | bswap32(control));
+            for (unsigned int aperture = 0; aperture < 2; aperture++) {
+                uint64_t mmio = IA64_RV100_MMIO_BASE + aperture * 0x8000;
+                uint64_t other = IA64_RV100_MMIO_BASE +
+                                 (1 - aperture) * 0x8000;
+                bool swap = mode == 1 || mode == (aperture ? 2 : 3);
+                bool other_swap = mode == 1 || mode == (aperture ? 3 : 2);
+                uint32_t index = ATI_PLL_WR_EN | ATI_PPLL_DIV_3;
+                uint32_t value = 0x11223344;
+
+                qtest_writel(qts, mmio + ATI_CLOCK_CNTL_INDEX,
+                             swap ? bswap32(index) : index);
+                g_assert_cmphex(qtest_readl(qts, mmio + ATI_CLOCK_CNTL_INDEX),
+                                ==, swap ? bswap32(index) : index);
+                qtest_writel(qts, mmio + ATI_CLOCK_CNTL_DATA,
+                             swap ? bswap32(value) : value);
+                g_assert_cmphex(qtest_readl(qts, other + ATI_CLOCK_CNTL_DATA),
+                                ==, other_swap ? bswap32(value) : value);
+
+                qtest_writew(qts, mmio + ATI_CLOCK_CNTL_DATA + (swap ? 2 : 0),
+                             swap ? bswap16(0xaabb) : 0xaabb);
+                qtest_writeb(qts, mmio + ATI_CLOCK_CNTL_DATA + (swap ? 0 : 3),
+                             0x55);
+                value = 0x5522aabb;
+                g_assert_cmphex(qtest_readl(qts, other + ATI_CLOCK_CNTL_DATA),
+                                ==, other_swap ? bswap32(value) : value);
+                g_assert_cmphex(qtest_readw(qts, mmio + ATI_CLOCK_CNTL_DATA +
+                                                (swap ? 2 : 0)),
+                                ==, swap ? bswap16(0xaabb) : 0xaabb);
+                g_assert_cmphex(qtest_readb(qts, mmio + ATI_CLOCK_CNTL_DATA +
+                                                (swap ? 0 : 3)), ==, 0x55);
+
+                qtest_writel(qts, mmio + ATI_MM_INDEX,
+                             swap ? bswap32(ATI_CLOCK_CNTL_DATA) :
+                                    ATI_CLOCK_CNTL_DATA);
+                g_assert_cmphex(qtest_readl(qts, mmio + ATI_MM_DATA),
+                                ==, swap ? bswap32(value) : value);
+                value = 0x12345678;
+                qtest_writel(qts, mmio + ATI_MM_DATA,
+                             swap ? bswap32(value) : value);
+                g_assert_cmphex(qtest_readl(qts, other + ATI_CLOCK_CNTL_DATA),
+                                ==, other_swap ? bswap32(value) : value);
+            }
+        }
+        qtest_quit(qts);
+    }
+}
+
 static void ati_crtc_timing_migration(void)
 {
     static const struct {
@@ -10447,6 +10509,7 @@ int main(int argc, char **argv)
                        ati_rage128_host_data);
         qtest_add_func("/display/pci/ati-rage128-vsync",
                        ati_rage128_vsync);
+        qtest_add_func("/display/pci/ati-register-endian", ati_register_endian);
         qtest_add_func("/display/pci/ati-crtc-timing-migration",
                        ati_crtc_timing_migration);
         qtest_add_func("/display/pci/ati-8x8-pattern-brush",

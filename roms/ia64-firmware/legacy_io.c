@@ -309,6 +309,7 @@ static FW_SERIAL_DEVICE_PATH mAcpiSerialDevicePath = {
     .End = { 0x7f, 0xff, sizeof(FW_DEVICE_PATH_NODE) },
 };
 static FW_MMIO_SERIAL_DEVICE_PATH mMmioSerialDevicePath;
+static UINT8 mPciSerialDevicePath[FW_SERIAL_DEVICE_PATH_MAX];
 static VOID *mActiveSerialDevicePath;
 static UINTN mActiveSerialDevicePathSize;
 static FW_UART_DEVICE_PATH_NODE *mActiveSerialUartDevicePath;
@@ -320,6 +321,7 @@ static void serial_device_path_init(void)
     UINT64 last;
     UINT64 legacy_base;
     UINT64 legacy_size;
+    UINTN pci_path_size;
 
     if (mActiveSerialDevicePath != NULL) {
         return;
@@ -367,6 +369,25 @@ static void serial_device_path_init(void)
     mMmioSerialDevicePath.End.Type = 0x7f;
     mMmioSerialDevicePath.End.SubType = 0xff;
     mMmioSerialDevicePath.End.Length = sizeof(FW_DEVICE_PATH_NODE);
+
+    pci_path_size = fw_platform_console_pci_path(
+        mPciSerialDevicePath,
+        sizeof(mPciSerialDevicePath) - sizeof(FW_UART_DEVICE_PATH_NODE));
+    if (pci_path_size != 0) {
+        UINTN uart_offset = pci_path_size - sizeof(FW_DEVICE_PATH_NODE);
+
+        fw_copy_mem(mPciSerialDevicePath + uart_offset,
+                    &mMmioSerialDevicePath.Uart,
+                    sizeof(mMmioSerialDevicePath.Uart) +
+                    sizeof(mMmioSerialDevicePath.End));
+        mActiveSerialDevicePath = mPciSerialDevicePath;
+        mActiveSerialDevicePathSize = pci_path_size +
+            sizeof(FW_UART_DEVICE_PATH_NODE);
+        mActiveSerialUartDevicePath =
+            (FW_UART_DEVICE_PATH_NODE *)(VOID *)(
+                mPciSerialDevicePath + uart_offset);
+        return;
+    }
 
     mActiveSerialDevicePath = &mMmioSerialDevicePath;
     mActiveSerialDevicePathSize = sizeof(mMmioSerialDevicePath);
@@ -767,6 +788,8 @@ static const UINT8 mScsiPassThruProtocolGuid[16] = {
     0x90, 0xb1, 0xd3, 0x73, 0x2e, 0xca, 0xa8, 0x77
 };
 
+static const UINT8 mSasDevicePathGuid[16] = FW_SAS_DEVICE_PATH_GUID_BYTES;
+
 static EFI_SCSI_PASS_THRU_PROTOCOL mScsiPassThruProtocol;
 static EFI_SCSI_PASS_THRU_MODE mScsiPassThruMode;
 static BOOLEAN mScsiPassThruBusy;
@@ -785,8 +808,7 @@ static BOOLEAN scsi_pass_thru_valid(EFI_SCSI_PASS_THRU_PROTOCOL *This)
 
 static BOOLEAN scsi_target_valid(UINT32 Target, UINT64 Lun)
 {
-    return Target < FW_SCSI_DEVICE_MAX && Target != FW_SCSI_HOST_ID &&
-           Lun == 0;
+    return fw_scsi_target_valid(Target, Lun);
 }
 
 static EFI_STATUS scsi_pass_thru(EFI_SCSI_PASS_THRU_PROTOCOL *This,
@@ -797,6 +819,7 @@ static EFI_STATUS scsi_pass_thru(EFI_SCSI_PASS_THRU_PROTOCOL *This,
     UINT8 target_status = 0xff;
     FW_LSI_SCRIPT_RESULT result;
     UINT32 transfer_length;
+    UINT8 autosense_length;
 
     (void)Event;
     if (!scsi_pass_thru_valid(This) || !scsi_target_valid(Target, Lun) ||
@@ -815,28 +838,33 @@ static EFI_STATUS scsi_pass_thru(EFI_SCSI_PASS_THRU_PROTOCOL *This,
     }
     mScsiPassThruBusy = 1;
     transfer_length = Packet->TransferLength;
+    autosense_length = Packet->SenseDataLength;
     Packet->HostAdapterStatus = EFI_SCSI_STATUS_HOST_ADAPTER_OK;
     Packet->TargetStatus = 0xff;
     result = fw_scsi_execute_buffered(
         (UINT8)Target, Packet->Cdb, Packet->CdbLength,
         Packet->DataBuffer, transfer_length, Packet->DataDirection == 1,
-        Packet->Timeout, &target_status);
+        Packet->Timeout, &target_status, &transfer_length, Packet->SenseData,
+        &autosense_length);
     Packet->TargetStatus = target_status;
 
-    if (result == FwLsiScriptTargetStatus && target_status ==
+    if (autosense_length != 0) {
+        Packet->SenseDataLength = autosense_length;
+    } else if (result == FwLsiScriptTargetStatus && target_status ==
         EFI_SCSI_STATUS_TARGET_CHECK_CONDITION &&
         Packet->SenseData != NULL && Packet->SenseDataLength != 0) {
         UINT8 requested = Packet->SenseDataLength;
         UINT8 sense_status = 0xff;
         FW_LSI_SCRIPT_RESULT sense_result;
-
+        UINT32 sense_length = requested;
         UINT8 sense_cdb[6] = { 0x03U, 0, 0, 0, requested, 0 };
 
         sense_result = fw_scsi_execute_buffered(
             (UINT8)Target, sense_cdb, sizeof(sense_cdb), Packet->SenseData,
-            requested, 0, Packet->Timeout, &sense_status);
+            requested, 0, Packet->Timeout, &sense_status, &sense_length,
+            NULL, NULL);
         if (sense_result == FwLsiScriptSuccess) {
-            Packet->SenseDataLength = requested;
+            Packet->SenseDataLength = (UINT8)sense_length;
         } else {
             Packet->SenseDataLength = 0;
             Packet->HostAdapterStatus =
@@ -905,6 +933,7 @@ static EFI_STATUS scsi_build_device_path(EFI_SCSI_PASS_THRU_PROTOCOL *This,
 {
     FW_SCSI_DEVICE_PATH_NODE *node;
     EFI_STATUS st;
+    UINT64 sas_address;
 
     if (!scsi_pass_thru_valid(This) || DevicePath == NULL) {
         return EFI_INVALID_PARAMETER;
@@ -913,6 +942,18 @@ static EFI_STATUS scsi_build_device_path(EFI_SCSI_PASS_THRU_PROTOCOL *This,
     if (!scsi_target_valid(Target, Lun) ||
         !fw_scsi_device_present(Target)) {
         return EFI_NOT_FOUND;
+    }
+    sas_address = fw_scsi_sas_address(Target);
+    if (sas_address != 0) {
+        FW_SAS_DEVICE_PATH_NODE *sas;
+
+        st = bs_allocate_pool(EfiBootServicesData, sizeof(*sas), (VOID **)&sas);
+        if (st != EFI_SUCCESS) {
+            return EFI_OUT_OF_RESOURCES;
+        }
+        fw_sas_device_path_init(sas, sas_address, Lun);
+        *DevicePath = &sas->Header;
+        return EFI_SUCCESS;
     }
     st = bs_allocate_pool(EfiBootServicesData, sizeof(*node),
                           (VOID **)&node);
@@ -938,6 +979,29 @@ static EFI_STATUS scsi_get_target_lun(EFI_SCSI_PASS_THRU_PROTOCOL *This,
     if (!scsi_pass_thru_valid(This) || DevicePath == NULL ||
         Target == NULL || Lun == NULL) {
         return EFI_INVALID_PARAMETER;
+    }
+    if (DevicePath->Type == 3 && DevicePath->SubType == 10 &&
+        DevicePath->Length == sizeof(FW_SAS_DEVICE_PATH_NODE)) {
+        const FW_SAS_DEVICE_PATH_NODE *sas = (const VOID *)DevicePath;
+        UINT64 address = sas->SasAddress;
+        UINT64 device_lun = sas->Lun;
+        UINTN i;
+
+        for (i = 0; i < sizeof(mSasDevicePathGuid); i++) {
+            if (sas->Guid[i] != mSasDevicePathGuid[i]) {
+                return EFI_UNSUPPORTED;
+            }
+        }
+        for (i = 0; address != 0 && i < FW_SCSI_DEVICE_MAX; i++) {
+            if (fw_scsi_device_present(i) &&
+                scsi_target_valid(i, device_lun) &&
+                fw_scsi_sas_address(i) == address) {
+                *Target = i;
+                *Lun = device_lun;
+                return EFI_SUCCESS;
+            }
+        }
+        return EFI_NOT_FOUND;
     }
     if (node->Header.Type != 0x03 || node->Header.SubType != 0x02 ||
         node->Header.Length != sizeof(*node)) {
@@ -997,7 +1061,7 @@ static BOOLEAN scsi_pass_thru_install(VOID)
     }
     mScsiPassThruMode.ControllerName = mScsiControllerName;
     mScsiPassThruMode.ChannelName = mScsiChannelName;
-    mScsiPassThruMode.AdapterId = FW_SCSI_HOST_ID;
+    mScsiPassThruMode.AdapterId = fw_scsi_adapter_id();
     mScsiPassThruMode.Attributes =
         EFI_SCSI_PASS_THRU_ATTRIBUTES_PHYSICAL |
         EFI_SCSI_PASS_THRU_ATTRIBUTES_LOGICAL;
@@ -1028,7 +1092,7 @@ BOOLEAN fw_legacy_io_protocols_install(VOID)
         }
         return 0;
     }
-    if (vpc_devices && !scsi_pass_thru_install()) {
+    if (!scsi_pass_thru_install()) {
         (void)bs_uninstall_protocol(mSerialHandle,
                                     (VOID *)mDevicePathProtocolGuid,
                                     fw_serial_device_path());
@@ -1036,9 +1100,11 @@ BOOLEAN fw_legacy_io_protocols_install(VOID)
                                     (VOID *)mSerialIoProtocolGuid,
                                     &mSerialIoProtocol);
         mSerialHandle = NULL;
-        (void)bs_uninstall_protocol(fw_pci_root_handle(),
-                                    (VOID *)mDeviceIoProtocolGuid,
-                                    &mDeviceIoProtocol);
+        if (vpc_devices) {
+            (void)bs_uninstall_protocol(fw_pci_root_handle(),
+                                        (VOID *)mDeviceIoProtocolGuid,
+                                        &mDeviceIoProtocol);
+        }
         return 0;
     }
     return 1;

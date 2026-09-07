@@ -20,6 +20,9 @@
 #define TEST_MAPPING_PTE_WB 0x661ULL
 #define TEST_MAPPING_PTE_UC 0x671ULL
 #define TEST_RUNTIME_MAPPING_MAX 60U
+#define TEST_WAKEUP_ALIAS (RUNTIME_ALIAS_BASE + 0x14000000ULL)
+#define TEST_SAL_MC_SET_PARAMS 0x01000005ULL
+#define TEST_RAS_WAKEUP_VALUE_PA 0xfe800058ULL
 
 typedef struct {
     UINT64 Base;
@@ -34,25 +37,25 @@ static UINT8 efi_global_variable_guid[16] = {
     0x61, 0xdf, 0xe4, 0x8b, 0xca, 0x93, 0xd2, 0x11,
     0xaa, 0x0d, 0x00, 0xe0, 0x98, 0x03, 0x2b, 0x8c,
 };
-
-extern EFI_STATUS test_call_virtual_get_variable(
-    const UINT64 *Descriptor, UINT64 TargetPsr, CHAR16 *VariableName,
-    VOID *VendorGuid, UINT32 *Attributes, UINTN *DataSize, VOID *Data);
+static UINT64 wakeup_word;
 
 __asm__(
 ".text\n"
 ".align 16\n"
-".global test_call_virtual_get_variable\n"
-".type test_call_virtual_get_variable, @function\n"
-".proc test_call_virtual_get_variable\n"
-"test_call_virtual_get_variable:\n"
+".global test_call_virtual_procedure\n"
+".type test_call_virtual_procedure, @function\n"
+".proc test_call_virtual_procedure\n"
+"test_call_virtual_procedure:\n"
 "    .prologue\n"
 "    .save ar.pfs, r39\n"
-"    alloc r39 = ar.pfs, 7, 8, 5, 0\n"
+"    alloc r39 = ar.pfs, 7, 8, 8, 0\n"
 "    .save rp, r40\n"
 "    mov r40 = b0\n"
 "    mov r41 = gp\n"
 "    mov r42 = psr\n"
+"    movl r14 = (1 << 44)\n"
+"    ;;\n"
+"    or r42 = r42, r14\n"
 "    mov r14 = r32\n"
 "    ;;\n"
 "    ld8 r43 = [r14], 8\n"
@@ -63,6 +66,9 @@ __asm__(
 "    mov r49 = r36\n"
 "    mov r50 = r37\n"
 "    mov r51 = r38\n"
+"    mov r52 = r0\n"
+"    mov r53 = r0\n"
+"    mov r54 = r0\n"
 "    rsm psr.ic\n"
 "    ;;\n"
 "    srlz.d\n"
@@ -104,14 +110,15 @@ __asm__(
 "    mov b0 = r40\n"
 "    mov ar.pfs = r39\n"
 "    br.ret.sptk.many b0\n"
-".endp test_call_virtual_get_variable\n");
+".endp test_call_virtual_procedure\n");
 
 static UINT64 read_psr(void)
 {
     UINT64 value;
 
     __asm__ volatile ("mov %0=psr" : "=r"(value));
-    return value;
+    /* The calling convention fixes bank 1; mov-from-PSR omits its bit. */
+    return value | (1ULL << 44);
 }
 
 static UINT64 exchange_iva(UINT64 Value)
@@ -304,6 +311,8 @@ static BOOLEAN install_runtime_test_mappings(EFI_MEMORY_DESCRIPTOR *Map,
     install_instruction_mapping(RUNTIME_ALIAS_BASE, 0,
                                 TEST_MAPPING_PTE_WB);
     install_data_mapping(RUNTIME_ALIAS_BASE, 0, TEST_MAPPING_PTE_WB);
+    install_data_mapping(TEST_WAKEUP_ALIAS, TEST_APPLICATION_BASE,
+                         TEST_MAPPING_PTE_WB);
     for (offset = 0; offset < mapping_count; offset++) {
         install_data_mapping(mappings[offset].Base,
                              mappings[offset].Base,
@@ -557,7 +566,7 @@ static BOOLEAN configuration_table_ranges_are_mapped(
         if (ia64_bytes_equal(Tables[index].VendorGuid, sal_guid, 16)) {
             sal_seen = 1;
             must_be_runtime = 1;
-            minimum_size = 8;
+            minimum_size = 144;
         } else if (ia64_bytes_equal(Tables[index].VendorGuid,
                                     smbios_guid, 16)) {
             smbios_seen = 1;
@@ -574,8 +583,71 @@ static BOOLEAN configuration_table_ranges_are_mapped(
                 must_be_runtime ? EFI_MEMORY_RUNTIME : 0)) {
             return 0;
         }
+        if (ia64_bytes_equal(Tables[index].VendorGuid, sal_guid, 16)) {
+            const UINT8 *sal = vendor_table;
+            UINTN entry_offset;
+
+            if (sal[96] != 0) {
+                return 0;
+            }
+            /* PAL/SAL entry points and SAL GP require runtime mappings. */
+            for (entry_offset = 104; entry_offset <= 120; entry_offset += 8) {
+                UINT64 address = *(const UINT64 *)(sal + entry_offset);
+
+                if (!memory_map_contains(Map, MapSize, DescriptorSize,
+                                          (const VOID *)(UINTN)address, 1,
+                                          EFI_MEMORY_RUNTIME)) {
+                    return 0;
+                }
+            }
+        }
     }
     return sal_seen && smbios_seen && debug_seen;
+}
+
+static BOOLEAN test_sal_wakeup_address(EFI_CONFIGURATION_TABLE *Tables,
+                                       UINTN Count)
+{
+    UINT64 descriptor[2] __attribute__((aligned(16)));
+    /* Read the wakeup registration latched by the RAS device. */
+    volatile UINT64 *registered = (VOID *)(UINTN)TEST_RAS_WAKEUP_VALUE_PA;
+    UINT64 physical = (UINTN)&wakeup_word;
+    UINT64 alias = TEST_WAKEUP_ALIAS + physical - TEST_APPLICATION_BASE;
+    UINT64 target_psr = read_psr() | IA64_PSR_DT | IA64_PSR_RT | IA64_PSR_IT;
+    UINTN i;
+
+    for (i = 0; i < Count; i++) {
+        const UINT8 *sal;
+        EFI_STATUS status;
+
+        if (!ia64_bytes_equal(Tables[i].VendorGuid, sal_guid, 16)) {
+            continue;
+        }
+        sal = (const VOID *)(UINTN)Tables[i].VendorTable;
+        descriptor[0] = *(const UINT64 *)(sal + 112U);
+        descriptor[1] = *(const UINT64 *)(sal + 120U);
+        status = test_call_virtual_procedure(
+            descriptor, read_psr(), TEST_SAL_MC_SET_PARAMS, 2, 2, physical, 0);
+        if (status != 0 || *registered != physical) {
+            return 0;
+        }
+        descriptor[0] += RUNTIME_ALIAS_BASE;
+        descriptor[1] += RUNTIME_ALIAS_BASE;
+        status = test_call_virtual_procedure(
+            descriptor, target_psr, TEST_SAL_MC_SET_PARAMS, 2, 2, alias, 0);
+        if (status != 0 || *registered != physical) {
+            return 0;
+        }
+        status = test_call_virtual_procedure(
+            descriptor, target_psr, TEST_SAL_MC_SET_PARAMS, 2, 2, alias + 1, 0);
+        if (status != (UINT64)-2 || *registered != physical) {
+            return 0;
+        }
+        status = test_call_virtual_procedure(
+            descriptor, target_psr, TEST_SAL_MC_SET_PARAMS, 2, 1, 0xff, 0);
+        return status == 0 && *registered == 0xff;
+    }
+    return 0;
 }
 
 EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
@@ -600,6 +672,7 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
     EFI_TIME time;
     EFI_STATUS status;
     EFI_STATUS virtual_variable_status = EFI_NOT_READY;
+    BOOLEAN sal_wakeup_ok = 0;
     const UINT64 *physical_get_variable_descriptor;
     UINT64 virtual_get_variable_descriptor[2] __attribute__((aligned(16)));
     UINTN boot0000_size = 0;
@@ -745,17 +818,23 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
         virtual_get_variable_descriptor[1] =
             physical_get_variable_descriptor[1];
         saved_iva = exchange_iva(TEST_APPLICATION_BASE);
-        virtual_variable_status = test_call_virtual_get_variable(
+        virtual_variable_status = test_call_virtual_procedure(
             virtual_get_variable_descriptor, target_psr,
-            boot0000_name, efi_global_variable_guid,
-            &boot0000_attributes, &boot0000_size, NULL);
+            (UINTN)boot0000_name, (UINTN)efi_global_variable_guid,
+            (UINTN)&boot0000_attributes, (UINTN)&boot0000_size, 0);
         (void)exchange_iva(saved_iva);
+        if (configuration_tables_mapped) {
+            sal_wakeup_ok = test_sal_wakeup_address(
+                configuration_table, configuration_count);
+        }
     }
     ia64_test_check(
         &context, "runtime-virtual-boot-variable",
         virtual_variable_status == EFI_BUFFER_TOO_SMALL &&
             boot0000_size > sizeof(UINT32) + sizeof(UINT16),
         virtual_variable_status, "boot0000-after-virtual-map");
+    ia64_test_check(&context, "sal-wakeup-address", sal_wakeup_ok,
+                    EFI_DEVICE_ERROR, "physical-virtual-wakeup-registration");
     ia64_test_done(&context);
 
     for (;;) {

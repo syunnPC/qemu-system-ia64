@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 from pathlib import Path
+import struct
+import uuid
 
 from qemu_test import QemuSystemTest, wait_for_console_pattern
 
@@ -13,6 +15,61 @@ from ia64.media import make_fat_disk
 
 
 class Ia64BootShell(Ia64FirmwareTest):
+    def _partition_boot_fixture(self, signature_matches):
+        disk = Path(self.scratch_file("partition-boot.img"))
+        fallback = Path(self.scratch_file("invalid.efi"))
+        fallback.write_bytes(b"invalid image")
+        make_fat_disk(disk, fallback, layout="gpt",
+                      extra_boot_files=((b"LOADER  EFI", app_path("smoke")),))
+        data = disk.read_bytes()
+        signature = bytearray(data[1024 + 16:1024 + 32])
+        if not signature_matches:
+            signature[0] ^= 0xff
+        start, last = struct.unpack_from("<QQ", data, 1024 + 32)
+        hardware = struct.pack("<BBHIII", 2, 2, 64,
+                               0x0a0341d0, 0x1234, 0) + bytes(48)
+        partition = struct.pack("<BBHIQQ16sBB6x", 4, 1, 48, 1,
+                                start, last - start + 1, signature, 2, 2)
+        name = "\\EFI\\BOOT\\LOADER.EFI\0".encode("utf-16le")
+        path = hardware + partition + struct.pack("<BBH", 4, 4, len(name) + 4)
+        path += name + bytes((0x7f, 0xff, 4, 0))
+        description = "Stored disk entry\0".encode("utf-16le")
+        option = struct.pack("<IH", 1, len(path)) + description + path
+        variables = (("Boot0001", option), ("BootOrder", b"\x01\x00"))
+        nvram = self.make_nvram("partition-boot.nvram")
+        store = bytearray(nvram.read_bytes())
+        struct.pack_into("<8sII", store, 0, b"IVARSTOR", 1, len(variables))
+        guid = uuid.UUID("8be4df61-93ca-11d2-aa0d-00e098032b8c").bytes_le
+        for index, (key, value) in enumerate(variables):
+            offset = 16 + index * 1192
+            encoded = (key + "\0").encode("utf-16le")
+            store[offset:offset + len(encoded)] = encoded
+            struct.pack_into("<Q", store, offset + 128, len(encoded))
+            store[offset + 136:offset + 152] = guid
+            store[offset + 152:offset + 152 + len(value)] = value
+            struct.pack_into("<QIBB", store, offset + 1176,
+                             len(value), 7, 1, 0)
+        nvram.write_bytes(store)
+        return disk, nvram
+
+    def test_boot_option_partition_recovery(self):
+        disk, nvram = self._partition_boot_fixture(True)
+        vm = self.launch_ia64(
+            media=disk,
+            machine_options=f"firmware-console=serial,nvram={nvram}")
+        wait_for_console_pattern(
+            self, "IA64TEST suite=smoke status=DONE",
+            failure_message="Disk boot failed", vm=vm)
+
+    def test_boot_option_partition_signature_mismatch(self):
+        disk, nvram = self._partition_boot_fixture(False)
+        vm = self.launch_ia64(
+            media=disk,
+            machine_options=f"firmware-console=serial,nvram={nvram}")
+        wait_for_console_pattern(
+            self, "Disk boot failed",
+            failure_message="IA64TEST suite=smoke", vm=vm)
+
     @staticmethod
     def _send_key(vm, qcode):
         vm.cmd("send-key", keys=[{"type": "qcode", "data": qcode}],

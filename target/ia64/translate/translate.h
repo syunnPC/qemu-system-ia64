@@ -33,6 +33,7 @@
 #define IA64_TB_FLAG_PSR_SS       (1u << 19)
 #define IA64_TB_FLAG_PSR_DB       (1u << 20)
 #define IA64_TB_FLAG_NAT_CLEAR    (1u << 21)
+#define IA64_TB_FLAG_IRQ_DEFER    (1u << 22)
 #define IA64_TB_FLAG_IA32_PSR_DB  (1u << 29)
 #define IA64_TB_FLAG_IA32_PSR_AC  (1u << 30)
 #define IA64_TB_FLAG_PSR_IS       (1u << 31)

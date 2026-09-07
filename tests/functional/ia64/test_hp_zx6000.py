@@ -209,6 +209,7 @@ class HPZx6000Boot(QemuSystemTest):
         vm.set_console()
         vm.add_args(
             "-accel", "tcg",
+            "-m", "1G",
             "-smp", "2",
             "-display", "none",
             "-vga", "ati",
@@ -227,6 +228,10 @@ class HPZx6000Boot(QemuSystemTest):
         self.assertIn(b"GOP/UGA VGA text console ready", output)
         self.assertIn(b"Graphics Output:      GOP/UGA VGA BGRx", output)
         self.assert_acpi_pm_fadt(vm)
+        self.assertEqual(
+            struct.unpack("<QQ", self.read_physical(vm, 0xFED01300, 16)),
+            (0x40000000, 0xFFFFFFFFC0000000),
+        )
         self.assertTrue(vm.is_running(), "QEMU exited during firmware boot")
 
     def test_default_optical_boot(self):

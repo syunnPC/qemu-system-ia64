@@ -39,7 +39,12 @@ mptsas_mmio_unhandled_read(void *dev, uint32_t addr) "dev %p addr 0x%08x"
 mptsas_mmio_unhandled_write(void *dev, uint32_t addr, uint32_t val) "dev %p addr 0x%08x value 0x%x"
 mptsas_mmio_write(void *dev, uint32_t addr, uint32_t val) "dev %p addr 0x%08x value 0x%x"
 mptsas_process_message(void *dev, int msg, uint32_t ctx) "dev %p cmd %d context 0x%08x"
-mptsas_process_scsi_io_request(void *dev, int bus, int target, int lun, uint64_t len) "dev %p dev %d:%d:%d length %"PRIu64""
+mptsas_process_fw_upload(void *dev, uint8_t type, uint32_t offset, uint32_t length, uint64_t address, uint16_t status) "dev %p image %u offset 0x%x length 0x%x address 0x%" PRIx64 " status 0x%04x"
+mptsas_process_toolbox(void *dev, uint8_t tool, uint32_t flags, uint16_t status) "dev %p tool %u flags 0x%x status 0x%04x"
+mptsas_process_sas_control(void *dev, uint8_t operation, uint16_t status) "dev %p operation 0x%02x status 0x%04x"
+mptsas_process_fw_download(void *dev, uint8_t type, uint32_t length, uint64_t address, uint16_t status) "dev %p image %u length 0x%x address 0x%" PRIx64 " status 0x%04x"
+mptsas_process_scsi_io_request(void *dev, int bus, int target, int lun, uint64_t len, uint8_t opcode, uint32_t control, uint64_t lun_address) "dev %p dev %d:%d:%d length %"PRIu64" opcode 0x%02x control 0x%x lun_address 0x%016"PRIx64
+mptsas_scsi_request_error(void *dev, uint32_t ctx, uint16_t status) "dev %p context 0x%08x status 0x%04x"
 mptsas_reset(void *dev) "dev %p "
 mptsas_scsi_overflow(void *dev, uint32_t ctx, uint64_t req, uint64_t found) "dev %p context 0x%08x: %"PRIu64"/%"PRIu64""
 mptsas_sgl_overflow(void *dev, uint32_t ctx, uint64_t req, uint64_t found) "dev %p context 0x%08x: %"PRIu64"/%"PRIu64""
@@ -49,7 +54,7 @@ mptsas_unhandled_doorbell_cmd(void *dev, int cmd) "dev %p value 0x%08x"
 # mptconfig.c
 mptsas_config_sas_device(void *dev, int address, int port, int phy_handle, int dev_handle, int page) "dev %p address %d (port %d, handles: phy %d dev %d) page %d"
 mptsas_config_sas_phy(void *dev, int address, int port, int phy_handle, int dev_handle, int page) "dev %p address %d (port %d, handles: phy %d dev %d) page %d"
-mptsas_config_request(void *dev, uint32_t ctx, uint8_t action, uint8_t type, uint8_t number, uint32_t address, uint32_t flags_length) "dev %p context 0x%08x action 0x%02x type 0x%02x number %u address 0x%08x sge 0x%08x"
+mptsas_config_request(void *dev, uint32_t ctx, uint8_t action, uint8_t type, uint8_t number, uint32_t address, uint32_t flags_length, uint64_t buffer) "dev %p context 0x%08x action 0x%02x type 0x%02x number %u address 0x%08x sge 0x%08x buffer 0x%" PRIx64
 mptsas_config_reply(void *dev, uint32_t ctx, uint16_t status, uint8_t type, uint8_t number, uint8_t length, uint16_t ext_length, uint8_t ext_type) "dev %p context 0x%08x status 0x%04x type 0x%02x number %u length %u ext_length %u ext_type 0x%02x"
 
 # megasas.c

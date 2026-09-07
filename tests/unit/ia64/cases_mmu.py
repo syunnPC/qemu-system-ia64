@@ -960,6 +960,102 @@ test_probe_r_insufficient_privilege_returns_zero = require_registers(
         "r9": 1,
     }, entry=0x10)
 
+
+# Page access rights from the architecture manual, Volume 2, Table 4-4.
+# Rows are indexed by AR, then PL; each tuple lists CPL 0 through 3.
+PAGE_ACCESS_RIGHTS = (
+    (("R", "", "", ""), ("R", "R", "", ""),
+     ("R", "R", "R", ""), ("R", "R", "R", "R")),
+    (("RX", "", "", ""), ("RX", "RX", "", ""),
+     ("RX", "RX", "RX", ""), ("RX", "RX", "RX", "RX")),
+    (("RW", "", "", ""), ("RW", "RW", "", ""),
+     ("RW", "RW", "RW", ""), ("RW", "RW", "RW", "RW")),
+    (("RWX", "", "", ""), ("RWX", "RWX", "", ""),
+     ("RWX", "RWX", "RWX", ""), ("RWX", "RWX", "RWX", "RWX")),
+    (("RW", "", "", ""), ("RW", "R", "", ""),
+     ("RW", "RW", "R", ""), ("RW", "RW", "RW", "R")),
+    (("RWX", "", "", ""), ("RWX", "RX", "", ""),
+     ("RWX", "RX", "RX", ""), ("RWX", "RX", "RX", "RX")),
+    (("RW", "", "", ""), ("RW", "RWX", "", ""),
+     ("RW", "RW", "RWX", ""), ("RW", "RW", "RW", "RWX")),
+    (("RX", "X", "X", "X"), ("RX", "X", "X", "X"),
+     ("RX", "X", "X", "X"), ("RX", "X", "X", "X")),
+)
+
+
+def test_page_access_rights_data(qemu):
+    for ar, rows in enumerate(PAGE_ACCESS_RIGHTS):
+        for pl, rights in enumerate(rows):
+            bundles = [
+                *dtr_setup_bundles(0x10, HIGH_TR_BASE, 0x400000,
+                                   pte_flags=0x61 | (pl << 7) | (ar << 9)),
+                (0x70, *movl_mlx(19, IA64_PSR_IC | IA64_PSR_DT)),
+                (0x80, 0x00, mov_gr_psr_full(19), nop_i(), nop_i()),
+                (0x90, 0x00, srlz_d(), nop_i(), nop_i()),
+                (0xa0, *movl_mlx(2, HIGH_TR_BASE)),
+            ]
+            expected = {"ip": 0x130, "exception": IA64_EXCP_NONE}
+            for cpl, access in enumerate(rights):
+                address = 0xb0 + cpl * 0x20
+                bundles.extend([
+                    (address, 0x00, probe_r_imm(8 + cpl * 2, 2, cpl),
+                     nop_i(), nop_i()),
+                    (address + 0x10, 0x00,
+                     probe_w_imm(9 + cpl * 2, 2, cpl), nop_i(), nop_i()),
+                ])
+                expected[f"r{8 + cpl * 2}"] = int("R" in access)
+                expected[f"r{9 + cpl * 2}"] = int("W" in access)
+            bundles.append((0x130, 0x10, nop_m(), nop_i(),
+                            br_cond(0x130, 0x130)))
+            run_program(qemu, bundles, expected=expected,
+                        terminal_ip=0x130,
+                        name=f"page_access_data_ar{ar}_pl{pl}")
+
+
+def test_page_access_rights_instruction(qemu):
+    for ar, rows in enumerate(PAGE_ACCESS_RIGHTS):
+        for pl, rights in enumerate(rows):
+            for cpl, access in enumerate(rights):
+                terminal = (0x10440 if "X" in access else
+                            IA64_INST_ACCESS_VECTOR + 0x10)
+                run_program(qemu, [
+                    # Keep the fault handler executable at CPL 0.
+                    (0x10, *movl_mlx(18, 0x661)),
+                    (0x20, 0x00, adds(7, 16 << 2, 0),
+                     adds(5, 5, 0), nop_i()),
+                    (0x30, 0x00, mov_m_gr_cr(0, 20), nop_i(), nop_i()),
+                    (0x40, 0x00, mov_m_gr_cr(7, 21), nop_i(), nop_i()),
+                    (0x50, 0x00, itr_i(5, 18), nop_i(), nop_i()),
+                    (0x60, 0x00, srlz_i(), nop_i(), nop_i()),
+                    (0x70, *movl_mlx(
+                        18, 0x4000061 | (pl << 7) | (ar << 9))),
+                    (0x80, *movl_mlx(
+                        19, IA64_PSR_IC | IA64_PSR_IT | (cpl << 32))),
+                    (0x90, 0x00, adds(7, LOW_VECTOR_ITIR, 0),
+                     nop_i(), nop_i()),
+                    (0xa0, 0x00, mov_m_gr_cr(7, 21), nop_i(), nop_i()),
+                    (0xb0, *movl_mlx(31, 0x10430)),
+                    (0xc0, 0x00, mov_m_gr_cr(31, 20), nop_i(), nop_i()),
+                    (0xd0, 0x00, itc_i(18), nop_i(), nop_i()),
+                    (0xe0, 0x00, srlz_i(), nop_i(), nop_i()),
+                    *rfi_to_gr(0xf0, 19, 31),
+                    (0x4000430, 0x10, nop_m(), adds(8, 1, 0),
+                     br_cond(0x10430, 0x10440)),
+                    (0x4000440, 0x10, nop_m(), nop_i(),
+                     br_cond(0x10440, 0x10440)),
+                    (IA64_INST_ACCESS_VECTOR, 0x00, nop_m(),
+                     adds(9, 1, 0), nop_i()),
+                    (IA64_INST_ACCESS_VECTOR + 0x10, 0x10, nop_m(), nop_i(),
+                     br_cond(IA64_INST_ACCESS_VECTOR + 0x10,
+                             IA64_INST_ACCESS_VECTOR + 0x10)),
+                ], terminal_ip=terminal, expected={
+                    "ip": terminal,
+                    "exception": IA64_EXCP_NONE,
+                    "r8": int("X" in access),
+                    "r9": int("X" not in access),
+                }, name=f"page_access_instruction_ar{ar}_pl{pl}_cpl{cpl}")
+
+
 # A NaTPage translation is in tlb_grant_permission()'s checked list, so the
 # non-faulting probe raises Data NaT Page Consumption instead of granting.
 test_probe_r_natpage_dtr_raises_nat_consumption = require_registers(
@@ -1522,13 +1618,12 @@ def test_long_vhpt_large_page_high_ram_subword_remap(qemu):
     low_count_pa = count_a_pa & 0xffffffff
     pta = 0x10013d
     pta_size = (pta >> 2) & 0x3f
-    hpn_bits = IA64_IMPL_VA_MSB + 1 - page_shift
     payload = count_va & ((1 << (IA64_IMPL_VA_MSB + 1)) - 1)
     hpn = payload >> page_shift
     entries = 1 << (pta_size - 5)
-    vhpt_hash = (hpn ^ (hpn >> 7) ^ rid) & (entries - 1)
+    vhpt_hash = (hpn ^ rid) & (entries - 1)
     entry_pa = (pta & ~((1 << pta_size) - 1)) | (vhpt_hash << 5)
-    tag = (rid << hpn_bits) | (hpn & ((1 << hpn_bits) - 1))
+    tag = hpn ^ (rid << 39)
     pte_a = (count_a_pa & ~page_mask) | DTR_PTE_WB
     pte_b = (count_b_pa & ~page_mask) | DTR_PTE_WB
     rr = (rid << 8) | (page_shift << 2) | 1
@@ -2504,7 +2599,7 @@ test_itc_d_preserves_24bit_key = require_registers(
     ], {
         "ip": 0x80,
         "exception": IA64_EXCP_NONE,
-        "r31": 0x12345,
+        "r31": 0x1234500,
     }, entry=0x10)
 
 # A 4 GiB (2**32) page is an architected insertable page size, so itc.d/itr.d
@@ -2617,6 +2712,26 @@ test_itc_d_not_present_raises_page_fault = require_registers(
         "exception": IA64_EXCP_NONE,
         "r30": 0xa000000000000430,
         "r31": IA64_ISR_R,
+    }, entry=0x10)
+
+test_tak_key_one_is_distinct_from_miss = require_registers(
+    "tak_key_one_is_distinct_from_miss", [
+        (0x10, *movl_mlx(18, 0x0010000004000661)),
+        (0x20, *movl_mlx(19, HIGH_TR_BASE + 0x20000)),
+        (0x30, *movl_mlx(7, (1 << 8) | LOW_VECTOR_ITIR)),
+        (0x40, 0x00, mov_m_gr_cr(7, 21), nop_i(), nop_i()),
+        (0x50, 0x00, mov_m_gr_cr(19, 20), nop_i(), nop_i()),
+        (0x60, 0x00, itc_d(18), nop_i(), nop_i()),
+        (0x70, 0x00, srlz_d(), nop_i(), nop_i()),
+        (0x80, 0x00, tak(30, 19), nop_i(), nop_i()),
+        (0x90, *movl_mlx(20, HIGH_TR_BASE + 0x40000)),
+        (0xa0, 0x00, tak(31, 20), nop_i(), nop_i()),
+        (0xb0, 0x10, nop_m(), nop_i(), br_cond(0xb0, 0xb0)),
+    ], {
+        "ip": 0xb0,
+        "exception": IA64_EXCP_NONE,
+        "r30": 0x100,
+        "r31": 1,
     }, entry=0x10)
 
 test_tak_not_present_dtlb_returns_one = require_registers(
@@ -4162,7 +4277,7 @@ test_tpa_uses_short_vhpt_walk = require_registers(
         "ip": 0x120,
         "exception": IA64_EXCP_NONE,
         "r31": 0x4000430,
-        "r30": 5,
+        "r30": 5 << 8,
     }, entry=0x10)
 
 test_short_vhpt_walker_rejects_pending_table_purge = require_registers(
@@ -4310,7 +4425,7 @@ test_tak_vhpt_access_ignores_dbr_read_match = require_registers(
     ], {
         "ip": 0x180,
         "exception": IA64_EXCP_NONE,
-        "r31": 5,
+        "r31": 5 << 8,
     }, entry=0x10)
 
 test_short_vhpt_walk_uses_dcr_byte_order = require_registers(
@@ -4469,7 +4584,7 @@ test_tak_uses_short_vhpt_walk = require_registers(
     ], {
         "ip": 0x110,
         "exception": IA64_EXCP_NONE,
-        "r31": 5,
+        "r31": 5 << 8,
     }, entry=0x10)
 
 # TAK returns 1 for an unimplemented virtual address before consulting the
@@ -5055,7 +5170,7 @@ test_speculative_load_walks_short_vhpt_with_ic_clear = require_registers(
         "exception": IA64_EXCP_NONE,
         "r31": 0x123456789abcdef0,
         "r31_nat": 0,
-        "r30": 5,
+        "r30": 5 << 8,
     }, entry=0x10)
 
 test_speculative_load_defers_region6_vhpt_not_present = require_registers(
@@ -5813,7 +5928,7 @@ test_short_vhpt_thash_uses_implemented_va_bits = require_registers(
     ], {
         "ip": 0x90,
         "r20": 0xfff7ffff80000ff8,
-        "r21": 0x1fffff00001ff,
+        "r21": 0xff7ff00001ff,
     }, entry=0x10)
 
 test_short_vhpt_thash_high_region_self_map = require_registers(
@@ -5835,8 +5950,48 @@ test_short_vhpt_thash_high_region_self_map = require_registers(
     ], {
         "ip": 0x90,
         "r20": 0xffffffffff000000,
-        "r21": 0x1ffffffe00000,
+        "r21": 0xff7fffe00000,
     }, entry=0x10)
+
+
+def test_long_vhpt_hash_tag_vectors(qemu):
+    # The index and tag jointly encode the page number and all RID bits.
+    # The tag's invalid bit must remain clear for every valid input.
+    vectors = [
+        (0xe00123456789a430, 0x123456, 12, 0x119980,
+         0x091a2b123456789a),
+        (0xe000000000000430, 0xffffff, 12, 0x17ffe0,
+         0x7fffff8000000000),
+        (0xffff000040002030, 0x123456, 22, 0x16aac0,
+         0x091a2b7ffc000100),
+        (0xe100000000001000, 0x1, 12, 0x100000,
+         0x0000108000000001),
+        (0xe000000000001000, 0x10001, 12, 0x100000,
+         0x0080008000000001),
+        (0xe00123456789a430, 0x123456, 28, 0x100000,
+         0x091a2b0000123456),
+    ]
+    for cpu in ("itanium2", "montecito"):
+        for index, (va, rid, page_shift, address, tag) in enumerate(vectors):
+            run_program(qemu, [
+                (0x10, *movl_mlx(16, 0x10014d)),
+                (0x20, *movl_mlx(17, va)),
+                (0x30, *movl_mlx(18, (rid << 8) | (page_shift << 2) | 1)),
+                (0x40, 0x00, mov_m_gr_cr(16, 8), nop_i(), nop_i()),
+                (0x50, 0x00, mov_rr_write(18, 17), nop_i(), nop_i()),
+                (0x60, 0x00, srlz_d(), nop_i(), nop_i()),
+                (0x70, 0x00, thash(20, 17), nop_i(), nop_i()),
+                (0x80, 0x00, ttag(21, 17), nop_i(), nop_i()),
+                (0x90, 0x10, nop_m(), nop_i(), br_cond(0x90, 0x90)),
+            ], entry=0x10, terminal_ip=0x90, cpu=cpu, expected={
+                "ip": 0x90,
+                "exception": IA64_EXCP_NONE,
+                "r20": address,
+                "r21": tag,
+                "r20_nat": 0,
+                "r21_nat": 0,
+            }, name=f"long_vhpt_hash_tag_{cpu}_{index}")
+
 
 test_long_vhpt_walk_uses_standard_entry_layout = require_registers(
     "long_vhpt_walk_uses_standard_entry_layout", [
@@ -5869,7 +6024,7 @@ test_long_vhpt_walk_uses_standard_entry_layout = require_registers(
         "ip": 0x100,
         "exception": IA64_EXCP_NONE,
         "r31": 0x4000430,
-        "r30": 2,
+        "r30": 2 << 8,
     }, entry=0x10)
 
 
@@ -5951,7 +6106,7 @@ test_long_vhpt_walk_uses_dcr_byte_order = require_registers(
         "ip": 0x120,
         "exception": IA64_EXCP_NONE,
         "r31": 0x4000430,
-        "r30": 2,
+        "r30": 2 << 8,
     }, entry=0x10)
 
 LONG_VHPT_RID1_DATA_BUNDLE = (0x4000430, 0x00, 0x1111222233334444, 0, 0)
@@ -6383,6 +6538,40 @@ test_ptc_g_source_purge_precedes_same_bundle_srlz_d = require_registers(
         # TAK returns one when the completed source purge removed the TC.
         "r31": 1,
     }, entry=0x10, alat=None, smp="2")
+
+
+def _global_purge_with_trailing_nop(name, instruction):
+    return require_registers(name, [
+        (0x10, *movl_mlx(18, LOW_VECTOR_TR_PTE)),
+        (0x20, *movl_mlx(20, HIGH_TR_BASE)),
+        (0x30, 0x00, adds(7, 0x68, 0), nop_i(), nop_i()),
+        (0x40, 0x00, mov_m_gr_cr(20, 20), nop_i(), nop_i()),
+        (0x50, 0x00, mov_m_gr_cr(7, 21), nop_i(), nop_i()),
+        (0x60, 0x00, itc_d(18), nop_i(), nop_i()),
+        (0x70, 0x00, srlz_d(), nop_i(), nop_i()),
+        (0x80, *movl_mlx(2, HIGH_TR_BASE + 0x9000)),
+        (0x90, *movl_mlx(19, IA64_PSR_DT)),
+        (0xa0, 0x00, mov_gr_psr_full(19), nop_i(), nop_i()),
+        (0xb0, 0x00, ld8(30, 2), nop_i(), nop_i()),
+        # Preserve the raw M;MI; layout, with a NOP after the purge.
+        (0xc0, 0x0b, rsm(0x4000), int(instruction(20, 7)), nop_i()),
+        (0xd0, 0x00, srlz_d(), nop_i(), nop_i()),
+        (0xe0, 0x00, tak(31, 20), nop_i(), nop_i()),
+        (0xf0, 0x10, nop_m(), nop_i(), br_cond(0xf0, 0xf0)),
+        ITC_DATA_BUNDLE,
+    ], {
+        "ip": 0xf0,
+        "exception": IA64_EXCP_NONE,
+        "r30": ITC_DATA_LOW,
+        "r31": 1,
+    }, entry=0x10, alat=None, smp="2")
+
+
+test_ptc_g_with_trailing_nop = _global_purge_with_trailing_nop(
+    "ptc_g_with_trailing_nop", ptc_g)
+
+test_ptc_ga_with_trailing_nop = _global_purge_with_trailing_nop(
+    "ptc_ga_with_trailing_nop", ptc_ga)
 
 
 test_ptc_ga_clears_source_alat = require_registers(
@@ -7156,13 +7345,21 @@ test_firmware_identity_ends_after_iva_handoff = require_registers(
 
 test_firmware_runtime_identity_after_iva_handoff = require_registers(
     "firmware_runtime_identity_after_iva_handoff", [
-        (0x10, *movl_mlx(2, 0x130000)),
-        (0x20, *movl_mlx(3, 0x4000000)),
-        (0x30, 0x00, mov_m_gr_cr(3, 2), nop_i(),
-         nop_i()),
-        (0x40, *movl_mlx(19, (1 << 17) | (1 << 36))),
-        (0x50, *movl_mlx(20, 0x100000)),
-        *rfi_to_gr(0x60, 19, 20),
+        # Calls after handoff need explicit instruction and data mappings.
+        (0x10, *movl_mlx(18, DTR_PTE_WB | IA64_FW_IDENTITY_BASE)),
+        (0x20, *movl_mlx(20, IA64_FW_IDENTITY_BASE)),
+        (0x30, 0x00, adds(7, 20 << 2, 0), adds(5, 5, 0), nop_i()),
+        (0x40, 0x00, mov_m_gr_cr(20, 20), nop_i(), nop_i()),
+        (0x50, 0x00, mov_m_gr_cr(7, 21), nop_i(), nop_i()),
+        (0x60, 0x00, itr_i(5, 18), nop_i(), nop_i()),
+        (0x70, 0x00, itr_d(5, 18), nop_i(), nop_i()),
+        (0x80, 0x00, srlz_i(), nop_i(), nop_i()),
+        (0x90, *movl_mlx(2, 0x130000)),
+        (0xa0, *movl_mlx(3, 0x4000000)),
+        (0xb0, 0x00, mov_m_gr_cr(3, 2), nop_i(), nop_i()),
+        (0xc0, *movl_mlx(19, (1 << 17) | (1 << 36))),
+        (0xd0, *movl_mlx(20, 0x100000)),
+        *rfi_to_gr(0xe0, 19, 20),
         (0x100000, 0x00, ld8(31, 2), nop_i(),
          nop_i()),
         (0x100010, 0x10, nop_m(), nop_i(),
@@ -7179,6 +7376,44 @@ test_firmware_identity_does_not_override_user_mapping = require_registers(
     "firmware_identity_does_not_override_user_mapping", [
         (0x10, *movl_mlx(18, LOW_VECTOR_TR_PTE | (3 << 7))),
         (0x20, *movl_mlx(19, (1 << 36) | IA64_PSR_CPL3)),
+        (0x30, *movl_mlx(20, IA64_FW_IDENTITY_BASE)),
+        (0x40, *movl_mlx(21, 0x4000000)),
+        (0x50, 0x00, adds(7, LOW_VECTOR_ITIR, 0), adds(5, 5, 0),
+         nop_i()),
+        (0x60, 0x00, mov_m_gr_cr(20, 20), nop_i(),
+         nop_i()),
+        (0x70, 0x00, mov_m_gr_cr(7, 21), nop_i(),
+         nop_i()),
+        (0x80, 0x00, itr_i(5, 18), nop_i(),
+         nop_i()),
+        (0x90, 0x00, mov_m_gr_cr(21, 2), nop_i(),
+         nop_i()),
+        (0xa0, 0x00, srlz_i(), nop_i(),
+         nop_i()),
+        *rfi_to_gr(0xb0, 19, 20),
+        (IA64_FW_IDENTITY_BASE, 0x10, nop_m(), adds(31, 0x66, 0),
+         br_cond(IA64_FW_IDENTITY_BASE,
+                 IA64_FW_IDENTITY_BASE + 0x10)),
+        (IA64_FW_IDENTITY_BASE + 0x10, 0x10, nop_m(), nop_i(),
+         br_cond(IA64_FW_IDENTITY_BASE + 0x10,
+                 IA64_FW_IDENTITY_BASE + 0x10)),
+        (0x4000000, 0x10, nop_m(), adds(31, 0x55, 0),
+         br_cond(IA64_FW_IDENTITY_BASE,
+                 IA64_FW_IDENTITY_BASE + 0x10)),
+        (0x4000010, 0x10, nop_m(), nop_i(),
+         br_cond(IA64_FW_IDENTITY_BASE + 0x10,
+                 IA64_FW_IDENTITY_BASE + 0x10)),
+    ], {
+        "ip": IA64_FW_IDENTITY_BASE + 0x10,
+        "exception": IA64_EXCP_NONE,
+        "r31": 0x55,
+    }, entry=0x10)
+
+
+test_firmware_identity_does_not_override_kernel_mapping = require_registers(
+    "firmware_identity_does_not_override_kernel_mapping", [
+        (0x10, *movl_mlx(18, LOW_VECTOR_TR_PTE)),
+        (0x20, *movl_mlx(19, (1 << 36))),
         (0x30, *movl_mlx(20, IA64_FW_IDENTITY_BASE)),
         (0x40, *movl_mlx(21, 0x4000000)),
         (0x50, 0x00, adds(7, LOW_VECTOR_ITIR, 0), adds(5, 5, 0),
@@ -7861,6 +8096,7 @@ CASE_NAMES = (
     'fetchadd4_alt_dtlb_sets_read_write_isr',
     'firmware_identity_ends_after_iva_handoff',
     'firmware_identity_does_not_override_user_mapping',
+    'firmware_identity_does_not_override_kernel_mapping',
     'firmware_identity_under_translation',
     'firmware_iva_handoff_keeps_tb_cache',
     'firmware_runtime_identity_after_iva_handoff',
@@ -7935,6 +8171,7 @@ CASE_NAMES = (
     'lfetch_fault_checks_translation',
     'lfetch_nonfault_suppresses_translation_fault',
     'long_vhpt_dbr_matches_full_32_byte_reference',
+    'long_vhpt_hash_tag_vectors',
     'long_vhpt_not_present_ignores_software_fields',
     'long_vhpt_large_page_high_ram_subword_remap',
     'long_vhpt_same_va_different_rids_refills',
@@ -7962,6 +8199,8 @@ CASE_NAMES = (
     'no_ic_data_access_enters_vector_with_ni',
     'percpu_alt_dtlb_uses_updated_kr3_after_ptc_e',
     'percpu_kr3_update_evicts_old_tc_mapping',
+    'page_access_rights_data',
+    'page_access_rights_instruction',
     'probe_dt_disabled_maintenance_bits_grant',
     'lfetch_fault_natpage_isr_code',
     'probe_fault_short_vhpt_not_present_raises_page_fault',
@@ -7995,6 +8234,8 @@ CASE_NAMES = (
     'ptc_e_nat_addr_consumes',
     'ptc_e_purges_data_tc_on_srlz_i',
     'ptc_g_source_purge_precedes_same_bundle_srlz_d',
+    'ptc_g_with_trailing_nop',
+    'ptc_ga_with_trailing_nop',
     'ptc_ga_clears_source_alat',
     'ptc_l_4g_page_size_is_purgeable',
     'ptc_l_does_not_clear_local_alat',
@@ -8061,6 +8302,7 @@ CASE_NAMES = (
     'tak_cpl_outranks_vm',
     'tak_nat_outranks_vm',
     'tak_not_present_dtlb_returns_one',
+    'tak_key_one_is_distinct_from_miss',
     'tak_unimplemented_va_does_not_alias_short_vhpt',
     'tak_uses_short_vhpt_walk',
     'tak_vhpt_access_ignores_dbr_read_match',
