@@ -3205,9 +3205,15 @@ static void test_pcie_zx2_iommu(void)
                     ==, BIT_ULL(15));
     group_control = qtest_readq(qts, IA64_ZX2_PCIE_MIO_BASE +
                                HP_ZX2_MIO_GROUP_CONTROL(3));
-    g_assert_cmphex(group_control, ==,
-                    HP_ZX2_MIO_GROUP_ENABLE |
-                    (UINT64_C(3) << HP_ZX2_MIO_GROUP_CONTEXT_SHIFT));
+    g_assert_cmphex(group_control, ==, HP_ZX2_MIO_GROUP_ENABLE);
+
+    /* Select a non-default DMA context before programming its IOC bank. */
+    group_control |= UINT64_C(3) << HP_ZX2_MIO_GROUP_CONTEXT_SHIFT;
+    qtest_writeq(qts, IA64_ZX2_PCIE_MIO_BASE +
+                 HP_ZX2_MIO_GROUP_CONTROL(3), group_control);
+    g_assert_cmphex(qtest_readq(qts, IA64_ZX2_PCIE_MIO_BASE +
+                               HP_ZX2_MIO_GROUP_CONTROL(3)), ==,
+                    group_control);
 
     qtest_writeq(qts, IA64_ZX2_PCIE_PDIR,
                  IA64_ZX2_PCIE_TARGET | IA64_ZX2_PCIE_PTE_VALID);
