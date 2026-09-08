@@ -33,6 +33,12 @@ void helper_set_alat_fp(CPUIA64State *env, uint32_t reg, uint64_t addr,
     ia64_alat_set_fp(env, reg, addr, size, generation);
 }
 
+void helper_set_alat_pa(CPUIA64State *env, uint32_t reg, uint64_t addr,
+                        uint32_t size, uint64_t generation, uint64_t pa)
+{
+    ia64_alat_set_pa(env, reg & 127, addr, size, generation, pa, reg & 128);
+}
+
 void helper_invalidate_alat_reg(CPUIA64State *env, uint32_t reg)
 {
     ia64_alat_invalidate_reg(env, reg);

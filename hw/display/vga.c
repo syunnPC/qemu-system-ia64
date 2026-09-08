@@ -1708,6 +1708,22 @@ static void vga_draw_graphic(VGACommonState *s, int full_update)
                                                       DIRTY_MEMORY_VGA);
     }
 
+    /* All mode, palette, surface and cursor changes have been checked. */
+    if (!full_update && depth >= 8 && shift_control >= 2 &&
+        (s->cr[VGA_CRTC_MODE] & 3) == 3 &&
+        !memory_region_snapshot_get_dirty(&s->vram, snap, region_start,
+                                           region_end - region_start)) {
+        uint32_t cursor_dirty = 0;
+
+        for (unsigned int i = 0; i < ARRAY_SIZE(s->invalidated_y_table); i++) {
+            cursor_dirty |= s->invalidated_y_table[i];
+        }
+        if (!cursor_dirty) {
+            g_free(snap);
+            return;
+        }
+    }
+
     for(y = 0; y < height; y++) {
         addr = addr1;
         if (!(s->cr[VGA_CRTC_MODE] & 1)) {

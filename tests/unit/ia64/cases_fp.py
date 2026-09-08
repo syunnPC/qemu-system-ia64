@@ -5929,6 +5929,38 @@ test_disabled_fp_mixed_sets_reports_both = require_registers(
         "r9": 3 | (1 << IA64_ISR_EI_SHIFT),
     }, entry=0x10)
 
+test_disabled_fp_skipped_check_not_reused = require_registers(
+    "disabled_fp_skipped_check_not_reused", [
+        (0x10, *movl_mlx(2, IA64_PSR_IC | IA64_PSR_DFH)),
+        (0x20, 0x01, mov_gr_psr_full(2), nop_i(), nop_i()),
+        (0x30, 0x01, setf_sig(40, 2, qp=1), nop_i(), nop_i()),
+        (0x40, 0x01, setf_sig(41, 2), nop_i(), nop_i()),
+        (IA64_DISABLED_FP_VECTOR, 0x01, mov_m_cr_gr(8, 19), nop_i(), nop_i()),
+        (IA64_DISABLED_FP_VECTOR + 0x10, 0x01,
+         mov_m_cr_gr(9, 17), nop_i(), nop_i()),
+        (IA64_DISABLED_FP_VECTOR + 0x20, 0x10, nop_m(), nop_i(),
+         br_cond(IA64_DISABLED_FP_VECTOR + 0x20,
+                 IA64_DISABLED_FP_VECTOR + 0x20)),
+    ], {"ip": IA64_DISABLED_FP_VECTOR + 0x20, "r8": 0x40, "r9": IA64_ISR_NI | 2,
+        "exception": IA64_EXCP_NONE}, entry=0x10)
+
+
+test_disabled_fp_psr_change_in_bundle = require_registers(
+    "disabled_fp_psr_change_in_bundle", [
+        (0x10, *movl_mlx(2, IA64_PSR_IC | IA64_PSR_DFH)),
+        (0x20, 0x01, setf_sig(40, 2), nop_i(), nop_i()),
+        (0x30, 0x0d, mov_gr_psr_full(2), fmov(41, 40), nop_i()),
+        (IA64_DISABLED_FP_VECTOR, 0x01, mov_m_cr_gr(8, 19), nop_i(), nop_i()),
+        (IA64_DISABLED_FP_VECTOR + 0x10, 0x01,
+         mov_m_cr_gr(9, 17), nop_i(), nop_i()),
+        (IA64_DISABLED_FP_VECTOR + 0x20, 0x10, nop_m(), nop_i(),
+         br_cond(IA64_DISABLED_FP_VECTOR + 0x20,
+                 IA64_DISABLED_FP_VECTOR + 0x20)),
+    ], {"ip": IA64_DISABLED_FP_VECTOR + 0x20, "r8": 0x30,
+        "r9": IA64_ISR_NI | 2 | (1 << IA64_ISR_EI_SHIFT),
+        "exception": IA64_EXCP_NONE}, entry=0x10)
+
+
 test_fp_writes_set_psr_mfl_mfh = require_registers(
     "fp_writes_set_psr_mfl_mfh", [
         (0x10, *movl_mlx(2, 0x1234)),
@@ -6142,6 +6174,8 @@ CASE_NAMES = (
     'data_big_endian_ldfe_stfe',
     'data_big_endian_stf_spill_ldf_fill',
     'disabled_fp_high_fault',
+    'disabled_fp_skipped_check_not_reused',
+    'disabled_fp_psr_change_in_bundle',
     'disabled_fp_load_sets_isr_r',
     'disabled_fp_low_fault',
     'disabled_fp_mixed_sets_reports_both',

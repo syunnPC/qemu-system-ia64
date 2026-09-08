@@ -159,6 +159,36 @@ uint64_t helper_speculative_int_probe(CPUIA64State *env, uint64_t va,
     return result;
 }
 
+Int128 helper_speculative_int_probe_pa(CPUIA64State *env, uint64_t va,
+                                        uint32_t size)
+{
+    uint64_t pa;
+    uint64_t result = ia64_mmu_speculative_int_probe_pa(env, va, size, &pa);
+
+    if (!result) {
+        trace_ia64_speculative_probe_defer(
+            env_cpu(env)->cpu_index, env->ip, va, size);
+    }
+    return int128_make128(result, pa);
+}
+
+Int128 helper_speculative_probe_pa(CPUIA64State *env, uint64_t va,
+                                    uint32_t is_write, uint32_t is_ifetch,
+                                    uint32_t debug_size,
+                                    uint32_t alignment_info)
+{
+    uint64_t pa;
+    uint64_t result = ia64_mmu_speculative_probe_pa(
+        env, va, is_write, is_ifetch, debug_size, alignment_info, &pa);
+
+    if (!result) {
+        trace_ia64_speculative_probe_defer(
+            env_cpu(env)->cpu_index, env->ip, va,
+            alignment_info & IA64_ALIGNMENT_DATUM_MASK);
+    }
+    return int128_make128(result, pa);
+}
+
 uint64_t helper_advanced_load_allowed(CPUIA64State *env, uint64_t va)
 {
     return ia64_mmu_advanced_load_allowed(env, va);

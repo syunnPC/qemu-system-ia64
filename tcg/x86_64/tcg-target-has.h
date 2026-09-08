@@ -39,6 +39,7 @@
 #define TCG_TARGET_HAS_v256             have_avx2
 
 #define TCG_TARGET_HAS_andc_vec         1
+#define TCG_TARGET_HAS_mov_vec_i64      1
 #define TCG_TARGET_HAS_orc_vec          have_avx512vl
 #define TCG_TARGET_HAS_nand_vec         have_avx512vl
 #define TCG_TARGET_HAS_nor_vec          have_avx512vl

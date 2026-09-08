@@ -72,6 +72,12 @@ int cpu_get_free_index(void)
 
 CPUTailQ cpus_queue = QTAILQ_HEAD_INITIALIZER(cpus_queue);
 static unsigned int cpu_list_generation_id;
+static unsigned int cpu_list_count;
+
+unsigned int cpu_list_count_get(void)
+{
+    return qatomic_load_acquire(&cpu_list_count);
+}
 
 unsigned int cpu_list_generation_id_get(void)
 {
@@ -91,6 +97,7 @@ void cpu_list_add(CPUState *cpu)
         assert(!cpu_index_auto_assigned);
     }
     QTAILQ_INSERT_TAIL_RCU(&cpus_queue, cpu, node);
+    qatomic_store_release(&cpu_list_count, cpu_list_count + 1);
     cpu_list_generation_id++;
 }
 
@@ -103,6 +110,7 @@ void cpu_list_remove(CPUState *cpu)
     }
 
     QTAILQ_REMOVE_RCU(&cpus_queue, cpu, node);
+    qatomic_store_release(&cpu_list_count, cpu_list_count - 1);
     cpu->cpu_index = UNASSIGNED_CPU_INDEX;
     cpu_list_generation_id++;
 }

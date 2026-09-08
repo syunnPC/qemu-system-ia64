@@ -2575,11 +2575,9 @@ static bool ia64_is_zero_st1_postinc(const Ia64Instruction *insn)
 }
 
 static bool ia64_analyze_self_counted_loop(
-    uint8_t template_code, const IA64TemplateInfo *template_info,
-    uint64_t *slots, uint64_t bundle_ip, uint8_t start_slot,
-    DisasContext *ctx)
+    const Ia64Instruction decoded[3], bool skip_x_slot,
+    uint64_t bundle_ip, uint8_t start_slot, DisasContext *ctx)
 {
-    bool skip_x_slot = false;
     bool zero_st1_exact = true;
     bool zero_st1_seen = false;
     uint8_t zero_st1_base = 0;
@@ -2596,11 +2594,7 @@ static bool ia64_analyze_self_counted_loop(
             continue;
         }
 
-        insn = ia64_decode_insn_for_model(
-            ctx->env, template_info->units[slot], slots[slot],
-            bundle_ip, slot);
-        ia64_apply_mlx_long_fixup(template_code, slots, slot, &insn,
-                                  &skip_x_slot);
+        insn = decoded[slot];
         nat_clear_preserving &=
             ia64_insn_preserves_all_nat_clear(ctx, &insn);
         if (insn.valid &&
@@ -2652,9 +2646,8 @@ static bool ia64_all_gr_nats_known_clear(const DisasContext *ctx)
            ctx->memory.nat_known_clear[1] == UINT64_MAX;
 }
 
-void ia64_prepare_self_counted_loop(
-    DisasContext *ctx, uint8_t template_code,
-    const IA64TemplateInfo *template_info, uint64_t *slots,
+static void ia64_prepare_self_counted_loop(
+    DisasContext *ctx, const Ia64Instruction decoded[3], bool skip_x_slot,
     uint64_t bundle_ip)
 {
     ctx->branch.counted_self_label = NULL;
@@ -2667,8 +2660,7 @@ void ia64_prepare_self_counted_loop(
         (ctx->base.tb->flags &
          (IA64_TB_FLAG_PSR_TB | IA64_TB_FLAG_PSR_SS)) ||
         !ia64_analyze_self_counted_loop(
-            template_code, template_info, slots, bundle_ip,
-            ctx->restart.start_slot, ctx)) {
+            decoded, skip_x_slot, bundle_ip, ctx->restart.start_slot, ctx)) {
         return;
     }
 
@@ -2693,6 +2685,7 @@ void ia64_prepare_self_counted_loop(
     ctx->reg.rse_dirty_known[0] = 0;
     ctx->reg.rse_dirty_known[1] = 0;
 
+    ctx->fp = (IA64TranslationFPState) { 0 };
     ctx->branch.counted_self_label = gen_new_label();
     ctx->branch.counted_self_budget = tcg_temp_new_i64();
     ctx->branch.counted_self_ip = bundle_ip;
@@ -3811,17 +3804,17 @@ static uint64_t ia64_insn_disabled_fp_isr_flags(
     }
 }
 
-static void ia64_gen_check_disabled_fp(const Ia64Instruction *insn)
+static void ia64_gen_check_disabled_fp(DisasContext *ctx,
+                                        const Ia64Instruction *insn,
+                                        uint32_t sets, bool unconditional)
 {
-    uint32_t reads = ia64_insn_fp_read_sets(insn);
-    uint32_t writes = ia64_insn_fp_write_sets(insn);
-    uint32_t sets = reads | writes;
     uint64_t disabled_mask;
     uint64_t isr_flags;
     TCGv_i64 disabled;
     TCGv_i64 isr;
     TCGLabel *done;
 
+    sets &= ~ctx->fp.enabled_sets;
     if (sets == 0) {
         return;
     }
@@ -3847,16 +3840,19 @@ static void ia64_gen_check_disabled_fp(const Ia64Instruction *insn)
     ia64_gen_raise_exception(IA64_EXCP_DISABLED_FP, insn->address,
                              0, insn->slot);
     gen_set_label(done);
+    if (unconditional) {
+        ctx->fp.enabled_sets |= sets;
+    }
 }
 
-static void ia64_gen_sync_rotating_fr(const Ia64Instruction *insn)
+static void ia64_gen_sync_rotating_fr(DisasContext *ctx, uint32_t sets,
+                                       bool unconditional)
 {
     TCGv_i32 current;
     TCGv_i32 materialized;
     TCGLabel *done;
 
-    if (!((ia64_insn_fp_read_sets(insn) |
-           ia64_insn_fp_write_sets(insn)) & 2)) {
+    if (!(sets & 2) || ctx->fp.rotating_synced) {
         return;
     }
 
@@ -3871,6 +3867,9 @@ static void ia64_gen_sync_rotating_fr(const Ia64Instruction *insn)
     tcg_gen_brcond_i32(TCG_COND_EQ, current, materialized, done);
     gen_helper_sync_rotating_fr(tcg_env);
     gen_set_label(done);
+    if (unconditional) {
+        ctx->fp.rotating_synced = true;
+    }
 }
 
 /* Instructions gated by the CPUID[4].ao 16-byte atomic capability bit. */
@@ -3901,37 +3900,54 @@ static uint64_t ia64_insn_required_integer_feature(
     }
 }
 
+typedef enum IA64GeneratorKind {
+    IA64_GENERATOR_NONE,
+    IA64_GENERATOR_INTEGER,
+    IA64_GENERATOR_MEMORY,
+    IA64_GENERATOR_FP,
+    IA64_GENERATOR_SIMD,
+    IA64_GENERATOR_SYSTEM,
+    IA64_GENERATOR_BRANCH,
+} IA64GeneratorKind;
+
+static IA64GeneratorKind ia64_insn_generator(const Ia64Instruction *insn)
+{
+    static const uint8_t generators[IA64_OP_COUNT] = {
+#define IA64_OPCODE(name, generator) \
+        [IA64_OP_ ## name] = IA64_GENERATOR_ ## generator,
+#include "target/ia64/decode/opcode.inc"
+#undef IA64_OPCODE
+    };
+
+    return (unsigned)insn->opcode < IA64_OP_COUNT ? generators[insn->opcode] :
+                                                  IA64_GENERATOR_NONE;
+}
+
 static IA64GenResult ia64_gen_dispatch(DisasContext *ctx,
                                        const Ia64Instruction *insn,
+                                       IA64GeneratorKind generator,
                                        TCGLabel *skip, bool record_iipa,
                                        bool track_psr_suppression)
 {
-    IA64GenResult result;
-
-    result = ia64_gen_integer(ctx, insn);
-    if (result != IA64_GEN_UNHANDLED) {
-        return result;
+    switch (generator) {
+    case IA64_GENERATOR_INTEGER:
+        return ia64_gen_integer(ctx, insn);
+    case IA64_GENERATOR_MEMORY:
+        return ia64_gen_memory(ctx, insn, skip, record_iipa,
+                               track_psr_suppression);
+    case IA64_GENERATOR_FP:
+        return ia64_gen_fp(ctx, insn);
+    case IA64_GENERATOR_SIMD:
+        return ia64_gen_simd(ctx, insn);
+    case IA64_GENERATOR_SYSTEM:
+        return ia64_gen_system(ctx, insn, skip, record_iipa,
+                               track_psr_suppression);
+    case IA64_GENERATOR_BRANCH:
+        return ia64_gen_branch(ctx, insn, skip, record_iipa,
+                               track_psr_suppression);
+    default:
+        return IA64_GEN_UNHANDLED;
     }
-    result = ia64_gen_memory(ctx, insn, skip, record_iipa,
-                             track_psr_suppression);
-    if (result != IA64_GEN_UNHANDLED) {
-        return result;
-    }
-    result = ia64_gen_fp(ctx, insn);
-    if (result != IA64_GEN_UNHANDLED) {
-        return result;
-    }
-    result = ia64_gen_simd(ctx, insn);
-    if (result != IA64_GEN_UNHANDLED) {
-        return result;
-    }
-    result = ia64_gen_system(ctx, insn, skip, record_iipa,
-                             track_psr_suppression);
-    if (result != IA64_GEN_UNHANDLED) {
-        return result;
-    }
-    return ia64_gen_branch(ctx, insn, skip, record_iipa,
-                           track_psr_suppression);
 }
 
 typedef enum IA64PrepareResult {
@@ -3949,6 +3965,7 @@ static IA64PrepareResult ia64_gen_prepare_insn(
     TCGLabel *skip;
     TCGv_i64 qp_value;
     uint64_t required_feature;
+    uint32_t fp_sets;
 
     if (!insn->valid) {
         static unsigned invalid_logs;
@@ -4125,8 +4142,9 @@ static IA64PrepareResult ia64_gen_prepare_insn(
         return IA64_PREPARE_COMPLETE;
     }
 
-    ia64_gen_check_disabled_fp(insn);
-    ia64_gen_sync_rotating_fr(insn);
+    fp_sets = ia64_insn_fp_read_sets(insn) | ia64_insn_fp_write_sets(insn);
+    ia64_gen_check_disabled_fp(ctx, insn, fp_sets, skip == NULL);
+    ia64_gen_sync_rotating_fr(ctx, fp_sets, skip == NULL);
     return IA64_PREPARE_DISPATCH;
 }
 
@@ -4136,6 +4154,7 @@ bool ia64_gen_insn(DisasContext *ctx, const Ia64Instruction *insn,
     TCGLabel *skip = NULL;
     IA64PrepareResult prepare;
     IA64GenResult result;
+    IA64GeneratorKind generator = ia64_insn_generator(insn);
     const bool track_psr_suppression = ctx->restart.track_psr_suppression;
 
     prepare = ia64_gen_prepare_insn(ctx, insn, &skip);
@@ -4153,7 +4172,17 @@ bool ia64_gen_insn(DisasContext *ctx, const Ia64Instruction *insn,
                                         track_psr_suppression);
         return false;
     }
-    result = ia64_gen_dispatch(ctx, insn, skip, record_iipa,
+    /*
+     * System and branch helpers may change PSR or RRB.FR.  Invalidate even
+     * for a conditional instruction: its taken path joins the skipped one.
+     * Arithmetic and memory helpers only change FP data/MF bits, or exit
+     * through a fault; they preserve the availability and rotation facts.
+     */
+    if (generator == IA64_GENERATOR_SYSTEM ||
+        generator == IA64_GENERATOR_BRANCH) {
+        ctx->fp = (IA64TranslationFPState) { 0 };
+    }
+    result = ia64_gen_dispatch(ctx, insn, generator, skip, record_iipa,
                                track_psr_suppression);
     if (result == IA64_GEN_NORETURN) {
         return true;
@@ -4188,6 +4217,7 @@ static void ia64_tr_init_disas_context(DisasContextBase *db, CPUState *cs)
     uint32_t flags = ctx->base.tb->flags;
 
     ctx->env = cpu_env(cs);
+    ctx->fp = (IA64TranslationFPState) { 0 };
     if (flags & IA64_TB_FLAG_IRQ_DEFER) {
         ctx->base.max_insns = 1;
     }
@@ -4302,6 +4332,7 @@ static void ia64_tr_translate_insn(DisasContextBase *db, CPUState *cs)
     uint8_t template_code;
     const IA64TemplateInfo *template_info;
     uint64_t slots[3];
+    Ia64Instruction decoded[3];
     bool skip_x_slot;
     bool record_iipa;
     bool psr_ic_modified;
@@ -4334,10 +4365,18 @@ static void ia64_tr_translate_insn(DisasContextBase *db, CPUState *cs)
     slots[0] = ia64_bundle_slot(low, high, 0);
     slots[1] = ia64_bundle_slot(low, high, 1);
     slots[2] = ia64_bundle_slot(low, high, 2);
-    ia64_prepare_self_counted_loop(ctx, template_code, template_info, slots,
-                                   bundle_ip);
-
     skip_x_slot = false;
+    for (slot = ctx->restart.start_slot; slot < 3; slot++) {
+        if (skip_x_slot && slot == 2) {
+            break;
+        }
+        decoded[slot] = ia64_decode_insn_for_model(
+            ctx->env, template_info->units[slot], slots[slot], bundle_ip, slot);
+        ia64_apply_mlx_long_fixup(template_code, slots, slot, &decoded[slot],
+                                  &skip_x_slot);
+    }
+    ia64_prepare_self_counted_loop(ctx, decoded, skip_x_slot, bundle_ip);
+
     record_iipa = true;
     psr_ic_modified = false;
     for (slot = ctx->restart.start_slot; slot < 3; ++slot) {
@@ -4346,15 +4385,11 @@ static void ia64_tr_translate_insn(DisasContextBase *db, CPUState *cs)
             continue;
         }
 
-        Ia64Instruction insn = ia64_decode_insn_for_model(
-            ctx->env, template_info->units[slot], slots[slot],
-            bundle_ip, slot);
+        Ia64Instruction insn = decoded[slot];
         bool known_nullified;
         bool stop_after;
         bool track_iipa_for_insn;
 
-        ia64_apply_mlx_long_fixup(template_code, slots, slot, &insn,
-                                  &skip_x_slot);
         insn.ctx = ctx;
         stop_after = template_info->stop_after[
             skip_x_slot && slot == 1 ? 2 : slot];

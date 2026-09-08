@@ -50,6 +50,40 @@ static TCGv_i64 ia64_gen_alat_load_begin(void)
     return generation;
 }
 
+static TCGv_i64 ia64_gen_speculative_load_probe(
+    TCGv_i64 ok, TCGv_i64 addr, uint32_t size, uint32_t debug_size,
+    uint32_t alignment, bool integer, bool record_alat,
+    TCGv_i64 *generation)
+{
+    TCGv_i64 pa = NULL;
+
+    if (record_alat) {
+        TCGv_i128 qualified = tcg_temp_new_i128();
+
+        /* Include qualification in the same memory-generation window. */
+        *generation = ia64_gen_alat_load_begin();
+        pa = tcg_temp_new_i64();
+        if (integer) {
+            gen_helper_speculative_int_probe_pa(qualified, tcg_env, addr,
+                                                tcg_constant_i32(size));
+        } else {
+            gen_helper_speculative_probe_pa(
+                qualified, tcg_env, addr, tcg_constant_i32(0),
+                tcg_constant_i32(0), tcg_constant_i32(debug_size),
+                tcg_constant_i32(alignment));
+        }
+        tcg_gen_extr_i128_i64(ok, pa, qualified);
+    } else if (integer) {
+        gen_helper_speculative_int_probe(ok, tcg_env, addr,
+                                         tcg_constant_i32(size));
+    } else {
+        gen_helper_speculative_probe(
+            ok, tcg_env, addr, tcg_constant_i32(0), tcg_constant_i32(0),
+            tcg_constant_i32(debug_size), tcg_constant_i32(alignment));
+    }
+    return pa;
+}
+
 static void ia64_gen_set_check_load_alat(TCGv_i64 addr, uint32_t reg,
                                          uint32_t size, bool fp,
                                          TCGv_i64 generation)
@@ -366,21 +400,18 @@ static void ia64_gen_speculative_load(DisasContext *ctx,
             tcg_gen_brcondi_i64(TCG_COND_NE, addr_nat, 0, l_fail);
         }
         ia64_gen_sync_ip_for_helper(insn);
-        gen_helper_speculative_int_probe(
-            ok, tcg_env, addr,
-            tcg_constant_i32(ia64_memop_size(mop)));
+        TCGv_i64 pa = ia64_gen_speculative_load_probe(
+            ok, addr, ia64_memop_size(mop), 0, 0, true,
+            advanced && ctx->memory.full_alat, &alat_generation);
         tcg_gen_brcondi_i64(TCG_COND_EQ, ok, 0, l_fail);
 
-        if (advanced && ctx->memory.full_alat) {
-            alat_generation = ia64_gen_alat_load_begin();
-        }
         ia64_gen_qemu_ld_i64(ctx, cpu_gr[op->destination], addr,
                              ctx->memory.mmu_idx, mop);
         ia64_gen_gr_nat_clear(insn, op->destination);
         if (advanced && ctx->memory.full_alat) {
-            gen_helper_set_alat(
+            gen_helper_set_alat_pa(
                 tcg_env, tcg_constant_i32(op->destination), addr,
-                tcg_constant_i32(ia64_memop_size(mop)), alat_generation);
+                tcg_constant_i32(ia64_memop_size(mop)), alat_generation, pa);
         }
         tcg_gen_br(l_done);
         gen_set_label(l_fail);
@@ -573,27 +604,19 @@ static void ia64_gen_fp_load(DisasContext *ctx, const Ia64Instruction *insn)
             tcg_gen_brcondi_i64(TCG_COND_NE, addr_nat, 0, l_fail);
         }
         ia64_gen_sync_ip_for_helper(insn);
-        gen_helper_speculative_probe(ok, tcg_env, addr, tcg_constant_i32(0),
-                                     tcg_constant_i32(0),
-                                     tcg_constant_i32(
-                                         ia64_fp_load_debug_size(
-                                             insn->opcode)),
-                                     tcg_constant_i32(IA64_ALIGNMENT_INFO(
-                                         size,
-                                         ia64_fp_load_natural_alignment(
-                                             insn->opcode),
-                                         ia64_fp_load_alignment_class(
-                                             insn->opcode))));
+        TCGv_i64 pa = ia64_gen_speculative_load_probe(
+            ok, addr, size, ia64_fp_load_debug_size(insn->opcode),
+            IA64_ALIGNMENT_INFO(size,
+                ia64_fp_load_natural_alignment(insn->opcode),
+                ia64_fp_load_alignment_class(insn->opcode)), false,
+            insn->fp_load_advanced && ctx->memory.full_alat, &alat_generation);
         tcg_gen_brcondi_i64(TCG_COND_EQ, ok, 0, l_fail);
 
-        if (insn->fp_load_advanced && ctx->memory.full_alat) {
-            alat_generation = ia64_gen_alat_load_begin();
-        }
         ia64_gen_fp_load_value(ctx, insn, addr);
         if (insn->fp_load_advanced && ctx->memory.full_alat) {
-            gen_helper_set_alat_fp(tcg_env, tcg_constant_i32(op->destination),
-                                   addr, tcg_constant_i32(alat_size),
-                                   alat_generation);
+            gen_helper_set_alat_pa(
+                tcg_env, tcg_constant_i32(op->destination | 128),
+                addr, tcg_constant_i32(alat_size), alat_generation, pa);
         }
         tcg_gen_br(l_done);
 
@@ -802,22 +825,17 @@ static void ia64_gen_fp_load_pair(DisasContext *ctx,
             tcg_gen_brcondi_i64(TCG_COND_NE, addr_nat, 0, l_fail);
         }
         ia64_gen_sync_ip_for_helper(insn);
-        gen_helper_speculative_probe(ok, tcg_env, addr, tcg_constant_i32(0),
-                                     tcg_constant_i32(0),
-                                     tcg_constant_i32(size),
-                                     tcg_constant_i32(IA64_ALIGNMENT_INFO(
-                                         size, size,
-                                         IA64_ALIGNMENT_FP_PAIR)));
+        TCGv_i64 pa = ia64_gen_speculative_load_probe(
+            ok, addr, size, size,
+            IA64_ALIGNMENT_INFO(size, size, IA64_ALIGNMENT_FP_PAIR), false,
+            insn->fp_load_advanced && ctx->memory.full_alat, &alat_generation);
         tcg_gen_brcondi_i64(TCG_COND_EQ, ok, 0, l_fail);
 
-        if (insn->fp_load_advanced && ctx->memory.full_alat) {
-            alat_generation = ia64_gen_alat_load_begin();
-        }
         ia64_gen_fp_load_pair_value(ctx, insn, addr);
         if (insn->fp_load_advanced && ctx->memory.full_alat) {
-            gen_helper_set_alat_fp(tcg_env, tcg_constant_i32(op->destination),
-                                   addr, tcg_constant_i32(size),
-                                   alat_generation);
+            gen_helper_set_alat_pa(
+                tcg_env, tcg_constant_i32(op->destination | 128),
+                addr, tcg_constant_i32(size), alat_generation, pa);
         }
         tcg_gen_br(l_done);
 

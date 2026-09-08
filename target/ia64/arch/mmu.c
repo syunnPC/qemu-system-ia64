@@ -964,6 +964,7 @@ static bool ia64_cache_replaced_tr(CPUIA64State *env, IA64TlbEntry *tlb,
                   " rid=0x%06" PRIx32 " pa=0x%016" PRIx64
                   " ps=0x%016" PRIx64 "\n",
                   slot, old_tr->va, old_tr->rid, old_tr->pa, old_tr->ps);
+    ia64_qemu_tlb_flush_replaced_entry(env, &tlb[slot], !is_ifetch);
     ia64_discard_pending_purge(&tlb[slot], pending_count);
     micro_generation = tlb[slot].micro_generation;
     tlb[slot] = *old_tr;
@@ -1005,7 +1006,6 @@ void ia64_mmu_itr_insert(CPUIA64State *env, uint64_t pte, uint64_t slot_reg,
     uint32_t slot = slot_reg & 0xff;
     uint16_t capacity = ia64_cpu_tlb_capacity(env, is_data);
     uint16_t *next_replace;
-    CPUState *cs = env_cpu(env);
     bool cached_old_tr;
 
     if (slot >= (is_data ? ia64_env_cpu_class(env)->dtr_count :
@@ -1096,7 +1096,9 @@ void ia64_mmu_itr_insert(CPUIA64State *env, uint64_t pte, uint64_t slot_reg,
                   " rid=0x%06" PRIx32 " pa=0x%016" PRIx64
                   " ps=0x%016" PRIx64 " pte=0x%016" PRIx64 "\n",
                   is_data ? 'd' : 'i', slot, va, rid, pa, ps, pte);
-    tlb_flush(cs);
+    /* Include the retained TR, the new mapping and any evicted TC above. */
+    ia64_qemu_tlb_flush_entry(env, &old_tr, is_data);
+    ia64_qemu_tlb_flush_entry(env, &tlb[slot], is_data);
 }
 
 void ia64_mmu_ptr_purge(CPUIA64State *env, uint64_t ifa, uint64_t size_reg,
@@ -1166,6 +1168,9 @@ static void ia64_ptc_mark_global(CPUIA64State *env,
     if (work->global_alat) {
         memset(env->alat_state.alat, 0, sizeof(env->alat_state.alat));
         env->alat_state.alat_active_count = 0;
+        env->alat_state.alat_occupied = 0;
+        memset(env->alat_state.alat_reg_slot, 0,
+               sizeof(env->alat_state.alat_reg_slot));
     }
 }
 
@@ -2162,7 +2167,8 @@ void ia64_mmu_check_alignment(CPUIA64State *env, uint64_t va,
 
 static bool ia64_cached_speculative_data_load_qualifies(
     CPUIA64State *env, uint64_t va, uint32_t datum_size,
-    IA64MemorySpeculation *speculation, uint8_t *memory_attribute)
+    IA64MemorySpeculation *speculation, uint8_t *memory_attribute,
+    uint64_t *qualified_pa)
 {
     IA64CachedLoadTranslation cached;
     const IA64TlbEntry *entry;
@@ -2246,12 +2252,15 @@ attributes_current:
         return false;
     }
 
+    if (qualified_pa && cached.is_ram) {
+        *qualified_pa = pa;
+    }
     return true;
 }
 
 static bool ia64_cached_speculative_load_succeeds(
     CPUIA64State *env, uint64_t va, uint32_t is_write, uint32_t is_ifetch,
-    uint32_t debug_size, uint32_t alignment_info)
+    uint32_t debug_size, uint32_t alignment_info, uint64_t *pa)
 {
     uint32_t datum_size = alignment_info & IA64_ALIGNMENT_DATUM_MASK;
     IA64MemorySpeculation speculation;
@@ -2260,7 +2269,7 @@ static bool ia64_cached_speculative_load_succeeds(
 
     if (is_write || is_ifetch ||
         !ia64_cached_speculative_data_load_qualifies(
-            env, va, datum_size, &speculation, &memory_attribute)) {
+            env, va, datum_size, &speculation, &memory_attribute, pa)) {
         return false;
     }
 
@@ -2279,10 +2288,10 @@ static bool ia64_cached_speculative_load_succeeds(
     return true;
 }
 
-uint64_t ia64_mmu_speculative_probe(CPUIA64State *env, uint64_t va,
+uint64_t ia64_mmu_speculative_probe_pa(CPUIA64State *env, uint64_t va,
                                     uint32_t is_write, uint32_t is_ifetch,
                                     uint32_t debug_size,
-                                    uint32_t alignment_info)
+                                    uint32_t alignment_info, uint64_t *pa)
 {
     uint32_t datum_size = alignment_info & IA64_ALIGNMENT_DATUM_MASK;
     uint32_t natural = (alignment_info & IA64_ALIGNMENT_NATURAL_MASK) >>
@@ -2293,6 +2302,9 @@ uint64_t ia64_mmu_speculative_probe(CPUIA64State *env, uint64_t va,
     IA64Exception excp;
     IA64DataReferenceResult translation = { 0 };
 
+    if (pa) {
+        *pa = UINT64_MAX;
+    }
     if (env->psr & IA64_PSR_ED) {
         return 0;
     }
@@ -2303,10 +2315,13 @@ uint64_t ia64_mmu_speculative_probe(CPUIA64State *env, uint64_t va,
         debug_size = datum_size;
     }
     if (ia64_cached_speculative_load_succeeds(
-            env, va, is_write, is_ifetch, debug_size, alignment_info)) {
+            env, va, is_write, is_ifetch, debug_size, alignment_info, pa)) {
         return 1;
     }
 
+    if (pa) {
+        *pa = UINT64_MAX;
+    }
     if (is_ifetch) {
         alignment_fault = ia64_alignment_fault(
             env, va, alignment_info, is_write, NULL);
@@ -2376,6 +2391,15 @@ qualify:
     return 1;
 }
 
+uint64_t ia64_mmu_speculative_probe(CPUIA64State *env, uint64_t va,
+                                    uint32_t is_write, uint32_t is_ifetch,
+                                    uint32_t debug_size,
+                                    uint32_t alignment_info)
+{
+    return ia64_mmu_speculative_probe_pa(env, va, is_write, is_ifetch,
+                                         debug_size, alignment_info, NULL);
+}
+
 static G_GNUC_NO_INLINE uint64_t
 ia64_mmu_speculative_int_probe_cold(CPUIA64State *env, uint64_t va,
                                     uint32_t size)
@@ -2385,32 +2409,50 @@ ia64_mmu_speculative_int_probe_cold(CPUIA64State *env, uint64_t va,
         IA64_ALIGNMENT_INFO(size, size, IA64_ALIGNMENT_INTEGER));
 }
 
-uint64_t ia64_mmu_speculative_int_probe(CPUIA64State *env, uint64_t va,
-                                        uint32_t size)
+uint64_t ia64_mmu_speculative_int_probe_pa(CPUIA64State *env, uint64_t va,
+                                           uint32_t size, uint64_t *pa)
 {
     IA64MemorySpeculation speculation;
     uint8_t memory_attribute;
 
+    if (pa) {
+        *pa = UINT64_MAX;
+    }
     if (env->psr & IA64_PSR_ED) {
         return 0;
     }
 
     if (unlikely((size != 1 && size != 2 && size != 4 && size != 8) ||
                  (va & (size - 1U)) != 0)) {
+        if (pa) {
+            *pa = UINT64_MAX;
+        }
         return ia64_mmu_speculative_int_probe_cold(env, va, size);
     }
 
     if (!ia64_cached_speculative_data_load_qualifies(
-            env, va, size, &speculation, &memory_attribute)) {
+            env, va, size, &speculation, &memory_attribute, pa)) {
+        if (pa) {
+            *pa = UINT64_MAX;
+        }
         return ia64_mmu_speculative_int_probe_cold(env, va, size);
     }
     if ((env->psr & IA64_PSR_DB) && !(env->psr & IA64_PSR_DD) &&
         ia64_data_breakpoint_match(env, va, size, IA64_ISR_R,
                                    ia64_psr_cpl(env->psr))) {
+        if (pa) {
+            *pa = UINT64_MAX;
+        }
         return ia64_mmu_speculative_int_probe_cold(env, va, size);
     }
 
     return 1;
+}
+
+uint64_t ia64_mmu_speculative_int_probe(CPUIA64State *env, uint64_t va,
+                                        uint32_t size)
+{
+    return ia64_mmu_speculative_int_probe_pa(env, va, size, NULL);
 }
 
 uint64_t ia64_mmu_advanced_load_allowed(CPUIA64State *env, uint64_t va)

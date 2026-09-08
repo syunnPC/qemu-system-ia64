@@ -246,7 +246,12 @@ struct ATIVGAState {
     MemoryRegion mm;
     ATIVGARegs regs;
     ATIHostDataState host_data;
+    /* Host-only staging storage; nested commands use their own allocation. */
+    uint8_t *blt_row_buffer;
+    size_t blt_row_buffer_size;
+    bool blt_row_buffer_busy;
     ATI3DState r100_3d;
+    uint64_t r100_state_generation;
     bool default_rom;
 };
 

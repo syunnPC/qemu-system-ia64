@@ -82,6 +82,7 @@
  */
 #define IA64_MICRO_TLB_PAGE_SHIFT 12
 #define IA64_MICRO_TLB_SIZE 1024
+#define IA64_MICRO_TLB_VICTIM_SIZE 4
 #define IA64_SUPPRESSED_TLB_MAX 4
 
 #define IA64_REGION_BITS 3
@@ -1233,6 +1234,20 @@ ia64_tlb_find_cached(CPUIA64State *env, uint64_t va, uint32_t rid,
         cached->rid == rid &&
         ((va ^ cached->va) & cached->page_mask) == 0) {
         if (cached->slot < tlb_count &&
+            cached->slot_generation == tlb[cached->slot].micro_generation) {
+            return &tlb[cached->slot];
+        }
+    }
+
+    /* Keep the direct-hit path unchanged; probe victims only on collision. */
+    IA64MicroTlbEntry *victims = is_ifetch ? env->mmu.tlb_inst_victim :
+                                             env->mmu.tlb_data_victim;
+    for (unsigned i = 0; i < IA64_MICRO_TLB_VICTIM_SIZE; i++) {
+        cached = &victims[i];
+        if (cached->valid && cached->generation == generation &&
+            cached->rid == rid &&
+            ((va ^ cached->va) & cached->page_mask) == 0 &&
+            cached->slot < tlb_count &&
             cached->slot_generation == tlb[cached->slot].micro_generation) {
             return &tlb[cached->slot];
         }

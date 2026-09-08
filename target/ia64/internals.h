@@ -76,6 +76,10 @@ typedef struct IA64MMUState {
     uint32_t tlb_inst_generation;
     IA64MicroTlbEntry tlb_data_micro[IA64_MICRO_TLB_SIZE];
     IA64MicroTlbEntry tlb_inst_micro[IA64_MICRO_TLB_SIZE];
+    IA64MicroTlbEntry tlb_data_victim[IA64_MICRO_TLB_VICTIM_SIZE];
+    IA64MicroTlbEntry tlb_inst_victim[IA64_MICRO_TLB_VICTIM_SIZE];
+    uint8_t tlb_data_victim_next;
+    uint8_t tlb_inst_victim_next;
     IA64CodeTlbEdCache code_tlb_ed;
 
     /* Transient bookkeeping for architected purge operations. */
@@ -205,12 +209,17 @@ typedef struct IA64RSEState {
     IA64RnatWritebackImage rse_writeback_rnat;
     IA64RnatShadowEntry rse_rnat_shadow[IA64_RSE_RNAT_SHADOW_COUNT];
     uint8_t rse_rnat_shadow_count;
+    /* Derived hint, one plus a slot; validate the entry on every lookup. */
+    uint8_t rse_rnat_shadow_last;
 } IA64RSEState;
 
 typedef struct IA64AlatState {
     /* Architected ALAT contents; active_count is a derived fast-path cache. */
     IA64AlatEntry alat[IA64_ALAT_ENTRIES];
     uint32_t alat_active_count;
+    /* Derived register index (slot + 1), and occupied/free-slot bitmap. */
+    uint8_t alat_reg_slot[2][IA64_GR_COUNT];
+    uint32_t alat_occupied;
     bool alat_full;
     /* Transient write-scope state for one faultable CPU store. */
     bool write_active;

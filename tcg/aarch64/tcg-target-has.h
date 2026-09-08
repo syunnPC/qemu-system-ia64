@@ -33,6 +33,7 @@
 #define TCG_TARGET_HAS_v256             0
 
 #define TCG_TARGET_HAS_andc_vec         1
+#define TCG_TARGET_HAS_mov_vec_i64      1
 #define TCG_TARGET_HAS_orc_vec          1
 #define TCG_TARGET_HAS_nand_vec         0
 #define TCG_TARGET_HAS_nor_vec          0

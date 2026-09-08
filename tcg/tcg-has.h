@@ -9,6 +9,10 @@
 
 #include "tcg-target-has.h"
 
+#ifndef TCG_TARGET_HAS_mov_vec_i64
+#define TCG_TARGET_HAS_mov_vec_i64      0
+#endif
+
 #if !defined(TCG_TARGET_HAS_v64) \
     && !defined(TCG_TARGET_HAS_v128) \
     && !defined(TCG_TARGET_HAS_v256)

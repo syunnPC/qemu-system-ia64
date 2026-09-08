@@ -128,6 +128,8 @@ DEF(qemu_st2, 0, 3, 1, TCG_OPF_CALL_CLOBBER | TCG_OPF_SIDE_EFFECTS | TCG_OPF_INT
 DEF(mov_vec, 1, 1, 0, TCG_OPF_VECTOR | TCG_OPF_NOT_PRESENT)
 
 DEF(dup_vec, 1, 1, 0, TCG_OPF_VECTOR)
+/* Bitwise transfer from V64 to I64, with separate register classes. */
+DEF(mov_vec_i64, 1, 1, 0, TCG_OPF_VECTOR)
 
 DEF(ld_vec, 1, 1, 1, TCG_OPF_VECTOR)
 DEF(st_vec, 0, 2, 1, TCG_OPF_VECTOR)

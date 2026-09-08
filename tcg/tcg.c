@@ -2388,6 +2388,8 @@ bool tcg_op_supported(TCGOpcode op, TCGType type, unsigned flags)
     case INDEX_op_extrh_i64_i32:
         return true;
 
+    case INDEX_op_mov_vec_i64:
+        return type == TCG_TYPE_V64 && has_type && TCG_TARGET_HAS_mov_vec_i64;
     case INDEX_op_mov_vec:
     case INDEX_op_dup_vec:
     case INDEX_op_dupm_vec:

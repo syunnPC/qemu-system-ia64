@@ -2195,6 +2195,98 @@ static void ati_rage128_host_data(void)
     qtest_quit(qts);
 }
 
+/* Independent bit-by-bit reference, exercising every ROP truth-table entry. */
+static uint32_t ati_test_rop3(unsigned int rop, uint32_t pattern,
+                             uint32_t source, uint32_t destination)
+{
+    uint32_t result = 0;
+
+    for (unsigned int bit = 0; bit < 32; bit++) {
+        unsigned int input = (((pattern >> bit) & 1) << 2) |
+                             (((source >> bit) & 1) << 1) |
+                             ((destination >> bit) & 1);
+
+        result |= ((rop >> input) & 1U) << bit;
+    }
+    return result;
+}
+
+static void ati_rop3_truth_table(void)
+{
+    static const uint32_t formats[] = {
+        ATI_GMC_DST_8BPP, ATI_GMC_DST_16BPP, ATI_GMC_DST_32BPP,
+    };
+    static const unsigned int bytes_per_pixel[] = { 1, 2, 4 };
+    enum { PITCH = 96, HEIGHT = 2, WIDTH = 4 };
+    const uint64_t mmio = IA64_RV100_MMIO_BASE;
+    const uint64_t fb = IA64_RV100_FB_BASE;
+    const uint32_t pattern = 0xf0f0f0f0;
+    uint8_t source[PITCH * HEIGHT];
+    uint8_t destination[sizeof(source)];
+    uint8_t expected[sizeof(source)];
+    uint8_t actual[sizeof(source)];
+    QTestState *qts = qtest_init("-machine ia64-vpc,nvram=none -m 256M -S "
+                                "-vga ati -global ati-vga.model=rv100");
+
+    ati_pci_enable(qts);
+    memset(source, 0xcc, sizeof(source));
+    memset(destination, 0xaa, sizeof(destination));
+    qtest_memwrite(qts, fb + 0x2000, source, sizeof(source));
+    qtest_writel(qts, mmio + ATI_DEFAULT_SC_BOTTOM_RIGHT, 0x1fff1fff);
+    qtest_writel(qts, mmio + ATI_SRC_OFFSET, 0x2000);
+    qtest_writel(qts, mmio + ATI_DST_OFFSET, 0x4000);
+    qtest_writel(qts, mmio + ATI_SRC_PITCH, PITCH);
+    qtest_writel(qts, mmio + ATI_DST_PITCH, PITCH);
+    qtest_writel(qts, mmio + ATI_SC_TOP_LEFT, 0);
+    qtest_writel(qts, mmio + ATI_SC_BOTTOM_RIGHT, (HEIGHT << 16) | WIDTH);
+    qtest_writel(qts, mmio + ATI_DP_CNTL, ATI_DST_LTR_TTB);
+    qtest_writel(qts, mmio + ATI_DP_BRUSH_FRGD_CLR, pattern);
+
+    for (unsigned int format = 0; format < ARRAY_SIZE(formats); format++) {
+        unsigned int cpp = bytes_per_pixel[format];
+
+        for (unsigned int masked = 0; masked < 2; masked++) {
+            uint32_t mask = masked ? 0x5a5a5a5a : UINT32_MAX;
+
+            for (unsigned int rop = 0; rop < 256; rop++) {
+                uint32_t result = ati_test_rop3(rop, pattern, 0xcccccccc,
+                                               0xaaaaaaaa);
+
+                result = (result & mask) | (0xaaaaaaaa & ~mask);
+                memcpy(expected, destination, sizeof(expected));
+                for (unsigned int y = 0; y < HEIGHT; y++) {
+                    for (unsigned int x = 0; x < WIDTH * cpp; x++) {
+                        expected[y * PITCH + x] = result >> ((x % cpp) * 8);
+                    }
+                }
+                qtest_memwrite(qts, fb + 0x4000, destination,
+                               sizeof(destination));
+                qtest_writel(qts, mmio + ATI_DP_WRITE_MASK, mask);
+                qtest_writel(qts, mmio + ATI_DP_GUI_MASTER_CNTL,
+                    ATI_GMC_CLR_CMP_DIS | ATI_GMC_SRC_PITCH |
+                    ATI_GMC_DST_PITCH | ATI_GMC_DST_CLIPPING |
+                    ATI_GMC_BRUSH_SOLID | ATI_GMC_SRC_COLOR |
+                    ATI_GMC_DP_SRC_RECT | formats[format] | (rop << 16));
+                qtest_writel(qts, mmio + ATI_SRC_X, 0);
+                qtest_writel(qts, mmio + ATI_SRC_Y, 0);
+                qtest_writel(qts, mmio + ATI_DST_X, 0);
+                qtest_writel(qts, mmio + ATI_DST_Y, 0);
+                qtest_writel(qts, mmio + ATI_DST_HEIGHT, HEIGHT);
+                qtest_writel(qts, mmio + ATI_DST_WIDTH, WIDTH);
+                qtest_memread(qts, fb + 0x4000, actual, sizeof(actual));
+                if (memcmp(actual, expected, sizeof(actual))) {
+                    g_test_message("cpp=%u mask=%08x rop=%02x "
+                                   "got=%02x want=%02x",
+                                   cpp, mask, rop, actual[0], expected[0]);
+                }
+                g_assert_cmpmem(actual, sizeof(actual),
+                                expected, sizeof(expected));
+            }
+        }
+    }
+    qtest_quit(qts);
+}
+
 static void ati_8x8_pattern_brush(void)
 {
     static const char *models[] = {
@@ -3119,7 +3211,7 @@ static void ati_rv100_3d_ring(void)
     const uint32_t indexed_vf_cntl = R100_VF_TRIANGLE_LIST |
                                      R100_VF_WALK_IND |
                                      R100_VF_COLOR_RGBA |
-                                     R100_VF_INDEX_SIZE_32 | (3U << 16);
+                                     R100_VF_INDEX_SIZE_32 | (6U << 16);
     uint32_t depth[WIDTH * HEIGHT];
     uint32_t vertex_xyz[] = {
         f32_bits(32.0f), f32_bits(32.0f), f32_bits(0.25f),
@@ -3149,10 +3241,11 @@ static void ati_rv100_3d_ring(void)
         VERTEX_COLOR_OFFSET,
         2U | (2U << 8),
         VERTEX_ST_OFFSET,
-        R100_CP_PACKET3 | (4U << 16) | (R100_PACKET3_DRAW_INDX << 8),
+        /* Repeated indices exercise reuse within a single indexed draw. */
+        R100_CP_PACKET3 | (7U << 16) | (R100_PACKET3_DRAW_INDX << 8),
         vertex_format,
         indexed_vf_cntl,
-        0, 1, 2,
+        0, 1, 2, 0, 1, 2,
     };
     uint32_t ring[] = {
         R100_SCRATCH_REG0 >> 2,
@@ -6436,6 +6529,36 @@ static void ati_rv100_fixed_function(void)
     g_assert_cmphex(qtest_readl(qts, color_base +
                                 (2 * WIDTH + 34) * 4), ==, 0x40808080);
 
+    /* NEVER rejects without changing color/depth, including textured input. */
+    qtest_writel(qts, stencil_depth, 0x7f800000);
+    qtest_writel(qts, stencil_color, 0xaabbccdd);
+    qtest_writel(qts, mmio + R100_PP_CNTL, 1U << 4);
+    qtest_writel(qts, mmio + R100_RB3D_DEPTHOFFSET, DEPTH_OFFSET);
+    qtest_writel(qts, mmio + R100_RB3D_DEPTHPITCH, WIDTH);
+    qtest_writel(qts, mmio + R100_RB3D_ZSTENCILCNTL,
+                 2U | R100_Z_WRITE_ENABLE);
+    qtest_writel(qts, mmio + R100_RB3D_CNTL,
+                 R100_RB_COLOR_ARGB8888 | R100_RB_Z_ENABLE);
+    ati_rv100_draw_immediate(qts, R100_VTX_FMT_Z | R100_VTX_FMT_PKCOLOR,
+                             R100_VF_POINT_LIST, stencil_pass,
+                             ARRAY_SIZE(stencil_pass), 1);
+    g_assert_cmphex(qtest_readl(qts, stencil_depth), ==, 0x7f800000);
+    g_assert_cmphex(qtest_readl(qts, stencil_color), ==, 0xaabbccdd);
+
+    /* With stencil enabled, NEVER must still apply the depth-fail update. */
+    qtest_writel(qts, mmio + R100_RB3D_STENCILREFMASK,
+                 (0xffU << 16) | (0xffU << 24));
+    qtest_writel(qts, mmio + R100_RB3D_ZSTENCILCNTL,
+                 2U | (7U << 12) | (3U << 24) | R100_Z_WRITE_ENABLE);
+    qtest_writel(qts, mmio + R100_RB3D_CNTL,
+                 R100_RB_COLOR_ARGB8888 | R100_RB_Z_ENABLE |
+                 R100_RB_STENCIL_ENABLE);
+    ati_rv100_draw_immediate(qts, R100_VTX_FMT_Z | R100_VTX_FMT_PKCOLOR,
+                             R100_VF_POINT_LIST, stencil_pass,
+                             ARRAY_SIZE(stencil_pass), 1);
+    g_assert_cmphex(qtest_readl(qts, stencil_depth), ==, 0x80800000);
+    g_assert_cmphex(qtest_readl(qts, stencil_color), ==, 0xaabbccdd);
+
     /* D24S8: a passing fragment writes depth and increments stencil. */
     qtest_writel(qts, stencil_depth, 0x7f800000);
     qtest_writel(qts, mmio + R100_PP_CNTL, 0);
@@ -8739,6 +8862,79 @@ static void nvidia_quadro2_nv4_rectangle(void)
     qtest_quit(qts);
 }
 
+static void nvidia_quadro2_cpu_upload(void)
+{
+    const uint32_t dma_instance = 0x19010;
+    const uint32_t image_instance = 0x19040;
+    const uint32_t surface_handle = 0x80000002;
+    const uint32_t image_handle = 0x80000004;
+    const uint32_t offset = 0x310000;
+    const uint64_t fb = HP_QUADRO2_FB_BASE;
+    const uint64_t ramin = HP_QUADRO2_MMIO_BASE + HP_QUADRO2_PRAMIN;
+    QTestState *qts = quadro2_start("");
+
+    quadro2_prepare_rectangle(qts, 0, HP_QUADRO2_VRAM_SIZE - 1, offset, 0);
+    qtest_writel(qts, ramin + image_instance, 0x61);
+    quadro2_ramht_insert(qts, 0, image_handle,
+                         HP_QUADRO2_RAMHT_GRAPHICS, image_instance);
+    quadro2_user_write(qts, 0, 0, 0x300, 4);
+    quadro2_user_write(qts, 0, 0, 0x304, (64U << 16) | 64U);
+    quadro2_user_write(qts, 0, 2, 0, image_handle);
+    quadro2_user_write(qts, 0, 2, 0x19c, surface_handle);
+    quadro2_user_write(qts, 0, 2, 0x300, 3);
+    quadro2_user_write(qts, 0, 2, 0x304, 0);
+    quadro2_user_write(qts, 0, 2, 0x308, (1U << 16) | 8U);
+    quadro2_user_write(qts, 0, 2, 0x30c, (1U << 16) | 8U);
+    quadro2_user_write(qts, 0, 2, 0x400, 0x22221111);
+    g_assert_cmphex(qtest_readl(qts, fb + offset), ==, 0x22221111);
+
+    /* RAMIN's ordinary VRAM alias bypasses the PRAMIN write callback. */
+    qtest_writel(qts, fb + HP_QUADRO2_VRAM_SIZE - 16 - dma_instance + 8,
+                 0x1000);
+    quadro2_user_write(qts, 0, 2, 0x400, 0x44443333);
+    g_assert_cmphex(qtest_readl(qts, fb + offset + 0x1004), ==, 0x44443333);
+    qtest_writel(qts, ramin + dma_instance + 8, 0);
+    quadro2_user_write(qts, 0, 0, 0x30c, offset + 0x2000);
+    quadro2_user_write(qts, 0, 2, 0x400, 0x66665555);
+    g_assert_cmphex(qtest_readl(qts, fb + offset + 0x2008), ==, 0x66665555);
+
+    /* A word can straddle two pitched rows; only adjacent pixels combine. */
+    quadro2_user_write(qts, 0, 0, 0x304, (128U << 16) | 128U);
+    quadro2_user_write(qts, 0, 2, 0x308, (2U << 16) | 3U);
+    quadro2_user_write(qts, 0, 2, 0x30c, (2U << 16) | 3U);
+    qtest_memset(qts, fb + offset + 0x2000, 0xa5, 256);
+    quadro2_user_write(qts, 0, 2, 0x400, 0x00020001);
+    quadro2_user_write(qts, 0, 2, 0x400, 0x00040003);
+    quadro2_user_write(qts, 0, 2, 0x400, 0x00060005);
+    for (unsigned int i = 0; i < 6; i++) {
+        g_assert_cmphex(qtest_readw(qts, fb + offset + 0x2000 +
+                                        (i / 3) * 128 + (i % 3) * 2), ==,
+                        i + 1);
+    }
+    g_assert_cmphex(qtest_readw(qts, fb + offset + 0x2006), ==, 0xa5a5);
+
+    /* Negative X clipping and an odd final pixel retain word progression. */
+    quadro2_user_write(qts, 0, 2, 0x304, 0x0000ffff);
+    quadro2_user_write(qts, 0, 2, 0x308, (1U << 16) | 3U);
+    quadro2_user_write(qts, 0, 2, 0x30c, (1U << 16) | 3U);
+    qtest_memset(qts, fb + offset + 0x2000, 0xa5, 8);
+    quadro2_user_write(qts, 0, 2, 0x400, 0x22221111);
+    quadro2_user_write(qts, 0, 2, 0x400, 0x44443333);
+    g_assert_cmphex(qtest_readl(qts, fb + offset + 0x2000), ==, 0x33332222);
+    g_assert_cmphex(qtest_readl(qts, fb + offset + 0x2004), ==, 0xa5a5a5a5);
+
+    /* The second pixel failing must leave the successful first write. */
+    quadro2_user_write(qts, 0, 0, 0x30c, 0);
+    qtest_writel(qts, ramin + dma_instance + 4, 1);
+    quadro2_user_write(qts, 0, 2, 0x304, 0);
+    quadro2_user_write(qts, 0, 2, 0x308, (1U << 16) | 2U);
+    quadro2_user_write(qts, 0, 2, 0x30c, (1U << 16) | 2U);
+    qtest_memset(qts, fb, 0xa5, 4);
+    quadro2_user_write(qts, 0, 2, 0x400, 0x22221111);
+    g_assert_cmphex(qtest_readl(qts, fb), ==, 0xa5a51111);
+    qtest_quit(qts);
+}
+
 static void nvidia_quadro2_scaled_yuv(void)
 {
     enum {
@@ -10512,6 +10708,8 @@ int main(int argc, char **argv)
         qtest_add_func("/display/pci/ati-register-endian", ati_register_endian);
         qtest_add_func("/display/pci/ati-crtc-timing-migration",
                        ati_crtc_timing_migration);
+        qtest_add_func("/display/pci/ati-rop3-truth-table",
+                       ati_rop3_truth_table);
         qtest_add_func("/display/pci/ati-8x8-pattern-brush",
                        ati_8x8_pattern_brush);
         qtest_add_func("/display/pci/ati-stride", ati_stride);
@@ -10572,6 +10770,8 @@ int main(int argc, char **argv)
         qtest_has_device("nvidia-quadro2")) {
         qtest_add_func("/display/pci/nvidia-quadro2-nv4-rectangle",
                        nvidia_quadro2_nv4_rectangle);
+        qtest_add_func("/display/pci/nvidia-quadro2-cpu-upload",
+                       nvidia_quadro2_cpu_upload);
         qtest_add_func("/display/pci/nvidia-quadro2-scaled-yuv",
                        nvidia_quadro2_scaled_yuv);
         qtest_add_func("/display/pci/nvidia-quadro2-m2mf-notify",

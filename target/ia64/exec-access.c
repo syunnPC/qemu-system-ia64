@@ -380,6 +380,7 @@ bool ia64_exec_cached_load_translation(
         .memory_attribute = full->extra.ia64.memory_attribute,
         .prot = full->prot,
         .from_victim = from_victim,
+        .is_ram = memory_region_is_ram(full->section->mr),
     };
     return true;
 }

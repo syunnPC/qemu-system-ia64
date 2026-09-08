@@ -2512,6 +2512,10 @@ static void ati_vga_reset(DeviceState *dev)
     }
 
     memset(&s->host_data, 0, sizeof(s->host_data));
+    if (!s->blt_row_buffer_busy) {
+        g_clear_pointer(&s->blt_row_buffer, g_free);
+        s->blt_row_buffer_size = 0;
+    }
     ati_3d_reset(s);
     graphic_hw_invalidate(s->vga.con);
 }
@@ -2524,6 +2528,8 @@ static void ati_vga_exit(PCIDevice *dev)
     graphic_console_close(s->vga.con);
     cursor_unref(s->cursor);
     s->cursor = NULL;
+    g_clear_pointer(&s->blt_row_buffer, g_free);
+    s->blt_row_buffer_size = 0;
 }
 
 static const Property ati_vga_properties[] = {

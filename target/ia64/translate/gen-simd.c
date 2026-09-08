@@ -17,15 +17,9 @@ static void ia64_gen_saturate_signed_i64(TCGv_i64 value, int bits)
 {
     int64_t min_value = -(1LL << (bits - 1));
     int64_t max_value = (1LL << (bits - 1)) - 1;
-    TCGLabel *ge_min = gen_new_label();
-    TCGLabel *le_max = gen_new_label();
 
-    tcg_gen_brcondi_i64(TCG_COND_GE, value, min_value, ge_min);
-    tcg_gen_movi_i64(value, min_value);
-    gen_set_label(ge_min);
-    tcg_gen_brcondi_i64(TCG_COND_LE, value, max_value, le_max);
-    tcg_gen_movi_i64(value, max_value);
-    gen_set_label(le_max);
+    tcg_gen_smax_i64(value, value, tcg_constant_i64(min_value));
+    tcg_gen_smin_i64(value, value, tcg_constant_i64(max_value));
 }
 
 typedef struct IA64SIMDLanePlan {
@@ -50,10 +44,12 @@ static unsigned ia64_simd_vece(unsigned bits)
 
 static void ia64_gen_vec_result_i64(TCGv_i64 result, TCGv_vec value)
 {
+    if (tcg_gen_mov_vec_i64(result, value)) {
+        return;
+    }
     /*
-     * TCG has an integer-to-vector duplicate, but no target-independent
-     * vector-to-integer bitcast.  A private per-vCPU slot preserves the
-     * value without synchronizing architectural globals around a helper.
+     * Hosts without a vector-to-integer register transfer retain the private
+     * per-vCPU slot, without synchronizing globals around a helper.
      */
     tcg_gen_st_vec(value, tcg_env,
                    offsetof(CPUIA64State, tcg_vec_scratch));
@@ -160,6 +156,47 @@ static bool ia64_gen_packed_vec_shift(DisasContext *ctx, TCGv_i64 result,
         g_assert_not_reached();
     }
     ia64_gen_vec_result_i64(result, vr);
+    return true;
+}
+
+static bool ia64_gen_packed_vec_shifti(DisasContext *ctx, TCGv_i64 result,
+                                      TCGv_i64 value, unsigned count,
+                                      unsigned bits, TCGOpcode opcode)
+{
+    unsigned vece = ia64_simd_vece(bits);
+
+    if (count == 0) {
+        tcg_gen_mov_i64(result, value);
+        return true;
+    }
+    if (count >= bits) {
+        if (opcode != INDEX_op_sari_vec) {
+            tcg_gen_movi_i64(result, 0);
+            return true;
+        }
+        count = bits - 1;
+    }
+    if (!tcg_op_supported(INDEX_op_dup_vec, TCG_TYPE_V64, 0) ||
+        tcg_can_emit_vec_op(opcode, TCG_TYPE_V64, vece) == 0) {
+        return false;
+    }
+
+    ia64_simd_vec_temps(ctx);
+    tcg_gen_dup_i64_vec(MO_64, ctx->simd.a, value);
+    switch (opcode) {
+    case INDEX_op_shli_vec:
+        tcg_gen_shli_vec(vece, ctx->simd.result, ctx->simd.a, count);
+        break;
+    case INDEX_op_shri_vec:
+        tcg_gen_shri_vec(vece, ctx->simd.result, ctx->simd.a, count);
+        break;
+    case INDEX_op_sari_vec:
+        tcg_gen_sari_vec(vece, ctx->simd.result, ctx->simd.a, count);
+        break;
+    default:
+        g_assert_not_reached();
+    }
+    ia64_gen_vec_result_i64(result, ctx->simd.result);
     return true;
 }
 
@@ -412,32 +449,16 @@ static void ia64_gen_mux2(TCGv_i64 result, TCGv_i64 value, uint32_t imm)
     }
 }
 
-static void ia64_simd_sign_extend(TCGv_i64 lane, unsigned bits)
-{
-    switch (bits) {
-    case 8:
-        tcg_gen_ext8s_i64(lane, lane);
-        break;
-    case 16:
-        tcg_gen_ext16s_i64(lane, lane);
-        break;
-    case 32:
-        tcg_gen_ext32s_i64(lane, lane);
-        break;
-    default:
-        g_assert_not_reached();
-    }
-}
-
 static TCGv_i64 ia64_simd_extract_lane(TCGv_i64 source,
                                        const IA64SIMDLanePlan *plan,
                                        unsigned lane, bool sign_extend)
 {
     TCGv_i64 value = tcg_temp_new_i64();
 
-    tcg_gen_extract_i64(value, source, lane * plan->bits, plan->bits);
     if (sign_extend) {
-        ia64_simd_sign_extend(value, plan->bits);
+        tcg_gen_sextract_i64(value, source, lane * plan->bits, plan->bits);
+    } else {
+        tcg_gen_extract_i64(value, source, lane * plan->bits, plan->bits);
     }
     return value;
 }
@@ -466,6 +487,15 @@ static void ia64_gen_pshr(DisasContext *ctx, const Ia64Instruction *insn,
     }
 
     result = tcg_temp_new_i64();
+    if (op->immediate >= 0 &&
+        ia64_gen_packed_vec_shifti(ctx, result, ia64_gr_src(op->source2),
+                                   op->immediate, lane_bits,
+                                   unsigned_shift ? INDEX_op_shri_vec :
+                                                    INDEX_op_sari_vec)) {
+        tcg_gen_mov_i64(cpu_gr[op->destination], result);
+        ia64_gen_gr_nat_from_1(insn, op->destination, op->source2);
+        return;
+    }
     count = tcg_temp_new_i64();
     clamped_count = tcg_temp_new_i64();
 
@@ -527,6 +557,14 @@ static void ia64_gen_pshl(DisasContext *ctx, const Ia64Instruction *insn,
     }
 
     result = tcg_temp_new_i64();
+    if (op->immediate >= 0 &&
+        ia64_gen_packed_vec_shifti(ctx, result, ia64_gr_src(op->source1),
+                                   op->immediate, lane_bits,
+                                   INDEX_op_shli_vec)) {
+        tcg_gen_mov_i64(cpu_gr[op->destination], result);
+        ia64_gen_gr_nat_from_1(insn, op->destination, op->source1);
+        return;
+    }
     count = tcg_temp_new_i64();
     clamped_count = tcg_temp_new_i64();
 
@@ -636,22 +674,16 @@ IA64GenResult ia64_gen_simd(DisasContext *ctx,
                 if (plan.bits < 32) {
                     int64_t min_value = 0;
                     int64_t max_value = plan.mask;
-                    TCGLabel *ge_min = gen_new_label();
-                    TCGLabel *le_max = gen_new_label();
 
                     if (saturation == 1) {
                         min_value = -(1LL << (plan.bits - 1));
                         max_value = (1LL << (plan.bits - 1)) - 1;
                     }
 
-                    tcg_gen_brcondi_i64(TCG_COND_GE, lane_res, min_value,
-                                       ge_min);
-                    tcg_gen_movi_i64(lane_res, min_value);
-                    gen_set_label(ge_min);
-                    tcg_gen_brcondi_i64(TCG_COND_LE, lane_res, max_value,
-                                       le_max);
-                    tcg_gen_movi_i64(lane_res, max_value);
-                    gen_set_label(le_max);
+                    tcg_gen_smax_i64(lane_res, lane_res,
+                                     tcg_constant_i64(min_value));
+                    tcg_gen_smin_i64(lane_res, lane_res,
+                                     tcg_constant_i64(max_value));
                 }
                 ia64_simd_insert_lane(result, lane_res, &plan, i);
             }

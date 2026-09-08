@@ -244,6 +244,18 @@ void tcg_gen_dup_i32_vec(unsigned vece, TCGv_vec r, TCGv_i32 a)
     vec_gen_2(INDEX_op_dup_vec, type, vece, ri, ai);
 }
 
+bool tcg_gen_mov_vec_i64(TCGv_i64 r, TCGv_vec a)
+{
+    TCGArg ai = tcgv_vec_arg(a);
+    TCGType type = arg_temp(ai)->base_type;
+
+    if (!tcg_op_supported(INDEX_op_mov_vec_i64, type, 0)) {
+        return false;
+    }
+    vec_gen_2(INDEX_op_mov_vec_i64, type, MO_64, tcgv_i64_arg(r), ai);
+    return true;
+}
+
 void tcg_gen_dup_mem_vec(unsigned vece, TCGv_vec r, TCGv_ptr b,
                          tcg_target_long ofs)
 {

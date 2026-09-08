@@ -119,8 +119,12 @@ void ia64_tlb_bump_generation(CPUIA64State *env, bool is_ifetch)
 
     (*generation)++;
     if (*generation == 0) {
+        IA64MicroTlbEntry *victims = is_ifetch ? env->mmu.tlb_inst_victim :
+                                                 env->mmu.tlb_data_victim;
+
         *generation = 1;
         memset(micro, 0, sizeof(*micro) * IA64_MICRO_TLB_SIZE);
+        memset(victims, 0, sizeof(*victims) * IA64_MICRO_TLB_VICTIM_SIZE);
     }
 }
 
@@ -188,7 +192,18 @@ const IA64TlbEntry *ia64_tlb_find_slow(CPUIA64State *env, uint64_t va,
          */
         if (entry->rid == rid && entry->valid &&
             ((va ^ entry->va) & entry->page_mask) == 0) {
-            micro[ia64_micro_tlb_index(va, rid)] = (IA64MicroTlbEntry) {
+            IA64MicroTlbEntry *cached = &micro[ia64_micro_tlb_index(va, rid)];
+
+            if (cached->valid && cached->generation == generation) {
+                IA64MicroTlbEntry *victims = is_ifetch ?
+                    env->mmu.tlb_inst_victim : env->mmu.tlb_data_victim;
+                uint8_t *next = is_ifetch ? &env->mmu.tlb_inst_victim_next :
+                                             &env->mmu.tlb_data_victim_next;
+
+                victims[*next] = *cached;
+                *next = (*next + 1) % IA64_MICRO_TLB_VICTIM_SIZE;
+            }
+            *cached = (IA64MicroTlbEntry) {
                 .va = entry->va,
                 .page_mask = entry->page_mask,
                 .pte = entry->pte,
@@ -1373,6 +1388,8 @@ static void ia64_qtest_alat_writer_active_work(CPUState *cs,
         .valid = true,
     };
     env->alat_state.alat_active_count = 1;
+    env->alat_state.alat_occupied = 1;
+    env->alat_state.alat_reg_slot[0][IA64_QTEST_ALAT_REG] = 1;
     work->active_hit = ia64_alat_check_load_addr(
         env, IA64_QTEST_ALAT_REG, IA64_QTEST_ALAT_VA, 8, false);
 

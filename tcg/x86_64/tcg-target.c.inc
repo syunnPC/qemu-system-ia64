@@ -3827,6 +3827,9 @@ static void tcg_out_vec_op(TCGContext *s, TCGOpcode opc,
         tcg_out8(s, a2);
         break;
 
+    case INDEX_op_mov_vec_i64:
+        tcg_out_mov(s, TCG_TYPE_I64, a0, a1);
+        break;
     case INDEX_op_mov_vec:  /* Always emitted via tcg_out_mov.  */
     case INDEX_op_dup_vec:  /* Always emitted via tcg_out_dup_vec.  */
     default:
@@ -3838,6 +3841,8 @@ static TCGConstraintSetIndex
 tcg_target_op_def(TCGOpcode op, TCGType type, unsigned flags)
 {
     switch (op) {
+    case INDEX_op_mov_vec_i64:
+        return C_O1_I1(r, x);
     case INDEX_op_ld_vec:
     case INDEX_op_dupm_vec:
         return C_O1_I1(x, r);
@@ -3911,6 +3916,8 @@ tcg_target_op_def(TCGOpcode op, TCGType type, unsigned flags)
 int tcg_can_emit_vec_op(TCGOpcode opc, TCGType type, unsigned vece)
 {
     switch (opc) {
+    case INDEX_op_mov_vec_i64:
+        return type == TCG_TYPE_V64;
     case INDEX_op_add_vec:
     case INDEX_op_sub_vec:
     case INDEX_op_and_vec:

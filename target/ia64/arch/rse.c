@@ -294,9 +294,15 @@ static void ia64_rse_rnat_writeback_clear(CPUIA64State *env,
     memset(image, 0, sizeof(*image));
 }
 
-static int ia64_rse_rnat_shadow_find(const CPUIA64State *env, uint64_t addr)
+static int ia64_rse_rnat_shadow_lookup(const CPUIA64State *env, uint64_t addr)
 {
-    unsigned i;
+    unsigned i = env->rse.rse_rnat_shadow_last - 1;
+
+    if (i < env->rse.rse_rnat_shadow_count &&
+        env->rse.rse_rnat_shadow[i].valid &&
+        env->rse.rse_rnat_shadow[i].addr == addr) {
+        return i;
+    }
 
     for (i = 0; i < env->rse.rse_rnat_shadow_count; i++) {
         const IA64RnatShadowEntry *entry =
@@ -309,10 +315,19 @@ static int ia64_rse_rnat_shadow_find(const CPUIA64State *env, uint64_t addr)
     return -1;
 }
 
+static int ia64_rse_rnat_shadow_find(CPUIA64State *env, uint64_t addr)
+{
+    int slot = ia64_rse_rnat_shadow_lookup(env, addr);
+
+    env->rse.rse_rnat_shadow_last = slot + 1;
+    return slot;
+}
+
 static void ia64_rse_rnat_shadow_delete(CPUIA64State *env, unsigned slot)
 {
     unsigned last = --env->rse.rse_rnat_shadow_count;
 
+    env->rse.rse_rnat_shadow_last = 0;
     if (slot != last) {
         env->rse.rse_rnat_shadow[slot] =
             env->rse.rse_rnat_shadow[last];
@@ -326,6 +341,7 @@ static void ia64_rse_rnat_shadow_clear_all(CPUIA64State *env)
     memset(env->rse.rse_rnat_shadow, 0,
            sizeof(env->rse.rse_rnat_shadow));
     env->rse.rse_rnat_shadow_count = 0;
+    env->rse.rse_rnat_shadow_last = 0;
 }
 
 static void ia64_rse_rnat_shadow_remove(CPUIA64State *env, uint64_t addr,
@@ -347,7 +363,7 @@ static void ia64_rse_rnat_shadow_overlay(const CPUIA64State *env,
                                          uint64_t addr, uint64_t *value,
                                          uint64_t *defined)
 {
-    int slot = ia64_rse_rnat_shadow_find(env, addr);
+    int slot = ia64_rse_rnat_shadow_lookup(env, addr);
 
     if (slot >= 0) {
         const IA64RnatShadowEntry *entry =
@@ -412,6 +428,7 @@ static void ia64_rse_rnat_shadow_merge(CPUIA64State *env, uint64_t addr,
     }
     entry->value &= entry->defined & INT64_MAX;
     entry->defined &= INT64_MAX;
+    env->rse.rse_rnat_shadow_last = slot + 1;
     trace_ia64_rse_rnat_shadow(env_cpu(env)->cpu_index, operation, env->ip,
                                slot, entry->addr, entry->value,
                                entry->defined);

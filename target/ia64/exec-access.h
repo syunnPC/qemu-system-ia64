@@ -67,6 +67,7 @@ typedef struct IA64CachedLoadTranslation {
     uint8_t memory_attribute;
     uint8_t prot;
     bool from_victim;
+    bool is_ram;
 } IA64CachedLoadTranslation;
 
 bool ia64_exec_cached_load_translation(
