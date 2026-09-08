@@ -1067,6 +1067,10 @@ static bool tcg_out_dup_vec(TCGContext *s, TCGType type, unsigned vece,
                             TCGReg rd, TCGReg rs)
 {
     int is_q = type - TCG_TYPE_V64;
+
+    if (!is_q && vece == MO_64) {
+        return tcg_out_mov(s, TCG_TYPE_I64, rd, rs);
+    }
     tcg_out_insn(s, simd_copy, DUP, is_q, rd, rs, 1 << vece, 0);
     return true;
 }
@@ -1240,7 +1244,7 @@ static bool tcg_out_mov(TCGContext *s, TCGType type, TCGReg ret, TCGReg arg)
             tcg_out_movr(s, type, ret, arg);
             break;
         } else if (ret < 32) {
-            tcg_out_insn(s, simd_copy, UMOV, type, ret, arg, 0, 0);
+            tcg_out_insn(s, simd_copy, UMOV, type, ret, arg, 4 << type, 0);
             break;
         } else if (arg < 32) {
             tcg_out_insn(s, simd_copy, INS, 0, ret, arg, 4 << type, 0);
