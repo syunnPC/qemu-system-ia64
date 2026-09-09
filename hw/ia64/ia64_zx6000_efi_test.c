@@ -536,8 +536,8 @@ static bool zx6000_efi_machine_build(MachineState *ms, Error **errp)
         return false;
     }
     if (g_strcmp0(ms->cpu_type,
-                  IA64_CPU_TYPE_NAME("madison-zx6000")) != 0) {
-        error_setg(errp, "%s requires the Madison zx6000 CPU profile",
+                  IA64_CPU_TYPE_NAME("madison-1500")) != 0) {
+        error_setg(errp, "%s requires the madison-1500 CPU model",
                    TYPE_IA64_ZX6000_EFI_TEST_MACHINE);
         return false;
     }
@@ -610,7 +610,7 @@ static void zx6000_efi_machine_class_init(ObjectClass *oc, const void *data)
     mc->desc = "IA-64 zx6000 EFI integration test machine";
     mc->init = zx6000_efi_machine_init;
     mc->reset = zx6000_efi_machine_reset;
-    mc->default_cpu_type = IA64_CPU_TYPE_NAME("madison-zx6000");
+    mc->default_cpu_type = IA64_CPU_TYPE_NAME("madison-1500");
     mc->default_ram_size = IA64_ZX6000_ZX1_TEST_RAM_SIZE;
     mc->default_ram_id = "ia64-zx6000-efi-test.ram";
     mc->default_display = "none";

@@ -99,6 +99,8 @@ typedef struct VGACommonState {
     uint8_t palette[768];
     int32_t bank_offset;
     int (*get_bpp)(struct VGACommonState *s);
+    /* Optional packed scanout address translation, used while drawing. */
+    uint8_t (*scanout_read)(struct VGACommonState *s, uint32_t address);
     void (*get_params)(struct VGACommonState *s, VGADisplayParams *params);
     void (*get_resolution)(struct VGACommonState *s,
                         int *pwidth,

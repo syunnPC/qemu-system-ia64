@@ -1291,7 +1291,7 @@ static void test_hp_i2000_machine_identity(void)
 
         if (g_str_equal(qdict_get_str(machine, "name"), "hp-i2000")) {
             g_assert_cmpstr(qdict_get_str(machine, "default-cpu-type"), ==,
-                            "merced-ia64-cpu");
+                            "merced-800-ia64-cpu");
             g_assert_cmpint(qdict_get_int(machine, "cpu-max"), ==, 2);
             g_assert_cmpstr(qdict_get_str(machine, "default-ram-id"), ==,
                             "hp-i2000.ram");
@@ -3984,12 +3984,12 @@ static void test_hp_i2000_quadro2(void)
     g_assert_cmphex(qtest_readl(qts, HP_I2000_QUADRO2_FB_BASE +
                                     dest_offset + 4), ==, marker);
 
-    /* A single MMIO submission cannot monopolize the main loop. */
+    /* Individual primitives still have a size limit across FIFO yields. */
     qtest_writel(qts, HP_I2000_QUADRO2_MMIO_BASE +
                       HP_I2000_QUADRO2_USER + 0x2000 + 0x400, 0);
     qtest_writel(qts, HP_I2000_QUADRO2_MMIO_BASE +
                       HP_I2000_QUADRO2_USER + 0x2000 + 0x404,
-                 (2048U << 16) | 4096);
+                 (4096U << 16) | 4097);
     g_assert_cmphex(qtest_readl(qts, HP_I2000_QUADRO2_MMIO_BASE +
                                     HP_I2000_QUADRO2_PFIFO_INTR) & BIT(0),
                     ==, BIT(0));

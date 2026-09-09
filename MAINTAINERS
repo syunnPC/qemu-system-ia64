@@ -1384,6 +1384,7 @@ F: tests/qtest/bcm5704-test.c
 F: tests/qtest/hp-i2000-test.c
 F: tests/qtest/hp-rx2660-test.c
 F: tests/qtest/hp-zx6000-test.c
+F: tests/qtest/libqos/ia64-vpc-machine.c
 F: tests/unit/test-hp-*.c
 F: tests/unit/test-intel-460gx-*.c
 F: tests/unit/test-isa-i8259-multi-instance.c

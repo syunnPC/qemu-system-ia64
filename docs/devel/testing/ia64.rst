@@ -31,6 +31,11 @@ Test layers
   NVRAM, PCI configuration space, sparse I/O, I/O SAPIC Remote IRR, and ATI
   VGA pitch/stride without depending on firmware console prose.
 
+  Device tests also cover SCSI task ordering and migration, Ethernet checksums
+  and interrupt coalescing, Radeon/NV15 tiled graphics, Rage128 unsupported
+  tile accesses, approximate 2D rendering and PLL timing.  The ``qos-test``
+  graph exposes an IA-64 PCI bus for Intel Ethernet and Fusion-MPT tests.
+
 ``tests/functional/ia64/``
   Project-owned EFI applications booted from deterministic FAT, GPT, MBR,
   El Torito, and UDF media.  Guest results use the stable protocol::

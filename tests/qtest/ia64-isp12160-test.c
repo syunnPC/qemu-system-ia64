@@ -2202,8 +2202,13 @@ static void test_scsi_pending_status_migration(void)
     qtest_quit(qts);
 }
 
-static void test_scsi_active_read_migration(void)
+static void test_scsi_active_read_migration(gconstpointer opaque)
 {
+    bool ordered = GPOINTER_TO_INT(opaque);
+    bool unit_attention = GPOINTER_TO_INT(opaque) == 2;
+    unsigned request_index = ordered ? 5 : 3;
+    unsigned response_index = ordered ? 4 : 3;
+    unsigned first_response = unit_attention ? 0 : 1;
     const char *destination_disk_options =
         "-blockdev driver=raw,node-name=scsiactive,"
         "file.driver=null-co,file.read-zeroes=on,file.size=1048576 "
@@ -2266,7 +2271,21 @@ static void test_scsi_active_read_migration(void)
 
     qts = scsi_start_with_options(source_disk_options);
     scsi_prepare_queues(qts, 0, 0);
-    scsi_consume_disk_unit_attention(qts, 3);
+    if (unit_attention) {
+        uint16_t mb[MAILBOX_COUNT] = {
+            ISP12160_MBC_SET_DEVICE_QUEUE, 3 << 8, 8, 1,
+        };
+
+        g_assert_cmphex(mailbox_command(qts, mb),
+                        ==, ISP12160_MBS_COMMAND_COMPLETE);
+        mailbox_ack_completion(qts);
+        /* Capture the initial UA, then let the HEAD read hold this TUR. */
+        scsi_build_no_data(marker, 0x4d494744, 0, 3, 0);
+        stw_le_p(marker + 12, ISP12160_IOCB_CONTROL_ORDERED_TAG);
+        qtest_memwrite(qts, SCSI_REQUEST_DMA, marker, sizeof(marker));
+    } else {
+        scsi_consume_disk_unit_attention(qts, 3);
+    }
     qtest_memset(qts, SCSI_DATA_DMA, 0xa5, 128);
     qtest_memset(qts, SCSI_DATA_DMA + 0x1000, 0xa5, 128);
     qtest_memset(qts, SCSI_DATA_DMA + 0x2000, 0xa5, 256);
@@ -2274,9 +2293,16 @@ static void test_scsi_active_read_migration(void)
     scsi_build_rw_three_segments(read_entries, 0x4d494741, false,
                                SCSI_DATA_DMA);
     stw_le_p(read_entries[0] + ISP12160_IOCB_A64_CONTROL_FLAGS_OFFSET,
-             ISP12160_IOCB_CONTROL_DATA_UNKNOWN);
+             ISP12160_IOCB_CONTROL_DATA_UNKNOWN |
+             (unit_attention ? ISP12160_IOCB_CONTROL_HEAD_TAG : 0));
     scsi_build_marker(marker, 0, 0, 0, ISP12160_IOCB_MARKER_SYNC_ALL);
-    scsi_build_no_data(following, 0x4d494742, 0, 15, 0);
+    scsi_build_no_data(following, 0x4d494742, 0, ordered ? 3 : 15, 0);
+    if (ordered) {
+        scsi_build_no_data(marker, 0x4d494743, 0, 3, 0);
+        stw_le_p(marker + 12, ISP12160_IOCB_CONTROL_ORDERED_TAG);
+        stw_le_p(marker + 16, 5);
+        stw_le_p(following + 12, ISP12160_IOCB_CONTROL_SIMPLE_TAG);
+    }
     qtest_memwrite(qts, SCSI_REQUEST_DMA + ISP12160_QUEUE_ENTRY_BYTES,
                    read_entries, sizeof(read_entries));
     qtest_memwrite(qts,
@@ -2292,14 +2318,17 @@ static void test_scsi_active_read_migration(void)
     qtest_qmp_assert_success(qts, "{'execute':'cont'}");
     scsi_wait_for_runstate(qts, "running");
     mailbox_mmio_writew(qts, ISP12160_REG_MAILBOX0 + 8, 5);
-    scsi_wait_index_equals(qts, 4, 3);
-    scsi_wait_for_active_read_io_error(qts, &block_io_error_seen, 3, 1);
+    scsi_wait_index_equals(qts, 4, request_index);
+    scsi_wait_for_active_read_io_error(qts, &block_io_error_seen,
+                                       request_index, first_response);
     qtest_qmp_set_event_callback(qts, NULL, NULL);
 
     /* The IOCB is consumed, but the stopped READ remains active and silent. */
-    g_assert_cmphex(mailbox_mmio_readw(qts, ISP12160_REG_MAILBOX0 + 8), ==, 3);
-    g_assert_cmphex(mailbox_mmio_readw(qts, ISP12160_REG_MAILBOX0 + 10), ==, 1);
-    scsi_read_status(qts, 1, status);
+    g_assert_cmphex(mailbox_mmio_readw(qts, ISP12160_REG_MAILBOX0 + 8),
+                    ==, request_index);
+    g_assert_cmphex(mailbox_mmio_readw(qts, ISP12160_REG_MAILBOX0 + 10),
+                    ==, first_response);
+    scsi_read_status(qts, first_response, status);
     g_assert_cmphex(status[0], ==, 0);
     qtest_memread(qts, SCSI_DATA_DMA, actual, 128);
     qtest_memread(qts, SCSI_DATA_DMA + 0x1000, actual + 128, 128);
@@ -2320,19 +2349,22 @@ static void test_scsi_active_read_migration(void)
              "{'uri':%s,'exit-on-error':false}}", uri);
     mailbox_wait_for_migration_complete(qts);
 
-    g_assert_cmphex(mailbox_mmio_readw(qts, ISP12160_REG_MAILBOX0 + 8), ==, 3);
-    g_assert_cmphex(mailbox_mmio_readw(qts, ISP12160_REG_MAILBOX0 + 10), ==, 1);
-    scsi_read_status(qts, 1, status);
+    g_assert_cmphex(mailbox_mmio_readw(qts, ISP12160_REG_MAILBOX0 + 8),
+                    ==, request_index);
+    g_assert_cmphex(mailbox_mmio_readw(qts, ISP12160_REG_MAILBOX0 + 10),
+                    ==, first_response);
+    scsi_read_status(qts, first_response, status);
     g_assert_cmphex(status[0], ==, 0);
 
     qtest_qmp_assert_success(qts, "{'execute':'cont'}");
-    scsi_wait_index_equals(qts, 5, 3);
+    scsi_wait_index_equals(qts, 5, response_index);
     for (i = 0; i < 100; i++) {
         g_assert_cmphex(mailbox_mmio_readw(
-                            qts, ISP12160_REG_MAILBOX0 + 10), ==, 3);
+                            qts, ISP12160_REG_MAILBOX0 + 10),
+                        ==, response_index);
     }
     g_assert_cmphex(mailbox_mmio_readw(qts, ISP12160_REG_MAILBOX0 + 8), ==, 5);
-    scsi_read_status(qts, 1, status);
+    scsi_read_status(qts, first_response, status);
     g_assert_cmphex(status[0], ==, ISP12160_IOCB_STATUS_TYPE);
     g_assert_cmpuint((uint32_t)ldl_le_p(status + 4), ==,
                      UINT32_C(0x4d494741));
@@ -2340,11 +2372,27 @@ static void test_scsi_active_read_migration(void)
     g_assert_cmphex(lduw_le_p(status + 10), ==,
                     ISP12160_IOCB_CS_COMPLETE);
     g_assert_cmpuint((uint32_t)ldl_le_p(status + 20), ==, 0);
-    scsi_read_status(qts, 2, status);
+    if (unit_attention) {
+        scsi_read_status(qts, 1, status);
+        g_assert_cmphex((uint32_t)ldl_le_p(status + 4), ==, 0x4d494744);
+        g_assert_cmphex(lduw_le_p(status + 10), ==, ISP12160_IOCB_CS_COMPLETE);
+        g_assert_cmphex(lduw_le_p(status + 8) & 0xff, ==, 2);
+        g_assert_cmpuint(lduw_le_p(status + 18), >=, 14);
+        g_assert_cmphex(status[34] & 0x0f, ==, 6); /* UNIT ATTENTION */
+        g_assert_cmphex(status[44], ==, 0x29);    /* Power on/reset */
+        g_assert_cmphex(status[45], ==, 0);
+    }
+    if (ordered) {
+        scsi_read_status(qts, 2, status);
+        g_assert_cmphex((uint32_t)ldl_le_p(status + 4), ==, 0x4d494743);
+        g_assert_cmphex(lduw_le_p(status + 10), ==, ISP12160_IOCB_CS_COMPLETE);
+    }
+    scsi_read_status(qts, response_index - 1, status);
     g_assert_cmpuint((uint32_t)ldl_le_p(status + 4), ==,
                      UINT32_C(0x4d494742));
     g_assert_cmphex(lduw_le_p(status + 10), ==,
-                    ISP12160_IOCB_CS_INCOMPLETE);
+                    ordered ? ISP12160_IOCB_CS_COMPLETE :
+                              ISP12160_IOCB_CS_INCOMPLETE);
 
     qtest_memread(qts, SCSI_DATA_DMA, actual, 128);
     qtest_memread(qts, SCSI_DATA_DMA + 0x1000, actual + 128, 128);
@@ -2456,6 +2504,240 @@ static void test_scsi_marker_active_barrier(gconstpointer opaque)
     } else {
         g_assert_cmpuint((uint32_t)ldl_le_p(status + 4), ==,
                          UINT32_C(0x4d4b5232));
+    }
+    qtest_quit(qts);
+}
+
+static void scsi_assert_completion(QTestState *qts, unsigned index,
+                                  uint32_t handle, uint16_t completion)
+{
+    uint8_t status[ISP12160_QUEUE_ENTRY_BYTES];
+
+    scsi_read_status(qts, index, status);
+    g_assert_cmphex((uint32_t)ldl_le_p(status + 4), ==, handle);
+    g_assert_cmphex(lduw_le_p(status + 10), ==, completion);
+}
+
+static void test_scsi_task_ordering(void)
+{
+    QTestState *qts = scsi_start_with_options(
+        "-blockdev driver=null-co,read-zeroes=on,size=1048576,"
+        "latency-ns=500000000,node-name=scsislow "
+        "-device scsi-hd,drive=scsislow,bus=isp12160-scsi.0,"
+        "channel=0,scsi-id=3,lun=0");
+    uint8_t read[2][ISP12160_QUEUE_ENTRY_BYTES];
+    uint8_t commands[3][ISP12160_QUEUE_ENTRY_BYTES];
+    static const uint16_t flags[] = {
+        ISP12160_IOCB_CONTROL_ORDERED_TAG,
+        ISP12160_IOCB_CONTROL_SIMPLE_TAG,
+        ISP12160_IOCB_CONTROL_HEAD_TAG,
+    };
+    int64_t deadline;
+
+    scsi_prepare_queues(qts, 0, 0);
+    scsi_consume_disk_unit_attention(qts, 3);
+    qtest_qmp_assert_success(qts, "{'execute':'cont'}");
+    scsi_build_rw_three_segments(read, 1, false, SCSI_DATA_DMA);
+    qtest_memwrite(qts, SCSI_REQUEST_DMA + ISP12160_QUEUE_ENTRY_BYTES,
+                   read, sizeof(read));
+    mailbox_mmio_writew(qts, ISP12160_REG_MAILBOX0 + 8, 3);
+    scsi_wait_index_equals(qts, 4, 3);
+    for (unsigned i = 0; i < 3; i++) {
+        scsi_build_no_data(commands[i], i + 2, 0, 3, 0);
+        stw_le_p(commands[i] + 12, flags[i]);
+    }
+    qtest_memwrite(qts, SCSI_REQUEST_DMA + 3 * ISP12160_QUEUE_ENTRY_BYTES,
+                   commands, sizeof(commands));
+    mailbox_mmio_writew(qts, ISP12160_REG_MAILBOX0 + 8, 6);
+    scsi_wait_index_equals(qts, 4, 6);
+    scsi_wait_index_equals(qts, 5, 2);
+    /* HEAD passes a waiting ORDERED command while the earlier read is busy. */
+    scsi_assert_completion(qts, 1, 4, ISP12160_IOCB_CS_COMPLETE);
+    deadline = g_get_monotonic_time() + 10 * G_TIME_SPAN_SECOND;
+    while (mailbox_mmio_readw(qts, ISP12160_REG_MAILBOX0 + 10) != 5 &&
+           g_get_monotonic_time() < deadline) {
+        g_usleep(1000);
+    }
+    scsi_wait_index_equals(qts, 5, 5);
+    scsi_assert_completion(qts, 2, 1, ISP12160_IOCB_CS_COMPLETE);
+    scsi_assert_completion(qts, 3, 2, ISP12160_IOCB_CS_COMPLETE);
+    scsi_assert_completion(qts, 4, 3, ISP12160_IOCB_CS_COMPLETE);
+    qtest_quit(qts);
+}
+
+static void test_scsi_queue_timeout(void)
+{
+    QTestState *qts = scsi_start_with_options(
+        "-blockdev driver=null-co,read-zeroes=on,size=1048576,"
+        "latency-ns=2000000000,node-name=scsislow "
+        "-device scsi-hd,drive=scsislow,bus=isp12160-scsi.0,"
+        "channel=0,scsi-id=3,lun=0");
+    uint8_t read[2][ISP12160_QUEUE_ENTRY_BYTES];
+    uint8_t command[ISP12160_QUEUE_ENTRY_BYTES];
+    uint16_t mb[MAILBOX_COUNT] = {
+        ISP12160_MBC_SET_DEVICE_QUEUE, 3 << 8, 8, 1,
+    };
+
+    scsi_prepare_queues(qts, 0, 0);
+    scsi_consume_disk_unit_attention(qts, 3);
+    g_assert_cmphex(mailbox_command(qts, mb),
+                    ==, ISP12160_MBS_COMMAND_COMPLETE);
+    mailbox_ack_completion(qts);
+    mb[0] = ISP12160_MBC_GET_DEVICE_QUEUE;
+    g_assert_cmphex(mailbox_command(qts, mb),
+                    ==, ISP12160_MBS_COMMAND_COMPLETE);
+    g_assert_cmpuint(mailbox_mmio_readw(qts, ISP12160_REG_MAILBOX0 + 4), ==, 8);
+    g_assert_cmpuint(mailbox_mmio_readw(qts, ISP12160_REG_MAILBOX0 + 6), ==, 1);
+    mailbox_ack_completion(qts);
+    qtest_qmp_assert_success(qts, "{'execute':'cont'}");
+    scsi_build_rw_three_segments(read, 1, false, SCSI_DATA_DMA);
+    stw_le_p(read[0] + 16, 1);
+    scsi_build_no_data(command, 2, 0, 3, 0);
+    stw_le_p(command + 16, 1);
+    qtest_memwrite(qts, SCSI_REQUEST_DMA + ISP12160_QUEUE_ENTRY_BYTES,
+                   read, sizeof(read));
+    qtest_memwrite(qts, SCSI_REQUEST_DMA + 3 * ISP12160_QUEUE_ENTRY_BYTES,
+                   command, sizeof(command));
+    mailbox_mmio_writew(qts, ISP12160_REG_MAILBOX0 + 8, 4);
+    scsi_wait_index_equals(qts, 4, 4);
+    /* Execution throttle holds the TUR, and its queue wait also times out. */
+    g_assert_cmpuint(mailbox_mmio_readw(qts, ISP12160_REG_MAILBOX0 + 10),
+                     ==, 1);
+    qtest_clock_step(qts, 999999999);
+    g_assert_cmpuint(mailbox_mmio_readw(qts, ISP12160_REG_MAILBOX0 + 10),
+                     ==, 1);
+    qtest_clock_step(qts, 1);
+    scsi_wait_index_equals(qts, 5, 3);
+    scsi_assert_completion(qts, 1, 1, ISP12160_IOCB_CS_TIMEOUT);
+    scsi_assert_completion(qts, 2, 2, ISP12160_IOCB_CS_TIMEOUT);
+    qtest_quit(qts);
+}
+
+static void test_scsi_deferred_request_sense(void)
+{
+    for (unsigned scenario = 0; scenario < 4; scenario++) {
+        bool unit_attention = scenario & 1;
+        bool descriptor = scenario & 2;
+        unsigned first = unit_attention ? 0 : 1;
+        unsigned sense_len = descriptor ? 8 : 18;
+        QTestState *qts = scsi_start_with_options(
+            "-blockdev driver=null-co,read-zeroes=on,size=1048576,node-name=disk "
+            "-device scsi-hd,drive=disk,bus=isp12160-scsi.0,"
+            "channel=0,scsi-id=3,lun=0");
+        uint8_t commands[3][ISP12160_QUEUE_ENTRY_BYTES];
+        uint8_t status[ISP12160_QUEUE_ENTRY_BYTES];
+        uint8_t sense[18];
+
+        g_test_message("%s sense, %s", descriptor ? "descriptor" : "fixed",
+                       unit_attention ? "unit attention" : "invalid opcode");
+        scsi_prepare_queues(qts, 0, 0);
+        if (!unit_attention) {
+            scsi_consume_disk_unit_attention(qts, 3);
+        }
+        scsi_build_no_data(commands[0], 1, 0, 3, 0);
+        commands[0][20] = unit_attention ? 0x00 : 0xff;
+        stw_le_p(commands[0] + 12, ISP12160_IOCB_CONTROL_DISABLE_AUTOSENSE);
+        for (unsigned i = 1; i < ARRAY_SIZE(commands); i++) {
+            scsi_build_no_data(commands[i], i + 1, 0, 3, 0);
+            commands[i][20] = 0x03; /* REQUEST SENSE */
+            commands[i][21] = descriptor;
+            commands[i][24] = sense_len;
+            stw_le_p(commands[i] + 12, ISP12160_IOCB_CONTROL_ORDERED_TAG |
+                     ISP12160_IOCB_CONTROL_DATA_FROM_DEVICE);
+            stw_le_p(commands[i] + 18, 1);
+            scsi_set_segment(commands[i], 40,
+                             SCSI_DATA_DMA + (i - 1) * 0x100, sense_len);
+        }
+        qtest_memset(qts, SCSI_DATA_DMA, 0xaa, 0x200);
+        /* Construct all requests before the first command produces sense. */
+        qtest_memwrite(qts,
+                       SCSI_REQUEST_DMA + first * ISP12160_QUEUE_ENTRY_BYTES,
+                       commands, sizeof(commands));
+        mailbox_mmio_writew(qts, ISP12160_REG_MAILBOX0 + 8, first + 3);
+        scsi_wait_index_equals(qts, 5, first + 3);
+        scsi_read_status(qts, first, status);
+        g_assert_cmphex(lduw_le_p(status + 8), ==, 2); /* CHECK CONDITION */
+        g_assert_cmpuint(lduw_le_p(status + 18), ==, 0); /* No autosense. */
+        for (unsigned i = 1; i < ARRAY_SIZE(commands); i++) {
+            unsigned key = i == 1 ? (unit_attention ? 6 : 5) : 0;
+            unsigned asc = i == 1 ? (unit_attention ? 0x29 : 0x20) : 0;
+
+            scsi_assert_completion(qts, first + i, i + 1,
+                                   ISP12160_IOCB_CS_COMPLETE);
+            scsi_read_status(qts, first + i, status);
+            g_assert_cmphex(lduw_le_p(status + 8), ==, 0);
+            qtest_memread(qts, SCSI_DATA_DMA + (i - 1) * 0x100,
+                          sense, sense_len);
+            g_assert_cmphex(sense[0] & 0x7f, ==, descriptor ? 0x72 : 0x70);
+            g_assert_cmphex(sense[descriptor ? 1 : 2] & 0xf, ==, key);
+            g_assert_cmphex(sense[descriptor ? 2 : 12], ==, asc);
+        }
+        qtest_quit(qts);
+    }
+}
+
+static void test_scsi_autosense_controls(void)
+{
+    QTestState *qts = scsi_start_with_options(
+        "-blockdev driver=null-co,read-zeroes=on,size=1048576,node-name=disk "
+        "-device scsi-hd,drive=disk,bus=isp12160-scsi.0,"
+        "channel=0,scsi-id=3,lun=0");
+    uint16_t mb[MAILBOX_COUNT] = {
+        ISP12160_MBC_SET_INITIATOR_ID, 0x86,
+    };
+    uint8_t command[ISP12160_QUEUE_ENTRY_BYTES];
+    uint8_t status[ISP12160_QUEUE_ENTRY_BYTES];
+
+    scsi_prepare_queues(qts, 0, 0);
+    scsi_consume_disk_unit_attention(qts, 3);
+    g_assert_cmphex(mailbox_command(qts, mb),
+                    ==, ISP12160_MBS_COMMAND_COMPLETE);
+    mailbox_ack_completion(qts);
+    mb[0] = ISP12160_MBC_GET_INITIATOR_ID;
+    g_assert_cmphex(mailbox_command(qts, mb),
+                    ==, ISP12160_MBS_COMMAND_COMPLETE);
+    g_assert_cmpuint(mailbox_mmio_readw(qts, ISP12160_REG_MAILBOX0 + 2), ==, 6);
+    mailbox_ack_completion(qts);
+
+    for (unsigned i = 0; i < 4; i++) {
+        bool sense = !(i & 1) && !(i & 2);
+
+        memset(mb, 0, sizeof(mb));
+        mb[0] = ISP12160_MBC_SET_TARGET_PARAMETERS;
+        mb[1] = 3 << 8;
+        mb[2] = i & 2 ? 0xf800 : 0xfc00;
+        mb[3] = 0x190c;
+        mb[6] = 2;
+        g_assert_cmphex(mailbox_command(qts, mb), ==,
+                        ISP12160_MBS_COMMAND_COMPLETE);
+        mailbox_ack_completion(qts);
+        mb[0] = ISP12160_MBC_GET_TARGET_PARAMETERS;
+        g_assert_cmphex(mailbox_command(qts, mb), ==,
+                        ISP12160_MBS_COMMAND_COMPLETE);
+        g_assert_cmphex(mailbox_mmio_readw(qts, ISP12160_REG_MAILBOX0 + 4),
+                        ==, mb[2]);
+        g_assert_cmphex(mailbox_mmio_readw(qts, ISP12160_REG_MAILBOX0 + 6),
+                        ==, 0x190c);
+        g_assert_cmphex(mailbox_mmio_readw(qts, ISP12160_REG_MAILBOX0 + 12),
+                        ==, 2);
+        mailbox_ack_completion(qts);
+        scsi_build_no_data(command, i + 1, 0, 3, 0);
+        command[20] = 0xff; /* Unsupported CDB returns CHECK CONDITION. */
+        stw_le_p(command + 12, i & 1 ?
+                 ISP12160_IOCB_CONTROL_DISABLE_AUTOSENSE : 0);
+        qtest_memwrite(qts,
+                       SCSI_REQUEST_DMA + (i + 1) * ISP12160_QUEUE_ENTRY_BYTES,
+                       command, sizeof(command));
+        mailbox_mmio_writew(qts, ISP12160_REG_MAILBOX0 + 8, i + 2);
+        scsi_wait_index_equals(qts, 5, i + 2);
+        scsi_read_status(qts, i + 1, status);
+        g_assert_cmphex(lduw_le_p(status + 8), ==, 2);
+        g_assert_cmpuint(!!lduw_le_p(status + 18), ==, sense);
+        g_assert_cmpuint(!!(lduw_le_p(status + 12) &
+                           ISP12160_IOCB_SF_GOT_SENSE), ==, sense);
+        mailbox_mmio_writew(qts, ISP12160_REG_MAILBOX0 + 10, i + 2);
+        mailbox_mmio_writew(qts, ISP12160_REG_HOST_COMMAND,
+                            ISP12160_HC_CLEAR_RISC_INT);
     }
     qtest_quit(qts);
 }
@@ -2699,8 +2981,15 @@ int main(int argc, char **argv)
                    test_scsi_self_mmio_data_dma);
     qtest_add_func("isp12160-scsi/pending-status-migration",
                    test_scsi_pending_status_migration);
-    qtest_add_func("isp12160-scsi/active-read-migration",
-                   test_scsi_active_read_migration);
+    qtest_add_data_func("isp12160-scsi/active-read-migration",
+                        GINT_TO_POINTER(0),
+                        test_scsi_active_read_migration);
+    qtest_add_data_func("isp12160-scsi/ordered-read-migration",
+                        GINT_TO_POINTER(1),
+                        test_scsi_active_read_migration);
+    qtest_add_data_func("isp12160-scsi/deferred-unit-attention-migration",
+                        GINT_TO_POINTER(2),
+                        test_scsi_active_read_migration);
     qtest_add_data_func("isp12160-scsi/marker/id-lun-match",
                         &marker_scope_id_lun_match,
                         test_scsi_marker_active_barrier);
@@ -2730,5 +3019,11 @@ int main(int argc, char **argv)
     qtest_add_func("isp12160-scsi/blocked-response-migration",
                    test_scsi_blocked_response_migration);
 
+    qtest_add_func("isp12160-scsi/task-ordering", test_scsi_task_ordering);
+    qtest_add_func("isp12160-scsi/queue-timeout", test_scsi_queue_timeout);
+    qtest_add_func("isp12160-scsi/deferred-request-sense",
+                   test_scsi_deferred_request_sense);
+    qtest_add_func("isp12160-scsi/autosense-controls",
+                   test_scsi_autosense_controls);
     return g_test_run();
 }

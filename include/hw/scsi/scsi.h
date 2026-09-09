@@ -50,6 +50,8 @@ struct SCSIRequest {
     bool              io_canceled;
     bool              retry;
     bool              dma_started;
+    /* Queued by an HBA, but waiting for its task-ordering scheduler. */
+    bool              hba_deferred;
     BlockAIOCB        *aiocb;
     QEMUSGList        *sg;
 
@@ -219,6 +221,8 @@ SCSIRequest *scsi_req_alloc(const SCSIReqOps *reqops, SCSIDevice *d,
 SCSIRequest *scsi_req_new(SCSIDevice *d, uint32_t tag, uint32_t lun,
                           uint8_t *buf, size_t buf_len, void *hba_private);
 int32_t scsi_req_enqueue(SCSIRequest *req);
+void scsi_req_enqueue_deferred(SCSIRequest *req);
+void scsi_req_start_deferred(SCSIRequest *req);
 SCSIRequest *scsi_req_ref(SCSIRequest *req);
 void scsi_req_unref(SCSIRequest *req);
 

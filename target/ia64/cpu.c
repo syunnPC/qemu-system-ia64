@@ -11,6 +11,7 @@
 #include "qapi/error.h"
 #include "qemu/cutils.h"
 #include "qemu/log.h"
+#include "qemu/qemu-print.h"
 #include "qemu/rcu.h"
 #include "qemu/timer.h"
 #include "qemu/units.h"
@@ -950,15 +951,52 @@ static void ia64_cpu_reset_hold(Object *obj, ResetType type)
     ia64_cpu_apply_boot_info(cpu);
 }
 
+static const struct {
+    const char *name;
+    const char *model;
+} ia64_cpu_aliases[] = {
+    { "merced", "merced-800" },
+    { "mckinley", "mckinley-1000" },
+    { "deerfield", "deerfield-1000" },
+    { "madison", "madison-1600-3m" },
+    { "montecito", "montecito-9050" },
+    { "montvale", "montvale-9150n" },
+    { "itanium", "merced-800" },
+    { "itanium2", "montecito-9050" },
+};
+
 static ObjectClass *ia64_cpu_class_by_name(const char *cpu_model)
 {
-    char *typename;
-    ObjectClass *oc;
+    g_autofree char *typename = NULL;
 
+    for (size_t i = 0; i < G_N_ELEMENTS(ia64_cpu_aliases); i++) {
+        if (g_str_equal(cpu_model, ia64_cpu_aliases[i].name)) {
+            cpu_model = ia64_cpu_aliases[i].model;
+            break;
+        }
+    }
     typename = g_strdup_printf(IA64_CPU_TYPE_NAME("%s"), cpu_model);
-    oc = object_class_by_name(typename);
-    g_free(typename);
-    return oc;
+    return object_class_by_name(typename);
+}
+
+static void ia64_cpu_list(void)
+{
+    GSList *list = object_class_get_list_sorted(TYPE_IA64_CPU, false);
+
+    qemu_printf("Available CPUs:\n");
+    for (GSList *entry = list; entry; entry = entry->next) {
+        const char *typename = object_class_get_name(entry->data);
+        g_autofree char *model = cpu_model_from_type(typename);
+
+        qemu_printf("  %s\n", model);
+    }
+    g_slist_free(list);
+
+    qemu_printf("CPU aliases:\n");
+    for (size_t i = 0; i < G_N_ELEMENTS(ia64_cpu_aliases); i++) {
+        qemu_printf("  %s (alias for %s)\n", ia64_cpu_aliases[i].name,
+                    ia64_cpu_aliases[i].model);
+    }
 }
 
 typedef struct IA64QTestStaleVictimWork {
@@ -2031,6 +2069,7 @@ static void ia64_cpu_class_init(ObjectClass *oc, const void *data)
                                        &icc->parent_phases);
 
     cc->class_by_name = ia64_cpu_class_by_name;
+    cc->list_cpus = ia64_cpu_list;
     cc->dump_state = ia64_cpu_dump_state;
     cc->set_pc = ia64_cpu_set_pc;
     cc->get_pc = ia64_cpu_get_pc;
@@ -2526,21 +2565,6 @@ static const IA64CPUVariantDef ia64_cpu_madison_9m = {
     .l3_tag_lsb = 19,
 };
 
-static const IA64CPUVariantDef ia64_cpu_madison_zx6000 = {
-    .semantic_profile_id = 0x6d61647a78360001ULL,
-    .brand = "QEMU Madison zx6000-compatible IA-64 CPU 1.50GHz 6MB",
-    .itc_frequency_hz = 1500000000U,
-    .l3_cache_size = 6 * MiB,
-    .package_cache_size = 6 * MiB,
-    .processor_frequency_hz = 1500000000ULL,
-    .bus_frequency_hz = 400000000ULL,
-    .processor_ratio = IA64_FREQUENCY_RATIO(15, 1),
-    .bus_ratio = IA64_FREQUENCY_RATIO(4, 1),
-    .itc_ratio = IA64_FREQUENCY_RATIO(15, 1),
-    .l3_associativity = 24,
-    .l3_load_latency = 14,
-};
-
 static const IA64CPUVariantDef ia64_cpu_montecito_9010 = {
     .semantic_profile_id = 0x6d6f6e0039303130ULL,
     .brand = "QEMU Montecito 9010-compatible IA-64 CPU 1.60GHz 6MB",
@@ -2692,180 +2716,156 @@ static const TypeInfo ia64_cpu_type_info[] = {
         .abstract = true,
     },
     {
-        .name = IA64_CPU_TYPE_NAME("merced"),
+        .name = IA64_CPU_TYPE_NAME("merced-800"),
         .parent = TYPE_IA64_CPU,
         .class_init = ia64_cpu_model_class_init,
         .class_data = &ia64_cpu_model_merced,
     },
     {
-        .name = IA64_CPU_TYPE_NAME("madison"),
+        .name = IA64_CPU_TYPE_NAME("madison-base"),
         .parent = TYPE_IA64_CPU,
         .class_init = ia64_cpu_model_class_init,
         .class_data = &ia64_cpu_model_madison,
+        .abstract = true,
     },
     {
-        .name = IA64_CPU_TYPE_NAME("mckinley"),
-        .parent = IA64_CPU_TYPE_NAME("madison"),
+        .name = IA64_CPU_TYPE_NAME("mckinley-1000"),
+        .parent = IA64_CPU_TYPE_NAME("madison-base"),
         .class_init = ia64_cpu_variant_class_init,
         .class_data = &ia64_cpu_mckinley,
     },
     {
         .name = IA64_CPU_TYPE_NAME("mckinley-900"),
-        .parent = IA64_CPU_TYPE_NAME("mckinley"),
+        .parent = IA64_CPU_TYPE_NAME("mckinley-1000"),
         .class_init = ia64_cpu_variant_class_init,
         .class_data = &ia64_cpu_mckinley_900,
     },
     {
-        .name = IA64_CPU_TYPE_NAME("mckinley-1000"),
-        .parent = IA64_CPU_TYPE_NAME("mckinley"),
-    },
-    {
-        .name = IA64_CPU_TYPE_NAME("deerfield"),
-        .parent = IA64_CPU_TYPE_NAME("madison"),
+        .name = IA64_CPU_TYPE_NAME("deerfield-1000"),
+        .parent = IA64_CPU_TYPE_NAME("madison-base"),
         .class_init = ia64_cpu_variant_class_init,
         .class_data = &ia64_cpu_deerfield,
     },
     {
-        .name = IA64_CPU_TYPE_NAME("madison-1.5m"),
-        .parent = IA64_CPU_TYPE_NAME("madison"),
+        .name = IA64_CPU_TYPE_NAME("madison-1400-1.5m"),
+        .parent = IA64_CPU_TYPE_NAME("madison-base"),
         .class_init = ia64_cpu_variant_class_init,
         .class_data = &ia64_cpu_madison_1500k,
     },
     {
-        .name = IA64_CPU_TYPE_NAME("madison-3m"),
-        .parent = IA64_CPU_TYPE_NAME("madison"),
+        .name = IA64_CPU_TYPE_NAME("madison-1600-3m"),
+        .parent = IA64_CPU_TYPE_NAME("madison-base"),
         .class_init = ia64_cpu_variant_class_init,
         .class_data = &ia64_cpu_madison_3m,
     },
     {
-        .name = IA64_CPU_TYPE_NAME("madison-4m"),
-        .parent = IA64_CPU_TYPE_NAME("madison"),
+        .name = IA64_CPU_TYPE_NAME("madison-1400-4m"),
+        .parent = IA64_CPU_TYPE_NAME("madison-base"),
         .class_init = ia64_cpu_variant_class_init,
         .class_data = &ia64_cpu_madison_4m,
     },
     {
-        .name = IA64_CPU_TYPE_NAME("madison-6m"),
-        .parent = IA64_CPU_TYPE_NAME("madison"),
+        .name = IA64_CPU_TYPE_NAME("madison-1500"),
+        .parent = IA64_CPU_TYPE_NAME("madison-base"),
         .class_init = ia64_cpu_variant_class_init,
         .class_data = &ia64_cpu_madison_6m,
     },
     {
-        .name = IA64_CPU_TYPE_NAME("madison-9m"),
-        .parent = IA64_CPU_TYPE_NAME("madison"),
+        .name = IA64_CPU_TYPE_NAME("madison-1600-9m"),
+        .parent = IA64_CPU_TYPE_NAME("madison-base"),
         .class_init = ia64_cpu_variant_class_init,
         .class_data = &ia64_cpu_madison_9m,
     },
     {
-        .name = IA64_CPU_TYPE_NAME("madison-zx6000"),
-        .parent = IA64_CPU_TYPE_NAME("madison"),
-        .class_init = ia64_cpu_variant_class_init,
-        .class_data = &ia64_cpu_madison_zx6000,
-    },
-    {
-        .name = IA64_CPU_TYPE_NAME("montecito"),
+        .name = IA64_CPU_TYPE_NAME("montecito-base"),
         .parent = TYPE_IA64_CPU,
         .class_init = ia64_cpu_model_class_init,
         .class_data = &ia64_cpu_model_montecito,
+        .abstract = true,
     },
     {
         .name = IA64_CPU_TYPE_NAME("montecito-9010"),
-        .parent = IA64_CPU_TYPE_NAME("montecito"),
+        .parent = IA64_CPU_TYPE_NAME("montecito-base"),
         .class_init = ia64_cpu_variant_class_init,
         .class_data = &ia64_cpu_montecito_9010,
     },
     {
         .name = IA64_CPU_TYPE_NAME("montecito-9015"),
-        .parent = IA64_CPU_TYPE_NAME("montecito"),
+        .parent = IA64_CPU_TYPE_NAME("montecito-base"),
         .class_init = ia64_cpu_variant_class_init,
         .class_data = &ia64_cpu_montecito_9015,
     },
     {
         .name = IA64_CPU_TYPE_NAME("montecito-9020"),
-        .parent = IA64_CPU_TYPE_NAME("montecito"),
+        .parent = IA64_CPU_TYPE_NAME("montecito-base"),
         .class_init = ia64_cpu_variant_class_init,
         .class_data = &ia64_cpu_montecito_9020,
     },
     {
         .name = IA64_CPU_TYPE_NAME("montecito-9030"),
-        .parent = IA64_CPU_TYPE_NAME("montecito"),
+        .parent = IA64_CPU_TYPE_NAME("montecito-base"),
         .class_init = ia64_cpu_variant_class_init,
         .class_data = &ia64_cpu_montecito_9030,
     },
     {
         .name = IA64_CPU_TYPE_NAME("montecito-9040"),
-        .parent = IA64_CPU_TYPE_NAME("montecito"),
+        .parent = IA64_CPU_TYPE_NAME("montecito-base"),
         .class_init = ia64_cpu_variant_class_init,
         .class_data = &ia64_cpu_montecito_9040,
     },
     {
         .name = IA64_CPU_TYPE_NAME("montecito-9050"),
-        .parent = IA64_CPU_TYPE_NAME("montecito"),
+        .parent = IA64_CPU_TYPE_NAME("montecito-base"),
         .class_init = ia64_cpu_variant_class_init,
         .class_data = &ia64_cpu_montecito_9050,
     },
     {
-        .name = IA64_CPU_TYPE_NAME("montvale"),
-        .parent = IA64_CPU_TYPE_NAME("montecito"),
+        .name = IA64_CPU_TYPE_NAME("montvale-9150n"),
+        .parent = IA64_CPU_TYPE_NAME("montecito-base"),
         .class_init = ia64_cpu_variant_class_init,
         .class_data = &ia64_cpu_montvale,
     },
     {
         .name = IA64_CPU_TYPE_NAME("montvale-9110n"),
-        .parent = IA64_CPU_TYPE_NAME("montvale"),
+        .parent = IA64_CPU_TYPE_NAME("montvale-9150n"),
         .class_init = ia64_cpu_variant_class_init,
         .class_data = &ia64_cpu_montvale_9110n,
     },
     {
         .name = IA64_CPU_TYPE_NAME("montvale-9120n"),
-        .parent = IA64_CPU_TYPE_NAME("montvale"),
+        .parent = IA64_CPU_TYPE_NAME("montvale-9150n"),
         .class_init = ia64_cpu_variant_class_init,
         .class_data = &ia64_cpu_montvale_9120n,
     },
     {
         .name = IA64_CPU_TYPE_NAME("montvale-9130m"),
-        .parent = IA64_CPU_TYPE_NAME("montvale"),
+        .parent = IA64_CPU_TYPE_NAME("montvale-9150n"),
         .class_init = ia64_cpu_variant_class_init,
         .class_data = &ia64_cpu_montvale_9130m,
     },
     {
         .name = IA64_CPU_TYPE_NAME("montvale-9140m"),
-        .parent = IA64_CPU_TYPE_NAME("montvale"),
+        .parent = IA64_CPU_TYPE_NAME("montvale-9150n"),
         .class_init = ia64_cpu_variant_class_init,
         .class_data = &ia64_cpu_montvale_9140m,
     },
     {
         .name = IA64_CPU_TYPE_NAME("montvale-9140n"),
-        .parent = IA64_CPU_TYPE_NAME("montvale"),
+        .parent = IA64_CPU_TYPE_NAME("montvale-9150n"),
         .class_init = ia64_cpu_variant_class_init,
         .class_data = &ia64_cpu_montvale_9140n,
     },
     {
         .name = IA64_CPU_TYPE_NAME("montvale-9150m"),
-        .parent = IA64_CPU_TYPE_NAME("montvale"),
+        .parent = IA64_CPU_TYPE_NAME("montvale-9150n"),
         .class_init = ia64_cpu_variant_class_init,
         .class_data = &ia64_cpu_montvale_9150m,
     },
     {
-        .name = IA64_CPU_TYPE_NAME("montvale-9150n"),
-        .parent = IA64_CPU_TYPE_NAME("montvale"),
-    },
-    {
         .name = IA64_CPU_TYPE_NAME("montvale-9152m"),
-        .parent = IA64_CPU_TYPE_NAME("montvale"),
+        .parent = IA64_CPU_TYPE_NAME("montvale-9150n"),
         .class_init = ia64_cpu_variant_class_init,
         .class_data = &ia64_cpu_montvale_9152m,
-    },
-    {
-        .name = IA64_CPU_TYPE_NAME("itanium"),
-        .parent = TYPE_IA64_CPU,
-        .class_init = ia64_cpu_model_class_init,
-        .class_data = &ia64_cpu_model_merced,
-    },
-    {
-        .name = IA64_CPU_TYPE_NAME("itanium2"),
-        .parent = TYPE_IA64_CPU,
-        .class_init = ia64_cpu_model_class_init,
-        .class_data = &ia64_cpu_model_montecito,
     },
 };
 

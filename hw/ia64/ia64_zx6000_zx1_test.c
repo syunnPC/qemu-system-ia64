@@ -1225,7 +1225,7 @@ static void zx2_pcie_qtest_realize(DeviceState *dev, Error **errp)
                    TYPE_IA64_ZX2_PCIE_QTEST);
         return;
     }
-    s->cpu = zx1_test_add_child(dev, "cpu", "itanium2-ia64-cpu");
+    s->cpu = zx1_test_add_child(dev, "cpu", "montecito-9050-ia64-cpu");
     if (!qdev_realize(s->cpu, NULL, &local_err)) {
         goto fail;
     }

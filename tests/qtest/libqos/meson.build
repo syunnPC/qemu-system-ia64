@@ -60,6 +60,7 @@ libqos_srcs = files(
         'x86_64_pc-machine.c',
         'riscv-virt-machine.c',
         'loongarch-virt-machine.c',
+        'ia64-vpc-machine.c',
 
         # SMMU:
         'qos-iommu-testdev.c',

@@ -565,6 +565,9 @@ static void test_bcm57xx_tso(void)
         g_assert_cmphex(qtest_readl(qts, 0x120028 + i * 32) & 0xffff,
                         ==, n + 58);
         g_assert_cmphex(qtest_readl(qts, 0x12003c + i * 32), ==, 0xaa01 + i);
+        g_assert_cmphex(qtest_readl(qts, 0x12002c + i * 32) & 0x7000,
+                        ==, 0x7000);
+        g_assert_cmphex(qtest_readl(qts, 0x120030 + i * 32), ==, UINT32_MAX);
         g_assert_cmphex(lduw_be_p(frame + 16), ==, n + 40);
         g_assert_cmphex(lduw_be_p(frame + 18), ==, 0x1000 + i);
         g_assert_cmphex(ldl_be_p(frame + 38), ==, 0x100 + sent);
@@ -587,6 +590,119 @@ static void test_bcm57xx_tso(void)
     qtest_quit(qts);
 }
 
+/* Completion DMA precedes coalesced INTx; checksum metadata is independent. */
+static void test_bcm57xx_rx_coalescing(gconstpointer opaque)
+{
+    unsigned variant = GPOINTER_TO_UINT(opaque);
+    bool be = variant & 1;
+    g_autofree char *cmd = g_strdup_printf(
+        "-machine ia64-vpc,nvram=none -m 256M -nodefaults -bios none -S "
+        "-device %s,bus=pci,addr=7.0,mac=52:54:00:57:01:00",
+        variant & 2 ? "bcm5704" : "bcm5701");
+    QTestState *qts = qtest_init(cmd);
+    QGenericPCIBus gbus;
+    QPCIDevice *dev;
+    QPCIBar bar;
+    const uint64_t txring = 0x100000, rxring = 0x110000;
+    const uint64_t retr = 0x120000, status = 0x130000;
+    const uint64_t txbuf = 0x140000, rxbuf = 0x150000;
+    static const uint8_t udp[] = {
+        0x45, 0, 0, 0x20, 0, 0, 0x40, 0, 0x40, 0x11, 0x4e, 0x96,
+        0xc0, 0, 2, 1, 0xc6, 0x33, 0x64, 2,
+        0x04, 0xd2, 0x16, 0x2e, 0, 0x0c, 0x5b, 1, 0xde, 0xad, 0xbe, 0xef,
+    };
+
+    qtest_qmp_assert_success(qts, "{'execute':'cont'}");
+    bcm5704_qpci_init(&gbus, qts);
+    dev = qpci_device_find(&gbus.bus, QPCI_DEVFN(7, 0));
+    bar = qpci_iomap(dev, 0, NULL);
+    qpci_device_enable(dev);
+    qpci_config_writew(dev, PCI_COMMAND,
+                       qpci_config_readw(dev, PCI_COMMAND) |
+                       PCI_COMMAND_MASTER);
+    qpci_io_writel(dev, bar, 0x6800, 0x20034 | (be ? 2 : 0));
+    bcm57xx_sram_write(dev, 0x104, txring);
+    bcm57xx_sram_write(dev, 0x108, 8 << 16);
+    bcm57xx_sram_write(dev, 0x204, retr);
+    bcm57xx_sram_write(dev, 0x208, 8 << 16);
+    qpci_io_writel(dev, bar, 0x2454, rxring);
+    qpci_io_writel(dev, bar, 0x2458, 1536 << 16);
+    qpci_io_writel(dev, bar, 0x3c3c, status);
+    qpci_io_writel(dev, bar, 0x3c08, 100);
+    qpci_io_writel(dev, bar, 0x3c0c, 100);
+    qpci_io_writel(dev, bar, 0x3c10, 2);
+    qpci_io_writel(dev, bar, 0x3c14, 2);
+    qpci_io_writel(dev, bar, 0x3c00, 0x102);
+    qpci_io_writel(dev, bar, 0x400, 0x10);
+    qpci_io_writel(dev, bar, 0x45c, 2);
+    qpci_io_writel(dev, bar, 0x468, 2);
+
+    for (unsigned i = 0; i < 5; i++) {
+        uint8_t packet[64] = { 0 };
+        uint32_t flags = 0x3004, checksum = 0xffffffff;
+        unsigned length = 60;
+
+        memcpy(packet, "\x52\x54\x00\x57\x01\x00", 6);
+        stw_be_p(packet + 12, 0x0800);
+        memcpy(packet + 14, udp, sizeof(udp));
+        if (i == 1) {
+            /* Report the corrupt UDP payload in checksum metadata. */
+            packet[45] ^= 1;
+            checksum = 0xfffffffe;
+        } else if (i == 2) {
+            stw_be_p(packet + 40, 0); /* UDP without checksum. */
+            flags = 0x1004;
+            checksum = 0xffff0000;
+        } else if (i == 3) {
+            stw_be_p(packet + 20, 0x6000); /* More fragments. */
+            stw_be_p(packet + 24, 0x2e96);
+            flags = 0x1004;
+            checksum = 0xffff0000;
+        } else if (i == 4) {
+            memmove(packet + 16, packet + 12, 48);
+            stw_be_p(packet + 12, 0x8100);
+            stw_be_p(packet + 14, 123);
+            length = 64;
+            flags |= 0x40;
+        }
+        qtest_memwrite(qts, txbuf, packet, length);
+        bcm57xx_desc_word(qts, rxring + i * 32 + 4, rxbuf, be);
+        bcm57xx_desc_word(qts, rxring + i * 32 + 8, 1536, be);
+        qpci_io_writel(dev, bar, 0x26c, i + 1);
+        bcm57xx_desc_word(qts, txring + i * 16 + 4, txbuf, be);
+        bcm57xx_desc_word(qts, txring + i * 16 + 8, (length << 16) | 4, be);
+        qpci_io_writel(dev, bar, 0x304, i + 1);
+        g_assert_cmphex(qpci_io_readl(dev, bar, 0x3c80), ==, i + 1);
+        g_assert_cmphex(bcm57xx_read_desc(qts, retr + i * 32 + 12, be),
+                        ==, flags);
+        g_assert_cmphex(bcm57xx_read_desc(qts, retr + i * 32 + 16, be),
+                        ==, checksum);
+        if (i == 0 || i == 4) {
+            g_assert_cmphex(qpci_config_readl(dev, 0x70) & 2, ==, 2);
+            qtest_clock_step(qts, 99000);
+            g_assert_cmphex(qpci_config_readl(dev, 0x70) & 2, ==, 2);
+            qtest_clock_step(qts, 1000);
+            g_assert_cmphex(qpci_config_readl(dev, 0x70) & 2, ==, 0);
+            g_assert_cmphex(bcm57xx_read_desc(qts, status + 16, be),
+                            ==, ((i + 1) << 16) | (i + 1));
+            qpci_io_writel(dev, bar, 0x204, 0);
+        } else if (i == 1) {
+            g_assert_cmphex(qpci_config_readl(dev, 0x70) & 2, ==, 2);
+        } else if (i == 2) {
+            /* The second completion reaches the threshold immediately. */
+            g_assert_cmphex(qpci_config_readl(dev, 0x70) & 2, ==, 0);
+            qpci_io_writel(dev, bar, 0x3c00, 0x10a); /* Flush TX's last BD. */
+            qpci_io_writel(dev, bar, 0x204, 0);
+        } else {
+            qpci_io_writel(dev, bar, 0x3c00, 0x103); /* Reset pulse. */
+            qtest_clock_step(qts, 1000000);
+            g_assert_cmphex(qpci_config_readl(dev, 0x70) & 2, ==, 2);
+        }
+    }
+    g_free(dev);
+    qtest_quit(qts);
+}
+
 int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
@@ -601,5 +717,12 @@ int main(int argc, char **argv)
                         test_bcm57xx_datapath);
     qtest_add_data_func("/bcm57xx/5704-datapath-be", GINT_TO_POINTER(3),
                         test_bcm57xx_datapath);
+    for (unsigned i = 0; i < 4; i++) {
+        g_autofree char *name = g_strdup_printf(
+            "/bcm57xx/%s-rx-coalescing-%s", i & 2 ? "5704" : "5701",
+            i & 1 ? "be" : "le");
+        qtest_add_data_func(name, GUINT_TO_POINTER(i),
+                            test_bcm57xx_rx_coalescing);
+    }
     return g_test_run();
 }

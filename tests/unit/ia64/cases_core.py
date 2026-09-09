@@ -1313,15 +1313,15 @@ def _cpuid_case(name, cpu, version, features):
 test_mov_cpuid_madison_model = _cpuid_case(
     "mov_cpuid_madison_model", "madison", 0x1f010504, 1)
 
-test_mov_cpuid_madison_zx6000_profile = _cpuid_case(
-    "mov_cpuid_madison_zx6000_profile", "madison-zx6000",
+test_mov_cpuid_madison_1500_profile = _cpuid_case(
+    "mov_cpuid_madison_1500_profile", "madison-1500",
     0x1f010504, 1)
 
 test_mov_cpuid_mckinley_model = _cpuid_case(
     "mov_cpuid_mckinley_model", "mckinley", 0x1f000704, 1)
 
 test_mov_cpuid_madison_9m_model = _cpuid_case(
-    "mov_cpuid_madison_9m_model", "madison-9m", 0x1f020204, 1)
+    "mov_cpuid_madison_9m_model", "madison-1600-9m", 0x1f020204, 1)
 
 test_mov_cpuid_montvale_model = _cpuid_case(
     "mov_cpuid_montvale_model", "montvale", 0x20010104, 5)
@@ -3655,7 +3655,7 @@ CASE_NAMES = (
     'mov_cpuid_itanium_alias',
     'mov_cpuid_madison_9m_model',
     'mov_cpuid_madison_model',
-    'mov_cpuid_madison_zx6000_profile',
+    'mov_cpuid_madison_1500_profile',
     'mov_cpuid_mckinley_model',
     'mov_cpuid_merced_model',
     'mov_cpuid_montvale_model',

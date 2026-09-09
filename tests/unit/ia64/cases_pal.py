@@ -18,8 +18,8 @@ from .encoding import (
     MADISON_PAL_CACHE_INFO_L2_U_2,
     MADISON_PAL_VM_SUMMARY_INFO_1,
     MADISON_TR_COUNT,
-    MADISON_ZX6000_PAL_CACHE_INFO_L2_U_1,
-    MADISON_ZX6000_PAL_CACHE_INFO_L2_U_2,
+    MADISON_1500_PAL_CACHE_INFO_L2_U_1,
+    MADISON_1500_PAL_CACHE_INFO_L2_U_2,
     MERCED_INSERTABLE_PAGE_SIZE_MASK,
     MERCED_IMPL_PA_BITS,
     MERCED_PAL_PERF_MON_INFO_VALUE,
@@ -114,7 +114,6 @@ from .encoding import (
     PAL_PURGE_PAGE_SIZE_MASK,
     PAL_RATIO_16_1,
     PAL_RATIO_16_3,
-    PAL_RATIO_15_1,
     PAL_RATIO_4_3,
     PAL_RATIO_4_1,
     PAL_RATIO_8_1,
@@ -179,6 +178,8 @@ from .encoding import (
 
 
 CPU_PROFILE_IDENTITIES = (
+    ("merced-800", 0x0000000007000804, 0,
+     0x0000883001008830),
     ("merced", 0x0000000007000804, 0,
      0x0000883001008830),
     ("itanium", 0x0000000007000804, 0,
@@ -187,15 +188,15 @@ CPU_PROFILE_IDENTITIES = (
      0x0000057301000573),
     ("deerfield", 0x000000001f010504, 1,
      0x0000057301000573),
-    ("madison-1.5m", 0x000000001f010504, 1,
+    ("deerfield-1000", 0x000000001f010504, 1,
      0x0000057301000573),
-    ("madison-3m", 0x000000001f010504, 1,
+    ("madison-1400-1.5m", 0x000000001f010504, 1,
      0x0000057301000573),
-    ("madison-4m", 0x000000001f010504, 1,
+    ("madison-1600-3m", 0x000000001f010504, 1,
      0x0000057301000573),
-    ("madison-6m", 0x000000001f010504, 1,
+    ("madison-1400-4m", 0x000000001f010504, 1,
      0x0000057301000573),
-    ("madison-zx6000", 0x000000001f010504, 1,
+    ("madison-1500", 0x000000001f010504, 1,
      0x0000057301000573),
     ("mckinley", 0x000000001f000704, 1,
      0x0000077901000779),
@@ -203,7 +204,7 @@ CPU_PROFILE_IDENTITIES = (
      0x0000077901000779),
     ("mckinley-1000", 0x000000001f000704, 1,
      0x0000077901000779),
-    ("madison-9m", 0x000000001f020204, 1,
+    ("madison-1600-9m", 0x000000001f020204, 1,
      0x0000022501000225),
     ("montecito", 0x0000000020000704, 5,
      0x0000096801000968),
@@ -435,11 +436,11 @@ test_pal_version_madison = require_registers("pal_version_madison",
     "r9": MADISON_PAL_VERSION_VALUE, "r10": MADISON_PAL_VERSION_VALUE},
     entry=0x10, cpu="madison")
 
-test_pal_version_madison_zx6000 = require_registers(
-    "pal_version_madison_zx6000", pal_call_program(PAL_VERSION),
+test_pal_version_madison_1500 = require_registers(
+    "pal_version_madison_1500", pal_call_program(PAL_VERSION),
     {"ip": 0x30, "r28": PAL_VERSION, "r8": 0,
      "r9": MADISON_PAL_VERSION_VALUE, "r10": MADISON_PAL_VERSION_VALUE},
-    entry=0x10, cpu="madison-zx6000")
+    entry=0x10, cpu="madison-1500")
 
 test_pal_version_mckinley = require_registers(
     "pal_version_mckinley", pal_call_program(PAL_VERSION),
@@ -453,7 +454,7 @@ test_pal_version_madison_9m = require_registers(
     {"ip": 0x30, "r28": PAL_VERSION, "r8": 0,
      "r9": MADISON_9M_PAL_VERSION_VALUE,
      "r10": MADISON_9M_PAL_VERSION_VALUE},
-    entry=0x10, cpu="madison-9m")
+    entry=0x10, cpu="madison-1600-9m")
 
 test_pal_version_montvale = require_registers(
     "pal_version_montvale", pal_call_program(PAL_VERSION),
@@ -606,13 +607,13 @@ test_pal_cache_info_l2_unified_madison = require_registers(
      "r10": MADISON_PAL_CACHE_INFO_L2_U_2, "r11": 0},
     entry=0x10, cpu="madison")
 
-test_pal_cache_info_l2_unified_madison_zx6000 = require_registers(
-    "pal_cache_info_l2_unified_madison_zx6000",
+test_pal_cache_info_l2_unified_madison_1500 = require_registers(
+    "pal_cache_info_l2_unified_madison_1500",
     pal_call_program(PAL_CACHE_INFO, [(29, 2), (30, 2), (31, 0)]),
     {"ip": 0x60, "r28": PAL_CACHE_INFO, "r8": 0,
-     "r9": MADISON_ZX6000_PAL_CACHE_INFO_L2_U_1,
-     "r10": MADISON_ZX6000_PAL_CACHE_INFO_L2_U_2, "r11": 0},
-    entry=0x10, cpu="madison-zx6000")
+     "r9": MADISON_1500_PAL_CACHE_INFO_L2_U_1,
+     "r10": MADISON_1500_PAL_CACHE_INFO_L2_U_2, "r11": 0},
+    entry=0x10, cpu="madison-1500")
 
 test_pal_cache_info_l2_unified_mckinley = require_registers(
     "pal_cache_info_l2_unified_mckinley",
@@ -628,7 +629,7 @@ test_pal_cache_info_l2_unified_madison_9m = require_registers(
     {"ip": 0x60, "r28": PAL_CACHE_INFO, "r8": 0,
      "r9": MADISON_9M_PAL_CACHE_INFO_L2_U_1,
      "r10": MADISON_9M_PAL_CACHE_INFO_L2_U_2, "r11": 0},
-    entry=0x10, cpu="madison-9m")
+    entry=0x10, cpu="madison-1600-9m")
 
 test_pal_cache_info_l2_unified_montecito_9010 = require_registers(
     "pal_cache_info_l2_unified_montecito_9010",
@@ -705,11 +706,11 @@ test_pal_freq_base = require_registers("pal_freq_base",
     {"ip": 0x30, "r28": PAL_FREQ_BASE, "r8": 0,
     "r9": 100000000, "r10": 0, "r11": 0}, entry=0x10)
 
-test_pal_freq_base_madison_zx6000 = require_registers(
-    "pal_freq_base_madison_zx6000", pal_call_program(PAL_FREQ_BASE),
+test_pal_freq_base_madison_1500 = require_registers(
+    "pal_freq_base_madison_1500", pal_call_program(PAL_FREQ_BASE),
     {"ip": 0x30, "r28": PAL_FREQ_BASE, "r8": 0,
      "r9": 100000000, "r10": 0, "r11": 0},
-    entry=0x10, cpu="madison-zx6000")
+    entry=0x10, cpu="madison-1500")
 
 test_pal_freq_base_reserved_arg = require_registers(
     "pal_freq_base_reserved_arg",
@@ -727,20 +728,20 @@ test_pal_freq_ratios = require_registers("pal_freq_ratios",
 test_pal_freq_ratios_madison = require_registers(
     "pal_freq_ratios_madison", pal_call_program(PAL_FREQ_RATIOS),
     {"ip": 0x30, "r28": PAL_FREQ_RATIOS, "r8": 0,
-     "r9": PAL_RATIO_16_1, "r10": PAL_RATIO_4_1,
-     "r11": PAL_RATIO_16_1}, entry=0x10, cpu="madison")
+     "r9": (1600 << 32) | 100, "r10": PAL_RATIO_4_1,
+     "r11": (1600 << 32) | 100}, entry=0x10, cpu="madison")
 
-test_pal_freq_ratios_madison_zx6000 = require_registers(
-    "pal_freq_ratios_madison_zx6000", pal_call_program(PAL_FREQ_RATIOS),
+test_pal_freq_ratios_madison_1500 = require_registers(
+    "pal_freq_ratios_madison_1500", pal_call_program(PAL_FREQ_RATIOS),
     {"ip": 0x30, "r28": PAL_FREQ_RATIOS, "r8": 0,
-     "r9": PAL_RATIO_15_1, "r10": PAL_RATIO_4_1,
-     "r11": PAL_RATIO_15_1}, entry=0x10, cpu="madison-zx6000")
+     "r9": (1500 << 32) | 100, "r10": PAL_RATIO_4_1,
+     "r11": (1500 << 32) | 100}, entry=0x10, cpu="madison-1500")
 
 test_pal_freq_ratios_madison_9m = require_registers(
     "pal_freq_ratios_madison_9m", pal_call_program(PAL_FREQ_RATIOS),
     {"ip": 0x30, "r28": PAL_FREQ_RATIOS, "r8": 0,
      "r9": PAL_RATIO_16_1, "r10": PAL_RATIO_16_3,
-     "r11": PAL_RATIO_16_1}, entry=0x10, cpu="madison-9m")
+     "r11": PAL_RATIO_16_1}, entry=0x10, cpu="madison-1600-9m")
 
 test_pal_freq_ratios_merced = require_registers(
     "pal_freq_ratios_merced", pal_call_program(PAL_FREQ_RATIOS),
@@ -1428,12 +1429,12 @@ test_pal_brand_info_string = require_registers(
         (PAL_PROC_ENTRY, 0x0a, pal_break(), nop_m(), nop_i()),
         (PAL_PROC_ENTRY + 0x10, 0x10, nop_m(), nop_i(), br_ret(0)),
     ], {"ip": 0xa0, "r28": PAL_BRAND_INFO, "r8": 0,
-        "r9": len("QEMU Montecito-compatible IA-64 CPU 1.60GHz 24MB"),
+        "r9": len("QEMU Montecito 9050-compatible IA-64 CPU 1.60GHz 24MB"),
         "r10": 0, "r11": 0,
         "r20": int.from_bytes(b"QEMU Mon", "little")}, entry=0x10)
 
-test_pal_brand_info_string_madison_zx6000 = require_registers(
-    "pal_brand_info_string_madison_zx6000", [
+test_pal_brand_info_string_madison_1500 = require_registers(
+    "pal_brand_info_string_madison_1500", [
         (0x10, 0x00, nop_m(), alloc(2, 4, 0, 0, 0), nop_i()),
         (0x20, *movl_mlx(28, PAL_BRAND_INFO)),
         (0x30, *movl_mlx(32, PAL_BRAND_INFO)),
@@ -1442,19 +1443,19 @@ test_pal_brand_info_string_madison_zx6000 = require_registers(
         (0x60, *movl_mlx(35, 0)),
         (0x70, 0x10, nop_m(), nop_i(), br_call(0, 0x70, PAL_PROC_ENTRY)),
         (0x80, *movl_mlx(2, PAL_BRAND_BUFFER)),
-        (0x90, 0x00, ld8(20, 2), adds(2, 40, 2), nop_i()),
+        (0x90, 0x00, ld8(20, 2), adds(2, 32, 2), nop_i()),
         (0xa0, 0x00, ld8(21, 2), adds(2, 8, 2), nop_i()),
         (0xb0, 0x00, ld8(22, 2), nop_i(), nop_i()),
         (0xc0, 0x10, nop_m(), nop_i(), br_cond(0xc0, 0xc0)),
         (PAL_PROC_ENTRY, 0x0a, pal_break(), nop_m(), nop_i()),
         (PAL_PROC_ENTRY + 0x10, 0x10, nop_m(), nop_i(), br_ret(0)),
     ], {"ip": 0xc0, "r28": PAL_BRAND_INFO, "r8": 0,
-        "r9": len("QEMU Madison zx6000-compatible IA-64 CPU 1.50GHz 6MB"),
+        "r9": len("QEMU Madison-compatible IA-64 CPU 1.50GHz 6MB"),
         "r10": 0, "r11": 0,
         "r20": int.from_bytes(b"QEMU Mad", "little"),
-        "r21": int.from_bytes(b" 1.50GHz", "little"),
-        "r22": int.from_bytes(b" 6MB\0\0\0\0", "little")},
-    entry=0x10, cpu="madison-zx6000")
+        "r21": int.from_bytes(b"U 1.50GH", "little"),
+        "r22": int.from_bytes(b"z 6MB\0\0\0", "little")},
+    entry=0x10, cpu="madison-1500")
 
 test_pal_brand_info_frequency = require_registers(
     "pal_brand_info_frequency",
@@ -1482,12 +1483,12 @@ test_pal_brand_info_cache_madison = require_registers(
      "r9": 3 * 1024 * 1024, "r10": 0, "r11": 0},
     entry=0x10, cpu="madison")
 
-test_pal_brand_info_cache_madison_zx6000 = require_registers(
-    "pal_brand_info_cache_madison_zx6000",
+test_pal_brand_info_cache_madison_1500 = require_registers(
+    "pal_brand_info_cache_madison_1500",
     pal_stacked_call_program(PAL_BRAND_INFO, [17, 0, 0]),
     {"ip": 0x80, "r28": PAL_BRAND_INFO, "r8": 0,
      "r9": 6 * 1024 * 1024, "r10": 0, "r11": 0},
-    entry=0x10, cpu="madison-zx6000")
+    entry=0x10, cpu="madison-1500")
 
 test_pal_brand_info_cache_montecito_9010 = require_registers(
     "pal_brand_info_cache_montecito_9010",
@@ -2173,14 +2174,14 @@ CASE_NAMES = (
     'pal_brand_info_bus_madison_unavailable',
     'pal_brand_info_cache',
     'pal_brand_info_cache_madison',
-    'pal_brand_info_cache_madison_zx6000',
+    'pal_brand_info_cache_madison_1500',
     'pal_brand_info_cache_montecito_9010',
     'pal_brand_info_cache_montecito_9040',
     'pal_brand_info_frequency',
     'pal_brand_info_frequency_madison_unavailable',
     'pal_brand_info_merced_unimplemented',
     'pal_brand_info_string',
-    'pal_brand_info_string_madison_zx6000',
+    'pal_brand_info_string_madison_1500',
     'pal_cache_flush',
     'pal_cache_flush_bad_operation',
     'pal_cache_flush_bad_type',
@@ -2196,7 +2197,7 @@ CASE_NAMES = (
     'pal_cache_info_l2_unified_bad_type',
     'pal_cache_info_l2_unified_madison_9m',
     'pal_cache_info_l2_unified_madison',
-    'pal_cache_info_l2_unified_madison_zx6000',
+    'pal_cache_info_l2_unified_madison_1500',
     'pal_cache_info_l2_unified_mckinley',
     'pal_cache_info_l2_unified_montecito_9010',
     'pal_cache_info_l2_unified_montecito_9040',
@@ -2234,12 +2235,12 @@ CASE_NAMES = (
     'pal_fixed_addr',
     'pal_fixed_addr_reserved_arg',
     'pal_freq_base',
-    'pal_freq_base_madison_zx6000',
+    'pal_freq_base_madison_1500',
     'pal_freq_base_reserved_arg',
     'pal_freq_ratios',
     'pal_freq_ratios_madison',
     'pal_freq_ratios_madison_9m',
-    'pal_freq_ratios_madison_zx6000',
+    'pal_freq_ratios_madison_1500',
     'pal_freq_ratios_merced',
     'pal_freq_ratios_montecito_9010',
     'pal_freq_ratios_montecito_9015',
@@ -2353,7 +2354,7 @@ CASE_NAMES = (
     'pal_version',
     'pal_version_madison_9m',
     'pal_version_madison',
-    'pal_version_madison_zx6000',
+    'pal_version_madison_1500',
     'pal_version_mckinley',
     'pal_version_merced',
     'pal_version_montvale',

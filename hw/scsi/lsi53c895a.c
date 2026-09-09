@@ -20,6 +20,7 @@
 #include "hw/pci/pci_device.h"
 #include "hw/scsi/scsi.h"
 #include "migration/vmstate.h"
+#include "qemu/main-loop.h"
 #include "system/dma.h"
 #include "qemu/log.h"
 #include "qemu/module.h"
@@ -199,6 +200,10 @@ typedef struct lsi_request {
     uint32_t pending;
     int out;
     bool orphan;
+    uint8_t task_attr;
+    uint64_t sequence;
+    bool done;
+    uint8_t status;
     QTAILQ_ENTRY(lsi_request) next;
 } lsi_request;
 
@@ -216,6 +221,7 @@ enum {
     LSI_MSG_ACTION_DISCONNECT = 1,
     LSI_MSG_ACTION_DOUT = 2,
     LSI_MSG_ACTION_DIN = 3,
+    LSI_MSG_ACTION_STATUS = 4,
 };
 
 struct LSIState {
@@ -229,6 +235,9 @@ struct LSIState {
     MemoryRegion io_io;
     AddressSpace pci_io_as;
     QEMUTimer *scripts_timer;
+    QEMUBH *dispatch_bh;
+    uint8_t select_task_attr;
+    uint64_t request_sequence;
 
     int carry; /* ??? Should this be in a visible register somewhere?  */
     int status;
@@ -350,11 +359,15 @@ static lsi_request *get_pending_req(LSIState *s)
     return NULL;
 }
 
+static void lsi_discard_completed_requests(LSIState *s);
+
 static void lsi_soft_reset(LSIState *s)
 {
     trace_lsi_reset();
     s->carry = 0;
 
+    s->select_task_attr = 0x20;
+    s->request_sequence = 0;
     s->msg_action = LSI_MSG_ACTION_COMMAND;
     s->msg_len = 0;
     s->waiting = LSI_NOWAIT;
@@ -419,9 +432,11 @@ static void lsi_soft_reset(LSIState *s)
     s->sbc = 0;
     s->csbc = 0;
     s->sbr = 0;
+    lsi_discard_completed_requests(s);
     assert(QTAILQ_EMPTY(&s->queue));
     assert(!s->current);
     timer_del(s->scripts_timer);
+    qemu_bh_cancel(s->dispatch_bh);
 }
 
 static int lsi_dma_40bit(LSIState *s)
@@ -731,11 +746,15 @@ static void lsi_reselect(LSIState *s, lsi_request *p)
     trace_lsi_reselect(id);
     s->scntl1 |= LSI_SCNTL1_CON;
     lsi_set_phase(s, PHASE_MI);
-    s->msg_action = p->out ? LSI_MSG_ACTION_DOUT : LSI_MSG_ACTION_DIN;
+    s->msg_action = p->done ? LSI_MSG_ACTION_STATUS :
+        p->out ? LSI_MSG_ACTION_DOUT : LSI_MSG_ACTION_DIN;
+    if (p->done) {
+        s->status = p->status;
+    }
     s->current->dma_len = p->pending;
     lsi_add_msg_byte(s, 0x80);
     if (s->current->tag & LSI_TAG_VALID) {
-        lsi_add_msg_byte(s, 0x20);
+        lsi_add_msg_byte(s, 0x20); /* SIMPLE QUEUE TAG on reselection */
         lsi_add_msg_byte(s, p->tag & 0xff);
     }
 
@@ -766,6 +785,22 @@ static void lsi_request_orphan(LSIState *s, lsi_request *p)
         QTAILQ_REMOVE(&s->queue, p, next);
     }
     scsi_req_unref(p->req);
+    qemu_bh_schedule(s->dispatch_bh);
+}
+
+static void lsi_discard_completed_requests(LSIState *s)
+{
+    lsi_request *p, *p_next;
+
+    /* SCSI bus reset only cancels requests still enqueued at the device. */
+    if (s->current && s->current->done) {
+        lsi_request_orphan(s, s->current);
+    }
+    QTAILQ_FOREACH_SAFE(p, &s->queue, next, p_next) {
+        if (p->done) {
+            lsi_request_orphan(s, p);
+        }
+    }
 }
 
 static void lsi_free_request(SCSIBus *bus, void *priv)
@@ -779,6 +814,16 @@ static void lsi_request_cancelled(SCSIRequest *req)
     lsi_request *p = req->hba_private;
 
     lsi_request_orphan(s, p);
+}
+
+static void lsi_request_cancel(LSIState *s, lsi_request *p)
+{
+    /* Completed requests awaiting status are no longer in the SCSI queue. */
+    if (p->done) {
+        lsi_request_orphan(s, p);
+    } else {
+        scsi_req_cancel(p->req);
+    }
 }
 
 /* Record that data is available for a queued command.  Returns zero if
@@ -814,6 +859,17 @@ static void lsi_command_complete(SCSIRequest *req, size_t resid)
 {
     LSIState *s = LSI53C895A(req->bus->qbus.parent);
     int out, stop = 0;
+    lsi_request *p = req->hba_private;
+
+    p->done = true;
+    p->status = req->status;
+    qemu_bh_schedule(s->dispatch_bh);
+    if (p != s->current) {
+        if (!lsi_queue_req(s, req, 1)) {
+            lsi_resume_script(s);
+        }
+        return;
+    }
 
     out = (s->sstat1 & PHASE_MASK) == PHASE_DO;
     trace_lsi_command_complete(req->status);
@@ -868,6 +924,66 @@ static void lsi_transfer_data(SCSIRequest *req, uint32_t len)
     }
 }
 
+static bool lsi_task_blocked_by(const lsi_request *p, const lsi_request *other)
+{
+    if (p == other || other->done || p->req->dev != other->req->dev ||
+        p->req->lun != other->req->lun) {
+        return false;
+    }
+    if (other->task_attr == 0x22 && !other->req->hba_deferred) {
+        return true;
+    }
+    return other->sequence < p->sequence &&
+           (p->task_attr == 0x22 ||
+            (p->task_attr != 0x21 && other->task_attr == 0x22));
+}
+
+static bool lsi_task_ready(LSIState *s, lsi_request *p)
+{
+    lsi_request *other;
+
+    if (s->current && lsi_task_blocked_by(p, s->current)) {
+        return false;
+    }
+    QTAILQ_FOREACH(other, &s->queue, next) {
+        if (lsi_task_blocked_by(p, other)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static void lsi_dispatch_deferred(void *opaque)
+{
+    LSIState *s = opaque;
+    unsigned budget = LSI_MAX_INSN;
+
+    while (budget) {
+        lsi_request *p, *candidate = NULL;
+
+        budget--;
+        QTAILQ_FOREACH(p, &s->queue, next) {
+            if (!p->req->hba_deferred || !lsi_task_ready(s, p)) {
+                continue;
+            }
+            if (!candidate) {
+                candidate = p;
+            }
+            if (p->task_attr == 0x21) {
+                candidate = p;
+                break;
+            }
+        }
+        if (!candidate) {
+            break;
+        }
+        scsi_req_start_deferred(candidate->req);
+    }
+    if (!budget) {
+        qemu_bh_schedule(s->dispatch_bh);
+    }
+}
+
 static void lsi_do_command(LSIState *s)
 {
     SCSIDevice *dev;
@@ -895,6 +1011,19 @@ static void lsi_do_command(LSIState *s)
     s->current->req = scsi_req_new(dev, s->current->tag, s->current_lun, buf,
                                    s->dbc, s->current);
 
+    s->current->task_attr = s->select_task_attr;
+    s->current->sequence = ++s->request_sequence;
+    if (!lsi_task_ready(s, s->current)) {
+        lsi_request *p = s->current;
+
+        scsi_req_enqueue_deferred(p->req);
+        lsi_add_msg_byte(s, 4); /* DISCONNECT while earlier tasks finish. */
+        lsi_set_phase(s, PHASE_MI);
+        s->msg_action = LSI_MSG_ACTION_DISCONNECT;
+        lsi_queue_command(s);
+        p->out = p->req->cmd.mode == SCSI_XFER_TO_DEV;
+        return;
+    }
     n = scsi_req_enqueue(s->current->req);
     if (n) {
         if (n > 0) {
@@ -947,6 +1076,9 @@ static void lsi_do_status(LSIState *s)
     lsi_set_phase(s, PHASE_MI);
     s->msg_action = LSI_MSG_ACTION_DISCONNECT;
     lsi_add_msg_byte(s, 0); /* COMMAND COMPLETE */
+    if (s->current && s->current->done) {
+        lsi_request_orphan(s, s->current);
+    }
 }
 
 static void lsi_do_msgin(LSIState *s)
@@ -984,6 +1116,9 @@ static void lsi_do_msgin(LSIState *s)
             break;
         case LSI_MSG_ACTION_DIN:
             lsi_set_phase(s, PHASE_DI);
+            break;
+        case LSI_MSG_ACTION_STATUS:
+            lsi_set_phase(s, PHASE_ST);
             break;
         default:
             abort();
@@ -1121,18 +1256,18 @@ static void lsi_do_msgout(LSIState *s)
             }
             break;
         case 0x20: /* SIMPLE queue */
+            s->select_task_attr = 0x20;
             s->select_tag &= ~0xff;
             s->select_tag |= lsi_get_msgbyte(s) | LSI_TAG_VALID;
             trace_lsi_do_msgout_simplequeue(s->select_tag & 0xff);
             break;
         case 0x21: /* HEAD of queue */
-            qemu_log_mask(LOG_UNIMP, "lsi_scsi: HEAD queue not implemented\n");
+            s->select_task_attr = 0x21;
             s->select_tag &= ~0xff;
             s->select_tag |= lsi_get_msgbyte(s) | LSI_TAG_VALID;
             break;
         case 0x22: /* ORDERED queue */
-            qemu_log_mask(LOG_UNIMP,
-                          "lsi_scsi: ORDERED queue not implemented\n");
+            s->select_task_attr = 0x22;
             s->select_tag &= ~0xff;
             s->select_tag |= lsi_get_msgbyte(s) | LSI_TAG_VALID;
             break;
@@ -1140,7 +1275,7 @@ static void lsi_do_msgout(LSIState *s)
             /* The ABORT TAG message clears the current I/O process only. */
             trace_lsi_do_msgout_abort(current_tag);
             if (current_req && current_req->req) {
-                scsi_req_cancel(current_req->req);
+                lsi_request_cancel(s, current_req);
                 current_req = NULL;
             }
             lsi_disconnect(s);
@@ -1166,7 +1301,7 @@ static void lsi_do_msgout(LSIState *s)
 
             /* clear the current I/O process */
             if (s->current) {
-                scsi_req_cancel(s->current->req);
+                lsi_request_cancel(s, s->current);
                 current_req = NULL;
             }
 
@@ -1179,7 +1314,7 @@ static void lsi_do_msgout(LSIState *s)
                commands for the current device: */
             QTAILQ_FOREACH_SAFE(p, &s->queue, next, p_next) {
                 if ((p->tag & 0x0000ff00) == (current_tag & 0x0000ff00)) {
-                    scsi_req_cancel(p->req);
+                    lsi_request_cancel(s, p);
                 }
             }
 
@@ -1449,6 +1584,7 @@ again:
                    it only applies in low-level mode (unimplemented).
                 lsi_script_scsi_interrupt(s, LSI_SIST0_CMP, 0); */
                 s->select_tag = id << 8;
+                s->select_task_attr = 0x20;
                 s->scntl1 |= LSI_SCNTL1_CON;
                 if (insn & (1 << 3)) {
                     s->socl |= LSI_SOCL_ATN;
@@ -2005,6 +2141,7 @@ static void lsi_reg_writeb(LSIState *s, int offset, uint8_t val)
         if (val & LSI_SCNTL1_RST) {
             if (!(s->sstat0 & LSI_SSTAT0_RST)) {
                 bus_cold_reset(BUS(&s->bus));
+                lsi_discard_completed_requests(s);
                 s->sstat0 |= LSI_SSTAT0_RST;
                 lsi_script_scsi_interrupt(s, LSI_SIST0_RST, 0);
             }
@@ -2305,20 +2442,18 @@ static int lsi_pre_save(void *opaque)
 {
     LSIState *s = opaque;
 
-    if (s->current) {
-        assert(s->current->dma_buf == NULL);
-        assert(s->current->dma_len == 0);
-    }
-    assert(QTAILQ_EMPTY(&s->queue));
-
-    return 0;
+    return s->current || !QTAILQ_EMPTY(&s->queue) ? -EBUSY : 0;
 }
 
 static int lsi_post_load(void *opaque, int version_id)
 {
     LSIState *s = opaque;
 
-    if (s->msg_len < 0 || s->msg_len > LSI_MAX_MSGIN_LEN) {
+    if (version_id < 2) {
+        s->select_task_attr = 0x20;
+    }
+    if (s->select_task_attr < 0x20 || s->select_task_attr > 0x22 ||
+        s->msg_len < 0 || s->msg_len > LSI_MAX_MSGIN_LEN) {
         return -EINVAL;
     }
 
@@ -2330,11 +2465,12 @@ static int lsi_post_load(void *opaque, int version_id)
 
 static const VMStateDescription vmstate_lsi_scsi = {
     .name = "lsiscsi",
-    .version_id = 1,
+    .version_id = 2,
     .minimum_version_id = 0,
     .pre_save = lsi_pre_save,
     .post_load = lsi_post_load,
     .fields = (const VMStateField[]) {
+        VMSTATE_UINT8_V(select_task_attr, LSIState, 2),
         VMSTATE_PCI_DEVICE(parent_obj, LSIState),
 
         VMSTATE_INT32(carry, LSIState),
@@ -2452,6 +2588,8 @@ static void lsi_scsi_realize(PCIDevice *dev, Error **errp)
     memory_region_init_io(&s->io_io, OBJECT(s), &lsi_io_ops, s,
                           "lsi-io", 256);
     s->scripts_timer = timer_new_us(QEMU_CLOCK_VIRTUAL, scripts_timer_cb, s);
+    s->dispatch_bh = qemu_bh_new_guarded(lsi_dispatch_deferred, s,
+                                         &d->mem_reentrancy_guard);
 
     /*
      * Since we use the address-space API to interact with ram_io, disable the
@@ -2477,6 +2615,7 @@ static void lsi_scsi_exit(PCIDevice *dev)
 
     address_space_destroy(&s->pci_io_as);
     timer_free(s->scripts_timer);
+    qemu_bh_delete(s->dispatch_bh);
 }
 
 static const Property lsi_properties[] = {

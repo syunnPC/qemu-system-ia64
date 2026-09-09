@@ -445,7 +445,7 @@ static void test_hp_zx6000_machine_identity(void)
 
         if (g_str_equal(qdict_get_str(machine, "name"), "hp-zx6000")) {
             g_assert_cmpstr(qdict_get_str(machine, "default-cpu-type"), ==,
-                            "madison-zx6000-ia64-cpu");
+                            "madison-1500-ia64-cpu");
             g_assert_cmpint(qdict_get_int(machine, "cpu-max"), ==, 2);
             g_assert_cmpstr(qdict_get_str(machine, "default-ram-id"), ==,
                             "hp-zx6000.ram");

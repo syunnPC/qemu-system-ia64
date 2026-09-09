@@ -2484,7 +2484,7 @@ static const HPZX6000PciResourceProfile hp_rx2660_pci_resources = {
 
 static const HPZX6000CPUProfile hp_zx6000_cpus[] = {
     {
-        .type = IA64_CPU_TYPE_NAME("madison-zx6000"),
+        .type = IA64_CPU_TYPE_NAME("madison-1500"),
         .cores_per_socket = 1,
         .max_threads_per_core = 1,
     },
@@ -2543,7 +2543,7 @@ static const HPZX6000MachineProfile hp_zx6000_profile = {
     .max_sockets = 2,
     .max_cores_per_socket = 1,
     .max_threads_per_core = 1,
-    .cpu_requirement = "the Madison zx6000 CPU profile",
+    .cpu_requirement = "the madison-1500 CPU model",
     .intx_routes = hp_zx6000_intx_routes,
     .intx_route_count = G_N_ELEMENTS(hp_zx6000_intx_routes),
     .platform_routes = hp_zx6000_platform_routes,
@@ -2733,7 +2733,7 @@ static void hp_zx6000_machine_class_init(ObjectClass *oc, const void *data)
     mc->desc = "HP zx6000 workstation";
     mc->init = hp_zx6000_machine_init;
     mc->reset = hp_zx6000_machine_reset;
-    mc->default_cpu_type = IA64_CPU_TYPE_NAME("madison-zx6000");
+    mc->default_cpu_type = IA64_CPU_TYPE_NAME("madison-1500");
     mc->default_ram_size = 2 * GiB;
     mc->default_ram_id = "hp-zx6000.ram";
     mc->default_display = "ati";

@@ -1230,8 +1230,8 @@ def test_itc_rate_tracks_madison_pal_ratio(qemu):
     _check_itc_model_rate(qemu, "madison", 1600000)
 
 
-def test_itc_rate_tracks_madison_zx6000_pal_ratio(qemu):
-    _check_itc_model_rate(qemu, "madison-zx6000", 1500000)
+def test_itc_rate_tracks_madison_1500_pal_ratio(qemu):
+    _check_itc_model_rate(qemu, "madison-1500", 1500000)
 
 
 def test_itc_rate_tracks_montecito_pal_ratio(qemu):
@@ -6074,7 +6074,7 @@ CASE_NAMES = (
     'ia32_bound_checks_second_element_against_segment_limit',
     'invalid_itv_vector_is_ignored',
     'itc_rate_tracks_madison_pal_ratio',
-    'itc_rate_tracks_madison_zx6000_pal_ratio',
+    'itc_rate_tracks_madison_1500_pal_ratio',
     'itc_rate_tracks_merced_pal_ratio',
     'itc_rate_tracks_montecito_pal_ratio',
     'masked_itv_discards_due_timer',

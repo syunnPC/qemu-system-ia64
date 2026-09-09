@@ -563,14 +563,19 @@ static void test_smp_delivery_accept_and_eoi(void)
     g_assert_cmpint(sapic_cpu_operation(qts, "accept", 1, 0), ==,
                     priority_vector);
     sapic_cpu_operation(qts, "eoi", 1, 0);
+    /* XTP.disable excludes CPU 1; the hinted IPI goes to CPU 2. */
     g_assert_cmpint(qtest_ia64_sapic(
                         qts, "pib-write", 0,
                         IA64_PIB_BASE + (UINT64_C(1) << 12) + 8, 8,
                         disabled_vector, 0), ==, 1);
     for (cpu = 0; cpu < 4; cpu++) {
         g_assert_cmphex(sapic_cpu_state(qts, cpu, disabled_vector) &
-                        SAPIC_STATE_IRR, ==, 0);
+                        SAPIC_STATE_IRR, ==,
+                        cpu == 2 ? SAPIC_STATE_IRR : 0);
     }
+    g_assert_cmpint(sapic_cpu_operation(qts, "accept", 2, 0), ==,
+                    disabled_vector);
+    sapic_cpu_operation(qts, "eoi", 2, 0);
 
     pid_write(qts, pid_rte_low(1),
               priority_vector | PID_RTE_REDIRECTION_HINT);

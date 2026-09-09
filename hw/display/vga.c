@@ -1528,6 +1528,11 @@ static void vga_draw_graphic(VGACommonState *s, int full_update)
 #endif
 
     full_update |= update_basic_params(s);
+    /* Tiled scanout can touch pages outside the linear display rectangle. */
+    if (s->scanout_read) {
+        force_shadow = true;
+        full_update = 1;
+    }
 
     s->get_resolution(s, &width, &height);
     disp_width = width;

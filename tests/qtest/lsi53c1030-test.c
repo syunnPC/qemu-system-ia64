@@ -863,7 +863,7 @@ static void mptsas1068_test_compat(void *obj, void *data,
                                  MPI_CONFIG_PAGETYPE_IOC, 1, 0,
                                  0, 0, true);
     g_assert_cmphex(le16_to_cpu(config_reply.IOCStatus), ==,
-                    MPI_IOCSTATUS_CONFIG_CANT_COMMIT);
+                    MPI_IOCSTATUS_CONFIG_INVALID_DATA);
 
     /* Parallel-SCSI pages must not leak into the SAS1068 personality. */
     config_reply = mptspi_config(mpt, MPI_CONFIG_ACTION_PAGE_HEADER,
@@ -960,6 +960,228 @@ static void mptsas1068_test_savevm(void *obj, void *data,
                     MPI_IOC_STATE_OPERATIONAL);
 }
 
+static void *mptspi_msi_setup(GString *cmd_line, void *arg)
+{
+    if (g_str_equal(qtest_get_arch(), "ia64")) {
+        g_string_append(cmd_line, " -machine pcie=on");
+    }
+    return arg;
+}
+
+static void mptspi_doorbell_msi(void *obj, void *data, QGuestAllocator *alloc)
+{
+    QMptSpi *mpt = obj;
+    QPCIDevice *dev = &mpt->dev;
+    QTestState *qts = dev->bus->qts;
+    uint8_t msi_cap = qpci_find_capability(dev, PCI_CAP_ID_MSI, 0);
+    uint16_t msi_control;
+    uint64_t msi_address;
+    MPIMsgIOCFacts request = { .Function = MPI_FUNCTION_IOC_FACTS };
+    MPIMsgIOCFactsReply reply;
+
+    if (!msi_cap) {
+        g_test_skip("MSI is not supported on this machine");
+        return;
+    }
+    if (qpci_check_buggy_msi(dev)) {
+        return;
+    }
+    msi_address = guest_alloc(alloc, 16);
+    msi_control = qpci_config_readw(dev, msi_cap + PCI_MSI_FLAGS);
+    qpci_config_writel(dev, msi_cap + PCI_MSI_ADDRESS_LO, msi_address);
+    if (msi_control & PCI_MSI_FLAGS_64BIT) {
+        qpci_config_writel(dev, msi_cap + PCI_MSI_ADDRESS_HI, 0);
+    }
+    qpci_config_writew(dev, msi_cap +
+                       (msi_control & PCI_MSI_FLAGS_64BIT ?
+                        PCI_MSI_DATA_64 : PCI_MSI_DATA_32), 0x51);
+    qpci_config_writew(dev, msi_cap + PCI_MSI_FLAGS,
+                       msi_control | PCI_MSI_FLAGS_ENABLE);
+    qpci_io_writel(dev, mpt->bar, MPI_HOST_INTERRUPT_STATUS_OFFSET, 0);
+    qpci_io_writel(dev, mpt->bar, MPI_HOST_INTERRUPT_MASK_OFFSET, MPI_HIM_RIM);
+    qtest_writel(qts, msi_address, 0);
+    qpci_io_writel(dev, mpt->bar, MPI_DOORBELL_OFFSET,
+                   (MPI_FUNCTION_HANDSHAKE << MPI_DOORBELL_FUNCTION_SHIFT) |
+                   ((sizeof(request) / 4) << MPI_DOORBELL_ADD_DWORDS_SHIFT));
+    g_assert_cmphex(qtest_readl(qts, msi_address), ==, 0x51);
+    qpci_io_writel(dev, mpt->bar, MPI_HOST_INTERRUPT_STATUS_OFFSET, 0);
+    qtest_writel(qts, msi_address, 0);
+    for (size_t i = 0; i < sizeof(request); i += 4) {
+        qpci_io_writel(dev, mpt->bar, MPI_DOORBELL_OFFSET,
+                       ldl_le_p((uint8_t *)&request + i));
+    }
+
+    for (size_t i = 0; i < sizeof(reply); i += 2) {
+        /* Every word needs a new MSI, with no duplicate on a mask write. */
+        g_assert_cmphex(qtest_readl(qts, msi_address), ==, 0x51);
+        g_assert_cmphex(qpci_config_readw(dev, PCI_STATUS) &
+                        PCI_STATUS_INTERRUPT, ==, 0);
+        qtest_writel(qts, msi_address, 0);
+        qpci_io_writel(dev, mpt->bar, MPI_HOST_INTERRUPT_MASK_OFFSET,
+                       MPI_HIM_RIM);
+        g_assert_cmphex(qtest_readl(qts, msi_address), ==, 0);
+        stw_le_p((uint8_t *)&reply + i,
+                 qpci_io_readl(dev, mpt->bar, MPI_DOORBELL_OFFSET));
+        qpci_io_writel(dev, mpt->bar, MPI_HOST_INTERRUPT_STATUS_OFFSET, 0);
+    }
+    g_assert_cmphex(reply.Function, ==, MPI_FUNCTION_IOC_FACTS);
+    g_assert_cmpuint(reply.MsgLength * 4, ==, sizeof(reply));
+    g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==, MPI_IOCSTATUS_SUCCESS);
+
+    /* The final notification clears DoorbellUsed and is acknowledged once. */
+    g_assert_cmphex(qtest_readl(qts, msi_address), ==, 0x51);
+    g_assert_cmphex(qpci_io_readl(dev, mpt->bar, MPI_DOORBELL_OFFSET) &
+                    MPI_DOORBELL_ACTIVE, ==, 0);
+    qtest_writel(qts, msi_address, 0);
+    qpci_io_writel(dev, mpt->bar, MPI_HOST_INTERRUPT_STATUS_OFFSET, 0);
+    g_assert_cmphex(qpci_io_readl(dev, mpt->bar,
+                                 MPI_HOST_INTERRUPT_STATUS_OFFSET) &
+                    MPI_HIS_DOORBELL_INTERRUPT, ==, 0);
+    g_assert_cmphex(qtest_readl(qts, msi_address), ==, 0);
+    qpci_config_writew(dev, msi_cap + PCI_MSI_FLAGS, msi_control);
+    guest_free(alloc, msi_address);
+}
+
+static void mptspi_reply_coalescing(void *obj, void *data,
+                                    QGuestAllocator *alloc)
+{
+    QMptSpi *mpt = obj;
+    QPCIDevice *dev = &mpt->dev;
+    QTestState *qts = dev->bus->qts;
+    uint64_t msi_address = guest_alloc(alloc, 16);
+    uint8_t msi_cap = qpci_find_capability(dev, PCI_CAP_ID_MSI, 0);
+    uint16_t msi_control = qpci_config_readw(dev, msi_cap + PCI_MSI_FLAGS);
+    uint64_t page = guest_alloc(alloc, 16);
+    uint64_t request = guest_alloc(alloc, 128);
+    uint64_t reply_address = guest_alloc(alloc, 256);
+    uint8_t ioc_page[16] = { 0 };
+    MPIMsgIOCFacts facts = { .Function = MPI_FUNCTION_IOC_FACTS };
+    MPIMsgConfigReply config_reply;
+
+    mptspi_ioc_init(mpt);
+    config_reply = mptspi_config(mpt, MPI_CONFIG_ACTION_PAGE_READ_CURRENT,
+                                 MPI_CONFIG_PAGETYPE_IOC, 1, 0,
+                                 page, 16, false);
+    g_assert_cmphex(le16_to_cpu(config_reply.IOCStatus),
+                    ==, MPI_IOCSTATUS_SUCCESS);
+    qtest_memread(qts, page, ioc_page, 16);
+    stl_le_p(ioc_page + 4, MPI_IOCPAGE1_REPLY_COALESCING);
+    stl_le_p(ioc_page + 8, 100);
+    ioc_page[12] = 2;
+    qtest_memwrite(qts, page, ioc_page, 16);
+    config_reply = mptspi_config(mpt, MPI_CONFIG_ACTION_PAGE_WRITE_CURRENT,
+                                 MPI_CONFIG_PAGETYPE_IOC, 1, 0, page, 16, true);
+    g_assert_cmphex(le16_to_cpu(config_reply.IOCStatus),
+                    ==, MPI_IOCSTATUS_SUCCESS);
+    qpci_io_writel(dev, mpt->bar, MPI_HOST_INTERRUPT_MASK_OFFSET, MPI_HIM_DIM);
+    qtest_memwrite(qts, request, &facts, sizeof(facts));
+
+    if (data) {
+        /* The first reply after restoring an empty FIFO must still wait. */
+        g_autofree char *saved = qtest_hmp(qts, "savevm idle-reply");
+        g_autofree char *loaded = NULL;
+
+        g_assert_cmpstr(saved, ==, "");
+        loaded = qtest_hmp(qts, "loadvm idle-reply");
+        g_assert_cmpstr(loaded, ==, "");
+    }
+
+    for (unsigned int cycle = 0; cycle < 3; cycle++) {
+        bool use_msi = cycle == 1 && msi_cap && !qpci_has_buggy_msi(dev);
+
+        qtest_writel(qts, msi_address, 0);
+        if (use_msi) {
+            g_assert_cmpuint(msi_cap, >, 0);
+            qpci_config_writel(dev, msi_cap + PCI_MSI_ADDRESS_LO, msi_address);
+            if (msi_control & PCI_MSI_FLAGS_64BIT) {
+                qpci_config_writel(dev, msi_cap + PCI_MSI_ADDRESS_HI, 0);
+            }
+            qpci_config_writew(dev, msi_cap +
+                               (msi_control & PCI_MSI_FLAGS_64BIT ?
+                                PCI_MSI_DATA_64 : PCI_MSI_DATA_32), 0x51);
+            qpci_config_writew(dev, msi_cap + PCI_MSI_FLAGS,
+                               msi_control | PCI_MSI_FLAGS_ENABLE);
+        }
+        qtest_memset(qts, reply_address, 0, 256);
+        qpci_io_writel(dev, mpt->bar, MPI_REPLY_QUEUE_OFFSET, reply_address);
+        qpci_io_writel(dev, mpt->bar, MPI_REQUEST_QUEUE_OFFSET, request);
+        for (unsigned int tries = 0;
+             !qtest_readb(qts, reply_address + 2) && tries < 1000; tries++) {
+            qtest_qmp_assert_success(qts, "{'execute':'query-status'}");
+        }
+        g_assert_cmpuint(qtest_readb(qts, reply_address + 2), >, 0);
+        g_assert_cmphex(qpci_config_readw(dev, PCI_STATUS) &
+                        PCI_STATUS_INTERRUPT, ==, 0);
+        if (cycle == 0) {
+            qtest_clock_step(qts, 99000);
+            g_assert_cmphex(qpci_config_readw(dev, PCI_STATUS) &
+                            PCI_STATUS_INTERRUPT, ==, 0);
+            if (data) {
+                g_autofree char *saved = qtest_hmp(qts, "savevm pending-reply");
+                g_autofree char *loaded = NULL;
+
+                g_assert_cmpstr(saved, ==, "");
+                qpci_io_writel(dev, mpt->bar, MPI_DOORBELL_OFFSET,
+                               MPI_FUNCTION_IOC_MESSAGE_UNIT_RESET <<
+                               MPI_DOORBELL_FUNCTION_SHIFT);
+                loaded = qtest_hmp(qts, "loadvm pending-reply");
+                g_assert_cmpstr(loaded, ==, "");
+                g_assert_cmphex(qpci_config_readw(dev, PCI_STATUS) &
+                                PCI_STATUS_INTERRUPT, ==, 0);
+            }
+            qtest_clock_step(qts, 1000);
+        } else if (cycle == 1) {
+            qpci_io_writel(dev, mpt->bar, MPI_REPLY_QUEUE_OFFSET,
+                           reply_address + 128);
+            qpci_io_writel(dev, mpt->bar, MPI_REQUEST_QUEUE_OFFSET, request);
+            for (unsigned int tries = 0;
+                 !qtest_readb(qts, reply_address + 130) && tries < 1000;
+                 tries++) {
+                qtest_qmp_assert_success(qts, "{'execute':'query-status'}");
+            }
+            g_assert_cmpuint(qtest_readb(qts, reply_address + 130), >, 0);
+        } else {
+            qpci_io_writel(dev, mpt->bar, MPI_DOORBELL_OFFSET,
+                           MPI_FUNCTION_IOC_MESSAGE_UNIT_RESET <<
+                           MPI_DOORBELL_FUNCTION_SHIFT);
+            qtest_clock_step(qts, 1000000);
+            g_assert_cmphex(qpci_config_readw(dev, PCI_STATUS) &
+                            PCI_STATUS_INTERRUPT, ==, 0);
+            break;
+        }
+        g_assert_cmphex(qpci_config_readw(dev, PCI_STATUS) &
+                        PCI_STATUS_INTERRUPT, ==,
+                        use_msi ? 0 : PCI_STATUS_INTERRUPT);
+        g_assert_cmphex(qtest_readl(qts, msi_address), ==, use_msi ? 0x51 : 0);
+        for (unsigned int i = 0; i <= cycle; i++) {
+            g_assert_cmphex(qpci_io_readl(dev, mpt->bar,
+                                          MPI_REPLY_QUEUE_OFFSET),
+                            !=, UINT32_MAX);
+        }
+        g_assert_cmphex(qpci_io_readl(dev, mpt->bar, MPI_REPLY_QUEUE_OFFSET),
+                        ==, UINT32_MAX);
+        g_assert_cmphex(qpci_config_readw(dev, PCI_STATUS) &
+                        PCI_STATUS_INTERRUPT, ==, 0);
+        if (use_msi) {
+            qpci_config_writew(dev, msi_cap + PCI_MSI_FLAGS, msi_control);
+        }
+    }
+    guest_free(alloc, msi_address);
+    guest_free(alloc, page);
+    guest_free(alloc, request);
+    guest_free(alloc, reply_address);
+}
+
+static void mptspi_coalescing_savevm(void *obj, void *data,
+                                    QGuestAllocator *alloc)
+{
+    if (!data) {
+        g_test_skip("qemu-img is required for coalescing savevm testing");
+        return;
+    }
+    mptspi_reply_coalescing(obj, data, alloc);
+}
+
 static void mptspi_register_nodes(void)
 {
     QOSGraphEdgeOptions opts = {
@@ -979,12 +1201,26 @@ static void mptspi_register_nodes(void)
     QOSGraphTestOptions snapshot_opts = {
         .before = mptspi_snapshot_setup,
     };
+    QOSGraphTestOptions msi_opts = {
+        .before = mptspi_msi_setup,
+    };
 
+    QOSGraphEdgeOptions ia64_opts = {
+        .extra_device_opts = "addr=07.0,id=mptspi",
+    };
+
+    add_qpci_address(&ia64_opts, &(QPCIAddress) { .devfn = QPCI_DEVFN(7, 0) });
     add_qpci_address(&opts, &(QPCIAddress) { .devfn = QPCI_DEVFN(4, 0) });
     qos_node_create_driver("lsi53c1030", mptspi_create);
     qos_node_consumes("lsi53c1030", "pci-bus", &opts);
+    qos_node_consumes("lsi53c1030", "ia64-pci-bus", &ia64_opts);
     qos_node_produces("lsi53c1030", "pci-device");
     qos_add_test("facts", "lsi53c1030", mptspi_test_facts, NULL);
+    qos_add_test("doorbell-msi", "lsi53c1030", mptspi_doorbell_msi, &msi_opts);
+    qos_add_test("reply-coalescing", "lsi53c1030",
+                 mptspi_reply_coalescing, NULL);
+    qos_add_test("coalescing-savevm", "lsi53c1030",
+                 mptspi_coalescing_savevm, &snapshot_opts);
     qos_add_test("config-reset", "lsi53c1030",
                  mptspi_test_config_and_reset, NULL);
     qos_add_test("config-savevm", "lsi53c1030",
@@ -993,8 +1229,14 @@ static void mptspi_register_nodes(void)
     add_qpci_address(&sas_opts, &(QPCIAddress) { .devfn = QPCI_DEVFN(5, 0) });
     qos_node_create_driver("mptsas1068", mptspi_create);
     qos_node_consumes("mptsas1068", "pci-bus", &sas_opts);
+    qos_node_consumes("mptsas1068", "ia64-pci-bus", &sas_opts);
     qos_node_produces("mptsas1068", "pci-device");
     qos_add_test("compat", "mptsas1068", mptsas1068_test_compat, NULL);
+    qos_add_test("doorbell-msi", "mptsas1068", mptspi_doorbell_msi, &msi_opts);
+    qos_add_test("reply-coalescing", "mptsas1068",
+                 mptspi_reply_coalescing, NULL);
+    qos_add_test("coalescing-savevm", "mptsas1068",
+                 mptspi_coalescing_savevm, &snapshot_opts);
     qos_add_test("sas-addresses", "mptsas1068",
                  mptsas1068_test_sas_addresses, &sas_address_opts);
     qos_add_test("compat-savevm", "mptsas1068",

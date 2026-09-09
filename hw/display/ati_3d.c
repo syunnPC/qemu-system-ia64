@@ -1411,6 +1411,64 @@ static R100Color r100_decode_yuv422(const uint8_t pair[4],
     };
 }
 
+/*
+ * Byte coordinates keep the macro layout independent of pixel depth.  The
+ * returned offset is relative to base, which also selects the Radeon macro
+ * bank phase.
+ */
+bool ati_2d_tile_offset(const ATIVGAState *s, uint32_t base, uint32_t pitch,
+                         unsigned int cpp, unsigned int tile,
+                         uint32_t xbyte, uint32_t y, uint64_t *offset)
+{
+    uint64_t address;
+
+    if (!pitch || !cpp || xbyte >= pitch) {
+        return false;
+    }
+    if (!tile) {
+        *offset = (uint64_t)y * pitch + xbyte;
+        return true;
+    }
+    if (s->dev_id == PCI_DEVICE_ID_ATI_RAGE128_PF) {
+        return false;
+    } else if (tile & 2) {
+        /* R100 destination microtiles use two rows of sixteen bytes. */
+        if (cpp != 4 || (pitch & 127)) {
+            return false;
+        }
+        if (tile & 1) {
+            address = (((uint64_t)y >> 4) * (pitch >> 7) +
+                       (xbyte >> 7)) << 11;
+            address |= (((y >> 3) ^ (xbyte >> 7)) & 1U) << 10;
+            address |= (((y >> 4) ^ (xbyte >> 6)) & 1U) << 9;
+            address |= (((y >> 2) ^ (xbyte >> 6)) & 1U) << 8;
+            address |= (((y >> 3) ^ (xbyte >> 5)) & 1U) << 7;
+            address |= ((y >> 1) & 1U) << 6;
+            address |= ((xbyte >> 4) & 1U) << 5;
+            address |= (y & 1U) << 4;
+            address |= xbyte & 15;
+        } else {
+            address = (uint64_t)(y >> 1) * pitch * 2 +
+                      (uint64_t)(xbyte >> 4) * 32 +
+                      (y & 1) * 16 + (xbyte & 15);
+        }
+    } else {
+        if ((pitch & 255) || cpp == 3) {
+            return false;
+        }
+        address = (((uint64_t)y >> 3) * (pitch >> 8) +
+                   (xbyte >> 8)) << 11;
+        address |= (((y >> 2) ^ (xbyte >> 8) ^ (base >> 11)) & 1U) << 10;
+        address |= (((y >> 3) ^ (xbyte >> 7)) & 1U) << 9;
+        address |= (((y >> 1) ^ (xbyte >> 7)) & 1U) << 8;
+        address |= (((y >> 2) ^ (xbyte >> 6)) & 1U) << 7;
+        address |= (y & 1U) << 6;
+        address |= xbyte & 63;
+    }
+    *offset = address;
+    return true;
+}
+
 static bool r100_texture_pixel_offset(uint32_t txoffset, unsigned int pitch,
                                       unsigned int cpp, int x, int y,
                                       uint64_t *pixel_offset)

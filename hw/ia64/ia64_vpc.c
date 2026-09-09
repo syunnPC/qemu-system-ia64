@@ -3348,7 +3348,7 @@ static void ia64_vpc_machine_class_init(ObjectClass *oc, const void *data)
     mc->init = ia64_vpc_init;
     mc->max_cpus = IA64_VPC_MAX_CPUS;
     mc->default_cpus = 1;
-    mc->default_cpu_type = IA64_CPU_TYPE_NAME("montecito");
+    mc->default_cpu_type = IA64_CPU_TYPE_NAME("montecito-9050");
     mc->smp_props.prefer_sockets = true;
     mc->default_ram_size = 2 * GiB;
     mc->default_ram_id = "ia64-vpc.ram";
@@ -3410,7 +3410,7 @@ static void itanium_vpc_machine_class_init(ObjectClass *oc, const void *data)
     (void)data;
 
     mc->desc = "IA-64 virtual PC with Merced CPU default";
-    mc->default_cpu_type = IA64_CPU_TYPE_NAME("merced");
+    mc->default_cpu_type = IA64_CPU_TYPE_NAME("merced-800");
     ivmc->firmware_compat_flags = IA64_FW_COMPAT_ALL_MASK;
     ivmc->default_ahci = false;
     ivmc->default_i8042 = true;
@@ -3426,7 +3426,7 @@ static void itanium2_vpc_machine_class_init(ObjectClass *oc, const void *data)
 
     mc->desc = "IA-64 virtual PC with Montecito CPU default";
     mc->alias = "ia64-vpc";
-    mc->default_cpu_type = IA64_CPU_TYPE_NAME("montecito");
+    mc->default_cpu_type = IA64_CPU_TYPE_NAME("montecito-9050");
     ivmc->firmware_compat_flags = 0;
     ivmc->default_ahci = true;
     ivmc->default_i8042 = false;

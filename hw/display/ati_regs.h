@@ -117,6 +117,8 @@
 #define CRTC_OFFSET_LOCK                        BIT(31)
 #define CRTC_OFFSET_MASK                        0x07fffff8U
 #define CRTC_OFFSET_CNTL                        0x0228
+#define CRTC_TILE_LINE_MASK                     0xfU /* Radeon only */
+#define CRTC_TILE_EN                            BIT(15)
 #define CRTC_PITCH                              0x022c
 #define OVR_CLR                                 0x0230
 #define OVR_WID_LEFT_RIGHT                      0x0234
@@ -270,6 +272,16 @@
 #define CLR_CMP_MASK                            0x15cc
 #define DP_SRC_FRGD_CLR                         0x15d8
 #define DP_SRC_BKGD_CLR                         0x15dc
+#define LEAD_BRES_ERR                           0x1600
+#define LEAD_BRES_INC                           0x1604
+#define LEAD_BRES_DEC                           0x1608
+#define TRAIL_BRES_ERR                          0x160c
+#define TRAIL_BRES_INC                          0x1610
+#define TRAIL_BRES_DEC                          0x1614
+#define TRAIL_X                                0x1618
+#define LEAD_BRES_LNTH                          0x161c
+#define TRAIL_X_SUB                            0x1620
+#define LEAD_BRES_LNTH_SUB                      0x1624
 #define DST_BRES_ERR                            0x1628
 #define DST_BRES_INC                            0x162c
 #define DST_BRES_DEC                            0x1630
@@ -854,6 +866,10 @@
 #define DST_POLYLINE_NONLAST                    0x00008000
 #define DST_RASTER_STALL                        0x00010000
 #define DST_POLY_EDGE                           0x00040000
+
+/* DP_CNTL_XDIR_YDIR_YMAJOR bit constants (DST_Y_MAJOR is shared) */
+#define DST_Y_DIR_TOP_TO_BOTTOM                 0x00008000
+#define DST_X_DIR_LEFT_TO_RIGHT                 0x80000000
 
 /* DP_MIX bit constants */
 #define DP_SRC_RECT                             0x00000200

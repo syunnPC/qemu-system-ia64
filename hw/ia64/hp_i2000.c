@@ -1545,8 +1545,8 @@ static bool hp_i2000_build(MachineState *machine, Error **errp)
     if (!hp_ia64_machine_validate(hp, errp)) {
         return false;
     }
-    if (g_strcmp0(machine->cpu_type, IA64_CPU_TYPE_NAME("merced")) != 0) {
-        error_setg(errp, "%s requires the Merced CPU model",
+    if (g_strcmp0(machine->cpu_type, IA64_CPU_TYPE_NAME("merced-800")) != 0) {
+        error_setg(errp, "%s requires the merced-800 CPU model",
                    TYPE_HP_I2000_MACHINE);
         return false;
     }
@@ -1691,7 +1691,7 @@ static void hp_i2000_machine_class_init(ObjectClass *oc, const void *data)
     mc->desc = "HP i2000 workstation";
     mc->init = hp_i2000_machine_init;
     mc->reset = hp_i2000_machine_reset;
-    mc->default_cpu_type = IA64_CPU_TYPE_NAME("merced");
+    mc->default_cpu_type = IA64_CPU_TYPE_NAME("merced-800");
     mc->default_ram_size = HP_I2000_MIN_RAM_SIZE;
     mc->default_ram_id = "hp-i2000.ram";
     mc->default_display = "quadro2";

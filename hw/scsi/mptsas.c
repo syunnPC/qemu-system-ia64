@@ -133,15 +133,56 @@ static void mptsas_update_interrupt(MPTSASState *s)
     PCIDevice *pci = (PCIDevice *) s;
     uint32_t state = s->intr_status & ~(s->intr_mask | MPI_HIS_IOP_DOORBELL_STATUS);
 
+    if (!s->reply_irq_ready) {
+        state &= ~MPI_HIS_REPLY_MESSAGE_INTERRUPT;
+    }
     if (msi_enabled(pci)) {
-        if (state) {
+        if (state & ~s->irq_state) {
             trace_mptsas_irq_msi(s);
             msi_notify(pci, 0);
         }
     }
 
-    trace_mptsas_irq_intx(s, !!state);
-    pci_set_irq(pci, !!state);
+    s->irq_state = state;
+    trace_mptsas_irq_intx(s, state && !msi_enabled(pci));
+    pci_set_irq(pci, state && !msi_enabled(pci));
+}
+
+static void mptsas_coalescing_expired(void *opaque)
+{
+    MPTSASState *s = opaque;
+
+    timer_del(s->coalescing_timer);
+    s->coalescing_count = 0;
+    s->reply_irq_ready = true;
+    mptsas_update_interrupt(s);
+}
+
+void mptsas_coalescing_changed(MPTSASState *s)
+{
+    if (!s->coalescing_count) {
+        return;
+    }
+    if (!(s->ioc1_flags & MPI_IOCPAGE1_REPLY_COALESCING) ||
+        (!s->ioc1_coalescing_timeout && !s->ioc1_coalescing_depth) ||
+        (s->ioc1_coalescing_depth &&
+         s->coalescing_count >= s->ioc1_coalescing_depth)) {
+        mptsas_coalescing_expired(s);
+    } else if (s->ioc1_coalescing_timeout &&
+               !timer_pending(s->coalescing_timer)) {
+        timer_mod(s->coalescing_timer,
+                  qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+                  (uint64_t)s->ioc1_coalescing_timeout * 1000);
+    }
+}
+
+static void mptsas_reply_interrupt(MPTSASState *s)
+{
+    if (!s->reply_irq_ready) {
+        s->coalescing_count++;
+        mptsas_coalescing_changed(s);
+    }
+    mptsas_update_interrupt(s);
 }
 
 static void mptsas_set_fault(MPTSASState *s, uint32_t code)
@@ -194,7 +235,7 @@ static void mptsas_post_reply(MPTSASState *s, MPIDefaultReply *reply)
         s->doorbell_state = DOORBELL_NONE;
         s->intr_status |= MPI_HIS_DOORBELL_INTERRUPT;
     }
-    mptsas_update_interrupt(s);
+    mptsas_reply_interrupt(s);
 }
 
 void mptsas_reply(MPTSASState *s, MPIDefaultReply *reply)
@@ -225,7 +266,7 @@ static void mptsas_turbo_reply(MPTSASState *s, uint32_t msgctx)
     MPTSAS_FIFO_PUT(s, reply_post, msgctx);
 
     s->intr_status |= MPI_HIS_REPLY_MESSAGE_INTERRUPT;
-    mptsas_update_interrupt(s);
+    mptsas_reply_interrupt(s);
 }
 
 #define MPTSAS_MAX_REQUEST_SIZE 52
@@ -1320,6 +1361,9 @@ static void mptsas_soft_reset(MPTSASState *s)
 
     trace_mptsas_reset(s);
 
+    timer_del(s->coalescing_timer);
+    s->coalescing_count = 0;
+    s->reply_irq_ready = false;
     /* Temporarily disable interrupts */
     save_mask = s->intr_mask;
     s->intr_mask = MPI_HIM_DIM | MPI_HIM_RIM;
@@ -1524,9 +1568,13 @@ static void mptsas_interrupt_status_write(MPTSASState *s)
 
     case DOORBELL_READ:
         assert(s->intr_status & MPI_HIS_DOORBELL_INTERRUPT);
+        /* Acknowledge this word before raising the next doorbell interrupt. */
+        s->intr_status &= ~MPI_HIS_DOORBELL_INTERRUPT;
+        mptsas_update_interrupt(s);
         if (s->doorbell_reply_idx == s->doorbell_reply_size) {
             s->doorbell_state = DOORBELL_NONE;
         }
+        s->intr_status |= MPI_HIS_DOORBELL_INTERRUPT;
         break;
 
     default:
@@ -1544,6 +1592,9 @@ static uint32_t mptsas_reply_post_read(MPTSASState *s)
     } else {
         ret = -1;
         s->intr_status &= ~MPI_HIS_REPLY_MESSAGE_INTERRUPT;
+        timer_del(s->coalescing_timer);
+        s->coalescing_count = 0;
+        s->reply_irq_ready = false;
         mptsas_update_interrupt(s);
     }
 
@@ -1937,6 +1988,8 @@ static void mptsas_scsi_realize(PCIDevice *dev, Error **errp)
     }
     s->max_devices = mptsas_max_devices(s);
 
+    s->coalescing_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL,
+                                      mptsas_coalescing_expired, s);
     s->request_bh = qemu_bh_new_guarded(mptsas_fetch_requests, s,
                                         &DEVICE(dev)->mem_reentrancy_guard);
 
@@ -1950,6 +2003,7 @@ static void mptsas_scsi_uninit(PCIDevice *dev)
 
     g_clear_pointer(&s->fw_image, g_free);
 
+    timer_free(s->coalescing_timer);
     qemu_bh_delete(s->request_bh);
     msi_uninit(dev);
 }
@@ -2047,12 +2101,11 @@ static int mptsas_post_load(void *opaque, int version_id)
             return -EINVAL;
         }
     } else if (!s->max_devices || s->max_devices > MPTSAS_NUM_PORTS ||
-               s->max_buses > 1 ||
-               s->ioc1_flags || s->ioc1_coalescing_timeout ||
-               s->ioc1_coalescing_depth) {
+               s->max_buses > 1) {
         return -EINVAL;
     }
 
+    mptsas_update_interrupt(s);
     return 0;
 }
 
@@ -2068,6 +2121,10 @@ static int mptsas_pre_load(void *opaque)
     memset(s->config_current, 0, sizeof(s->config_current));
     s->config_current_written = 0;
     s->variant = UINT8_MAX;
+    timer_del(s->coalescing_timer);
+    s->coalescing_count = 0;
+    s->reply_irq_ready = true; /* Legacy streams interrupt immediately. */
+    s->irq_state = 0;
     s->ioc1_flags = 0;
     s->ioc1_coalescing_timeout = 0;
     s->ioc1_coalescing_depth = 0;
@@ -2087,9 +2144,8 @@ static bool mptsas_ioc1_vmstate_needed(void *opaque)
 {
     MPTSASState *s = opaque;
 
-    return mptsas_is_spi(s) &&
-           (s->ioc1_flags || s->ioc1_coalescing_timeout ||
-            s->ioc1_coalescing_depth);
+    return s->ioc1_flags || s->ioc1_coalescing_timeout ||
+           s->ioc1_coalescing_depth;
 }
 
 static const VMStateDescription vmstate_mptsas_ioc1 = {
@@ -2191,6 +2247,27 @@ static const VMStateDescription vmstate_mptsas_enclosure = {
     },
 };
 
+static bool mptsas_coalescing_needed(void *opaque)
+{
+    MPTSASState *s = opaque;
+
+    /* Preserve the idle state so the next reply starts a new batch. */
+    return s->coalescing_count != 0 || !s->reply_irq_ready;
+}
+
+static const VMStateDescription vmstate_mptsas_coalescing = {
+    .name = "mptsas/coalescing",
+    .version_id = 1,
+    .minimum_version_id = 1,
+    .needed = mptsas_coalescing_needed,
+    .fields = (const VMStateField[]) {
+        VMSTATE_TIMER_PTR(coalescing_timer, MPTSASState),
+        VMSTATE_UINT32(coalescing_count, MPTSASState),
+        VMSTATE_BOOL(reply_irq_ready, MPTSASState),
+        VMSTATE_END_OF_LIST()
+    },
+};
+
 static const VMStateDescription vmstate_mptsas = {
     .name = "mptsas",
     .version_id = 1,
@@ -2250,6 +2327,7 @@ static const VMStateDescription vmstate_mptsas = {
         VMSTATE_END_OF_LIST()
     },
     .subsections = (const VMStateDescription * const []) {
+        &vmstate_mptsas_coalescing,
         &vmstate_mptsas_enclosure,
         &vmstate_mptsas_fw,
         &vmstate_mptsas_nvram,

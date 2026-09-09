@@ -2095,7 +2095,8 @@ static void lsi_write_script_insn(QTestState *qts, uint32_t *addr,
     *addr += 8;
 }
 
-static bool lsi_run_nodata_command(QTestState *qts, const uint8_t *cdb,
+static bool lsi_run_nodata_command(QTestState *qts, uint64_t mmio,
+                                   const uint8_t *cdb,
                                    size_t cdb_len, uint8_t *status)
 {
     const uint8_t identify = 0x80;
@@ -2125,19 +2126,19 @@ static bool lsi_run_nodata_command(QTestState *qts, const uint8_t *cdb,
     qtest_writeb(qts, IA64_LSI_STATUS_ADDR, 0xff);
     qtest_writeb(qts, IA64_LSI_COMPLETE_ADDR, 0xff);
 
-    qtest_readb(qts, IA64_LSI_MMIO_BASE + IA64_LSI_REG_DSTAT);
-    qtest_readb(qts, IA64_LSI_MMIO_BASE + IA64_LSI_REG_SIST0);
-    qtest_readb(qts, IA64_LSI_MMIO_BASE + IA64_LSI_REG_SIST1);
-    qtest_writeb(qts, IA64_LSI_MMIO_BASE + IA64_LSI_REG_ISTAT0,
+    qtest_readb(qts, mmio + IA64_LSI_REG_DSTAT);
+    qtest_readb(qts, mmio + IA64_LSI_REG_SIST0);
+    qtest_readb(qts, mmio + IA64_LSI_REG_SIST1);
+    qtest_writeb(qts, mmio + IA64_LSI_REG_ISTAT0,
                  IA64_LSI_ISTAT0_INTF);
-    qtest_writel(qts, IA64_LSI_MMIO_BASE + IA64_LSI_REG_DSP,
+    qtest_writel(qts, mmio + IA64_LSI_REG_DSP,
                  IA64_LSI_SCRIPT_ADDR);
 
     for (i = 0; i < 1000; i++) {
-        if (qtest_readb(qts, IA64_LSI_MMIO_BASE + IA64_LSI_REG_ISTAT0) &
+        if (qtest_readb(qts, mmio + IA64_LSI_REG_ISTAT0) &
             IA64_LSI_ISTAT0_DIP) {
             dstat = qtest_readb(qts,
-                                IA64_LSI_MMIO_BASE + IA64_LSI_REG_DSTAT);
+                                mmio + IA64_LSI_REG_DSTAT);
             if (dstat & IA64_LSI_DSTAT_SIR) {
                 break;
             }
@@ -2163,14 +2164,165 @@ static void test_lsi_async_nodata_command(void)
         "-device scsi-hd,drive=disk0,bus=scsi.0,scsi-id=0");
 
     /* Consume the initial unit attention before testing async completion. */
-    g_assert_true(lsi_run_nodata_command(qts, test_unit_ready,
+    g_assert_true(lsi_run_nodata_command(qts, IA64_LSI_MMIO_BASE,
+                                         test_unit_ready,
                                          sizeof(test_unit_ready), &status));
     for (i = 0; i < 8; i++) {
-        g_assert_true(lsi_run_nodata_command(qts, synchronize_cache,
+        g_assert_true(lsi_run_nodata_command(qts, IA64_LSI_MMIO_BASE,
+                                             synchronize_cache,
                                              sizeof(synchronize_cache),
                                              &status));
         g_assert_cmpuint(status, ==, 0);
     }
+    qtest_quit(qts);
+}
+
+static void lsi_run_script(QTestState *qts, uint64_t mmio)
+{
+    int64_t deadline = g_get_monotonic_time() + 10 * G_TIME_SPAN_SECOND;
+    uint8_t dstat;
+
+    qtest_readb(qts, mmio + IA64_LSI_REG_DSTAT);
+    qtest_readb(qts, mmio + IA64_LSI_REG_SIST0);
+    qtest_readb(qts, mmio + IA64_LSI_REG_SIST1);
+    qtest_writel(qts, mmio + IA64_LSI_REG_DSP, IA64_LSI_SCRIPT_ADDR);
+    do {
+        dstat = qtest_readb(qts, mmio + IA64_LSI_REG_DSTAT);
+        if (dstat & IA64_LSI_DSTAT_SIR) {
+            return;
+        }
+        g_usleep(1000);
+    } while (g_get_monotonic_time() < deadline);
+    g_error("LSI SCRIPTS did not finish (DSTAT=0x%x, DSP=0x%x)", dstat,
+            qtest_readl(qts, mmio + IA64_LSI_REG_DSP));
+}
+
+#define LSI_TEST_RESET_BUS 0x100
+
+static void test_lsi_task_ordering(gconstpointer opaque)
+{
+    uint8_t abort_message = GPOINTER_TO_UINT(opaque);
+    bool reset_bus = GPOINTER_TO_UINT(opaque) == LSI_TEST_RESET_BUS;
+    const uint64_t mmio = 0xc2030000;
+    const uint32_t messages = IA64_LSI_MSGOUT_ADDR + 0x100;
+    const uint32_t data = IA64_LSI_MSGOUT_ADDR + 0x1000;
+    const uint8_t tur[6] = { 0 };
+    static const uint8_t attributes[] = { 0x20, 0x22, 0x20, 0x21 };
+    QTestState *qts = ia64_vpc_start(
+        "-device lsi53c895a,id=taglsi,addr=7,disconnect-on-data-wait=on "
+        "-blockdev driver=null-co,read-zeroes=on,"
+        "node-name=tagdisk,size=1048576,latency-ns=500000000 "
+        "-device scsi-hd,drive=tagdisk,bus=taglsi.0,scsi-id=0");
+    QGenericPCIBus gbus;
+    QPCIDevice *dev;
+    uint8_t status;
+
+    ia64_qpci_init(&gbus, qts);
+    dev = qpci_device_find(&gbus.bus, QPCI_DEVFN(7, 0));
+    g_assert_nonnull(dev);
+    qpci_config_writel(dev, PCI_BASE_ADDRESS_1, mmio);
+    qpci_device_enable(dev);
+    g_assert_true(lsi_run_nodata_command(qts, mmio, tur, sizeof(tur), &status));
+    qtest_qmp_assert_success(qts, "{'execute':'cont'}");
+    for (unsigned i = 0; i < ARRAY_SIZE(attributes); i++) {
+        uint32_t addr = IA64_LSI_SCRIPT_ADDR;
+        uint8_t msg[] = { 0x80, attributes[i], i + 1 };
+        uint8_t cdb[10] = { 0 };
+
+        if (!i) {
+            /* Keep READ pending while submitting the other tags. */
+            cdb[0] = 0x28;
+            cdb[8] = 1;
+        }
+        qtest_memwrite(qts, IA64_LSI_MSGOUT_ADDR, msg, sizeof(msg));
+        qtest_memwrite(qts, IA64_LSI_CDB_ADDR, cdb, i ? 6 : 10);
+        qtest_memset(qts, messages, 0xff, 8);
+        lsi_write_script_insn(qts, &addr, IA64_LSI_SCRIPT_SELECT, 0);
+        lsi_write_script_insn(qts, &addr,
+                              IA64_LSI_SCRIPT_MOVE(IA64_LSI_PHASE_MO, 3),
+                              IA64_LSI_MSGOUT_ADDR);
+        lsi_write_script_insn(qts, &addr,
+                              IA64_LSI_SCRIPT_MOVE(IA64_LSI_PHASE_CMD,
+                                                   i ? 6 : 10),
+                              IA64_LSI_CDB_ADDR);
+        if (i == 3) {
+            /* HEAD completes while ORDERED and the following SIMPLE wait. */
+            lsi_write_script_insn(qts, &addr,
+                                  IA64_LSI_SCRIPT_MOVE(IA64_LSI_PHASE_ST, 1),
+                                  messages + 4);
+        }
+        lsi_write_script_insn(qts, &addr,
+                              IA64_LSI_SCRIPT_MOVE(IA64_LSI_PHASE_MI,
+                                                   i ? 1 : 2),
+                              messages);
+        lsi_write_script_insn(qts, &addr, IA64_LSI_SCRIPT_DISCONNECT, 0);
+        lsi_write_script_insn(qts, &addr, IA64_LSI_SCRIPT_INTERRUPT, 0);
+        lsi_run_script(qts, mmio);
+        if (!i) {
+            g_assert_cmphex(qtest_readw(qts, messages), ==, 0x0402);
+        } else if (i < 3) {
+            g_assert_cmphex(qtest_readb(qts, messages), ==, 4);
+        } else {
+            g_assert_cmphex(qtest_readb(qts, messages), ==, 0);
+            g_assert_cmphex(qtest_readb(qts, messages + 4), ==, 0);
+        }
+    }
+    for (unsigned tag = 1; tag <= 3; tag++) {
+        uint32_t addr = IA64_LSI_SCRIPT_ADDR;
+
+        qtest_memset(qts, messages, 0xff, 8);
+        lsi_write_script_insn(qts, &addr, 0x50000000, 0); /* WAIT RESELECT */
+        lsi_write_script_insn(qts, &addr,
+                              IA64_LSI_SCRIPT_MOVE(IA64_LSI_PHASE_MI, 3),
+                              messages);
+        if (tag == 1) {
+            lsi_write_script_insn(qts, &addr,
+                                  IA64_LSI_SCRIPT_MOVE(1, 512), data);
+        }
+        if (tag == 2 && abort_message) {
+            /* Abort the completed ORDERED task before reading its status. */
+            qtest_writeb(qts, messages + 7, abort_message);
+            lsi_write_script_insn(qts, &addr, 0x58000008, 0); /* SET ATN */
+            lsi_write_script_insn(qts, &addr,
+                                  IA64_LSI_SCRIPT_MOVE(IA64_LSI_PHASE_MO, 1),
+                                  messages + 7);
+        } else if (tag != 2 || !reset_bus) {
+            lsi_write_script_insn(qts, &addr,
+                                  IA64_LSI_SCRIPT_MOVE(IA64_LSI_PHASE_ST, 1),
+                                  messages + 4);
+            lsi_write_script_insn(qts, &addr,
+                                  IA64_LSI_SCRIPT_MOVE(IA64_LSI_PHASE_MI, 1),
+                                  messages + 5);
+        }
+        lsi_write_script_insn(qts, &addr, IA64_LSI_SCRIPT_DISCONNECT, 0);
+        lsi_write_script_insn(qts, &addr, IA64_LSI_SCRIPT_INTERRUPT, 0);
+        lsi_run_script(qts, mmio);
+        g_assert_cmphex(qtest_readb(qts, messages), ==, 0x80);
+        g_assert_cmphex(qtest_readb(qts, messages + 1), ==, 0x20);
+        g_assert_cmpuint(qtest_readb(qts, messages + 2), ==, tag);
+        if (tag == 2 && reset_bus) {
+            /* Reset with both reselected and queued statuses outstanding. */
+            qtest_writeb(qts, mmio + 0x01, 8); /* SCNTL1.RST */
+            qtest_writeb(qts, mmio + 0x01, 0);
+            break;
+        } else if (tag == 2 && abort_message) {
+            if (abort_message != 0x0d) {
+                /* The other messages also discard the following task. */
+                break;
+            }
+        } else {
+            g_assert_cmphex(qtest_readw(qts, messages + 4), ==, 0);
+        }
+    }
+    if (reset_bus) {
+        /* Consume reset unit attention; no old completion may reselect. */
+        g_assert_true(lsi_run_nodata_command(qts, mmio, tur, sizeof(tur),
+                                             &status));
+        g_assert_cmphex(status, ==, 2);
+    }
+    g_assert_true(lsi_run_nodata_command(qts, mmio, tur, sizeof(tur), &status));
+    g_assert_cmphex(status, ==, 0);
+    g_free(dev);
     qtest_quit(qts);
 }
 
@@ -3675,11 +3827,11 @@ int main(int argc, char **argv)
     static const unsigned cpu_counts[] = { 1, 2, 4, 8, 16, 32, 64 };
     static const TestCPUProfileMigration cpu_profile_migrations[] = {
         {
-            .source = "merced",
+            .source = "merced-800",
             .destination = "itanium",
             .compatible = true,
         }, {
-            .source = "madison-9m",
+            .source = "madison-1600-9m",
             .destination = "madison",
             .compatible = false,
         }, {
@@ -3709,6 +3861,14 @@ int main(int argc, char **argv)
             .source = "montvale-9140m",
             .destination = "montvale-9140n",
             .compatible = false,
+        }, {
+            .source = "madison-1600-3m",
+            .destination = "madison",
+            .compatible = true,
+        }, {
+            .source = "montecito-9050",
+            .destination = "itanium2",
+            .compatible = true,
         },
     };
     unsigned i;
@@ -3789,6 +3949,12 @@ int main(int argc, char **argv)
     qtest_add_data_func("/ia64-vpc/migration/montvale-frequency-mismatch",
                         &cpu_profile_migrations[6],
                         test_cpu_profile_migration);
+    qtest_add_data_func("/ia64-vpc/migration/madison-alias",
+                        &cpu_profile_migrations[7],
+                        test_cpu_profile_migration);
+    qtest_add_data_func("/ia64-vpc/migration/itanium2-alias",
+                        &cpu_profile_migrations[8],
+                        test_cpu_profile_migration);
     qtest_add_func("/ia64-vpc/input/profile-defaults",
                    test_profile_default_input);
     qtest_add_func("/ia64-vpc/ras/rendezvous",
@@ -3858,5 +4024,18 @@ int main(int argc, char **argv)
     qtest_add_func("/ia64-vpc/mmu/stale-victim-speculative-load",
                    test_stale_victim_speculative_load);
 
+    qtest_add_data_func("/ia64-vpc/lsi/task-ordering", GUINT_TO_POINTER(0),
+                        test_lsi_task_ordering);
+    qtest_add_data_func("/ia64-vpc/lsi/abort-completed-tag",
+                        GUINT_TO_POINTER(0x0d), test_lsi_task_ordering);
+    qtest_add_data_func("/ia64-vpc/lsi/abort-completed-queue",
+                        GUINT_TO_POINTER(0x06), test_lsi_task_ordering);
+    qtest_add_data_func("/ia64-vpc/lsi/clear-completed-queue",
+                        GUINT_TO_POINTER(0x0e), test_lsi_task_ordering);
+    qtest_add_data_func("/ia64-vpc/lsi/reset-completed-device",
+                        GUINT_TO_POINTER(0x0c), test_lsi_task_ordering);
+    qtest_add_data_func("/ia64-vpc/lsi/reset-completed-bus",
+                        GUINT_TO_POINTER(LSI_TEST_RESET_BUS),
+                        test_lsi_task_ordering);
     return g_test_run();
 }

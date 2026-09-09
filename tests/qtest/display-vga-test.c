@@ -91,6 +91,7 @@
 #define ATI_PLL_WR_EN          0x00000080
 #define ATI_PLL_DIV_SEL_3      0x00000300
 #define ATI_PPLL_REF_DIV       0x03
+#define ATI_PPLL_DIV_0         0x04
 #define ATI_PPLL_DIV_3         0x07
 #define ATI_PPLL_ATOMIC_UPDATE 0x00008000
 #define ATI_CRTC_GEN_CNTL      0x0050
@@ -157,6 +158,7 @@
 #define ATI_SC_BOTTOM_RIGHT    0x16f0
 #define ATI_SRC_SC_BOTTOM_RIGHT 0x16f4
 #define ATI_DP_CNTL            0x16c0
+#define ATI_DP_CNTL_XDIR_YDIR_YMAJOR 0x16d0
 #define ATI_DP_DATATYPE        0x16c4
 #define ATI_DP_MIX             0x16c8
 #define ATI_RBBM_GUICNTL       0x172c
@@ -203,7 +205,10 @@
 #define ATI_HOST_SWAP_HDW      0x00000003
 #define ATI_DP_MIX_SRC_HOST    0x00000300
 #define ATI_DP_MIX_ROP3_SRCCOPY 0x00cc0000
+#define ATI_DEFAULT_OFFSET     0x16e0
+#define ATI_DEFAULT_PITCH      0x16e4
 #define ATI_DEFAULT_SC_BOTTOM_RIGHT 0x16e8
+#define ATI_DST_TILE           0x1700
 #define ATI_TEST_VRAM_SIZE     (16U * 1024U * 1024U)
 #define ATI_GEN_INT_CNTL       0x0040
 #define ATI_GPIO_VGA_DDC       0x0060
@@ -1676,15 +1681,15 @@ static void ati_register_endian(void)
                                 ==, other_swap ? bswap32(value) : value);
 
                 qtest_writew(qts, mmio + ATI_CLOCK_CNTL_DATA + (swap ? 2 : 0),
-                             swap ? bswap16(0xaabb) : 0xaabb);
+                             swap ? bswap16(0x2abb) : 0x2abb);
                 qtest_writeb(qts, mmio + ATI_CLOCK_CNTL_DATA + (swap ? 0 : 3),
                              0x55);
-                value = 0x5522aabb;
+                value = 0x55222abb;
                 g_assert_cmphex(qtest_readl(qts, other + ATI_CLOCK_CNTL_DATA),
                                 ==, other_swap ? bswap32(value) : value);
                 g_assert_cmphex(qtest_readw(qts, mmio + ATI_CLOCK_CNTL_DATA +
                                                 (swap ? 2 : 0)),
-                                ==, swap ? bswap16(0xaabb) : 0xaabb);
+                                ==, swap ? bswap16(0x2abb) : 0x2abb);
                 g_assert_cmphex(qtest_readb(qts, mmio + ATI_CLOCK_CNTL_DATA +
                                                 (swap ? 0 : 3)), ==, 0x55);
 
@@ -2524,11 +2529,11 @@ static void ati_rage128_host_data_migration(void)
     qtest_writel(qts, IA64_ATI_MMIO_BASE + ATI_BRUSH_DATA0 + 63 * 4,
                  0x01234567);
     g_assert_cmphex(qtest_readl(qts, IA64_ATI_MMIO_BASE + ATI_BRUSH_Y_X),
-                    ==, 0);
+                    ==, 0x304);
     g_assert_cmphex(qtest_readl(qts, IA64_ATI_MMIO_BASE + ATI_BRUSH_DATA0),
-                    ==, 0);
+                    ==, 0x89abcdef);
     g_assert_cmphex(qtest_readl(qts, IA64_ATI_MMIO_BASE + ATI_BRUSH_DATA0 +
-                                     63 * 4), ==, 0);
+                                     63 * 4), ==, 0x01234567);
 
     fd = g_mkstemp(path);
     g_assert_cmpint(fd, >=, 0);
@@ -2555,9 +2560,9 @@ static void ati_rage128_host_data_migration(void)
     g_assert_cmphex(qtest_readl(qts, IA64_ATI_MMIO_BASE +
                                      ATI_CLR_CMP_MASK), ==, 0xff00ff00);
     g_assert_cmphex(qtest_readl(qts, IA64_ATI_MMIO_BASE + ATI_BRUSH_Y_X),
-                    ==, 0);
+                    ==, 0x304);
     g_assert_cmphex(qtest_readl(qts, IA64_ATI_MMIO_BASE + ATI_BRUSH_DATA0),
-                    ==, 0);
+                    ==, 0x89abcdef);
     qtest_writel(qts, IA64_ATI_MMIO_BASE + ATI_HOST_DATA_LAST,
                  words[ARRAY_SIZE(words) - 1]);
     qtest_memread(qts, IA64_ATI_FB_BASE + 0x3000, actual,
@@ -9592,7 +9597,8 @@ static void ati_crtc_offset_control(void)
     qtest_writel(qts, mmio + ATI_CRTC_OFFSET, 0);
     qtest_writel(qts, mmio + ATI_CRTC_PITCH, WIDTH / 8);
     qtest_writel(qts, mmio + ATI_CRTC_GEN_CNTL,
-                 ATI_CRTC_EXT_DISP_EN | ATI_CRTC_EN | ATI_CRTC_PIX_WIDTH_32);
+                 ATI_CRTC_EXT_DISP_EN | ATI_CRTC_EN |
+                     ATI_CRTC_PIX_WIDTH_32);
     qtest_readb(qts, IA64_LEGACY_IO_PORT_PA(VGA_INPUT_STATUS1));
     qtest_writeb(qts, IA64_LEGACY_IO_PORT_PA(VGA_ATTR_INDEX), 0x20);
 
@@ -10653,6 +10659,1305 @@ static void ati_radeon_cp_palette(void)
     }
 }
 
+static void ati_bresenham_directions(void)
+{
+    const char *models[] = { "rage128p", "rv100", "es1000" };
+    const int minor[] = { 0, 0, 1, 1, 1, 2 };
+
+    for (unsigned int model = 0; model < ARRAY_SIZE(models); model++) {
+        bool rage = model == 0;
+        uint64_t mmio = rage ? IA64_ATI_MMIO_BASE : IA64_RV100_MMIO_BASE;
+        uint64_t fb = rage ? IA64_ATI_FB_BASE : IA64_RV100_FB_BASE;
+        QTestState *qts = qtest_initf(
+            "-machine ia64-vpc,nvram=none -m 256M -S "
+            "-vga ati -global ati-vga.model=%s", models[model]);
+
+        ati_pci_enable(qts);
+        qtest_writel(qts, mmio + ATI_DST_OFFSET, 0x4000);
+        qtest_writel(qts, mmio + ATI_DST_PITCH, rage ? 8 : 256);
+        qtest_writel(qts, mmio + ATI_SC_TOP_LEFT, 0);
+        qtest_writel(qts, mmio + ATI_SC_BOTTOM_RIGHT, 0x00100040);
+        qtest_writel(qts, mmio + ATI_DP_GUI_MASTER_CNTL,
+                     ATI_GMC_WR_MSK_DIS | ATI_GMC_CLR_CMP_DIS |
+                     ATI_GMC_DST_PITCH | ATI_GMC_DST_CLIPPING |
+                     ATI_GMC_DST_32BPP | ATI_GMC_BRUSH_SOLID |
+                     ATI_GMC_ROP3_PATCOPY);
+        qtest_writel(qts, mmio + ATI_DP_BRUSH_FRGD_CLR, 0x00112233);
+
+        /* Partial alias writes preserve unrelated DP_CNTL bits. */
+        qtest_writel(qts, mmio + ATI_DP_CNTL, 0x100);
+        qtest_writeb(qts, mmio + ATI_DP_CNTL_XDIR_YDIR_YMAJOR + 3, 0x80);
+        qtest_writeb(qts, mmio + ATI_DP_CNTL_XDIR_YDIR_YMAJOR + 1, 0x80);
+        qtest_writeb(qts, mmio + ATI_DP_CNTL_XDIR_YDIR_YMAJOR, 4);
+        g_assert_cmphex(qtest_readl(qts, mmio + ATI_DP_CNTL), ==, 0x107);
+        qtest_writel(qts, mmio + ATI_MM_INDEX,
+                     ATI_DP_CNTL_XDIR_YDIR_YMAJOR);
+        g_assert_cmphex(qtest_readl(qts, mmio + ATI_MM_DATA), ==, 0x80008004);
+        g_assert_cmphex(qtest_readb(qts, mmio +
+                                    ATI_DP_CNTL_XDIR_YDIR_YMAJOR + 3),
+                        ==, 0x80);
+
+        for (unsigned int octant = 0; octant < 8; octant++) {
+            bool expected[16][16] = { 0 };
+            bool major_y = octant & 4;
+            int xdir = octant & 1 ? 1 : -1;
+            int ydir = octant & 2 ? 1 : -1;
+            uint32_t direction = (xdir > 0 ? 1U << 31 : 0) |
+                                 (ydir > 0 ? 1U << 15 : 0) | (octant & 4);
+
+            g_test_message("%s octant %u", models[model], octant);
+            qtest_memset(qts, fb + 0x4000, 0, 16 * 256);
+            qtest_writel(qts, mmio + ATI_DP_CNTL, octant ^ 7);
+            /* XAA programs direction through this alias before each line. */
+            qtest_writel(qts, mmio + ATI_DP_CNTL_XDIR_YDIR_YMAJOR, direction);
+            g_assert_cmphex(qtest_readl(qts, mmio + ATI_DP_CNTL), ==, octant);
+            qtest_writel(qts, mmio + ATI_DST_X, 8);
+            qtest_writel(qts, mmio + ATI_DST_Y, 8);
+            qtest_writel(qts, mmio + 0x1628, -6);
+            qtest_writel(qts, mmio + 0x162c, 4);
+            qtest_writel(qts, mmio + 0x1630, -12);
+            qtest_writel(qts, mmio + 0x1634, ARRAY_SIZE(minor));
+            for (int i = 0; i < ARRAY_SIZE(minor); i++) {
+                int x = 8 + xdir * (major_y ? minor[i] : i);
+                int y = 8 + ydir * (major_y ? i : minor[i]);
+
+                expected[y][x] = true;
+            }
+            for (unsigned int y = 0; y < 16; y++) {
+                for (unsigned int x = 0; x < 16; x++) {
+                    g_assert_cmphex(qtest_readl(qts, fb + 0x4000 +
+                                                 y * 256 + x * 4), ==,
+                                    expected[y][x] ? 0x00112233 : 0);
+                }
+            }
+        }
+        qtest_quit(qts);
+    }
+}
+
+static void ati_bresenham_and_tiles(void)
+{
+    const char *models[] = { "rage128p", "rv100", "es1000" };
+
+    for (unsigned int model = 0; model < ARRAY_SIZE(models); model++) {
+        bool rage = model == 0;
+        uint64_t mmio = rage ? IA64_ATI_MMIO_BASE : IA64_RV100_MMIO_BASE;
+        uint64_t fb = rage ? IA64_ATI_FB_BASE : IA64_RV100_FB_BASE;
+        QTestState *qts = qtest_initf(
+            "-machine ia64-vpc,nvram=none -m 256M -S "
+            "-vga ati -global ati-vga.model=%s", models[model]);
+        uint32_t common = ATI_GMC_WR_MSK_DIS | ATI_GMC_CLR_CMP_DIS |
+                          ATI_GMC_DST_PITCH | ATI_GMC_DST_CLIPPING |
+                          ATI_GMC_DST_32BPP | ATI_GMC_BRUSH_SOLID;
+        static const unsigned int line_y[] = { 1, 2, 2, 3, 3 };
+        g_autofree char *path = NULL;
+        int fd;
+
+        ati_pci_enable(qts);
+        /* Extra 2D registers support direct, partial and indexed reads. */
+        qtest_writel(qts, mmio + 0x162c, 0x123456);
+        qtest_writeb(qts, mmio + 0x162d, 0xab);
+        g_assert_cmphex(qtest_readl(qts, mmio + 0x162c), ==, 0x12ab56);
+        g_assert_cmphex(qtest_readw(qts, mmio + 0x162c), ==, 0xab56);
+        g_assert_cmphex(qtest_readb(qts, mmio + 0x162e), ==, 0x12);
+        qtest_writel(qts, mmio + ATI_MM_INDEX, 0x162c);
+        g_assert_cmphex(qtest_readl(qts, mmio + ATI_MM_DATA), ==, 0x12ab56);
+        qtest_memset(qts, fb + 0x4000, 0, 0x8000);
+        qtest_writel(qts, mmio + ATI_DST_OFFSET, 0x4000);
+        qtest_writel(qts, mmio + ATI_DST_PITCH, rage ? 8 : 256);
+        qtest_writel(qts, mmio + ATI_SC_TOP_LEFT, 0);
+        qtest_writel(qts, mmio + ATI_SC_BOTTOM_RIGHT, 0x00100040);
+        qtest_writel(qts, mmio + ATI_DP_GUI_MASTER_CNTL,
+                     common | ATI_GMC_ROP3_PATCOPY);
+        qtest_writel(qts, mmio + ATI_DP_BRUSH_FRGD_CLR, 0x00112233);
+        qtest_writel(qts, mmio + ATI_DP_CNTL, ATI_DST_LTR_TTB);
+        qtest_writel(qts, mmio + ATI_DST_X, 1);
+        qtest_writel(qts, mmio + ATI_DST_Y, 1);
+        qtest_writel(qts, mmio + 0x1628, -1);
+        qtest_writel(qts, mmio + 0x162c, 1);
+        qtest_writel(qts, mmio + 0x1630, -2);
+        qtest_writel(qts, mmio + ATI_GEN_INT_STATUS, 1U << 19);
+        qtest_writel(qts, mmio + 0x1634, 5);
+        /* The software line model preserves the programmed setup. */
+        g_assert_cmphex(qtest_readl(qts, mmio + 0x1628), ==, UINT32_MAX);
+        g_assert_cmphex(qtest_readl(qts, mmio + ATI_DST_X), ==, 1);
+        g_assert_cmphex(qtest_readl(qts, mmio + ATI_DST_Y), ==, 1);
+        for (unsigned int y = 0; y < 6; y++) {
+            for (unsigned int x = 0; x < 8; x++) {
+                bool drawn = x >= 1 && x <= 5 && y == line_y[x - 1];
+
+                g_assert_cmphex(qtest_readl(qts, fb + 0x4000 + y * 256 + x * 4),
+                                ==, drawn ? 0x00112233 : 0);
+            }
+        }
+        g_assert_cmphex(qtest_readl(qts, mmio + ATI_GEN_INT_STATUS) &
+                        (1U << 19), ==, 1U << 19);
+        if (rage) {
+            /* Vertical trapezoid edges cover [10,14) on three scanlines. */
+            qtest_writel(qts, mmio + ATI_DST_X, 10);
+            qtest_writel(qts, mmio + ATI_DST_Y, 8);
+            qtest_writel(qts, mmio + 0x1600, -1);
+            qtest_writel(qts, mmio + 0x1604, 0);
+            qtest_writel(qts, mmio + 0x1608, -1);
+            qtest_writel(qts, mmio + 0x160c, -1);
+            qtest_writel(qts, mmio + 0x1610, 0);
+            qtest_writel(qts, mmio + 0x1614, -1);
+            qtest_writel(qts, mmio + 0x1618, 14);
+            g_assert_cmphex(qtest_readl(qts, mmio + 0x1628), ==, UINT32_MAX);
+            g_assert_cmphex(qtest_readl(qts, mmio + 0x1618), ==, 14);
+            qtest_writel(qts, mmio + 0x161c, 3);
+            for (unsigned int y = 8; y < 12; y++) {
+                for (unsigned int x = 9; x < 15; x++) {
+                    g_assert_cmphex(qtest_readl(qts, fb + 0x4000 +
+                                                 y * 256 + x * 4), ==,
+                                    y < 11 && x >= 10 && x < 14 ?
+                                    0x00112233 : 0);
+                }
+            }
+            /* Approximate coverage ignores fractional starts and errors. */
+            qtest_memset(qts, fb + 0x4000, 0, 0x4000);
+            qtest_writel(qts, mmio + ATI_DP_CNTL, ATI_DST_LTR_TTB | (1U << 6));
+            qtest_writel(qts, mmio + 0x15a4, (10U << 4) | 15); /* DST_X_SUB */
+            qtest_writel(qts, mmio + 0x15a8, (8U << 4) | 3); /* DST_Y_SUB */
+            qtest_writel(qts, mmio + 0x1620, (14U << 4) | 7); /* TRAIL_X_SUB */
+            qtest_writel(qts, mmio + 0x1600, 123);
+            qtest_writel(qts, mmio + 0x1604, 1);
+            qtest_writel(qts, mmio + 0x1608, -2);
+            qtest_writel(qts, mmio + 0x160c, 456);
+            qtest_writel(qts, mmio + 0x1610, 1);
+            qtest_writel(qts, mmio + 0x1614, -1);
+            qtest_writel(qts, mmio + 0x1624, (3U << 4) | 7);
+            for (unsigned int y = 8; y < 12; y++) {
+                const unsigned left[] = { 10, 10, 11, 0 };
+                const unsigned right[] = { 14, 15, 16, 0 };
+
+                for (unsigned int x = 9; x < 17; x++) {
+                    bool filled = x >= left[y - 8] && x < right[y - 8];
+
+                    g_assert_cmphex(qtest_readl(qts, fb + 0x4000 +
+                                                 y * 256 + x * 4),
+                                    ==, filled ? 0x00112233 : 0);
+                }
+            }
+            g_assert_cmphex(qtest_readl(qts, mmio + 0x1600), ==, 123);
+            g_assert_cmphex(qtest_readl(qts, mmio + 0x160c), ==, 456);
+            g_assert_cmphex(qtest_readl(qts, mmio + ATI_DST_X), ==, 10);
+            g_assert_cmphex(qtest_readl(qts, mmio + ATI_DST_Y), ==, 8);
+            qtest_writel(qts, mmio + ATI_DP_CNTL, ATI_DST_LTR_TTB);
+        }
+        /* Both opaque and transparent 32x1 brushes repeat along each row. */
+        qtest_writel(qts, mmio + ATI_BRUSH_DATA0, 0xaaaaaaaa);
+        qtest_writel(qts, mmio + ATI_DP_BRUSH_BKGD_CLR, 0x00445566);
+        for (unsigned type = 6; type <= 7; type++) {
+            unsigned row = type + 6;
+
+            qtest_writel(qts, mmio + ATI_DP_GUI_MASTER_CNTL,
+                         (common & ~0xf0U) | (type << 4) |
+                         ATI_GMC_ROP3_PATCOPY);
+            qtest_writel(qts, mmio + ATI_DST_X, 0);
+            qtest_writel(qts, mmio + ATI_DST_Y, row);
+            qtest_writel(qts, mmio + ATI_DST_HEIGHT, 1);
+            qtest_writel(qts, mmio + ATI_DST_WIDTH, 16);
+            for (unsigned x = 0; x < 16; x++) {
+                uint32_t expected = x & 1 ?
+                    (type == 7 ? 0 : 0x00445566) : 0x00112233;
+
+                g_assert_cmphex(qtest_readl(qts, fb + 0x4000 +
+                                             row * 256 + x * 4), ==, expected);
+            }
+        }
+        qtest_writel(qts, mmio + ATI_DP_GUI_MASTER_CNTL,
+                     common | ATI_GMC_ROP3_PATCOPY);
+        if (rage) {
+            qtest_quit(qts);
+            continue;
+        }
+        /* A pixel across a tile boundary must use the swizzled address. */
+        qtest_memset(qts, fb + 0x4000, 0, 0x4000);
+        qtest_writel(qts, mmio + ATI_DST_PITCH, 512);
+        qtest_writel(qts, mmio + ATI_DST_TILE, 1);
+        qtest_writel(qts, mmio + ATI_DST_X, 17);
+        qtest_writel(qts, mmio + ATI_DST_Y, 5);
+        qtest_writel(qts, mmio + ATI_DST_HEIGHT, 1);
+        qtest_writel(qts, mmio + ATI_DST_WIDTH, 1);
+        g_assert_cmphex(qtest_readl(qts, fb + 0x4000 + 0x444), ==, 0x00112233);
+        g_assert_cmphex(qtest_readl(qts, fb + 0x4000 + 5 * 512 + 17 * 4),
+                        ==, 0);
+
+        qtest_writel(qts, mmio + ATI_CRTC_H_TOTAL_DISP, (7U << 16) | 9);
+        qtest_writel(qts, mmio + ATI_CRTC_V_TOTAL_DISP, (15U << 16) | 19);
+        qtest_writel(qts, mmio + ATI_CRTC_PITCH, 16);
+        qtest_writel(qts, mmio + ATI_CRTC_OFFSET, 0x4000);
+        qtest_writel(qts, mmio + ATI_CRTC_OFFSET_CNTL, 1U << 15);
+        qtest_writel(qts, mmio + ATI_CRTC_GEN_CNTL,
+                     ATI_CRTC_EXT_DISP_EN | ATI_CRTC_EN |
+                     ATI_CRTC_PIX_WIDTH_32);
+        qtest_readb(qts, IA64_LEGACY_IO_PORT_PA(VGA_INPUT_STATUS1));
+        qtest_writeb(qts, IA64_LEGACY_IO_PORT_PA(VGA_ATTR_INDEX), 0x20);
+        path = g_strdup_printf("%s/ati-tiles.XXXXXX", g_get_tmp_dir());
+        fd = g_mkstemp(path);
+        g_assert_cmpint(fd, >=, 0);
+        close(fd);
+        qtest_qmp_assert_success(qts,
+            "{'execute':'screendump','arguments':{'filename':%s}}", path);
+        assert_ppm_pixel(path, 64, 16, 17, 5, 0x11, 0x22, 0x33);
+        assert_ppm_pixel(path, 64, 16, 18, 5, 0, 0, 0);
+        if (!rage) {
+            /* Linux's macro-tiled viewport programming for x=0, y=1. */
+            qtest_writel(qts, mmio + ATI_CRTC_OFFSET_CNTL, (1U << 15) | 1);
+            qtest_writel(qts, mmio + ATI_CRTC_OFFSET, 0x4100);
+            qtest_qmp_assert_success(qts,
+                "{'execute':'screendump','arguments':{'filename':%s}}", path);
+            assert_ppm_pixel(path, 64, 16, 17, 4, 0x11, 0x22, 0x33);
+            assert_ppm_pixel(path, 64, 16, 17, 5, 0, 0, 0);
+        }
+        g_unlink(path);
+        qtest_quit(qts);
+    }
+}
+
+static void ati_default_tiling(void)
+{
+    static const char * const models[] = { "rage128p", "rv100", "es1000" };
+
+    for (unsigned model = 0; model < ARRAY_SIZE(models); model++) {
+        bool rage = model == 0;
+        uint64_t mmio = rage ? IA64_ATI_MMIO_BASE : IA64_RV100_MMIO_BASE;
+        uint64_t fb = rage ? IA64_ATI_FB_BASE : IA64_RV100_FB_BASE;
+        unsigned tiled_offset = 0x444;
+        unsigned linear_offset = 5 * 512 + 17 * 4;
+        uint32_t common = ATI_GMC_WR_MSK_DIS | ATI_GMC_CLR_CMP_DIS |
+                          ATI_GMC_DST_CLIPPING | ATI_GMC_DST_32BPP;
+        QTestState *qts = qtest_initf(
+            "-machine ia64-vpc,nvram=none -m 256M -S "
+            "-vga ati -global ati-vga.model=%s", models[model]);
+
+        ati_pci_enable(qts);
+        qtest_writel(qts, mmio + ATI_DEFAULT_SC_BOTTOM_RIGHT, 0x00100040);
+        qtest_writel(qts, mmio + ATI_SC_TOP_LEFT, 0);
+        qtest_writel(qts, mmio + ATI_SC_BOTTOM_RIGHT, 0x00100040);
+        for (int tile = 1; tile >= 0; tile--) {
+            g_test_message("%s default tiling %d", models[model], tile);
+            qtest_memset(qts, fb + 0x4000, 0, 0x8000);
+            if (rage) {
+                qtest_writel(qts, mmio + ATI_DEFAULT_OFFSET, 0x4000);
+                qtest_writel(qts, mmio + ATI_DEFAULT_PITCH,
+                             (tile << 16) | 16);
+            } else {
+                qtest_writel(qts, mmio + ATI_DEFAULT_OFFSET,
+                             ((uint32_t)tile << 30) | (512U << 16) | 0x10);
+            }
+            /* The defaults must replace the previous explicit tile mode. */
+            qtest_writel(qts, mmio + ATI_SRC_PITCH_OFFSET,
+                         (uint32_t)!tile << (rage ? 31 : 30));
+            qtest_writel(qts, mmio + ATI_DST_PITCH,
+                         rage ? (!tile << 16) | 16 : 512);
+            if (!rage) {
+                qtest_writel(qts, mmio + ATI_DST_TILE, !tile);
+            }
+            qtest_writel(qts, mmio + ATI_DP_GUI_MASTER_CNTL,
+                         common | ATI_GMC_BRUSH_SOLID | ATI_GMC_ROP3_PATCOPY);
+            qtest_writel(qts, mmio + ATI_DP_BRUSH_FRGD_CLR, 0x00112233);
+            qtest_writel(qts, mmio + ATI_DP_CNTL, ATI_DST_LTR_TTB);
+            qtest_writel(qts, mmio + ATI_DST_X, 17);
+            qtest_writel(qts, mmio + ATI_DST_Y, 5);
+            qtest_writel(qts, mmio + ATI_DST_HEIGHT, 1);
+            qtest_writel(qts, mmio + ATI_DST_WIDTH, 1);
+            if (rage && tile) {
+                uint8_t untouched[0x4000];
+
+                qtest_memread(qts, fb + 0x4000, untouched, sizeof(untouched));
+                for (unsigned j = 0; j < sizeof(untouched); j++) {
+                    g_assert_cmphex(untouched[j], ==, 0);
+                }
+                /* A rejected source read must not use the linear layout. */
+                qtest_writel(qts, fb + 0x4000 + linear_offset, 0x00112233);
+            } else {
+                g_assert_cmphex(qtest_readl(qts, fb + 0x4000 + tiled_offset),
+                                ==, tile ? 0x00112233 : 0);
+            }
+            g_assert_cmphex(qtest_readl(qts, fb + 0x4000 + linear_offset),
+                            ==, tile && !rage ? 0 : 0x00112233);
+
+            /* Copy from the default source surface to an explicit one. */
+            qtest_writel(qts, mmio + ATI_DST_OFFSET, 0x8000);
+            qtest_writel(qts, mmio + ATI_DST_PITCH, rage ? 16 : 512);
+            if (!rage) {
+                qtest_writel(qts, mmio + ATI_DST_TILE, 0);
+            }
+            qtest_writel(qts, mmio + ATI_DP_GUI_MASTER_CNTL,
+                         common | ATI_GMC_DST_PITCH | ATI_GMC_BRUSH_NONE |
+                         ATI_GMC_SRC_COLOR | ATI_GMC_DP_SRC_RECT |
+                         ATI_GMC_ROP3_SRCCOPY);
+            qtest_writel(qts, mmio + ATI_SRC_X, 17);
+            qtest_writel(qts, mmio + ATI_SRC_Y, 5);
+            qtest_writel(qts, mmio + ATI_DST_X, 0);
+            qtest_writel(qts, mmio + ATI_DST_Y, 0);
+            qtest_writel(qts, mmio + ATI_DST_HEIGHT, 1);
+            qtest_writel(qts, mmio + ATI_DST_WIDTH, 1);
+            g_assert_cmphex(qtest_readl(qts, fb + 0x8000),
+                            ==, rage && tile ? 0 : 0x00112233);
+        }
+        qtest_quit(qts);
+    }
+}
+
+static void ati_tiled_scanout_toggle(void)
+{
+    const char *models[] = { "rage128p", "rv100", "es1000" };
+    const bool tiled[] = { false, false, true, false };
+
+    for (unsigned int model = 0; model < ARRAY_SIZE(models); model++) {
+        bool rage = model == 0;
+        uint64_t mmio = rage ? IA64_ATI_MMIO_BASE : IA64_RV100_MMIO_BASE;
+        uint64_t fb = rage ? IA64_ATI_FB_BASE : IA64_RV100_FB_BASE;
+        QTestState *qts = qtest_initf(
+            "-machine ia64-vpc,nvram=none -m 256M -S "
+            "-vga ati -global ati-vga.model=%s", models[model]);
+        g_autofree char *path = g_strdup_printf(
+            "%s/ati-tile-toggle.XXXXXX", g_get_tmp_dir());
+        int fd = g_mkstemp(path);
+
+        g_assert_cmpint(fd, >=, 0);
+        close(fd);
+        ati_pci_enable(qts);
+        qtest_memset(qts, fb + 0x4000, 0, 0x4000);
+        /* Rage128 has a linear pixel; Radeon has a macro-tiled pixel. */
+        qtest_writeb(qts, fb + 0x4000 + (rage ? 5 * 512 + 17 : 0x4d1), 1);
+        qtest_writel(qts, mmio + ATI_DAC_CNTL, 1U << 8); /* 8-bit DAC */
+        qtest_writel(qts, mmio + ATI_PALETTE_INDEX, 0);
+        qtest_writel(qts, mmio + ATI_PALETTE_DATA, 0);
+        qtest_writel(qts, mmio + ATI_PALETTE_DATA, 0x00ff0000);
+        qtest_writel(qts, mmio + ATI_CRTC_H_TOTAL_DISP, (7U << 16) | 9);
+        qtest_writel(qts, mmio + ATI_CRTC_V_TOTAL_DISP, (15U << 16) | 19);
+        qtest_writel(qts, mmio + ATI_CRTC_PITCH, 64);
+        qtest_writel(qts, mmio + ATI_CRTC_OFFSET, 0x4000);
+        qtest_writel(qts, mmio + ATI_CRTC_GEN_CNTL,
+                     ATI_CRTC_EXT_DISP_EN | ATI_CRTC_EN | ATI_CRTC_PIX_WIDTH_8);
+        qtest_readb(qts, IA64_LEGACY_IO_PORT_PA(VGA_INPUT_STATUS1));
+        qtest_writeb(qts, IA64_LEGACY_IO_PORT_PA(VGA_ATTR_INDEX), 0x20);
+
+        /* Clear initial damage before toggling with no further VRAM writes. */
+        for (unsigned int frame = 0; frame < ARRAY_SIZE(tiled); frame++) {
+            qtest_writeb(qts, mmio + ATI_CRTC_OFFSET_CNTL + 1,
+                         tiled[frame] ? 0x80 : 0);
+            qtest_qmp_assert_success(qts,
+                "{'execute':'screendump','arguments':{'filename':%s}}", path);
+            assert_ppm_pixel(path, 64, 16, 17, 5,
+                             tiled[frame] != rage ? 0xff : 0, 0, 0);
+        }
+        g_assert_cmpint(g_unlink(path), ==, 0);
+        qtest_quit(qts);
+    }
+}
+
+static void ati_rage128_tiling_unsupported(void)
+{
+    const uint64_t mmio = IA64_ATI_MMIO_BASE, fb = IA64_ATI_FB_BASE;
+    const char *options =
+        "-machine ia64-vpc,nvram=none -m 256M -S "
+        "-vga ati -global ati-vga.model=rage128p";
+    QTestState *qts = qtest_init(options);
+    g_autofree char *path = g_strdup_printf(
+        "%s/ati-tile-unsupported.XXXXXX", g_get_tmp_dir());
+    g_autofree char *migration_path = g_strdup_printf(
+        "%s/ati-tile-migration.XXXXXX", g_get_tmp_dir());
+    g_autofree char *uri = NULL;
+    int fd = g_mkstemp(path);
+
+    g_assert_cmpint(fd, >=, 0);
+    close(fd);
+    ati_pci_enable(qts);
+    qtest_memset(qts, fb + 0x4000, 0x5a, 0x4000);
+    qtest_memset(qts, fb + 0x8000, 0xa5, 0x4000);
+    qtest_writel(qts, mmio + ATI_CRTC_H_TOTAL_DISP, (7U << 16) | 9);
+    qtest_writel(qts, mmio + ATI_CRTC_V_TOTAL_DISP, (15U << 16) | 19);
+    qtest_writel(qts, mmio + ATI_CRTC_PITCH, 8);
+    qtest_writel(qts, mmio + ATI_CRTC_OFFSET, 0x4000);
+    qtest_writel(qts, mmio + ATI_CRTC_OFFSET_CNTL, 0);
+    qtest_writel(qts, mmio + ATI_CRTC_GEN_CNTL,
+                 ATI_CRTC_EXT_DISP_EN | ATI_CRTC_EN | ATI_CRTC_PIX_WIDTH_32);
+    qtest_readb(qts, IA64_LEGACY_IO_PORT_PA(VGA_INPUT_STATUS1));
+    qtest_writeb(qts, IA64_LEGACY_IO_PORT_PA(VGA_ATTR_INDEX), 0x20);
+    qtest_qmp_assert_success(qts,
+        "{'execute':'screendump','arguments':{'filename':%s}}", path);
+    assert_ppm_pixel(path, 64, 16, 17, 5, 0x5a, 0x5a, 0x5a);
+
+    /* Offset changes also leave unsupported tiled scanout at zero. */
+    qtest_writel(qts, mmio + ATI_CRTC_OFFSET_CNTL, 1U << 15);
+    for (unsigned i = 0; i < 2; i++) {
+        qtest_writel(qts, mmio + ATI_CRTC_OFFSET, i ? 0x8000 : 0x4000);
+        qtest_writeb(qts, mmio + ATI_CRTC_OFFSET_CNTL, i ? 0xff : 0);
+        qtest_qmp_assert_success(qts,
+            "{'execute':'screendump','arguments':{'filename':%s}}", path);
+        assert_ppm_pixel(path, 64, 16, 0, 0, 0, 0, 0);
+        assert_ppm_pixel(path, 64, 16, 17, 5, 0, 0, 0);
+        assert_ppm_pixel(path, 64, 16, 63, 15, 0, 0, 0);
+    }
+
+    fd = g_mkstemp(migration_path);
+    g_assert_cmpint(fd, >=, 0);
+    close(fd);
+    uri = g_strdup_printf("file:%s", migration_path);
+    qtest_qmp_assert_success(qts,
+        "{'execute':'migrate','arguments':{'uri':%s}}", uri);
+    display_wait_for_migration(qts);
+    qtest_quit(qts);
+    qts = qtest_initf("%s -incoming defer", options);
+    qtest_qmp_assert_success(qts,
+        "{'execute':'migrate-incoming','arguments':{'uri':%s}}", uri);
+    display_wait_for_migration(qts);
+    qtest_qmp_assert_success(qts,
+        "{'execute':'screendump','arguments':{'filename':%s}}", path);
+    assert_ppm_pixel(path, 64, 16, 17, 5, 0, 0, 0);
+
+    /* Returning to linear scanout must recover the existing framebuffer. */
+    qtest_writel(qts, mmio + ATI_CRTC_OFFSET_CNTL, 0);
+    qtest_qmp_assert_success(qts,
+        "{'execute':'screendump','arguments':{'filename':%s}}", path);
+    assert_ppm_pixel(path, 64, 16, 17, 5, 0xa5, 0xa5, 0xa5);
+    g_assert_cmpint(g_unlink(migration_path), ==, 0);
+    g_assert_cmpint(g_unlink(path), ==, 0);
+    qtest_quit(qts);
+}
+
+static void ati_radeon_tiled_scanout_pan(void)
+{
+    static const char * const models[] = { "rv100", "es1000" };
+    static const unsigned lines[] = { 0, 1, 7, 8, 15, 16, 17, 33 };
+    static const unsigned columns[] = { 0, 8, 120, 248, 256 };
+    /* Red at x=0 and green at x=256 every eighth row, pitch 768 bytes. */
+    static const uint32_t pixels[][2] = {
+        { 0x4000, 0x4c00 }, { 0x5a00, 0x6600 }, { 0x7000, 0x7c00 },
+        { 0x8a00, 0x9600 }, { 0xa000, 0xac00 }, { 0xba00, 0xc600 },
+        { 0xd000, 0xdc00 },
+    };
+    const uint64_t mmio = IA64_RV100_MMIO_BASE, fb = IA64_RV100_FB_BASE;
+
+    for (unsigned model = 0; model < ARRAY_SIZE(models); model++) {
+        QTestState *qts = qtest_initf(
+            "-machine ia64-vpc,nvram=none -m 256M -S "
+            "-vga ati -global ati-vga.model=%s", models[model]);
+        g_autofree char *path = g_strdup_printf(
+            "%s/ati-radeon-tile-pan.XXXXXX", g_get_tmp_dir());
+        int fd = g_mkstemp(path);
+
+        g_assert_cmpint(fd, >=, 0);
+        close(fd);
+        ati_pci_enable(qts);
+        qtest_memset(qts, fb + 0x4000, 0, 0xa000);
+        for (unsigned i = 0; i < ARRAY_SIZE(pixels); i++) {
+            qtest_writeb(qts, fb + pixels[i][0], 1);
+            qtest_writeb(qts, fb + pixels[i][1], 2);
+        }
+        qtest_writel(qts, mmio + ATI_DAC_CNTL, 1U << 8);
+        qtest_writel(qts, mmio + ATI_PALETTE_INDEX, 0);
+        qtest_writel(qts, mmio + ATI_PALETTE_DATA, 0);
+        qtest_writel(qts, mmio + ATI_PALETTE_DATA, 0xff0000);
+        qtest_writel(qts, mmio + ATI_PALETTE_DATA, 0x00ff00);
+        qtest_writel(qts, mmio + ATI_CRTC_H_TOTAL_DISP, (39U << 16) | 49);
+        qtest_writel(qts, mmio + ATI_CRTC_V_TOTAL_DISP, (15U << 16) | 19);
+        qtest_writel(qts, mmio + ATI_CRTC_PITCH, 96);
+        qtest_writel(qts, mmio + ATI_CRTC_OFFSET, 0x4000);
+        qtest_writel(qts, mmio + ATI_CRTC_OFFSET_CNTL, 1U << 15);
+        qtest_writel(qts, mmio + ATI_CRTC_GEN_CNTL,
+                     ATI_CRTC_EXT_DISP_EN | ATI_CRTC_EN | ATI_CRTC_PIX_WIDTH_8);
+        qtest_readb(qts, IA64_LEGACY_IO_PORT_PA(VGA_INPUT_STATUS1));
+        qtest_writeb(qts, IA64_LEGACY_IO_PORT_PA(VGA_ATTR_INDEX), 0x20);
+
+        for (unsigned i = 0; i < ARRAY_SIZE(lines); i++) {
+            for (unsigned j = 0; j < ARRAY_SIZE(columns); j++) {
+                unsigned x = columns[j], line = lines[i];
+                /* radeon_crtc_do_set_base() encodes an unswizzled tile. */
+                uint32_t offset = 0x4000 +
+                    ((line / 8 * 768 + x) / 256) * 2048 +
+                    x % 256 + (line % 8) * 256;
+
+                g_test_message("%s: pan (%u,%u)", models[model], x, line);
+                qtest_writel(qts, mmio + ATI_CRTC_OFFSET, offset);
+                qtest_writeb(qts, mmio + ATI_CRTC_OFFSET_CNTL, line & 15);
+                qtest_qmp_assert_success(qts,
+                    "{'execute':'screendump','arguments':{'filename':%s}}",
+                    path);
+                for (unsigned y = 0; y < 16; y++) {
+                    unsigned color = (line + y) % 8 ? 0 : 0xff;
+
+                    if (!x) {
+                        assert_ppm_pixel(path, 320, 16, 0, y, color, 0, 0);
+                    }
+                    assert_ppm_pixel(path, 320, 16, 256 - x, y, 0, color, 0);
+                    assert_ppm_pixel(path, 320, 16, 257 - x, y, 0, 0, 0);
+                }
+            }
+        }
+
+        /* A locked pan must keep the old tile row until the offset commits. */
+        qtest_writel(qts, mmio + ATI_CRTC_OFFSET, 0x4000);
+        qtest_writeb(qts, mmio + ATI_CRTC_OFFSET_CNTL, 0);
+        qtest_writel(qts, mmio + ATI_CRTC_OFFSET,
+                     0x4300 | ATI_CRTC_OFFSET_LOCK);
+        qtest_writeb(qts, mmio + ATI_CRTC_OFFSET_CNTL, 3);
+        qtest_qmp_assert_success(qts,
+            "{'execute':'screendump','arguments':{'filename':%s}}", path);
+        assert_ppm_pixel(path, 320, 16, 256, 8, 0, 0xff, 0);
+        assert_ppm_pixel(path, 320, 16, 256, 5, 0, 0, 0);
+        qtest_writel(qts, mmio + ATI_CRTC_OFFSET_CNTL, (1U << 15) | 3);
+        qtest_qmp_assert_success(qts, "{'execute':'cont'}");
+        qtest_clock_step(qts, ATI_VBLANK_FRAME_NS * 2 + 1);
+        qtest_qmp_assert_success(qts, "{'execute':'stop'}");
+        g_assert_cmphex(qtest_readl(qts, mmio + ATI_CRTC_OFFSET), ==, 0x4300);
+        qtest_qmp_assert_success(qts,
+            "{'execute':'screendump','arguments':{'filename':%s}}", path);
+        assert_ppm_pixel(path, 320, 16, 256, 5, 0, 0xff, 0);
+        assert_ppm_pixel(path, 320, 16, 256, 8, 0, 0, 0);
+        g_assert_cmpint(g_unlink(path), ==, 0);
+        qtest_quit(qts);
+    }
+}
+
+static void ati_radeon_tiled_scanout_2d(void)
+{
+    static const char * const models[] = { "rv100", "es1000" };
+    static const uint32_t bases[] = { 0x4000, 0x4800 };
+    static const unsigned pitches[] = { 512, 256, 768 };
+    static const unsigned lines[] = { 0, 1, 7, 8, 15, 16 };
+    static const unsigned columns[] = { 0, 8, 64 };
+    const uint64_t mmio = IA64_RV100_MMIO_BASE, fb = IA64_RV100_FB_BASE;
+    const uint32_t common = ATI_GMC_WR_MSK_DIS | ATI_GMC_CLR_CMP_DIS |
+                            ATI_GMC_DST_PITCH | ATI_GMC_DST_CLIPPING |
+                            ATI_GMC_DST_32BPP;
+
+    for (unsigned model = 0; model < ARRAY_SIZE(models); model++) {
+        QTestState *qts = qtest_initf(
+            "-machine ia64-vpc,nvram=none -m 256M -S "
+            "-vga ati -global ati-vga.model=%s", models[model]);
+        g_autofree char *path = g_strdup_printf(
+            "%s/ati-radeon-tile-2d.XXXXXX", g_get_tmp_dir());
+        int fd = g_mkstemp(path);
+
+        g_assert_cmpint(fd, >=, 0);
+        close(fd);
+        ati_pci_enable(qts);
+        qtest_writel(qts, mmio + ATI_CRTC_H_TOTAL_DISP, (7U << 16) | 9);
+        qtest_writel(qts, mmio + ATI_CRTC_V_TOTAL_DISP, (15U << 16) | 19);
+        qtest_writel(qts, mmio + ATI_CRTC_GEN_CNTL,
+                     ATI_CRTC_EXT_DISP_EN | ATI_CRTC_EN |
+                     ATI_CRTC_PIX_WIDTH_32);
+        qtest_readb(qts, IA64_LEGACY_IO_PORT_PA(VGA_INPUT_STATUS1));
+        qtest_writeb(qts, IA64_LEGACY_IO_PORT_PA(VGA_ATTR_INDEX), 0x20);
+        qtest_writel(qts, mmio + ATI_DP_CNTL, ATI_DST_LTR_TTB);
+        qtest_writel(qts, mmio + ATI_SC_TOP_LEFT, 0);
+
+        for (unsigned p = 0; p < ARRAY_SIZE(pitches); p++) {
+            unsigned pitch = pitches[p];
+
+            qtest_writel(qts, mmio + ATI_CRTC_PITCH, pitch / 32);
+            qtest_writel(qts, mmio + ATI_SC_BOTTOM_RIGHT,
+                         (32U << 16) | (pitch / 4));
+            qtest_writel(qts, mmio + ATI_DEFAULT_SC_BOTTOM_RIGHT,
+                         (32U << 16) | (pitch / 4));
+            for (unsigned b = 0; b < ARRAY_SIZE(bases); b++) {
+                uint32_t base = bases[b];
+
+                g_test_message("%s: tiled 2D base 0x%x, pitch %u",
+                               models[model], base, pitch);
+                qtest_memset(qts, fb + base, 0, pitch * 32);
+                qtest_writel(qts, mmio + ATI_DST_OFFSET, base);
+                qtest_writel(qts, mmio + ATI_DST_PITCH, pitch);
+                qtest_writel(qts, mmio + ATI_DST_TILE, 1);
+                qtest_writel(qts, mmio + ATI_DP_GUI_MASTER_CNTL,
+                             common | ATI_GMC_BRUSH_SOLID |
+                             ATI_GMC_ROP3_PATCOPY);
+                /* Distinct pixels in each tile expose bank and row errors. */
+                for (unsigned y = 5; y < 32; y += 8) {
+                    for (unsigned x = 17; x < pitch / 4; x += 64) {
+                        qtest_writel(qts, mmio + ATI_DP_BRUSH_FRGD_CLR,
+                                     ((0x11 + x / 64) << 16) | 0x2200 | y);
+                        qtest_writel(qts, mmio + ATI_DST_X, x);
+                        qtest_writel(qts, mmio + ATI_DST_Y, y);
+                        qtest_writel(qts, mmio + ATI_DST_HEIGHT, 1);
+                        qtest_writel(qts, mmio + ATI_DST_WIDTH, 1);
+                    }
+                }
+
+                for (unsigned i = 0; i < ARRAY_SIZE(lines); i++) {
+                    unsigned line = lines[i];
+
+                    for (unsigned j = 0; j < ARRAY_SIZE(columns); j++) {
+                        unsigned x = columns[j];
+                        unsigned pixel_x = 17 + (x / 64) * 64 - x;
+                        uint32_t offset = base +
+                            ((line / 8 * pitch + x * 4) / 256) * 2048 +
+                            (x * 4) % 256 + (line % 8) * 256;
+
+                        if (x + 64 > pitch / 4) {
+                            continue;
+                        }
+                        qtest_writel(qts, mmio + ATI_CRTC_OFFSET, offset);
+                        qtest_writel(qts, mmio + ATI_CRTC_OFFSET_CNTL,
+                                     (1U << 15) | (line & 15));
+                        qtest_qmp_assert_success(qts,
+                            "{'execute':'screendump',"
+                            "'arguments':{'filename':%s}}", path);
+                        for (unsigned y = 0; y < 16; y++) {
+                            bool drawn = (line + y) % 8 == 5;
+
+                            assert_ppm_pixel(path, 64, 16, pixel_x, y,
+                                             drawn ? 0x11 + x / 64 : 0,
+                                             drawn ? 0x22 : 0,
+                                             drawn ? line + y : 0);
+                            assert_ppm_pixel(path, 64, 16, pixel_x + 1, y,
+                                             0, 0, 0);
+                        }
+                    }
+                }
+
+                /* Reading the tiled surface through 2D must agree as well. */
+                qtest_memset(qts, fb + 0x20000, 0, pitch * 32);
+                qtest_writel(qts, mmio + ATI_SRC_PITCH_OFFSET,
+                             (1U << 30) | (pitch << 16) | (base >> 10));
+                qtest_writel(qts, mmio + ATI_DST_OFFSET, 0x20000);
+                qtest_writel(qts, mmio + ATI_DST_TILE, 0);
+                qtest_writel(qts, mmio + ATI_DP_GUI_MASTER_CNTL,
+                             common | ATI_GMC_SRC_PITCH | ATI_GMC_SRC_COLOR |
+                             ATI_GMC_BRUSH_NONE | ATI_GMC_DP_SRC_RECT |
+                             ATI_GMC_ROP3_SRCCOPY);
+                qtest_writel(qts, mmio + ATI_SRC_X, 0);
+                qtest_writel(qts, mmio + ATI_SRC_Y, 0);
+                qtest_writel(qts, mmio + ATI_DST_X, 0);
+                qtest_writel(qts, mmio + ATI_DST_Y, 0);
+                qtest_writel(qts, mmio + ATI_DST_HEIGHT, 32);
+                qtest_writel(qts, mmio + ATI_DST_WIDTH, pitch / 4);
+                for (unsigned y = 0; y < 32; y++) {
+                    for (unsigned x = 17; x < pitch / 4; x += 64) {
+                        uint32_t expected = y % 8 == 5 ?
+                            ((0x11 + x / 64) << 16) | 0x2200 | y : 0;
+
+                        g_assert_cmphex(qtest_readl(qts, fb + 0x20000 +
+                                                        y * pitch + x * 4),
+                                        ==, expected);
+                    }
+                }
+            }
+        }
+        g_assert_cmpint(g_unlink(path), ==, 0);
+        qtest_quit(qts);
+    }
+}
+
+static void ati_rage128_tiled_brush(void)
+{
+    const uint64_t mmio = IA64_ATI_MMIO_BASE, fb = IA64_ATI_FB_BASE;
+    const uint32_t foreground = 0x00112233, background = 0x00445566;
+    const uint32_t common = ATI_GMC_WR_MSK_DIS | ATI_GMC_CLR_CMP_DIS |
+                            ATI_GMC_DST_PITCH | ATI_GMC_DST_CLIPPING |
+                            ATI_GMC_DST_32BPP;
+    QTestState *qts = qtest_init(
+        "-machine ia64-vpc,nvram=none -m 256M -S "
+        "-vga ati -global ati-vga.model=rage128p");
+
+    ati_pci_enable(qts);
+    qtest_writel(qts, mmio + ATI_DP_CNTL, ATI_DST_LTR_TTB);
+    qtest_writel(qts, mmio + ATI_DP_BRUSH_FRGD_CLR, foreground);
+    qtest_writel(qts, mmio + ATI_DP_BRUSH_BKGD_CLR, background);
+    for (unsigned int row = 0; row < 32; row++) {
+        qtest_writel(qts, mmio + ATI_BRUSH_DATA0 + row * 4,
+                     row < 16 ? 0xffff0000 : 0x0000ffff);
+    }
+    /* Exercise both opaque and transparent 32x1 and 32x32 patterns. */
+    for (unsigned int type = 6; type <= 9; type++) {
+        for (unsigned int tile = 0; tile < 2; tile++) {
+            uint32_t readback = tile ? 0x10000 : 0x4000;
+
+            g_test_message("brush type %u, tiled %u", type, tile);
+            qtest_memset(qts, fb + 0x4000, 0x5a, 0x4000);
+            qtest_writel(qts, mmio + ATI_DST_OFFSET, 0x4000);
+            qtest_writel(qts, mmio + ATI_DST_PITCH, 16 | (tile << 16));
+            qtest_writel(qts, mmio + ATI_DP_GUI_MASTER_CNTL,
+                         common | (type << 4) | ATI_GMC_ROP3_PATCOPY);
+            qtest_writel(qts, mmio + ATI_BRUSH_Y_X, 0x1010);
+            qtest_writel(qts, mmio + ATI_SC_TOP_LEFT, (11U << 16) | 5);
+            qtest_writel(qts, mmio + ATI_SC_BOTTOM_RIGHT, (31U << 16) | 31);
+            qtest_writel(qts, mmio + ATI_DST_X, 0);
+            qtest_writel(qts, mmio + ATI_DST_Y, 0);
+            qtest_writel(qts, mmio + ATI_DST_HEIGHT, 32);
+            qtest_writel(qts, mmio + ATI_DST_WIDTH, 32);
+            if (tile) {
+                /* A tiled source must leave a linear destination untouched. */
+                uint8_t untouched[0x4000];
+
+                qtest_memread(qts, fb + 0x4000, untouched, sizeof(untouched));
+                for (unsigned i = 0; i < sizeof(untouched); i++) {
+                    g_assert_cmphex(untouched[i], ==, 0x5a);
+                }
+                qtest_memset(qts, fb + readback, 0x5a, 0x4000);
+                qtest_writel(qts, mmio + ATI_DP_GUI_MASTER_CNTL,
+                             common | ATI_GMC_SRC_PITCH | ATI_GMC_SRC_COLOR |
+                             ATI_GMC_DP_SRC_RECT | ATI_GMC_ROP3_SRCCOPY);
+                qtest_writel(qts, mmio + ATI_SRC_OFFSET, 0x4000);
+                qtest_writel(qts, mmio + ATI_SRC_PITCH, (1U << 16) | 16);
+                qtest_writel(qts, mmio + ATI_SRC_X, 0);
+                qtest_writel(qts, mmio + ATI_SRC_Y, 0);
+                qtest_writel(qts, mmio + ATI_SRC_SC_BOTTOM_RIGHT,
+                             (31U << 16) | 31);
+                qtest_writel(qts, mmio + ATI_DST_OFFSET, readback);
+                qtest_writel(qts, mmio + ATI_DST_PITCH, 16);
+                qtest_writel(qts, mmio + ATI_SC_TOP_LEFT, 0);
+                qtest_writel(qts, mmio + ATI_DST_WIDTH, 32);
+            }
+            for (unsigned int y = 0; y < 32; y++) {
+                for (unsigned int x = 0; x < 32; x++) {
+                    /* The origin shifts both halves of each 32-pixel axis. */
+                    bool ink = x >= 16;
+                    uint32_t expected = 0x5a5a5a5a;
+
+                    if (type >= 8 && y < 16) {
+                        ink = !ink;
+                    }
+                    if (!tile && x >= 5 && y >= 11) {
+                        if (ink) {
+                            expected = foreground;
+                        } else if (!(type & 1)) {
+                            expected = background;
+                        }
+                    }
+                    g_assert_cmphex(qtest_readl(qts, fb + readback +
+                                                 y * 512 + x * 4),
+                                    ==, expected);
+                }
+            }
+        }
+    }
+    qtest_quit(qts);
+}
+
+static void ati_rage128_stretch(void)
+{
+    QTestState *qts = qtest_init(
+        "-machine ia64-vpc,nvram=none -m 256M -S "
+        "-vga ati -global ati-vga.model=rage128p");
+    uint64_t mmio = IA64_ATI_MMIO_BASE, fb = IA64_ATI_FB_BASE;
+    uint32_t colors[] = { 0x00ff0000, 0x0000ff00, 0x000000ff, 0x00ffffff };
+
+    ati_pci_enable(qts);
+    qtest_memset(qts, fb + 0x12000, 0xa5, 2048);
+    for (unsigned int i = 0; i < 4; i++) {
+        qtest_writel(qts, fb + 0x10004 + (i / 2) * 32 + (i % 2) * 4,
+                     colors[i]);
+    }
+    qtest_writel(qts, mmio + ATI_DST_OFFSET, 0x12000);
+    qtest_writel(qts, mmio + ATI_DST_PITCH, 8);
+    qtest_writel(qts, mmio + ATI_SC_TOP_LEFT, 0);
+    qtest_writel(qts, mmio + ATI_SC_BOTTOM_RIGHT, 0x0007003f);
+    qtest_writel(qts, mmio + ATI_DP_GUI_MASTER_CNTL,
+                 ATI_GMC_WR_MSK_DIS | ATI_GMC_CLR_CMP_DIS |
+                 ATI_GMC_DST_PITCH | ATI_GMC_DST_CLIPPING |
+                 ATI_GMC_DST_32BPP | ATI_GMC_SRC_COLOR |
+                 ATI_GMC_ROP3_SRCCOPY | ATI_GMC_DP_SRC_RECT);
+    qtest_writel(qts, mmio + ATI_DP_CNTL, ATI_DST_LTR_TTB);
+    qtest_writel(qts, mmio + 0x1994, 0x00020002);
+    qtest_writel(qts, mmio + 0x1998, 0x10004);
+    qtest_writel(qts, mmio + 0x199c, 1);
+    qtest_writel(qts, mmio + 0x19a0, 0x8000);
+    qtest_writel(qts, mmio + 0x19a4, 0x8000);
+    qtest_writel(qts, mmio + 0x19b0, 0x00020002);
+    qtest_writel(qts, mmio + 0x1a00, 0x140);
+    g_assert_cmphex(qtest_readl(qts, mmio + 0x1994), ==, 0x00020002);
+    g_assert_cmphex(qtest_readl(qts, mmio + 0x1a00), ==, 0x140);
+    qtest_writel(qts, mmio + 0x19b4, 0x00040004);
+    for (unsigned int y = 0; y < 8; y++) {
+        for (unsigned int x = 0; x < 8; x++) {
+            uint32_t expected = x >= 2 && x < 6 && y >= 2 && y < 6 ?
+                colors[((y - 2) / 2) * 2 + (x - 2) / 2] : 0xa5a5a5a5;
+
+            g_assert_cmphex(qtest_readl(qts, fb + 0x12000 + y * 256 + x * 4),
+                            ==, expected);
+        }
+    }
+    /* Bilinear filtering at the center averages all four source texels. */
+    qtest_writel(qts, mmio + 0x1a00, 0x40);
+    qtest_writel(qts, mmio + 0x19b4, 0x00040004);
+    g_assert_cmphex(qtest_readl(qts, fb + 0x12000 + 3 * 256 + 3 * 4),
+                    ==, 0x00808080);
+    /* The generic filter rounds once: one quarter of one rounds to zero. */
+    for (unsigned i = 0; i < 4; i++) {
+        qtest_writel(qts, fb + 0x10004 + (i / 2) * 32 + (i % 2) * 4,
+                     i == 3 ? 0x00010101 : 0);
+    }
+    qtest_writel(qts, mmio + 0x19b4, 0x00040004);
+    g_assert_cmphex(qtest_readl(qts, fb + 0x12000 + 3 * 256 + 3 * 4), ==, 0);
+    g_assert_cmphex(qtest_readl(qts, fb + 0x12000 + 5 * 256 + 5 * 4),
+                    ==, 0x00010101);
+    /* Rejected tiled input preserves the destination and signals completion. */
+    qtest_memset(qts, fb + 0x12000, 0xa5, 2048);
+    qtest_writel(qts, mmio + 0x199c, (1U << 16) | 1);
+    qtest_writel(qts, mmio + ATI_GEN_INT_STATUS, 1U << 19);
+    qtest_writel(qts, mmio + 0x19b4, 0x00040004);
+    {
+        uint8_t untouched[2048];
+
+        qtest_memread(qts, fb + 0x12000, untouched, sizeof(untouched));
+        for (unsigned i = 0; i < sizeof(untouched); i++) {
+            g_assert_cmphex(untouched[i], ==, 0xa5);
+        }
+    }
+    g_assert_cmphex(qtest_readl(qts, mmio + ATI_GEN_INT_STATUS) & (1U << 19),
+                    ==, 1U << 19);
+    qtest_quit(qts);
+}
+
+static void ati_rage128_stretch_formats(void)
+{
+    const uint64_t mmio = IA64_ATI_MMIO_BASE, fb = IA64_ATI_FB_BASE;
+    static const struct {
+        unsigned datatype, cpp;
+        uint32_t colors[4];
+    } formats[] = {
+        { 3, 2, { 0x7c00, 0x03e0, 0x001f, 0x7fff } },
+        { 4, 2, { 0xf800, 0x07e0, 0x001f, 0xffff } },
+        { 5, 3, { 0xff0000, 0x00ff00, 0x0000ff, 0xffffff } },
+        { 6, 4, { 0xff0000, 0x00ff00, 0x0000ff, 0xffffff } },
+    };
+    QTestState *qts = qtest_init(
+        "-machine ia64-vpc,nvram=none -m 256M -S "
+        "-vga ati -global ati-vga.model=rage128p");
+
+    ati_pci_enable(qts);
+    for (unsigned f = 0; f < ARRAY_SIZE(formats); f++) {
+        unsigned cpp = formats[f].cpp;
+        unsigned unit = cpp == 3 ? 8 : cpp * 8;
+        unsigned pitch = cpp == 3 ? 24 : 32;
+        unsigned source = 0x10000 + cpp;
+        uint8_t output[256];
+
+        g_test_message("scaler datatype %u", formats[f].datatype);
+        qtest_memset(qts, fb + 0x10000, 0x5a, 256);
+        qtest_memset(qts, fb + 0x12000, 0xa5, sizeof(output));
+        for (unsigned i = 0; i < 4; i++) {
+            for (unsigned byte = 0; byte < cpp; byte++) {
+                qtest_writeb(qts, fb + source + (i / 2) * pitch +
+                                    (i % 2) * cpp + byte,
+                             formats[f].colors[i] >> (byte * 8));
+            }
+        }
+        qtest_writel(qts, mmio + ATI_DST_OFFSET, 0x12000);
+        qtest_writel(qts, mmio + ATI_DST_PITCH, 32 / unit);
+        qtest_writel(qts, mmio + ATI_SC_TOP_LEFT, 0);
+        qtest_writel(qts, mmio + ATI_SC_BOTTOM_RIGHT,
+                     (7U << 16) | (cpp == 3 ? 24 : 7));
+        qtest_writel(qts, mmio + ATI_DP_GUI_MASTER_CNTL,
+                     ATI_GMC_WR_MSK_DIS | ATI_GMC_CLR_CMP_DIS |
+                     ATI_GMC_DST_PITCH | ATI_GMC_DST_CLIPPING |
+                     (formats[f].datatype << 8) | ATI_GMC_SRC_COLOR |
+                     ATI_GMC_ROP3_SRCCOPY | ATI_GMC_DP_SRC_RECT);
+        qtest_writel(qts, mmio + ATI_DP_CNTL, ATI_DST_LTR_TTB);
+        /* DirectFB's byte offset and format-dependent pitch units. */
+        qtest_writel(qts, mmio + 0x1994, 0x00020002);
+        qtest_writel(qts, mmio + 0x1998, source);
+        qtest_writel(qts, mmio + 0x199c, pitch / unit);
+        qtest_writel(qts, mmio + 0x19a0, 0x8000);
+        qtest_writel(qts, mmio + 0x19a4, 0x8000);
+        qtest_writel(qts, mmio + 0x19b0, 0x00010001);
+        qtest_writel(qts, mmio + 0x1a00, 0x140);
+        qtest_writel(qts, mmio + 0x1a20, formats[f].datatype);
+        qtest_writel(qts, mmio + 0x19b4, 0x00040004);
+        qtest_memread(qts, fb + 0x12000, output, sizeof(output));
+        for (unsigned y = 0; y < 8; y++) {
+            for (unsigned x = 0; x < 32; x++) {
+                unsigned expected = 0xa5;
+
+                if (y >= 1 && y < 5 && x >= cpp && x < 5 * cpp) {
+                    unsigned pixel = (x / cpp - 1) / 2;
+                    unsigned index = ((y - 1) / 2) * 2 + pixel;
+
+                    expected = (formats[f].colors[index] >>
+                                ((x % cpp) * 8)) & 0xff;
+                }
+                g_assert_cmphex(output[y * 32 + x], ==, expected);
+            }
+        }
+    }
+    qtest_quit(qts);
+}
+
+static void nvidia_quadro2_fifo_yield(void)
+{
+    enum { CHANNEL = 3, PREFIX = 70000, WORDS = PREFIX + 18,
+           DMA_INSTANCE = 0x1b000, PUSH_OFFSET = 0xc00000 };
+    const uint64_t mmio = HP_QUADRO2_MMIO_BASE;
+    const uint64_t ramin = mmio + HP_QUADRO2_PRAMIN;
+    g_autofree uint32_t *push = g_new0(uint32_t, WORDS);
+    QTestState *qts = quadro2_start("");
+    unsigned count = PREFIX;
+
+    quadro2_prepare_rectangle(qts, CHANNEL, HP_QUADRO2_VRAM_SIZE - 1, 0, 0);
+    quadro2_user_write(qts, CHANNEL, 0, 0x304, (4096U << 16) | 4096);
+    qtest_writel(qts, ramin + 0x19040, 0x5c); /* LINE object */
+    quadro2_ramht_insert(qts, CHANNEL, 0x80000004,
+                         HP_QUADRO2_RAMHT_GRAPHICS, 0x19040);
+    quadro2_user_write(qts, CHANNEL, 2, 0, 0x80000004);
+    quadro2_user_write(qts, CHANNEL, 2, 0x198, 0x80000002);
+    quadro2_user_write(qts, CHANNEL, 2, 0x2fc, 3);
+    quadro2_user_write(qts, CHANNEL, 2, 0x300, 3);
+    quadro2_user_write(qts, CHANNEL, 2, 0x304, 0x00abcdef);
+    quadro2_user_write(qts, CHANNEL, 2, 0x400, (2050U << 16) | 4);
+    /* Cross both the word budget and the 16 MiB rendering budget. */
+    for (unsigned i = 0; i < 3; i++) {
+        push[count++] = cpu_to_le32((1U << 18) | (1U << 13) | 0x3fc);
+        push[count++] = cpu_to_le32(0x00112233 * (i + 1));
+        push[count++] = cpu_to_le32((1U << 18) | (1U << 13) | 0x404);
+        push[count++] = cpu_to_le32((1024U << 16) | 2048);
+        if (i == 1) {
+            /* Retry this line with its original start, then continue it. */
+            push[count++] = cpu_to_le32((1U << 18) | (2U << 13) | 0x404);
+            push[count++] = cpu_to_le32((2050U << 16) | 8);
+            push[count++] = cpu_to_le32((1U << 18) | (2U << 13) | 0x500);
+            push[count++] = cpu_to_le32((2054U << 16) | 8);
+        }
+    }
+    push[count++] = cpu_to_le32((1U << 18) | 0x50);
+    push[count++] = cpu_to_le32(0x13579bdf);
+    g_assert_cmpuint(count, ==, WORDS);
+    qtest_memwrite(qts, HP_QUADRO2_FB_BASE + PUSH_OFFSET, push, WORDS * 4);
+    qtest_writel(qts, ramin + DMA_INSTANCE, 0x0000303d);
+    qtest_writel(qts, ramin + DMA_INSTANCE + 4, WORDS * 4 - 1);
+    qtest_writel(qts, ramin + DMA_INSTANCE + 8, PUSH_OFFSET);
+    qtest_writel(qts, mmio + HP_QUADRO2_PFIFO_RAMFC, 0x180);
+    qtest_writel(qts, mmio + HP_QUADRO2_PFIFO_MODE, 1U << CHANNEL);
+    qtest_writel(qts, mmio + HP_QUADRO2_PFIFO_PUSH1, CHANNEL | (1U << 8));
+    qtest_writel(qts, mmio + HP_QUADRO2_PFIFO_DMA_INSTANCE, DMA_INSTANCE >> 4);
+    qtest_writel(qts, mmio + HP_QUADRO2_PFIFO_DMA_PUSH, 1);
+    qtest_writel(qts, mmio + HP_QUADRO2_PFIFO_DMA_GET, 0);
+    qtest_writel(qts, mmio + HP_QUADRO2_PFIFO_DMA_PUT, WORDS * 4);
+    for (unsigned i = 0; i < 1000 &&
+         qtest_readl(qts, mmio + HP_QUADRO2_PFIFO_DMA_GET) != WORDS * 4; i++) {
+        qtest_qmp_assert_success(qts, "{'execute':'query-status'}");
+    }
+    g_assert_cmpuint(qtest_readl(qts, mmio + HP_QUADRO2_PFIFO_DMA_GET),
+                     ==, WORDS * 4);
+    g_assert_cmphex(qtest_readl(qts, mmio + HP_QUADRO2_PFIFO_REF_CNT),
+                    ==, 0x13579bdf);
+    g_assert_cmphex(qtest_readl(qts, mmio + HP_QUADRO2_PFIFO_INTR_0), ==, 0);
+    g_assert_cmphex(qtest_readl(qts, mmio + HP_QUADRO2_PGRAPH_INTR), ==, 0);
+    g_assert_cmphex(qtest_readl(qts, HP_QUADRO2_FB_BASE), ==, 0x00336699);
+    g_assert_cmphex(qtest_readl(qts, HP_QUADRO2_FB_BASE + 8 * 1024 * 1024 - 4),
+                    ==, 0x00336699);
+    for (unsigned y = 2049; y <= 2054; y++) {
+        for (unsigned x = 3; x <= 9; x++) {
+            bool drawn = (y == 2050 && x >= 4 && x < 8) ||
+                         (x == 8 && y >= 2050 && y < 2054);
+
+            g_assert_cmphex(qtest_readl(qts, HP_QUADRO2_FB_BASE +
+                                            y * 4096 + x * 4),
+                            ==, drawn ? 0x00abcdef : 0);
+        }
+    }
+    qtest_quit(qts);
+}
+
+static void nvidia_quadro2_tiled_scanout(void)
+{
+    const uint64_t mmio = HP_QUADRO2_MMIO_BASE;
+    const uint64_t ramin = mmio + HP_QUADRO2_PRAMIN;
+    /* NV10 layout reference vectors: 64-bit SDR, nine column bits. */
+    static const struct { unsigned x, y, address; uint32_t color; } points[] = {
+        { 0, 0, 0x0000, 0x00ff0000 },
+        { 64, 0, 0x1000, 0x0000ff00 },
+        { 0, 1, 0x0500, 0x000000ff },
+        { 0, 16, 0xb000, 0x00ffff00 },
+        { 64, 16, 0xa000, 0x0000ffff },
+    };
+    g_autofree char *filename = g_strdup_printf(
+        "%s/nv15-tiled-XXXXXX.ppm", g_get_tmp_dir());
+    QTestState *qts = quadro2_start("");
+    int fd = g_mkstemp(filename);
+
+    g_assert_cmpint(fd, >=, 0);
+    close(fd);
+    quadro2_prepare_native_scanout(qts, 0);
+    quadro2_prepare_rectangle(qts, 0, HP_QUADRO2_VRAM_SIZE - 1, 0, 0);
+    qtest_writel(qts, ramin + 0x19010, 0x0001303d); /* Tiled VRAM DMA. */
+    quadro2_user_write(qts, 0, 0, 0x304, (2560U << 16) | 2560);
+    qtest_writel(qts, mmio + 0x100200, 0x09000000);
+    qtest_writel(qts, mmio + 0x100244, 0x1fffff);
+    qtest_writel(qts, mmio + 0x100248, 2560);
+    qtest_writel(qts, mmio + 0x100240, 0x80000000);
+    g_assert_cmphex(qtest_readl(qts, mmio + 0x10024c), ==, 0x80000012);
+    for (unsigned i = 0; i < ARRAY_SIZE(points); i++) {
+        quadro2_user_write(qts, 0, 1, 0x3fc, points[i].color);
+        quadro2_user_write(qts, 0, 1, 0x400, (points[i].x << 16) | points[i].y);
+        quadro2_user_write(qts, 0, 1, 0x404, (1U << 16) | 1);
+        g_assert_cmphex(qtest_readl(qts, HP_QUADRO2_FB_BASE +
+                                        points[i].address),
+                        ==, points[i].color);
+    }
+    qtest_qmp_assert_success(qts, "{'execute':'screendump','arguments':"
+                                 "{'filename':%s}}", filename);
+    for (unsigned i = 0; i < ARRAY_SIZE(points); i++) {
+        assert_ppm_pixel(filename, 640, 480, points[i].x, points[i].y,
+                         points[i].color >> 16,
+                         (points[i].color >> 8) & 0xff, points[i].color & 0xff);
+    }
+    assert_ppm_pixel(filename, 640, 480, 1, 0, 0, 0, 0);
+    /* The same layout is used by 8-bit and RGB565 surfaces. */
+    for (unsigned cpp = 1; cpp <= 2; cpp++) {
+        quadro2_user_write(qts, 0, 0, 0x300, cpp == 1 ? 1 : 4);
+        quadro2_user_write(qts, 0, 1, 0x3fc, 0xffffffff);
+        quadro2_user_write(qts, 0, 1, 0x400, (256U / cpp) << 16);
+        quadro2_user_write(qts, 0, 1, 0x404, (1U << 16) | 1);
+        g_assert_cmphex(qtest_readb(qts, HP_QUADRO2_FB_BASE + 0x1000),
+                        ==, 0xff);
+        if (cpp == 2) {
+            g_assert_cmphex(qtest_readw(qts, HP_QUADRO2_FB_BASE + 0x1000),
+                            ==, 0xffff);
+        }
+    }
+    qtest_writel(qts, mmio + 0x100240, 0);
+    g_assert_cmphex(qtest_readl(qts, mmio + 0x10024c), ==, 0x12);
+    g_assert_cmphex(qtest_readl(qts, mmio + HP_QUADRO2_PGRAPH_INTR), ==, 0);
+    qtest_quit(qts);
+    g_assert_cmpint(g_unlink(filename), ==, 0);
+}
+
+static void ati_pll_frame_timing(void)
+{
+    static const char * const models[] = { "rage128p", "rv100", "es1000" };
+    static const uint32_t dividers[] = {
+        150 | (6U << 16), /* Feedback 150, post-divider 6. */
+        300 | (7U << 16), /* Feedback 300, post-divider 12. */
+        400 | (5U << 16), /* Radeon post-divider 16; reserved on Rage128. */
+    };
+
+    for (unsigned i = 0; i < ARRAY_SIZE(models); i++) {
+        const uint64_t mmio = i ? IA64_RV100_MMIO_BASE : IA64_ATI_MMIO_BASE;
+        unsigned ref = i ? 27 : 59;
+        unsigned fb_scale = i ? 1 : 2;
+        QTestState *qts = qtest_initf(
+            "-machine ia64-vpc,nvram=none -m 256M -S "
+            "-vga ati -global ati-vga.model=%s", models[i]);
+
+        ati_pci_enable(qts);
+        qtest_writel(qts, mmio + ATI_CRTC_H_TOTAL_DISP, 99 | (79U << 16));
+        qtest_writel(qts, mmio + ATI_CRTC_V_TOTAL_DISP, 524 | (479U << 16));
+        qtest_writel(qts, mmio + ATI_CRTC_V_SYNC_STRT_WID,
+                     489 | (1U << 16));
+        qtest_writel(qts, mmio + ATI_CLOCK_CNTL_INDEX,
+                     ATI_PLL_WR_EN | ATI_PLL_DIV_SEL_3 | ATI_PPLL_REF_DIV);
+        qtest_writel(qts, mmio + ATI_CLOCK_CNTL_DATA, ref);
+        qtest_qmp_assert_success(qts, "{'execute':'cont'}");
+
+        for (unsigned j = 0; j < ARRAY_SIZE(dividers); j++) {
+            bool fallback = !i && j == 2;
+
+            qtest_writel(qts, mmio + ATI_CRTC_GEN_CNTL, 0);
+            qtest_writel(qts, mmio + ATI_GEN_INT_STATUS, ATI_CRTC_VSYNC_INT);
+            qtest_writel(qts, mmio + ATI_CLOCK_CNTL_INDEX,
+                         ATI_PLL_WR_EN | ATI_PLL_DIV_SEL_3 | ATI_PPLL_DIV_3);
+            qtest_writel(qts, mmio + ATI_CLOCK_CNTL_DATA,
+                         (dividers[j] & ~0x7ffU) |
+                         ((dividers[j] & 0x7ff) * fb_scale));
+            qtest_writel(qts, mmio + ATI_CRTC_GEN_CNTL,
+                         ATI_CRTC_EXT_DISP_EN | ATI_CRTC_EN |
+                         ATI_CRTC_PIX_WIDTH_8);
+
+            /* Valid settings give 25 MHz; a reserved setting uses 60 Hz. */
+            qtest_clock_step(qts, 8400000);
+            g_assert_cmpuint(qtest_readl(qts, mmio +
+                                         ATI_CRTC_VLINE_CRNT_VLINE) >> 16,
+                             ==, fallback ? 264 : 262);
+            g_assert_cmphex(qtest_readl(qts, mmio + ATI_GEN_INT_STATUS) &
+                            ATI_CRTC_VSYNC_INT, ==, 0);
+            qtest_clock_step(qts, 8400000);
+            g_assert_cmpuint(qtest_readl(qts, mmio +
+                                         ATI_CRTC_VLINE_CRNT_VLINE) >> 16,
+                             ==, fallback ? 4 : 0);
+            g_assert_cmphex(qtest_readl(qts, mmio + ATI_GEN_INT_STATUS) &
+                            ATI_CRTC_VSYNC_INT, ==, ATI_CRTC_VSYNC_INT);
+        }
+        qtest_quit(qts);
+    }
+}
+
+static void ati_rage128_pll_60hz(void)
+{
+    const uint64_t mmio = IA64_ATI_MMIO_BASE;
+    QTestState *qts = qtest_init(
+        "-machine ia64-vpc,nvram=none -m 256M -S "
+        "-vga ati -global ati-vga.model=rage128p");
+
+    ati_pci_enable(qts);
+    qtest_writel(qts, mmio + ATI_CRTC_GEN_CNTL, 0);
+    /* Standard 1024x768 at 60 Hz, using the ROM's 29.5 MHz reference. */
+    qtest_writel(qts, mmio + ATI_CRTC_H_TOTAL_DISP, 167 | (127U << 16));
+    qtest_writel(qts, mmio + ATI_CRTC_V_TOTAL_DISP, 805 | (767U << 16));
+    qtest_writel(qts, mmio + ATI_CRTC_V_SYNC_STRT_WID, 770 | (6U << 16));
+    qtest_writel(qts, mmio + ATI_CLOCK_CNTL_INDEX,
+                 ATI_PLL_WR_EN | ATI_PLL_DIV_SEL_3 | ATI_PPLL_REF_DIV);
+    qtest_writel(qts, mmio + ATI_CLOCK_CNTL_DATA, 65);
+    qtest_writel(qts, mmio + ATI_CLOCK_CNTL_INDEX,
+                 ATI_PLL_WR_EN | ATI_PLL_DIV_SEL_3 | ATI_PPLL_DIV_3);
+    qtest_writel(qts, mmio + ATI_CLOCK_CNTL_DATA, 573 | (2U << 16));
+    qtest_qmp_assert_success(qts, "{'execute':'cont'}");
+    qtest_writel(qts, mmio + ATI_CRTC_GEN_CNTL,
+                 ATI_CRTC_EXT_DISP_EN | ATI_CRTC_EN | ATI_CRTC_PIX_WIDTH_8);
+    qtest_writel(qts, mmio + ATI_GEN_INT_STATUS, ATI_CRTC_VSYNC_INT);
+    qtest_clock_step(qts, 16700000);
+    g_assert_cmphex(qtest_readl(qts, mmio + ATI_GEN_INT_STATUS) &
+                    ATI_CRTC_VSYNC_INT, ==, ATI_CRTC_VSYNC_INT);
+    g_assert_cmpuint(qtest_readl(qts, mmio + ATI_CRTC_VLINE_CRNT_VLINE) >> 16,
+                     ==, 1);
+    qtest_quit(qts);
+}
+
+static void ati_pll_divider_switch(void)
+{
+    static const char * const models[] = { "rage128p", "rv100", "es1000" };
+
+    for (unsigned i = 0; i < ARRAY_SIZE(models); i++) {
+        uint64_t mmio = i ? IA64_RV100_MMIO_BASE : IA64_ATI_MMIO_BASE;
+        QTestState *qts = qtest_initf(
+            "-machine ia64-vpc,nvram=none -m 256M -S "
+            "-vga ati -global ati-vga.model=%s", models[i]);
+
+        ati_pci_enable(qts);
+        qtest_writel(qts, mmio + ATI_CRTC_GEN_CNTL, 0);
+        qtest_writel(qts, mmio + ATI_CRTC_H_TOTAL_DISP, 99 | (79U << 16));
+        qtest_writel(qts, mmio + ATI_CRTC_V_TOTAL_DISP, 524 | (479U << 16));
+        qtest_writel(qts, mmio + ATI_CRTC_V_SYNC_STRT_WID, 489 | (1U << 16));
+        qtest_writel(qts, mmio + ATI_CLOCK_CNTL_INDEX,
+                     ATI_PLL_WR_EN | ATI_PPLL_REF_DIV);
+        qtest_writel(qts, mmio + ATI_CLOCK_CNTL_DATA, i ? 27 : 59);
+        qtest_writel(qts, mmio + ATI_CLOCK_CNTL_INDEX,
+                     ATI_PLL_WR_EN | ATI_PPLL_DIV_0);
+        qtest_writel(qts, mmio + ATI_CLOCK_CNTL_DATA, i ? 25 : 50);
+        qtest_writel(qts, mmio + ATI_CLOCK_CNTL_INDEX,
+                     ATI_PLL_WR_EN | ATI_PLL_DIV_SEL_3 | ATI_PPLL_DIV_3);
+        qtest_writel(qts, mmio + ATI_CLOCK_CNTL_DATA, i ? 50 : 100);
+        qtest_qmp_assert_success(qts, "{'execute':'cont'}");
+        qtest_writel(qts, mmio + ATI_CRTC_GEN_CNTL,
+                     ATI_CRTC_EXT_DISP_EN | ATI_CRTC_EN | ATI_CRTC_PIX_WIDTH_8);
+        qtest_writel(qts, mmio + ATI_GEN_INT_STATUS, ATI_CRTC_VBLANK_INT);
+
+        /* Switch 50 -> 25 MHz without writing the PLL data register. */
+        qtest_writel(qts, mmio + ATI_CLOCK_CNTL_INDEX,
+                     ATI_PLL_WR_EN | ATI_PPLL_DIV_0);
+        qtest_clock_step(qts, 8000000);
+        g_assert_cmpuint(qtest_readl(qts, mmio + ATI_CRTC_VLINE_CRNT_VLINE)
+                         >> 16, ==, 250);
+        g_assert_cmphex(qtest_readl(qts, mmio + ATI_GEN_INT_STATUS) &
+                        ATI_CRTC_VBLANK_INT, ==, 0);
+        /* Changing only the register index must not restart the frame. */
+        qtest_writeb(qts, mmio + ATI_CLOCK_CNTL_INDEX, ATI_PPLL_REF_DIV);
+        qtest_clock_step(qts, 7360000 - 1);
+        g_assert_cmphex(qtest_readl(qts, mmio + ATI_GEN_INT_STATUS) &
+                        ATI_CRTC_VBLANK_INT, ==, 0);
+        qtest_clock_step(qts, 1);
+        g_assert_cmpuint(qtest_readl(qts, mmio + ATI_CRTC_VLINE_CRNT_VLINE)
+                         >> 16, ==, 480);
+        g_assert_cmphex(qtest_readl(qts, mmio + ATI_GEN_INT_STATUS) &
+                        ATI_CRTC_VBLANK_INT, ==, ATI_CRTC_VBLANK_INT);
+
+        /* A byte write selecting 50 MHz must update the timer as well. */
+        qtest_writeb(qts, mmio + ATI_CLOCK_CNTL_INDEX + 1, 3);
+        qtest_writel(qts, mmio + ATI_GEN_INT_STATUS, ATI_CRTC_VBLANK_INT);
+        qtest_clock_step(qts, 7680000 - 1);
+        g_assert_cmphex(qtest_readl(qts, mmio + ATI_GEN_INT_STATUS) &
+                        ATI_CRTC_VBLANK_INT, ==, 0);
+        qtest_clock_step(qts, 1);
+        g_assert_cmpuint(qtest_readl(qts, mmio + ATI_CRTC_VLINE_CRNT_VLINE)
+                         >> 16, ==, 480);
+        g_assert_cmphex(qtest_readl(qts, mmio + ATI_GEN_INT_STATUS) &
+                        ATI_CRTC_VBLANK_INT, ==, ATI_CRTC_VBLANK_INT);
+        qtest_quit(qts);
+    }
+}
+
+static void ati_pll_atomic_update(void)
+{
+    static const char * const models[] = { "rage128p", "rv100", "es1000" };
+    const unsigned vtotal = 525, vsync = 490;
+
+    for (unsigned i = 0; i < ARRAY_SIZE(models); i++) {
+        const uint64_t mmio = i ? IA64_RV100_MMIO_BASE : IA64_ATI_MMIO_BASE;
+        QTestState *qts = qtest_initf(
+            "-machine ia64-vpc,nvram=none -m 256M -S "
+            "-vga ati -global ati-vga.model=%s", models[i]);
+        unsigned ref = i ? 27 : 59;
+        unsigned feedback = i ? 25 : 50;
+        unsigned base = i ? 0 : 1;
+        uint32_t gpio_enable = i ? 0 : 1U << 25;
+
+        ati_pci_enable(qts);
+        /* MONID uses open-drain pins, with shifted pins on Rage128. */
+        qtest_writel(qts, mmio + 0x68, gpio_enable);
+        g_assert_cmphex(qtest_readl(qts, mmio + 0x68) & (0x300 << base),
+                        ==, 0x300 << base);
+        qtest_writel(qts, mmio + 0x68, gpio_enable | (0x30000 << base));
+        g_assert_cmphex(qtest_readl(qts, mmio + 0x68) & (0x300 << base), ==, 0);
+        qtest_writel(qts, mmio + 0x68, gpio_enable);
+
+        qtest_writel(qts, mmio + ATI_CRTC_H_TOTAL_DISP, 99 | (79U << 16));
+        qtest_writel(qts, mmio + ATI_CRTC_V_TOTAL_DISP,
+                     (vtotal - 1) | (9U << 16));
+        qtest_writel(qts, mmio + ATI_CRTC_V_SYNC_STRT_WID,
+                     (vsync - 1) | (1U << 16));
+        qtest_writel(qts, mmio + ATI_CRTC_GEN_CNTL,
+                     ATI_CRTC_EXT_DISP_EN | ATI_CRTC_EN | ATI_CRTC_PIX_WIDTH_8);
+        qtest_writel(qts, mmio + ATI_CLOCK_CNTL_INDEX, ATI_PLL_WR_EN | 2);
+        /* Bit 18 is stored but does not defer the synchronous update. */
+        qtest_writel(qts, mmio + ATI_CLOCK_CNTL_DATA, 0x50000);
+        qtest_writel(qts, mmio + ATI_CLOCK_CNTL_INDEX, ATI_PLL_WR_EN | 4);
+        qtest_writel(qts, mmio + ATI_CLOCK_CNTL_DATA, feedback);
+        qtest_writel(qts, mmio + ATI_CLOCK_CNTL_INDEX, ATI_PLL_WR_EN | 3);
+        qtest_writel(qts, mmio + ATI_CLOCK_CNTL_DATA, ref);
+        qtest_qmp_assert_success(qts, "{'execute':'cont'}");
+        /* Uncommitted dividers leave the initial 60 Hz timer in use. */
+        qtest_clock_step(qts, 8400000);
+        g_assert_cmpuint(qtest_readl(qts, mmio + ATI_CRTC_VLINE_CRNT_VLINE)
+                         >> 16, ==, 264);
+        qtest_writel(qts, mmio + ATI_CLOCK_CNTL_DATA,
+                     ATI_PPLL_ATOMIC_UPDATE | ref);
+        g_assert_cmphex(qtest_readl(qts, mmio + ATI_CLOCK_CNTL_DATA),
+                        ==, ref);
+        g_assert_cmpuint(qtest_readl(qts, mmio + ATI_CRTC_VLINE_CRNT_VLINE)
+                         >> 16, ==, 0);
+        qtest_qmp_assert_success(qts, "{'execute':'stop'}");
+        {
+            g_autofree char *path = g_strdup_printf(
+                "%s/ati-atomic-pll.XXXXXX", g_get_tmp_dir());
+            g_autofree char *uri = NULL;
+            int fd = g_mkstemp(path);
+
+            g_assert_cmpint(fd, >=, 0);
+            close(fd);
+            uri = g_strdup_printf("file:%s", path);
+            qtest_qmp_assert_success(qts, "{'execute':'migrate','arguments':"
+                                         "{'uri':%s}}", uri);
+            display_wait_for_migration(qts);
+            qtest_quit(qts);
+            qts = qtest_initf(
+                "-machine ia64-vpc,nvram=none -m 256M -S -incoming defer "
+                "-vga ati -global ati-vga.model=%s", models[i]);
+            qtest_qmp_assert_success(qts,
+                "{'execute':'migrate-incoming','arguments':{'uri':%s}}", uri);
+            display_wait_for_migration(qts);
+            g_assert_cmphex(qtest_readl(qts, mmio + ATI_CLOCK_CNTL_DATA),
+                            ==, ref);
+            g_assert_cmpint(g_unlink(path), ==, 0);
+        }
+        qtest_qmp_assert_success(qts, "{'execute':'cont'}");
+        /* The committed 25 MHz clock survives migration: 32 us per line. */
+        qtest_clock_step(qts, 8000000);
+        g_assert_cmphex(qtest_readl(qts, mmio + ATI_CLOCK_CNTL_DATA), ==, ref);
+        g_assert_cmpuint(qtest_readl(qts, mmio + ATI_CRTC_VLINE_CRNT_VLINE)
+                         >> 16, ==, 250);
+        qtest_clock_step(qts, 7680000);
+        g_assert_cmphex(qtest_readl(qts, mmio + ATI_GEN_INT_STATUS) &
+                        ATI_CRTC_VSYNC_INT, ==, ATI_CRTC_VSYNC_INT);
+        qtest_quit(qts);
+    }
+}
+
 int main(int argc, char **argv)
 {
     static const char *devices[] = {
@@ -10683,6 +11988,35 @@ int main(int argc, char **argv)
     }
     if (g_str_equal(qtest_get_arch(), "ia64") &&
         qtest_has_device("ati-vga")) {
+        qtest_add_func("/display/pci/ati-bresenham-directions",
+                       ati_bresenham_directions);
+        qtest_add_func("/display/pci/ati-bresenham-tiles",
+                       ati_bresenham_and_tiles);
+        qtest_add_func("/display/pci/ati-default-tiling", ati_default_tiling);
+        qtest_add_func("/display/pci/ati-tiled-scanout-toggle",
+                       ati_tiled_scanout_toggle);
+        qtest_add_func("/display/pci/ati-rage128-tiling-unsupported",
+                       ati_rage128_tiling_unsupported);
+        qtest_add_func("/display/pci/ati-radeon-tiled-scanout-pan",
+                       ati_radeon_tiled_scanout_pan);
+        qtest_add_func("/display/pci/ati-radeon-tiled-scanout-2d",
+                       ati_radeon_tiled_scanout_2d);
+        qtest_add_func("/display/pci/ati-rage128-tiled-brush",
+                       ati_rage128_tiled_brush);
+        qtest_add_func("/display/pci/ati-rage128-stretch", ati_rage128_stretch);
+        qtest_add_func("/display/pci/ati-rage128-stretch-formats",
+                       ati_rage128_stretch_formats);
+        qtest_add_func("/display/pci/ati-pll-atomic", ati_pll_atomic_update);
+        qtest_add_func("/display/pci/ati-pll-frame-timing",
+                       ati_pll_frame_timing);
+        qtest_add_func("/display/pci/ati-rage128-pll-60hz",
+                       ati_rage128_pll_60hz);
+        qtest_add_func("/display/pci/ati-pll-divider-switch",
+                       ati_pll_divider_switch);
+        qtest_add_func("/display/pci/nvidia-quadro2-fifo-yield",
+                       nvidia_quadro2_fifo_yield);
+        qtest_add_func("/display/pci/nvidia-quadro2-tiled-scanout",
+                       nvidia_quadro2_tiled_scanout);
         qtest_add_func("/display/pci/ati-es1000-realize",
                        ati_es1000_realize);
         qtest_add_func("/display/pci/ati-radeon-cp-set-scissors",

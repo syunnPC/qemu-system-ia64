@@ -1999,6 +1999,8 @@ static ssize_t nic_receive(NetClientState *nc, const uint8_t * buf, size_t size)
     const MemTxAttrs attrs = MEMTXATTRS_UNSPECIFIED;
     EEPRO100State *s = qemu_get_nic_opaque(nc);
     uint16_t rfd_status = 0xa000;
+    size_t input_size = size;
+    g_autofree uint8_t *received = NULL;
 #if defined(CONFIG_PAD_RECEIVED_FRAMES)
     uint8_t min_buf[60];
 #endif
@@ -2015,12 +2017,16 @@ static ssize_t nic_receive(NetClientState *nc, const uint8_t * buf, size_t size)
     }
 #endif
 
+    if (size < ETH_HLEN) {
+        s->statistics.rx_short_frame_errors++;
+        return size;
+    }
     if (s->configuration[8] & 0x80) {
         /* CSMA is disabled. */
         logout("%p received while CSMA is disabled\n", s);
         return -1;
 #if !defined(CONFIG_PAD_RECEIVED_FRAMES)
-    } else if (size < 64 && (s->configuration[7] & BIT(0))) {
+    } else if (size < 60 && (s->configuration[7] & BIT(0))) {
         /* Short frame and configuration byte 7/0 (discard short receive) set:
          * Short frame is discarded */
         logout("%p received short frame (%zu byte)\n", s, size);
@@ -2091,6 +2097,30 @@ static ssize_t nic_receive(NetClientState *nc, const uint8_t * buf, size_t size)
 #endif
         return -1;
     }
+    /* QEMU network backends supply Ethernet frames without the FCS. */
+    if (s->configuration[18] & (BIT(0) | BIT(2))) {
+        size_t wire_size = MAX(size, 60);
+        size_t payload_size = wire_size;
+        uint32_t fcs;
+
+        received = g_malloc0(wire_size + 4);
+        memcpy(received, buf, size);
+        fcs = ~net_crc32_le(received, wire_size);
+        /* Strip 802.3 padding; Ethernet II has a type, not a length. */
+        if ((s->configuration[18] & BIT(0)) && size >= 14) {
+            uint16_t length = lduw_be_p(buf + 12);
+
+            if (length <= 1500 && length <= size - 14) {
+                payload_size = 14 + length;
+            }
+        }
+        if (s->configuration[18] & BIT(2)) {
+            stl_le_p(received + payload_size, fcs);
+            payload_size += 4;
+        }
+        buf = received;
+        size = payload_size;
+    }
     /* !!! */
     eepro100_rx_t rx;
     pci_dma_read(&s->dev, s->ru_base + s->ru_offset,
@@ -2104,7 +2134,7 @@ static ssize_t nic_receive(NetClientState *nc, const uint8_t * buf, size_t size)
         size = rfd_size;
     }
 #if !defined(CONFIG_PAD_RECEIVED_FRAMES)
-    if (size < 64) {
+    if (input_size < 60) {
         rfd_status |= 0x0080;
     }
 #endif
@@ -2117,17 +2147,6 @@ static ssize_t nic_receive(NetClientState *nc, const uint8_t * buf, size_t size)
     /* Early receive interrupt not supported. */
 #if 0
     eepro100_er_interrupt(s);
-#endif
-    /* Receive CRC Transfer not supported. */
-    if (s->configuration[18] & BIT(2)) {
-        missing("Receive CRC Transfer: configuration[18]=0x%02x, "
-                "rfd=0x%08x, size=%zu", s->configuration[18],
-                s->ru_base + s->ru_offset, size);
-        return -1;
-    }
-    /* TODO: check stripping enable bit. */
-#if 0
-    assert(!(s->configuration[17] & BIT(0)));
 #endif
     pci_dma_write(&s->dev, s->ru_base + s->ru_offset +
                   sizeof(eepro100_rx_t), buf, size);
@@ -2144,7 +2163,7 @@ static ssize_t nic_receive(NetClientState *nc, const uint8_t * buf, size_t size)
         /* S bit is set. */
         set_ru_state(s, ru_suspended);
     }
-    return size;
+    return input_size;
 }
 
 static void nic_link_status_changed(NetClientState *nc)

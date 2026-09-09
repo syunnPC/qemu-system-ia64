@@ -561,7 +561,6 @@ static int32_t scsi_unit_attention(SCSIRequest *req, uint8_t *buf)
 
 static const struct SCSIReqOps reqops_unit_attention = {
     .size         = sizeof(SCSIRequest),
-    .init_req     = scsi_fetch_unit_attention_sense,
     .send_command = scsi_unit_attention
 };
 
@@ -850,11 +849,11 @@ SCSIRequest *scsi_req_alloc(const SCSIReqOps *reqops, SCSIDevice *d,
     return req;
 }
 
-SCSIRequest *scsi_req_new(SCSIDevice *d, uint32_t tag, uint32_t lun,
-                          uint8_t *buf, size_t buf_len, void *hba_private)
+static SCSIRequest *scsi_req_new_with_ops(SCSIDevice *d, uint32_t tag,
+                                        uint32_t lun, uint8_t *buf,
+                                        size_t buf_len, void *hba_private,
+                                        const SCSIReqOps *ops)
 {
-    SCSIBus *bus = DO_UPCAST(SCSIBus, qbus, d->qdev.parent_bus);
-    const SCSIReqOps *ops;
     SCSIDeviceClass *sc = SCSI_DEVICE_GET_CLASS(d);
     SCSIRequest *req;
     SCSICommand cmd = { .len = 0 };
@@ -863,27 +862,6 @@ SCSIRequest *scsi_req_new(SCSIDevice *d, uint32_t tag, uint32_t lun,
     if (buf_len == 0) {
         trace_scsi_req_parse_bad(d->id, lun, tag, 0);
         goto invalid_opcode;
-    }
-
-    if ((d->unit_attention.key == UNIT_ATTENTION ||
-         bus->unit_attention.key == UNIT_ATTENTION) &&
-        (buf[0] != INQUIRY &&
-         buf[0] != REPORT_LUNS &&
-         buf[0] != GET_CONFIGURATION &&
-         buf[0] != GET_EVENT_STATUS_NOTIFICATION &&
-
-         /*
-          * If we already have a pending unit attention condition,
-          * report this one before triggering another one.
-          */
-         !(buf[0] == REQUEST_SENSE && d->sense_is_ua))) {
-        ops = &reqops_unit_attention;
-    } else if (lun != d->lun ||
-               buf[0] == REPORT_LUNS ||
-               (buf[0] == REQUEST_SENSE && d->sense_len)) {
-        ops = &reqops_target_command;
-    } else {
-        ops = NULL;
     }
 
     if (ops != NULL || !sc->parse_cdb) {
@@ -935,6 +913,38 @@ invalid_opcode:
         break;
     }
 
+    return req;
+}
+
+SCSIRequest *scsi_req_new(SCSIDevice *d, uint32_t tag, uint32_t lun,
+                          uint8_t *buf, size_t buf_len, void *hba_private)
+{
+    SCSIBus *bus = scsi_bus_from_device(d);
+    const SCSIReqOps *ops = NULL;
+    SCSIRequest *req;
+
+    if (buf_len) {
+        if ((d->unit_attention.key == UNIT_ATTENTION ||
+             bus->unit_attention.key == UNIT_ATTENTION) &&
+            (buf[0] != INQUIRY &&
+             buf[0] != REPORT_LUNS &&
+             buf[0] != GET_CONFIGURATION &&
+             buf[0] != GET_EVENT_STATUS_NOTIFICATION &&
+
+             /* Report a pending UA before triggering another one. */
+             !(buf[0] == REQUEST_SENSE && d->sense_is_ua))) {
+            ops = &reqops_unit_attention;
+        } else if (lun != d->lun ||
+                   buf[0] == REPORT_LUNS ||
+                   (buf[0] == REQUEST_SENSE && d->sense_len)) {
+            ops = &reqops_target_command;
+        }
+    }
+
+    req = scsi_req_new_with_ops(d, tag, lun, buf, buf_len, hba_private, ops);
+    if (req->ops == &reqops_unit_attention) {
+        scsi_fetch_unit_attention_sense(req);
+    }
     return req;
 }
 
@@ -1027,6 +1037,26 @@ int32_t scsi_req_enqueue(SCSIRequest *req)
     rc = req->ops->send_command(req, req->cmd.buf);
     scsi_req_unref(req);
     return rc;
+}
+
+void scsi_req_enqueue_deferred(SCSIRequest *req)
+{
+    req->hba_deferred = true;
+    scsi_req_enqueue_internal(req);
+}
+
+void scsi_req_start_deferred(SCSIRequest *req)
+{
+    int32_t rc;
+
+    assert(req->enqueued && req->hba_deferred && !req->io_canceled);
+    scsi_req_ref(req);
+    req->hba_deferred = false;
+    rc = req->ops->send_command(req, req->cmd.buf);
+    if (rc && req->enqueued && !req->io_canceled) {
+        scsi_req_continue(req);
+    }
+    scsi_req_unref(req);
 }
 
 static void scsi_req_dequeue(SCSIRequest *req)
@@ -1522,7 +1552,7 @@ void scsi_req_unref(SCSIRequest *req)
    will start the next chunk or complete the command.  */
 void scsi_req_continue(SCSIRequest *req)
 {
-    if (req->io_canceled) {
+    if (req->io_canceled || req->hba_deferred) {
         trace_scsi_req_continue_canceled(req->dev->id, req->lun, req->tag);
         return;
     }
@@ -1866,6 +1896,15 @@ static char *scsibus_get_fw_dev_path(DeviceState *dev)
 
 /* SCSI request list.  For simplicity, pv points to the whole device */
 
+/* These indices are part of the deferred-request migration format. */
+static const SCSIReqOps *const scsi_deferred_reqops[] = {
+    NULL,                       /* Device-specific request. */
+    &reqops_invalid_opcode,
+    &reqops_invalid_field,
+    &reqops_unit_attention,
+    &reqops_target_command,
+};
+
 static void put_scsi_req(SCSIRequest *req, void *opaque)
 {
     QEMUFile *f = opaque;
@@ -1874,14 +1913,29 @@ static void put_scsi_req(SCSIRequest *req, void *opaque)
     assert(req->status == -1 && req->host_status == -1);
     assert(req->enqueued);
 
-    qemu_put_sbyte(f, req->retry ? 1 : 2);
+    qemu_put_sbyte(f, req->hba_deferred ? 3 : req->retry ? 1 : 2);
     qemu_put_buffer(f, req->cmd.buf, sizeof(req->cmd.buf));
     qemu_put_be32s(f, &req->tag);
     qemu_put_be32s(f, &req->lun);
+    if (req->hba_deferred) {
+        unsigned int kind = 0;
+
+        for (unsigned int i = 1; i < ARRAY_SIZE(scsi_deferred_reqops); i++) {
+            if (req->ops == scsi_deferred_reqops[i]) {
+                kind = i;
+                break;
+            }
+        }
+        /* scsi_req_new() may already have consumed a unit attention. */
+        qemu_put_byte(f, kind);
+        assert(req->sense_len <= sizeof(req->sense));
+        qemu_put_be32s(f, &req->sense_len);
+        qemu_put_buffer(f, req->sense, req->sense_len);
+    }
     if (req->bus->info->save_request) {
         req->bus->info->save_request(f, req);
     }
-    if (req->ops->save_request) {
+    if (!req->hba_deferred && req->ops->save_request) {
         req->ops->save_request(f, req);
     }
 }
@@ -1909,6 +1963,9 @@ static int get_scsi_requests(QEMUFile *f, void *pv, size_t size,
         uint32_t lun;
         SCSIRequest *req;
 
+        if (sbyte > 3 || (sbyte == 3 && !bus->info->load_request)) {
+            return -EINVAL;
+        }
         qemu_get_buffer(f, buf, sizeof(buf));
         qemu_get_be32s(f, &tag);
         qemu_get_be32s(f, &lun);
@@ -1916,12 +1973,28 @@ static int get_scsi_requests(QEMUFile *f, void *pv, size_t size,
          * A too-short CDB would have been rejected by scsi_req_new, so just use
          * SCSI_CMD_BUF_SIZE as the CDB length.
          */
-        req = scsi_req_new(s, tag, lun, buf, sizeof(buf), NULL);
+        if (sbyte == 3) {
+            unsigned int kind = qemu_get_ubyte(f);
+            uint32_t sense_len = qemu_get_be32(f);
+
+            if (kind >= ARRAY_SIZE(scsi_deferred_reqops) ||
+                sense_len > SCSI_SENSE_BUF_SIZE) {
+                return -EINVAL;
+            }
+            /* Restore the selected handler without consuming another UA. */
+            req = scsi_req_new_with_ops(s, tag, lun, buf, sizeof(buf), NULL,
+                                        scsi_deferred_reqops[kind]);
+            req->sense_len = sense_len;
+            qemu_get_buffer(f, req->sense, sense_len);
+        } else {
+            req = scsi_req_new(s, tag, lun, buf, sizeof(buf), NULL);
+        }
         req->retry = (sbyte == 1);
+        req->hba_deferred = (sbyte == 3);
         if (bus->info->load_request) {
             req->hba_private = bus->info->load_request(f, req);
         }
-        if (req->ops->load_request) {
+        if (!req->hba_deferred && req->ops->load_request) {
             req->ops->load_request(f, req);
         }
 

@@ -21,6 +21,7 @@
 #include "qemu/error-report.h"
 #include "qemu/main-loop.h"
 #include "qemu/module.h"
+#include "qemu/timer.h"
 #include "trace.h"
 
 #define ISP12160_MAILBOX_BYTES          (ISP12160_MAILBOX_COUNT * 2)
@@ -33,7 +34,7 @@
      (ISP12160_SCSI_MAX_CHAIN_ENTRIES - 1U))
 #define ISP12160_SCSI_BH_BUDGET           64U
 #define ISP12160_SCSI_REQUEST_MAGIC        UINT32_C(0x49533252)
-#define ISP12160_SCSI_REQUEST_VERSION      1U
+#define ISP12160_SCSI_REQUEST_VERSION      2U
 
 #define ISP12160_HC_RESET_RELEASE_DISABLE \
     (ISP12160_HC_RESET_RISC | ISP12160_HC_RELEASE_RISC | \
@@ -59,6 +60,8 @@ typedef struct ISP12160SCSIRequest {
     uint32_t segment_offset;
     bool dma_failed;
     bool migration_invalid;
+    bool timed_out;
+    int64_t deadline;
 } ISP12160SCSIRequest;
 
 typedef QTAILQ_HEAD(, ISP12160SCSIRequest) ISP12160SCSIRequestList;
@@ -71,6 +74,13 @@ struct ISP12160State {
     MemoryRegion mmio_bar;
     QEMUBH *mailbox_bh;
     QEMUBH *queue_bh;
+    QEMUTimer *request_timer;
+    uint16_t initiator_id[2];
+    uint16_t target_params[32];
+    uint16_t target_sync[32];
+    uint16_t target_ppr[32];
+    uint16_t queue_depth[256];
+    uint16_t queue_throttle[256];
     SCSIBus scsi_bus;
     ISP12160SCSIRequestList active_requests;
 
@@ -110,6 +120,19 @@ struct ISP12160State {
     bool dma_stalled;
     bool resetting;
 };
+
+static void isp12160_config_defaults(ISP12160State *s)
+{
+    s->initiator_id[0] = s->initiator_id[1] = 7;
+    for (unsigned i = 0; i < 32; i++) {
+        s->target_params[i] = 0xfc00;
+        s->target_sync[i] = s->target_ppr[i] = 0;
+    }
+    for (unsigned i = 0; i < 256; i++) {
+        s->queue_depth[i] = s->queue_throttle[i] =
+            ISP12160_SCSI_MAX_OUTSTANDING;
+    }
+}
 
 static bool isp12160_has_queues(const ISP12160State *s)
 {
@@ -225,6 +248,7 @@ static void isp12160_reset_state(ISP12160State *s)
         qemu_bh_cancel(s->mailbox_bh);
     }
 
+    isp12160_config_defaults(s);
     s->cfg1 = 0;
     s->ictrl = 0;
     s->istatus = 0;
@@ -517,6 +541,62 @@ static uint16_t isp12160_run_mailbox(ISP12160State *s,
         return ISP12160_MBS_COMMAND_COMPLETE;
 
     case ISP12160_MBC_SET_INITIATOR_ID:
+    case ISP12160_MBC_GET_INITIATOR_ID:
+        if (!s->risc_running || s->risc_paused) {
+            return ISP12160_MBS_COMMAND_ERR;
+        }
+        if (mb[1] & ~0x8fU) {
+            return ISP12160_MBS_COMMAND_PARAM_ERR;
+        }
+        if (mb[0] == ISP12160_MBC_SET_INITIATOR_ID) {
+            s->initiator_id[!!(mb[1] & 0x80)] = mb[1] & 15;
+        } else {
+            s->mailbox[1] = s->initiator_id[!!(mb[1] & 0x80)];
+        }
+        return ISP12160_MBS_COMMAND_COMPLETE;
+
+    case ISP12160_MBC_SET_TARGET_PARAMETERS:
+    case ISP12160_MBC_GET_TARGET_PARAMETERS:
+    case ISP12160_MBC_SET_DEVICE_QUEUE:
+    case ISP12160_MBC_GET_DEVICE_QUEUE: {
+        unsigned target = ((mb[1] >> 8) & 15) | ((mb[1] >> 11) & 16);
+        unsigned queue = target * 8 + (mb[1] & 7);
+        bool device_queue = mb[0] == ISP12160_MBC_SET_DEVICE_QUEUE ||
+                            mb[0] == ISP12160_MBC_GET_DEVICE_QUEUE;
+
+        if (!s->risc_running || s->risc_paused) {
+            return ISP12160_MBS_COMMAND_ERR;
+        }
+        if (mb[1] & ~(device_queue ? 0x8f07U : 0x8f00U)) {
+            return ISP12160_MBS_COMMAND_PARAM_ERR;
+        }
+        switch (mb[0]) {
+        case ISP12160_MBC_SET_TARGET_PARAMETERS:
+            s->target_params[target] = mb[2];
+            s->target_sync[target] = mb[3];
+            s->target_ppr[target] = mb[6];
+            break;
+        case ISP12160_MBC_GET_TARGET_PARAMETERS:
+            s->mailbox[2] = s->target_params[target];
+            s->mailbox[3] = s->target_sync[target];
+            s->mailbox[6] = s->target_ppr[target];
+            break;
+        case ISP12160_MBC_SET_DEVICE_QUEUE:
+            if (!mb[2] || !mb[3]) {
+                return ISP12160_MBS_COMMAND_PARAM_ERR;
+            }
+            s->queue_depth[queue] = mb[2];
+            s->queue_throttle[queue] = mb[3];
+            break;
+        case ISP12160_MBC_GET_DEVICE_QUEUE:
+            s->mailbox[2] = s->queue_depth[queue];
+            s->mailbox[3] = s->queue_throttle[queue];
+            break;
+        }
+        isp12160_scsi_schedule_queue(s);
+        return ISP12160_MBS_COMMAND_COMPLETE;
+    }
+
     case ISP12160_MBC_SET_SELECTION_TIMEOUT:
     case ISP12160_MBC_SET_RETRY_COUNT:
     case ISP12160_MBC_SET_TAG_AGE_LIMIT:
@@ -524,8 +604,6 @@ static uint16_t isp12160_run_mailbox(ISP12160State *s,
     case ISP12160_MBC_SET_ACTIVE_NEGATION:
     case ISP12160_MBC_SET_ASYNC_DATA_SETUP:
     case ISP12160_MBC_SET_PCI_CONTROL:
-    case ISP12160_MBC_SET_TARGET_PARAMETERS:
-    case ISP12160_MBC_SET_DEVICE_QUEUE:
     case ISP12160_MBC_SET_RESET_DELAY:
     case ISP12160_MBC_SET_SYSTEM_PARAMETER:
     case ISP12160_MBC_SET_FIRMWARE_FEATURES:
@@ -734,6 +812,7 @@ static uint16_t isp12160_scsi_request_state(const ISP12160SCSIRequest *request,
 static void isp12160_scsi_command_complete(SCSIRequest *sreq, size_t residual)
 {
     ISP12160SCSIRequest *request = sreq->hba_private;
+    ISP12160State *s = request ? request->controller : NULL;
 
     if (!request) {
         return;
@@ -756,8 +835,17 @@ static void isp12160_scsi_command_complete(SCSIRequest *sreq, size_t residual)
     int sense_length;
 
     (void)residual;
-    sense_length = scsi_req_get_sense(sreq, status.sense,
-                                      sizeof(status.sense));
+    sense_length = 0;
+    if (request->timed_out) {
+        status.completion_status = ISP12160_IOCB_CS_TIMEOUT;
+        status.scsi_status = 0;
+    } else if (!(request->command.control_flags &
+                 ISP12160_IOCB_CONTROL_DISABLE_AUTOSENSE) &&
+               (s->target_params[request->command.channel * 16 +
+                                  request->command.target] & BIT(10))) {
+        sense_length = scsi_req_get_sense(sreq, status.sense,
+                                          sizeof(status.sense));
+    }
     if (sense_length > 0) {
         status.sense_length = sense_length;
         status.state_flags |= ISP12160_IOCB_SF_GOT_SENSE;
@@ -806,8 +894,8 @@ static void isp12160_scsi_command_failed(SCSIRequest *sreq)
     ISP12160IOCBStatus status = {
         .handle = request->command.handle,
         .residual_length = remaining,
-        .completion_status = isp12160_scsi_host_completion(
-            sreq->host_status),
+        .completion_status = request->timed_out ? ISP12160_IOCB_CS_TIMEOUT :
+            isp12160_scsi_host_completion(sreq->host_status),
         .state_flags = isp12160_scsi_request_state(request, false),
     };
 
@@ -831,7 +919,8 @@ static void isp12160_scsi_request_cancelled(SCSIRequest *sreq)
     ISP12160IOCBStatus status = {
         .handle = request->command.handle,
         .residual_length = remaining,
-        .completion_status = request->dma_failed ?
+        .completion_status = request->timed_out ? ISP12160_IOCB_CS_TIMEOUT :
+                             request->dma_failed ?
             ISP12160_IOCB_CS_DMA_ERROR : ISP12160_IOCB_CS_ABORTED,
         .state_flags = isp12160_scsi_request_state(request, false),
     };
@@ -1060,7 +1149,6 @@ static void isp12160_scsi_submit(ISP12160State *s,
     SCSIDevice *device;
     ISP12160SCSIRequest *request;
     SCSIRequest *sreq;
-    int32_t transfer;
 
     if (isp12160_scsi_handle_active(s, command->handle)) {
         isp12160_scsi_queue_simple_status(
@@ -1107,10 +1195,10 @@ static void isp12160_scsi_submit(ISP12160State *s,
 
     QTAILQ_INSERT_TAIL(&s->active_requests, request, next);
     s->active_request_count++;
-    transfer = scsi_req_enqueue(sreq);
-    if (transfer) {
-        scsi_req_continue(sreq);
-    }
+    request->deadline = command->timeout ?
+        qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+        (uint64_t)command->timeout * NANOSECONDS_PER_SECOND : 0;
+    scsi_req_enqueue_deferred(sreq);
 }
 
 static bool isp12160_scsi_process_one(ISP12160State *s)
@@ -1230,6 +1318,118 @@ static bool isp12160_scsi_process_one(ISP12160State *s)
     return true;
 }
 
+static bool isp12160_scsi_can_start(ISP12160State *s,
+                                     ISP12160SCSIRequest *candidate)
+{
+    ISP12160SCSIRequest *p;
+    unsigned target = candidate->command.channel * 16 +
+                      candidate->command.target;
+    unsigned queue = target * 8 + candidate->command.lun;
+    unsigned depth = MIN(s->queue_depth[queue], s->queue_throttle[queue]);
+    unsigned running = 0;
+    bool before = true;
+    bool head = candidate->command.control_flags &
+                ISP12160_IOCB_CONTROL_HEAD_TAG;
+    bool ordered = candidate->command.control_flags &
+                   ISP12160_IOCB_CONTROL_ORDERED_TAG;
+
+    if (!(s->target_params[target] & BIT(11))) {
+        depth = 1;
+    }
+    QTAILQ_FOREACH(p, &s->active_requests, next) {
+        if (p == candidate) {
+            before = false;
+            continue;
+        }
+        if (p->command.channel != candidate->command.channel ||
+            p->command.target != candidate->command.target ||
+            p->command.lun != candidate->command.lun) {
+            continue;
+        }
+        if (!p->sreq->hba_deferred) {
+            running++;
+            if (p->command.control_flags & ISP12160_IOCB_CONTROL_ORDERED_TAG) {
+                return false;
+            }
+        }
+        if (before && (ordered || (!head &&
+            (p->command.control_flags & ISP12160_IOCB_CONTROL_ORDERED_TAG)))) {
+            return false;
+        }
+    }
+    return running < depth;
+}
+
+static void isp12160_scsi_update_timer(ISP12160State *s)
+{
+    ISP12160SCSIRequest *p;
+    int64_t deadline = INT64_MAX;
+
+    QTAILQ_FOREACH(p, &s->active_requests, next) {
+        if (p->deadline && !p->timed_out) {
+            deadline = MIN(deadline, p->deadline);
+        }
+    }
+    if (deadline == INT64_MAX) {
+        timer_del(s->request_timer);
+    } else {
+        timer_mod(s->request_timer, deadline);
+    }
+}
+
+static void isp12160_scsi_timeout(void *opaque)
+{
+    ISP12160State *s = opaque;
+    ISP12160SCSIRequest *p;
+    int64_t now = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
+
+    /* Cancellation can release the BQL and remove any request. */
+    for (;;) {
+        QTAILQ_FOREACH(p, &s->active_requests, next) {
+            if (p->deadline && p->deadline <= now && !p->timed_out) {
+                break;
+            }
+        }
+        if (!p) {
+            break;
+        }
+        p->timed_out = true;
+        scsi_req_cancel(p->sreq);
+    }
+    isp12160_scsi_update_timer(s);
+}
+
+static void isp12160_scsi_dispatch(ISP12160State *s)
+{
+    unsigned budget = ISP12160_SCSI_BH_BUDGET;
+
+    while (budget) {
+        ISP12160SCSIRequest *p, *next = NULL;
+
+        budget--;
+        QTAILQ_FOREACH(p, &s->active_requests, next) {
+            if (!p->sreq->hba_deferred || !isp12160_scsi_can_start(s, p)) {
+                continue;
+            }
+            if (!next) {
+                next = p;
+            }
+            if (p->command.control_flags & ISP12160_IOCB_CONTROL_HEAD_TAG) {
+                next = p;
+                break;
+            }
+        }
+        if (!next) {
+            break;
+        }
+        scsi_req_start_deferred(next->sreq);
+    }
+    isp12160_scsi_update_timer(s);
+    if (!budget) {
+        isp12160_scsi_schedule_queue(s);
+    }
+}
+
 static void isp12160_scsi_queue_bh(void *opaque)
 {
     ISP12160State *s = opaque;
@@ -1244,6 +1444,8 @@ static void isp12160_scsi_queue_bh(void *opaque)
         budget--;
         isp12160_scsi_flush_status(s);
     }
+    isp12160_scsi_dispatch(s);
+    isp12160_scsi_flush_status(s);
     if (!s->dma_stalled && budget == 0 &&
         isp12160_ring_distance(s->request_queue.producer,
                                s->request_queue.consumer,
@@ -1260,6 +1462,7 @@ static void isp12160_scsi_reset_transport(ISP12160State *s)
         return;
     }
     s->resetting = true;
+    timer_del(s->request_timer);
     if (s->queue_bh) {
         qemu_bh_cancel(s->queue_bh);
     }
@@ -1312,6 +1515,7 @@ static void isp12160_scsi_save_request(QEMUFile *f, SCSIRequest *sreq)
     qemu_put_be16(f, request->segment_index);
     qemu_put_be32(f, request->segment_offset);
     qemu_put_byte(f, request->dma_failed);
+    qemu_put_be64(f, request->deadline);
     for (i = 0; i < request->command.segment_count; i++) {
         qemu_put_be64(f, request->segments[i].address);
         qemu_put_be32(f, request->segments[i].length);
@@ -1407,10 +1611,14 @@ static void *isp12160_scsi_load_request(QEMUFile *f, SCSIRequest *sreq)
     ISP12160State *s = container_of(bus, ISP12160State, scsi_bus);
     ISP12160SCSIRequest *request = g_new0(ISP12160SCSIRequest, 1);
     unsigned int i;
+    uint16_t version;
 
     request->controller = s;
-    if (qemu_get_be32(f) != ISP12160_SCSI_REQUEST_MAGIC ||
-        qemu_get_be16(f) != ISP12160_SCSI_REQUEST_VERSION) {
+    if (qemu_get_be32(f) != ISP12160_SCSI_REQUEST_MAGIC) {
+        goto invalid;
+    }
+    version = qemu_get_be16(f);
+    if (version < 1 || version > ISP12160_SCSI_REQUEST_VERSION) {
         goto invalid;
     }
     request->command.handle = qemu_get_be32(f);
@@ -1430,6 +1638,12 @@ static void *isp12160_scsi_load_request(QEMUFile *f, SCSIRequest *sreq)
     request->segment_index = qemu_get_be16(f);
     request->segment_offset = qemu_get_be32(f);
     request->dma_failed = qemu_get_ubyte(f);
+    if (version >= 2) {
+        request->deadline = qemu_get_be64(f);
+        if (request->deadline < 0) {
+            goto invalid;
+        }
+    }
     if (request->command.segment_count > ISP12160_SCSI_MAX_SEGMENTS) {
         goto invalid;
     }
@@ -1456,6 +1670,7 @@ static void *isp12160_scsi_load_request(QEMUFile *f, SCSIRequest *sreq)
                      request->transferred;
     QTAILQ_INSERT_TAIL(&s->active_requests, request, next);
     s->active_request_count++;
+    isp12160_scsi_update_timer(s);
     return request;
 
 invalid:
@@ -1872,7 +2087,19 @@ static int isp12160_post_load(void *opaque, int version_id)
     bool firmware_loaded;
     unsigned int i;
 
-    (void)version_id;
+    if (version_id < (isp12160_has_scsi(s) ? 4 : 3)) {
+        isp12160_config_defaults(s);
+    }
+    for (i = 0; i < ARRAY_SIZE(s->initiator_id); i++) {
+        if (s->initiator_id[i] > 15) {
+            return -EINVAL;
+        }
+    }
+    for (i = 0; i < ARRAY_SIZE(s->queue_depth); i++) {
+        if (!s->queue_depth[i] || !s->queue_throttle[i]) {
+            return -EINVAL;
+        }
+    }
 
     if ((s->variant != ISP12160_VARIANT_MAILBOX &&
          s->variant != ISP12160_VARIANT_QUEUE &&
@@ -1972,7 +2199,7 @@ static int isp12160_post_load(void *opaque, int version_id)
 
 static const VMStateDescription vmstate_isp12160_mailbox = {
     .name = TYPE_ISP12160_MAILBOX,
-    .version_id = 2,
+    .version_id = 3,
     .minimum_version_id = 1,
     .post_load = isp12160_post_load,
     .fields = (const VMStateField[]) {
@@ -2000,13 +2227,19 @@ static const VMStateDescription vmstate_isp12160_mailbox = {
         VMSTATE_UINT32_V(native_firmware_words, ISP12160State, 2),
         VMSTATE_BOOL_V(native_firmware_loaded, ISP12160State, 2),
         VMSTATE_BOOL_V(irq_ack_pending, ISP12160State, 2),
+        VMSTATE_UINT16_ARRAY_V(initiator_id, ISP12160State, 2, 3),
+        VMSTATE_UINT16_ARRAY_V(target_params, ISP12160State, 32, 3),
+        VMSTATE_UINT16_ARRAY_V(target_sync, ISP12160State, 32, 3),
+        VMSTATE_UINT16_ARRAY_V(target_ppr, ISP12160State, 32, 3),
+        VMSTATE_UINT16_ARRAY_V(queue_depth, ISP12160State, 256, 3),
+        VMSTATE_UINT16_ARRAY_V(queue_throttle, ISP12160State, 256, 3),
         VMSTATE_END_OF_LIST()
     },
 };
 
 static const VMStateDescription vmstate_isp12160_queue = {
     .name = TYPE_ISP12160_QUEUE,
-    .version_id = 2,
+    .version_id = 3,
     .minimum_version_id = 1,
     .post_load = isp12160_post_load,
     .fields = (const VMStateField[]) {
@@ -2047,13 +2280,19 @@ static const VMStateDescription vmstate_isp12160_queue = {
         VMSTATE_UINT32_V(native_firmware_words, ISP12160State, 2),
         VMSTATE_BOOL_V(native_firmware_loaded, ISP12160State, 2),
         VMSTATE_BOOL_V(irq_ack_pending, ISP12160State, 2),
+        VMSTATE_UINT16_ARRAY_V(initiator_id, ISP12160State, 2, 3),
+        VMSTATE_UINT16_ARRAY_V(target_params, ISP12160State, 32, 3),
+        VMSTATE_UINT16_ARRAY_V(target_sync, ISP12160State, 32, 3),
+        VMSTATE_UINT16_ARRAY_V(target_ppr, ISP12160State, 32, 3),
+        VMSTATE_UINT16_ARRAY_V(queue_depth, ISP12160State, 256, 3),
+        VMSTATE_UINT16_ARRAY_V(queue_throttle, ISP12160State, 256, 3),
         VMSTATE_END_OF_LIST()
     },
 };
 
 static const VMStateDescription vmstate_isp12160_scsi = {
     .name = TYPE_ISP12160_SCSI,
-    .version_id = 3,
+    .version_id = 4,
     .minimum_version_id = 1,
     .pre_save = isp12160_scsi_pre_save,
     .post_load = isp12160_post_load,
@@ -2102,6 +2341,12 @@ static const VMStateDescription vmstate_isp12160_scsi = {
         VMSTATE_BOOL_V(native_firmware_loaded, ISP12160State, 2),
         VMSTATE_BOOL_V(irq_ack_pending, ISP12160State, 2),
         VMSTATE_BOOL_V(response_irq_unobserved, ISP12160State, 3),
+        VMSTATE_UINT16_ARRAY_V(initiator_id, ISP12160State, 2, 4),
+        VMSTATE_UINT16_ARRAY_V(target_params, ISP12160State, 32, 4),
+        VMSTATE_UINT16_ARRAY_V(target_sync, ISP12160State, 32, 4),
+        VMSTATE_UINT16_ARRAY_V(target_ppr, ISP12160State, 32, 4),
+        VMSTATE_UINT16_ARRAY_V(queue_depth, ISP12160State, 256, 4),
+        VMSTATE_UINT16_ARRAY_V(queue_throttle, ISP12160State, 256, 4),
         VMSTATE_END_OF_LIST()
     },
 };
@@ -2134,6 +2379,8 @@ static void isp12160_realize(PCIDevice *pdev, Error **errp)
                                        isp12160_mailbox_bh, s,
                                        &DEVICE(pdev)->mem_reentrancy_guard);
     if (isp12160_has_scsi(s)) {
+        s->request_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL,
+                                         isp12160_scsi_timeout, s);
         s->queue_bh = aio_bh_new_guarded(
             qemu_get_aio_context(), isp12160_scsi_queue_bh, s,
             &DEVICE(pdev)->mem_reentrancy_guard);
@@ -2150,6 +2397,7 @@ static void isp12160_exit(PCIDevice *pdev)
     isp12160_scsi_reset_transport(s);
     pci_set_irq(pdev, false);
     if (s->queue_bh) {
+        timer_free(s->request_timer);
         qemu_bh_delete(s->queue_bh);
         s->queue_bh = NULL;
     }

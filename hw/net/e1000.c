@@ -120,10 +120,13 @@ struct E1000State_st {
 
     QEMUTimer *autoneg_timer;
 
+    QEMUTimer *rx_delay_timer;
+    QEMUTimer *tx_delay_timer;
+    uint32_t delayed_causes[2];
+    int64_t delay_start[2];
     QEMUTimer *mit_timer;      /* Mitigation timer. */
     bool mit_timer_on;         /* Mitigation timer is running. */
     bool mit_irq_level;        /* Tracks interrupt pin level. */
-    uint32_t mit_ide;          /* Tracks E1000_TXD_CMD_IDE bit. */
 
     QEMUTimer *flush_queue_timer;
 
@@ -289,34 +292,19 @@ set_interrupt_cause(E1000State *s, int index, uint32_t val)
      */
     s->mac_reg[ICS] = val;
 
-    pending_ints = (s->mac_reg[IMS] & s->mac_reg[ICR]);
+    pending_ints = s->mac_reg[IMS] & s->mac_reg[ICR];
     if (!s->mit_irq_level && pending_ints) {
         /*
-         * Here we detect a potential raising edge. We postpone raising the
+         * Here we detect a potential rising edge. We postpone raising the
          * interrupt line if we are inside the mitigation delay window
          * (s->mit_timer_on == 1).
-         * We provide a partial implementation of interrupt mitigation,
-         * emulating only RADV, TADV and ITR (lower 16 bits, 1024ns units for
-         * RADV and TADV, 256ns units for ITR). RDTR is only used to enable
-         * RADV; relative timers based on TIDV and RDTR are not implemented.
+         * Receive/transmit delay timers run independently of this ITR window.
          */
         if (s->mit_timer_on) {
             return;
         }
 
-        /* Compute the next mitigation delay according to pending
-         * interrupts and the current values of RADV (provided
-         * RDTR!=0), TADV and ITR.
-         * Then rearm the timer.
-         */
         mit_delay = 0;
-        if (s->mit_ide &&
-                (pending_ints & (E1000_ICR_TXQE | E1000_ICR_TXDW))) {
-            mit_update_delay(&mit_delay, s->mac_reg[TADV] * 4);
-        }
-        if (s->mac_reg[RDTR] && (pending_ints & E1000_ICS_RXT0)) {
-            mit_update_delay(&mit_delay, s->mac_reg[RADV] * 4);
-        }
         mit_update_delay(&mit_delay, s->mac_reg[ITR]);
 
         /*
@@ -330,11 +318,69 @@ set_interrupt_cause(E1000State *s, int index, uint32_t val)
         s->mit_timer_on = 1;
         timer_mod(s->mit_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
                   mit_delay * 256);
-        s->mit_ide = 0;
     }
 
     s->mit_irq_level = (pending_ints != 0);
     pci_set_irq(d, s->mit_irq_level);
+}
+
+static void e1000_delay_expired(E1000State *s, bool tx)
+{
+    uint32_t cause = s->delayed_causes[tx];
+
+    timer_del(tx ? s->tx_delay_timer : s->rx_delay_timer);
+    s->delayed_causes[tx] = 0;
+    s->delay_start[tx] = 0;
+    set_interrupt_cause(s, 0, s->mac_reg[ICR] | cause);
+}
+
+static void e1000_rx_delay_expired(void *opaque)
+{
+    e1000_delay_expired(opaque, false);
+}
+
+static void e1000_tx_delay_expired(void *opaque)
+{
+    e1000_delay_expired(opaque, true);
+}
+
+/* Return causes that are ready to be latched in ICR. */
+static uint32_t e1000_delay_completion(E1000State *s, bool tx, uint32_t cause,
+                                     bool enabled)
+{
+    QEMUTimer *timer = tx ? s->tx_delay_timer : s->rx_delay_timer;
+    uint32_t relative = s->mac_reg[tx ? TIDV : RDTR] & 0xffff;
+    uint32_t absolute = s->mac_reg[tx ? TADV : RADV] & 0xffff;
+    int64_t now = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
+    int64_t deadline;
+
+    if (!cause) {
+        return 0;
+    }
+    if (!enabled || !relative) {
+        e1000_delay_expired(s, tx);
+        return cause;
+    }
+    if (!s->delayed_causes[tx]) {
+        s->delay_start[tx] = now;
+    }
+    s->delayed_causes[tx] |= cause;
+    deadline = now + (uint64_t)relative * 1024;
+    if (absolute) {
+        deadline = MIN(deadline, s->delay_start[tx] +
+                       (uint64_t)absolute * 1024);
+    }
+    timer_mod(timer, deadline);
+    return 0;
+}
+
+static void e1000_set_delay(E1000State *s, int index, uint32_t val)
+{
+    s->mac_reg[index] = val & 0xffff;
+    /* FPD is defined for RDTR; the upper half of 8254x TIDV is reserved. */
+    if (!(val & 0xffff) || (index == RDTR && (val & E1000_RDTR_FPD))) {
+        e1000_delay_expired(s, index == TIDV);
+    }
 }
 
 static void
@@ -380,10 +426,14 @@ static void e1000_reset_hold(Object *obj, ResetType type)
 
     timer_del(d->autoneg_timer);
     timer_del(d->mit_timer);
+    timer_del(d->rx_delay_timer);
+    timer_del(d->tx_delay_timer);
+    memset(d->delayed_causes, 0, sizeof(d->delayed_causes));
+    memset(d->delay_start, 0, sizeof(d->delay_start));
     timer_del(d->flush_queue_timer);
     d->mit_timer_on = 0;
     d->mit_irq_level = 0;
-    d->mit_ide = 0;
+    pci_set_irq(PCI_DEVICE(d), 0);
     memset(d->phy_reg, 0, sizeof d->phy_reg);
     memcpy(d->phy_reg, phy_reg_init, sizeof phy_reg_init);
     d->phy_reg[MII_PHYID2] = edc->phy_id2;
@@ -406,7 +456,25 @@ static void e1000_reset_hold(Object *obj, ResetType type)
 static void
 set_ctrl(E1000State *s, int index, uint32_t val)
 {
-    /* RST is self clearing */
+    if (val & E1000_CTRL_RST) {
+        uint16_t phy[ARRAY_SIZE(s->phy_reg)];
+        uint64_t autoneg_deadline = timer_expire_time_ns(s->autoneg_timer);
+        uint32_t link_status = s->mac_reg[STATUS] & E1000_STATUS_LU;
+
+        /* A MAC reset also cancels pending completion notifications. */
+        memcpy(phy, s->phy_reg, sizeof(phy));
+        e1000_reset_hold(OBJECT(s), RESET_TYPE_COLD);
+        if (!(val & E1000_CTRL_PHY_RST)) {
+            memcpy(s->phy_reg, phy, sizeof(phy));
+            s->mac_reg[STATUS] = (s->mac_reg[STATUS] & ~E1000_STATUS_LU) |
+                                 link_status;
+            /* A MAC-only reset does not interrupt PHY negotiation. */
+            if (autoneg_deadline != UINT64_MAX) {
+                timer_mod_ns(s->autoneg_timer, autoneg_deadline);
+            }
+        }
+        return;
+    }
     s->mac_reg[CTRL] = val & ~E1000_CTRL_RST;
 }
 
@@ -647,7 +715,6 @@ process_tx_desc(E1000State *s, struct e1000_tx_desc *dp)
     struct e1000_context_desc *xp = (struct e1000_context_desc *)dp;
     struct e1000_tx *tp = &s->tx;
 
-    s->mit_ide |= (txd_lower & E1000_TXD_CMD_IDE);
     if (dtype == E1000_TXD_CMD_DEXT) {    /* context descriptor */
         if (le32_to_cpu(xp->cmd_and_length) & E1000_TXD_CMD_TSE) {
             e1000x_read_tx_ctx_descr(xp, &tp->tso_props);
@@ -756,6 +823,7 @@ start_xmit(E1000State *s)
     dma_addr_t base;
     struct e1000_tx_desc desc;
     uint32_t tdh_start = s->mac_reg[TDH], cause = E1000_ICS_TXQE;
+    bool delay = true;
 
     if (!(s->mac_reg[TCTL] & E1000_TCTL_EN)) {
         DBGOUT(TX, "tx disabled\n");
@@ -768,6 +836,8 @@ start_xmit(E1000State *s)
     s->tx.busy = true;
 
     while (s->mac_reg[TDH] != s->mac_reg[TDT]) {
+        uint32_t tx_cause;
+
         base = tx_desc_base(s) +
                sizeof(struct e1000_tx_desc) * s->mac_reg[TDH];
         pci_dma_read(d, base, &desc, sizeof(desc));
@@ -777,7 +847,12 @@ start_xmit(E1000State *s)
                desc.upper.data);
 
         process_tx_desc(s, &desc);
-        cause |= txdesc_writeback(s, base, &desc);
+        tx_cause = txdesc_writeback(s, base, &desc);
+        cause |= tx_cause;
+        /* Any status writeback without IDE makes TXDW immediately eligible. */
+        if (tx_cause && !(le32_to_cpu(desc.lower.data) & E1000_TXD_CMD_IDE)) {
+            delay = false;
+        }
 
         if (++s->mac_reg[TDH] * sizeof(desc) >= s->mac_reg[TDLEN])
             s->mac_reg[TDH] = 0;
@@ -794,6 +869,8 @@ start_xmit(E1000State *s)
         }
     }
     s->tx.busy = false;
+    cause = (cause & ~E1000_ICR_TXDW) |
+            e1000_delay_completion(s, true, cause & E1000_ICR_TXDW, delay);
     set_ics(s, 0, cause);
 }
 
@@ -1005,6 +1082,8 @@ e1000_receive_iov(NetClientState *nc, const struct iovec *iov, int iovcnt)
         s->rxbuf_min_shift)
         n |= E1000_ICS_RXDMT0;
 
+    n = (n & ~E1000_ICS_RXT0) |
+        e1000_delay_completion(s, false, E1000_ICS_RXT0, true);
     set_ics(s, 0, n);
 
     return size;
@@ -1136,6 +1215,7 @@ static const readops macreg_readops[] = {
     getreg(RDH),      getreg(RDT),      getreg(VET),      getreg(ICS),
     getreg(TDBAL),    getreg(TDBAH),    getreg(RDBAH),    getreg(RDBAL),
     getreg(TDLEN),    getreg(RDLEN),    getreg(RDTR),     getreg(RADV),
+    getreg(TIDV),
     getreg(TADV),     getreg(ITR),      getreg(FCRUC),    getreg(IPAV),
     getreg(WUC),      getreg(WUS),      getreg(SCC),      getreg(ECOL),
     getreg(MCC),      getreg(LATECOL),  getreg(COLC),     getreg(DC),
@@ -1191,7 +1271,8 @@ static const writeops macreg_writeops[] = {
     [TDH]    = set_16bit,  [RDH]    = set_16bit,      [RDT]   = set_rdt,
     [IMC]    = set_imc,    [IMS]    = set_ims,        [ICR]   = set_icr,
     [EECD]   = set_eecd,   [RCTL]   = set_rx_control, [CTRL]  = set_ctrl,
-    [RDTR]   = set_16bit,  [RADV]   = set_16bit,      [TADV]  = set_16bit,
+    [RDTR]   = e1000_set_delay, [TIDV] = e1000_set_delay,
+    [RADV]   = set_16bit,  [TADV] = set_16bit,
     [ITR]    = set_16bit,  [TDFH]   = set_11bit,      [TDFT]  = set_11bit,
     [TDFHS]  = set_13bit,  [TDFTS]  = set_13bit,      [TDFPC] = set_13bit,
     [RDFH]   = set_13bit,  [RDFT]   = set_13bit,      [RDFHS] = set_13bit,
@@ -1379,12 +1460,23 @@ static int e1000_pre_save(void *opaque)
     return 0;
 }
 
+static int e1000_pre_load(void *opaque)
+{
+    E1000State *s = opaque;
+
+    timer_del(s->rx_delay_timer);
+    timer_del(s->tx_delay_timer);
+    memset(s->delayed_causes, 0, sizeof(s->delayed_causes));
+    memset(s->delay_start, 0, sizeof(s->delay_start));
+    s->mac_reg[TIDV] = 0;
+    return 0;
+}
+
 static int e1000_post_load(void *opaque, int version_id)
 {
     E1000State *s = opaque;
     NetClientState *nc = qemu_get_queue(s->nic);
 
-    s->mit_ide = 0;
     s->mit_timer_on = true;
     timer_mod(s->mit_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + 1);
 
@@ -1423,6 +1515,28 @@ static bool e1000_tso_state_needed(void *opaque)
 
     return chkflag(TSO);
 }
+
+static bool e1000_delay_needed(void *opaque)
+{
+    E1000State *s = opaque;
+
+    return s->mac_reg[TIDV] || s->delayed_causes[0] || s->delayed_causes[1];
+}
+
+static const VMStateDescription vmstate_e1000_delay = {
+    .name = "e1000/completion-delay",
+    .version_id = 1,
+    .minimum_version_id = 1,
+    .needed = e1000_delay_needed,
+    .fields = (const VMStateField[]) {
+        VMSTATE_UINT32(mac_reg[TIDV], E1000State),
+        VMSTATE_TIMER_PTR(rx_delay_timer, E1000State),
+        VMSTATE_TIMER_PTR(tx_delay_timer, E1000State),
+        VMSTATE_UINT32_ARRAY(delayed_causes, E1000State, 2),
+        VMSTATE_INT64_ARRAY(delay_start, E1000State, 2),
+        VMSTATE_END_OF_LIST()
+    },
+};
 
 static const VMStateDescription vmstate_e1000_mit_state = {
     .name = "e1000/mit_state",
@@ -1475,6 +1589,7 @@ static const VMStateDescription vmstate_e1000 = {
     .version_id = 2,
     .minimum_version_id = 1,
     .pre_save = e1000_pre_save,
+    .pre_load = e1000_pre_load,
     .post_load = e1000_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_PCI_DEVICE(parent_obj, E1000State),
@@ -1549,6 +1664,7 @@ static const VMStateDescription vmstate_e1000 = {
         VMSTATE_END_OF_LIST()
     },
     .subsections = (const VMStateDescription * const []) {
+        &vmstate_e1000_delay,
         &vmstate_e1000_mit_state,
         &vmstate_e1000_full_mac_state,
         &vmstate_e1000_tx_tso_state,
@@ -1598,6 +1714,8 @@ pci_e1000_uninit(PCIDevice *dev)
 
     timer_free(d->autoneg_timer);
     timer_free(d->mit_timer);
+    timer_free(d->rx_delay_timer);
+    timer_free(d->tx_delay_timer);
     timer_free(d->flush_queue_timer);
     qemu_del_nic(d->nic);
 }
@@ -1662,6 +1780,10 @@ static void pci_e1000_realize(PCIDevice *pci_dev, Error **errp)
     qemu_format_nic_info_str(qemu_get_queue(d->nic), macaddr);
 
     d->autoneg_timer = timer_new_ms(QEMU_CLOCK_VIRTUAL, e1000_autoneg_timer, d);
+    d->rx_delay_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL,
+                                      e1000_rx_delay_expired, d);
+    d->tx_delay_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL,
+                                      e1000_tx_delay_expired, d);
     d->mit_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, e1000_mit_timer, d);
     d->flush_queue_timer = timer_new_ms(QEMU_CLOCK_VIRTUAL,
                                         e1000_flush_queue_timer, d);

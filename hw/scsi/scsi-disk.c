@@ -2142,11 +2142,16 @@ static int32_t scsi_disk_emulate_command(SCSIRequest *req, uint8_t *buf)
         outbuf[7] = 0;
         break;
     case REQUEST_SENSE:
-        /* Just return "NO SENSE".  */
-        buflen = scsi_convert_sense(NULL, 0, outbuf, r->buflen,
-                                    (req->cmd.buf[1] & 1) == 0);
+        /* Sense may have arrived while this request waited in an HBA queue. */
+        buflen = scsi_device_get_sense(req->dev, outbuf, r->buflen,
+                                      (req->cmd.buf[1] & 1) == 0);
         if (buflen < 0) {
             goto illegal_request;
+        }
+        if (req->dev->sense_is_ua) {
+            scsi_device_unit_attention_reported(req->dev);
+            req->dev->sense_len = 0;
+            req->dev->sense_is_ua = false;
         }
         break;
     case MECHANISM_STATUS:

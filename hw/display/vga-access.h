@@ -24,6 +24,9 @@
 
 static inline uint8_t vga_read_byte(VGACommonState *vga, uint32_t addr)
 {
+    if (vga->scanout_read) {
+        return vga->scanout_read(vga, addr);
+    }
     return vga->vram_ptr[addr & vga->vbe_size_mask];
 }
 
@@ -31,6 +34,10 @@ static inline uint16_t vga_read_word_le(VGACommonState *vga, uint32_t addr)
 {
     uint32_t offset = addr & vga->vbe_size_mask & ~1;
     uint16_t *ptr = (uint16_t *)(vga->vram_ptr + offset);
+    if (vga->scanout_read) {
+        return vga_read_byte(vga, addr) |
+               (vga_read_byte(vga, addr + 1) << 8);
+    }
     return lduw_le_p(ptr);
 }
 
@@ -38,6 +45,10 @@ static inline uint16_t vga_read_word_be(VGACommonState *vga, uint32_t addr)
 {
     uint32_t offset = addr & vga->vbe_size_mask & ~1;
     uint16_t *ptr = (uint16_t *)(vga->vram_ptr + offset);
+    if (vga->scanout_read) {
+        return (vga_read_byte(vga, addr) << 8) |
+               vga_read_byte(vga, addr + 1);
+    }
     return lduw_be_p(ptr);
 }
 

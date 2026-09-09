@@ -343,11 +343,6 @@ size_t mptsas_config_ioc_0(MPTSASState *s, uint8_t **data, int address)
 static
 size_t mptsas_config_ioc_1(MPTSASState *s, uint8_t **data, int address)
 {
-    if (!mptsas_is_spi(s)) {
-        return MPTSAS_CONFIG_PACK(1, MPI_CONFIG_PAGETYPE_IOC, 0x03,
-                                  "*l*l*b*b*b*b");
-    }
-
     return MPTSAS_CONFIG_PACK(1,
                               MPI_CONFIG_PAGEATTR_CHANGEABLE |
                               MPI_CONFIG_PAGETYPE_IOC,
@@ -1081,11 +1076,7 @@ static int mptsas_write_ioc_1(MPTSASState *s, int address, uint64_t pa,
 
     flags = ldl_le_p(page_data + 4);
     /*
-     * Store the reply-coalescing request so drivers can configure and read
-     * back the standard page.  Interrupt coalescing itself is not modelled,
-     * so QEMU continues to interrupt for each posted reply.  The other IOC
-     * Page 1 modes alter reply formats or require EEDP support and therefore
-     * must not be claimed.
+     * Reply format changes and EEDP are not advertised by this adapter.
      */
     if ((flags & ~(uint32_t)MPI_IOCPAGE1_REPLY_COALESCING) ||
         lduw_le_p(page_data + 14)) {
@@ -1095,6 +1086,7 @@ static int mptsas_write_ioc_1(MPTSASState *s, int address, uint64_t pa,
     s->ioc1_flags = flags;
     s->ioc1_coalescing_timeout = ldl_le_p(page_data + 8);
     s->ioc1_coalescing_depth = page_data[12];
+    mptsas_coalescing_changed(s);
     return MPI_IOCSTATUS_SUCCESS;
 }
 
@@ -1143,7 +1135,7 @@ static int mptsas_write_current(MPTSASState *s, int type, int number,
     uint8_t page_data[16];
     int target;
 
-    if (mptsas_is_spi(s) && type == MPI_CONFIG_PAGETYPE_IOC && number == 1) {
+    if (type == MPI_CONFIG_PAGETYPE_IOC && number == 1) {
         return mptsas_write_ioc_1(s, address, pa, dmalen);
     }
     if (mptsas_is_spi(s) && type == MPI_CONFIG_PAGETYPE_SCSI_PORT &&
@@ -1182,11 +1174,6 @@ static int mptsas_set_current_to_default(MPTSASState *s, int type,
 {
     int target;
 
-    if (!mptsas_is_spi(s)) {
-        /* Preserve the SAS1068 PAGE_DEFAULT success/no-op guest ABI. */
-        return MPI_IOCSTATUS_SUCCESS;
-    }
-
     if (type == MPI_CONFIG_PAGETYPE_IOC && number == 1) {
         if (address) {
             return MPI_IOCSTATUS_CONFIG_INVALID_PAGE;
@@ -1194,6 +1181,12 @@ static int mptsas_set_current_to_default(MPTSASState *s, int type,
         s->ioc1_flags = 0;
         s->ioc1_coalescing_timeout = 0;
         s->ioc1_coalescing_depth = 0;
+        mptsas_coalescing_changed(s);
+        return MPI_IOCSTATUS_SUCCESS;
+    }
+
+    if (!mptsas_is_spi(s)) {
+        /* Preserve the SAS1068 PAGE_DEFAULT success/no-op guest ABI. */
         return MPI_IOCSTATUS_SUCCESS;
     }
 

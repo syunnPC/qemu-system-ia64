@@ -412,8 +412,8 @@ static bool i2000_machine_build(MachineState *ms, Error **errp)
         !hp_ia64_machine_validate(hp, errp)) {
         return false;
     }
-    if (g_strcmp0(ms->cpu_type, IA64_CPU_TYPE_NAME("merced")) != 0) {
-        error_setg(errp, "%s requires the Merced CPU model",
+    if (g_strcmp0(ms->cpu_type, IA64_CPU_TYPE_NAME("merced-800")) != 0) {
+        error_setg(errp, "%s requires the merced-800 CPU model",
                    TYPE_IA64_I2000_EFI_TEST_MACHINE);
         return false;
     }
@@ -494,7 +494,7 @@ static void i2000_machine_class_init(ObjectClass *oc, const void *data)
     mc->desc = "IA-64 i2000 EFI test machine";
     mc->init = i2000_machine_init;
     mc->reset = i2000_machine_reset;
-    mc->default_cpu_type = IA64_CPU_TYPE_NAME("merced");
+    mc->default_cpu_type = IA64_CPU_TYPE_NAME("merced-800");
     mc->default_ram_size = IA64_I2000_460GX_TEST_RAM_SIZE;
     mc->default_ram_id = "ia64-i2000-efi-test.ram";
     mc->default_display = "none";

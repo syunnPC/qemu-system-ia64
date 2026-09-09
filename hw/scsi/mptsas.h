@@ -4,6 +4,7 @@
 #include "mpi.h"
 #include "hw/pci/pci_device.h"
 #include "hw/scsi/scsi.h"
+#include "qemu/timer.h"
 
 #define MPTSAS_NUM_PORTS 8
 #define MPTSAS_ENCLOSURE_HANDLE (2 * MPTSAS_NUM_PORTS + 1)
@@ -63,6 +64,10 @@ struct MPTSASState {
     MemoryRegion diag_io;
     MemoryRegion pci_rom;
     QEMUBH *request_bh;
+    QEMUTimer *coalescing_timer;
+    uint32_t coalescing_count;
+    bool reply_irq_ready;
+    uint32_t irq_state;
 
     /* properties */
     OnOffAuto msi;
@@ -174,6 +179,7 @@ void mptsas_fix_event_notification_endianness(MPIMsgEventNotify *req);
 void mptsas_fix_event_notification_reply_endianness(MPIMsgEventNotifyReply *reply);
 
 void mptsas_reply(MPTSASState *s, MPIDefaultReply *reply);
+void mptsas_coalescing_changed(MPTSASState *s);
 
 void mptsas_process_config(MPTSASState *s, MPIMsgConfig *req);
 unsigned mptsas_first_slot(const MPTSASState *s);

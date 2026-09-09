@@ -12,14 +12,14 @@ Machine models
 The machine models are grouped by processor generation:
 
 ``itanium-vpc`` and ``hp-i2000`` (Merced generation)
-  ``itanium-vpc`` defaults to the ``merced`` CPU model.  ``hp-i2000``
+  ``itanium-vpc`` defaults to the ``merced-800`` CPU model.  ``hp-i2000``
   emulates the Intel 460GX-based HP workstation and requires the same CPU
   model.  ``itanium-vpc`` uses PS/2 input.  ``hp-i2000`` retains its PS/2
   controller and defaults to a USB keyboard and tablet.
 
 ``itanium2-vpc`` and ``hp-zx6000`` (Itanium 2 generation)
-  ``itanium2-vpc`` defaults to the ``montecito`` CPU model.  ``hp-zx6000``
-  emulates the HP zx1-based workstation and requires ``madison-zx6000``.
+  ``itanium2-vpc`` defaults to the ``montecito-9050`` CPU model.  ``hp-zx6000``
+  emulates the HP zx1-based workstation and requires ``madison-1500``.
   Both default to a USB keyboard and tablet.
 
 ``hp-rx2660`` (Montecito generation)
@@ -29,6 +29,51 @@ The machine models are grouped by processor generation:
 ``ia64-vpc`` aliases ``itanium2-vpc``.  The virtual PC models support 64 CPUs,
 ``hp-i2000`` and ``hp-zx6000`` two, and ``hp-rx2660`` eight.  Use
 ``-accel tcg,thread=multi`` for more than one CPU.
+
+CPU model names
+---------------
+
+Use ``-cpu generation-model_number`` to select a canonical CPU model, for
+example ``-cpu montecito-9010``.  For generations without processor numbers,
+the number is the clock in MHz.  A cache suffix is included only when models
+within a generation share that clock: ``madison-1500``, but
+``madison-1600-3m`` and ``madison-1600-9m``.
+
+.. list-table:: Canonical CPU models and generation aliases
+   :header-rows: 1
+   :widths: 15 60 25
+
+   * - Generation alias
+     - Canonical models
+     - Alias target
+   * - ``merced``
+     - ``merced-800``
+     - ``merced-800``
+   * - ``mckinley``
+     - ``mckinley-900``, ``mckinley-1000``
+     - ``mckinley-1000``
+   * - ``deerfield``
+     - ``deerfield-1000``
+     - ``deerfield-1000``
+   * - ``madison``
+     - ``madison-1400-1.5m``, ``madison-1400-4m``, ``madison-1500``,
+       ``madison-1600-3m``, ``madison-1600-9m``
+     - ``madison-1600-3m``
+   * - ``montecito``
+     - ``montecito-9010``, ``montecito-9015``, ``montecito-9020``,
+       ``montecito-9030``, ``montecito-9040``, ``montecito-9050``
+     - ``montecito-9050``
+   * - ``montvale``
+     - ``montvale-9110n``, ``montvale-9120n``, ``montvale-9130m``,
+       ``montvale-9140m``, ``montvale-9140n``, ``montvale-9150m``,
+       ``montvale-9150n``, ``montvale-9152m``
+     - ``montvale-9150n``
+
+``itanium`` aliases ``merced`` and ``itanium2`` aliases ``montecito``.
+``-cpu help`` displays both canonical names and alias targets.
+The machine-specific ``madison-zx6000`` and cache-only ``madison-6m`` names
+have been replaced by ``madison-1500``; other former Madison cache variants
+also require their clock-qualified names.  Removed names are not aliases.
 
 HP i2000 device layout
 ----------------------
@@ -49,7 +94,11 @@ four DMA channels, including continuous DMA and half/terminal-count interrupts.
 Its legacy audio, FM synthesis, game port, MIDI, secondary codec and non-PCM
 serial slots remain unimplemented.
 The ISP12160 models mailboxes, queues, and SCSI I/O; its onboard RISC firmware
-does not execute.  The 82559 Flash aperture contains no Flash storage.
+does not execute.  SIMPLE, HEAD and ORDERED tags control per-LUN dispatch.
+IOCB timeouts include time spent waiting in the queue.  Target autosense,
+per-command autosense suppression, initiator IDs, queue depth and execution
+throttle settings are supported.  Queued requests and deadlines migrate.
+The 82559 Flash aperture contains no Flash storage.
 ``-vga ati`` places an ATI adapter at ``03:00.0``.
 
 HP zx6000 device layout
@@ -88,13 +137,28 @@ first serial backend, so ``-serial stdio`` connects this UART to the terminal.
 The firmware console descriptor and EFI device path identify this PCI UART.
 The two PDH UARTs use the second and third serial backends.
 
-Broadcom Ethernet
------------------
+Storage completion and Ethernet
+-------------------------------
+
+The LSI53C895A honors HEAD and ORDERED tasks across disconnect/reselect.
+Migration requires its requests to have completed; an active request returns
+a migration error.  LSI53C1030 and SAS1068 implement IOC Page 1 reply coalescing
+with a completion-count threshold and a timer in microseconds.  Reading the
+reply FIFO through its empty indication acknowledges the notification.
+
+The Intel 82550/82559 receive path supports CRC transfer and IEEE 802.3
+padding stripping.  CRCs cover the original padded wire frame.  The e1000
+implements RDTR/TIDV relative completion timers with RADV/TADV absolute caps,
+in addition to ITR throttling.  Controller resets cancel pending notifications.
 
 The BCM5701 and BCM5704 implement PCI configuration and power-management
 capabilities, PHY discovery, EEPROM/NVRAM access, indirect register/SRAM access,
 descriptor DMA, transmit/receive, VLAN insertion/removal, transmit checksums,
-IPv4 TCP segmentation, statistics/status DMA and INTx interrupts.  Embedded
+IPv4 TCP segmentation, statistics/status DMA and INTx interrupts.  Receive
+descriptors carry IPv4 and TCP/UDP checksum results, including bad checksums;
+fragments and UDP packets without a checksum do not claim transport checksum
+validation.  Host coalescing applies RX/TX completion-count thresholds and
+microsecond timers.  Pending coalescing state migrates.  Embedded
 processor execution is not implemented; reset supplies the modeled board data
 and firmware-mailbox handshake.  The option-ROM aperture contains no boot
 firmware, and network boot is unavailable.
@@ -119,10 +183,30 @@ across migration.  CRTC offset locking works through both register aliases.
 ATI hardware cursors are composited into the display at the programmed
 position.
 
-Graphics emulation remains partial.  ATI overlay/scaler output, tiled scanout,
-some 2D operations and parts of the 3D pipeline remain unimplemented.  Quadro2
-supports framebuffer/VBE and part of its 2D engine, but NV15 3D object classes
-and tiled VRAM access are not implemented.
+ATI 2D supports Bresenham lines, monochrome and color brushes, and Rage128
+stretch blits.  Rage128 trapezoids use an integer-coordinate approximation.
+Line and trapezoid setup registers retain their programmed values after drawing.
+Rage128 stretch uses replication or generic bilinear filtering in the
+destination pixel format.  Radeon tiled 2D and scanout support macrotiles in
+8-, 16- and 32-bit formats, plus 32-bit destination microtiles.  Rage128 tiled
+2D accesses are unimplemented and leave destination memory unchanged; tiled
+scanout returns zero pixel data.  Guests using Rage128 must select linear
+framebuffers for rendering and display.
+
+PLL atomic requests complete immediately, and the primary CRTC timer follows
+the programmed pixel clock.  PLL settling and synchronization to vertical
+sync are not modeled.  MONID GPIO participates in DDC, and GUI idle completion
+latches its interrupt status.
+
+Quadro2 supports NV10/NV15 PFB tile regions in scanout and 2D DMA.  Long FIFO
+streams yield between commands and resume without reporting a hardware fault
+solely because a processing budget was exhausted.  Individual operations
+retain size and address bounds.
+
+Graphics emulation remains partial.  ATI overlay output, packed 24-bit tiled
+surfaces, 8-/16-bit Radeon destination microtiles, exact subpixel trapezoid
+coverage, and parts of the 3D pipeline remain unsupported.  NV15 3D object
+classes are not implemented.
 
 Technical references for these models are recorded in
 :doc:`../devel/device-emulation-provenance` and

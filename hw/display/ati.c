@@ -13,6 +13,31 @@
  * Technical references are listed in docs/devel/gpu-emulation-provenance.rst.
  */
 
+/*
+ * Radeon viewport and PLL calculations follow radeon_legacy_crtc.c:
+ *
+ * Copyright 2007-8 Advanced Micro Devices, Inc.
+ * Copyright 2008 Red Hat Inc.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
+ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ */
+
 #include "qemu/osdep.h"
 #include "ati_int.h"
 #include "ati_regs.h"
@@ -40,7 +65,7 @@
 #define ATI_RAGE128_DAC_CNTL_RESET             0xff00000aU
 #define ATI_R100_DAC_CNTL_RESET                0xff00000aU
 #define ATI_RV100_CRTC_OFFSET_CNTL_RESET        0x10000000U
-/* TODO: Derive CRTC cadence from the programmed PLL and timing registers. */
+/* Fallback until valid PLL dividers and CRTC timings are programmed. */
 #define ATI_CRTC_FRAME_NS                       (NANOSECONDS_PER_SECOND / 60)
 #define ATI_CRTC_FRAME_MASK                     0x001fffffU
 
@@ -94,6 +119,7 @@ static void ati_crtc_commit_offset(ATIVGAState *s)
     pitch_changed = s->crtc_pitch_active != s->regs.crtc_pitch;
     s->crtc_offset_active = s->regs.crtc_offset & CRTC_OFFSET_MASK;
     s->crtc_pitch_active = s->regs.crtc_pitch;
+    s->crtc_tile_line_active = s->regs.crtc_offset_cntl & CRTC_TILE_LINE_MASK;
     s->regs.crtc_offset &= ~CRTC_OFFSET_GUI_TRIG_OFFSET;
     if (ati_crtc_enabled(s)) {
         if (pitch_changed) {
@@ -583,11 +609,52 @@ static void ati_graphic_invalidate(void *opaque)
     s->vga.hw_ops->invalidate(&s->vga);
 }
 
+static uint8_t ati_scanout_read(VGACommonState *vga, uint32_t address)
+{
+    ATIVGAState *s = container_of(vga, ATIVGAState, vga);
+    unsigned int bpp = vga->get_bpp(vga);
+    unsigned int cpp = DIV_ROUND_UP(bpp, 8);
+    uint32_t pitch = vga->params.line_offset;
+    uint32_t base = s->crtc_offset_active;
+    unsigned int start_line = s->crtc_tile_line_active & CRTC_TILE_LINE_MASK;
+    unsigned int start_tile = (base >> 11) -
+                              (start_line >> 3) * (pitch >> 8);
+    uint32_t x, y;
+    uint64_t offset;
+
+    /* Rage128 tiled scanout is unsupported; return zero pixel data. */
+    if (s->dev_id == PCI_DEVICE_ID_ATI_RAGE128_PF ||
+        !pitch || address < base) {
+        return 0;
+    }
+    x = (address - base) % pitch;
+    y = (address - base) / pitch;
+    /*
+     * OFFSET encodes the tile index and unswizzled position. TILE_LINE
+     * supplies the row modulo 16; the tile base selects the bank phase.
+     */
+    x += base & 255;
+    y += start_line;
+    if (!ati_2d_tile_offset(s, start_tile << 11, pitch, cpp, 1,
+                            x, y, &offset)) {
+        return 0;
+    }
+    offset += base & ~0x7ffU;
+    offset -= (uint64_t)(start_line >> 3) * pitch * 8;
+    return offset < vga->vram_size ? vga->vram_ptr[offset] : 0;
+}
+
 static bool ati_graphic_update(void *opaque)
 {
     ATIVGAState *s = opaque;
-    bool complete = s->vga.hw_ops->gfx_update(&s->vga);
+    bool complete;
 
+    s->vga.scanout_read = (s->regs.crtc_offset_cntl & CRTC_TILE_EN) &&
+                          s->mode && s->vga.get_bpp(&s->vga) >= 8 &&
+                          ((s->vga.gr[VGA_GFX_MODE] >> 5) & 3) >= 2 ?
+                          ati_scanout_read : NULL;
+    complete = s->vga.hw_ops->gfx_update(&s->vga);
+    s->vga.scanout_read = NULL;
     ati_cursor_update_host(s, false);
     return complete;
 }
@@ -626,6 +693,48 @@ static uint64_t ati_i2c(bitbang_i2c_interface *i2c, uint64_t data, int base)
 static void ati_vga_update_irq(ATIVGAState *s)
 {
     pci_set_irq(&s->dev, !!(s->regs.gen_int_status & s->regs.gen_int_cntl));
+}
+
+void ati_2d_complete(ATIVGAState *s)
+{
+    s->regs.gen_int_status |= BIT(19); /* GUI_IDLE_INT */
+    ati_vga_update_irq(s);
+}
+
+static void ati_pll_commit(ATIVGAState *s)
+{
+    for (unsigned int i = 0; i < 5; i++) {
+        s->regs.pll[PPLL_REF_DIV + i] &= ~PPLL_ATOMIC_UPDATE_R;
+        s->regs.pll_active[i] = s->regs.pll[PPLL_REF_DIV + i];
+    }
+    s->regs.pll_pending = false;
+}
+
+static uint64_t ati_crtc_frame_ns(const ATIVGAState *s)
+{
+    static const unsigned int postdiv[] = { 1, 2, 4, 8, 3, 16, 6, 12 };
+    bool rage128 = s->dev_id == PCI_DEVICE_ID_ATI_RAGE128_PF;
+    uint32_t div = s->regs.pll_active[1 +
+                   extract32(s->regs.clock_cntl_index, 8, 2)];
+    unsigned int ref = s->regs.pll_active[0] & PPLL_REF_DIV_MASK;
+    unsigned int fb = div & PPLL_FB3_DIV_MASK;
+    unsigned int post = postdiv[extract32(div, 16, 3)];
+    unsigned int reference_khz = rage128 ? 29500 : 27000;
+    uint64_t pixels, period;
+
+    if (!ref || !fb || (rage128 && post == 16) ||
+        (s->regs.pll[PPLL_CNTL] & PPLL_RESET)) {
+        return ATI_CRTC_FRAME_NS;
+    }
+    pixels = ((s->regs.crtc_h_total_disp & 0x3ff) + 1) * 8ULL *
+             ((s->regs.crtc_v_total_disp & 0xfff) + 1);
+    /*
+     * Reference clocks match the legacy BIOS PLL tables. Use kHz to keep
+     * muldiv64's divisor within 32 bits while converting the period to ns.
+     */
+    period = muldiv64(pixels * ref * post, 1000000, reference_khz * fb);
+    return period >= 1000000 && period <= NANOSECONDS_PER_SECOND ?
+           period : ATI_CRTC_FRAME_NS;
 }
 
 static uint32_t ati_crtc_line_mask(const ATIVGAState *s)
@@ -684,8 +793,8 @@ static uint32_t ati_crtc_current_line(const ATIVGAState *s)
     if (elapsed <= 0) {
         return 0;
     }
-    return muldiv64(elapsed % ATI_CRTC_FRAME_NS,
-                    ati_crtc_vtotal(s), ATI_CRTC_FRAME_NS);
+    return muldiv64(elapsed % ati_crtc_frame_ns(s),
+                    ati_crtc_vtotal(s), ati_crtc_frame_ns(s));
 }
 
 static uint32_t ati_crtc_next_event_line(const ATIVGAState *s,
@@ -714,7 +823,7 @@ static void ati_crtc_schedule_from_line(ATIVGAState *s, uint32_t current)
     s->crtc_event_line = ati_crtc_next_event_line(s, current);
     timer_mod(&s->vblank_timer,
               s->crtc_frame_start_ns +
-              DIV_ROUND_UP((uint64_t)ATI_CRTC_FRAME_NS *
+              DIV_ROUND_UP((uint64_t)ati_crtc_frame_ns(s) *
                            s->crtc_event_line, total));
 }
 
@@ -779,7 +888,7 @@ static void ati_crtc_event(void *opaque)
         return;
     }
     if (line == ati_crtc_vtotal(s)) {
-        s->crtc_frame_start_ns += ATI_CRTC_FRAME_NS;
+        s->crtc_frame_start_ns += ati_crtc_frame_ns(s);
         if (!(s->crtc_vline & ati_crtc_line_mask(s))) {
             s->regs.gen_int_status |= CRTC_VLINE_INT;
         }
@@ -844,9 +953,23 @@ static void ati_pll_write(ATIVGAState *s, hwaddr addr, uint64_t data,
     }
     ati_reg_write_offs(&s->regs.pll[index], addr - CLOCK_CNTL_DATA,
                        data, size);
-    if (index == PPLL_REF_DIV) {
-        /* TODO: Stage PPLL divisors and commit them on ATOMIC_UPDATE_W. */
+    if (index >= PPLL_REF_DIV && index <= PPLL_DIV_3) {
+        bool atomic = s->regs.pll[PPLL_CNTL] &
+                      (PPLL_ATOMIC_UPDATE_EN | PPLL_VGA_ATOMIC_UPDATE_EN);
+        bool request = ((data << ((addr - CLOCK_CNTL_DATA) * 8)) &
+                        PPLL_ATOMIC_UPDATE_W) != 0;
+
         s->regs.pll[index] &= ~PPLL_ATOMIC_UPDATE_R;
+        /* Complete updates synchronously; PLL settling is not modeled. */
+        if (!atomic || request) {
+            ati_pll_commit(s);
+            ati_crtc_start(s);
+        }
+    } else if (index == PPLL_CNTL &&
+               !(s->regs.pll[index] &
+                 (PPLL_ATOMIC_UPDATE_EN | PPLL_VGA_ATOMIC_UPDATE_EN))) {
+        ati_pll_commit(s);
+        ati_crtc_start(s);
     }
 }
 
@@ -884,15 +1007,25 @@ static uint32_t ati_dac_read(const ATIVGAState *s)
     return value;
 }
 
+static uint32_t ati_dp_cntl_directions(const ATIVGAState *s)
+{
+    return (s->regs.dp_cntl & DST_X_LEFT_TO_RIGHT ?
+            DST_X_DIR_LEFT_TO_RIGHT : 0) |
+           (s->regs.dp_cntl & DST_Y_TOP_TO_BOTTOM ?
+            DST_Y_DIR_TOP_TO_BOTTOM : 0) |
+           (s->regs.dp_cntl & DST_Y_MAJOR);
+}
+
 static uint64_t ati_reg_read(void *opaque, hwaddr addr, unsigned int size)
 {
     ATIVGAState *s = opaque;
     uint32_t val = 0;
-    uint64_t r100_val;
+    uint64_t engine_val;
 
-    if (ati_3d_read(s, addr, &r100_val, size)) {
-        trace_ati_mm_read(size, addr, ati_reg_name(addr & ~3ULL), r100_val);
-        return r100_val;
+    if (ati_2d_reg_read(s, addr, &engine_val, size) ||
+        ati_3d_read(s, addr, &engine_val, size)) {
+        trace_ati_mm_read(size, addr, ati_reg_name(addr & ~3ULL), engine_val);
+        return engine_val;
     }
 
     switch (addr) {
@@ -1135,10 +1268,8 @@ static uint64_t ati_reg_read(void *opaque, hwaddr addr, unsigned int size)
         }
         break;
     case BRUSH_Y_X ... BRUSH_Y_X + 3:
-        if (s->dev_id != PCI_DEVICE_ID_ATI_RAGE128_PF) {
-            val = ati_reg_read_offs(s->regs.brush_y_x,
-                                    addr - BRUSH_Y_X, size);
-        }
+        val = ati_reg_read_offs(s->regs.brush_y_x,
+                                addr - BRUSH_Y_X, size);
         break;
     case SRC_OFFSET:
         val = s->regs.src_offset;
@@ -1159,11 +1290,9 @@ static uint64_t ati_reg_read(void *opaque, hwaddr addr, unsigned int size)
     {
         unsigned int i = (addr - BRUSH_DATA0) / sizeof(uint32_t);
 
-        if (s->dev_id != PCI_DEVICE_ID_ATI_RAGE128_PF) {
-            val = ati_reg_read_offs(s->regs.brush_data[i],
-                                    (addr - BRUSH_DATA0) % sizeof(uint32_t),
-                                    size);
-        }
+        val = ati_reg_read_offs(s->regs.brush_data[i],
+                                (addr - BRUSH_DATA0) % sizeof(uint32_t),
+                                size);
         break;
     }
     case DP_SRC_FRGD_CLR:
@@ -1174,6 +1303,10 @@ static uint64_t ati_reg_read(void *opaque, hwaddr addr, unsigned int size)
         break;
     case DP_CNTL:
         val = s->regs.dp_cntl;
+        break;
+    case DP_CNTL_XDIR_YDIR_YMAJOR ... DP_CNTL_XDIR_YDIR_YMAJOR + 3:
+        val = ati_reg_read_offs(ati_dp_cntl_directions(s),
+                                addr - DP_CNTL_XDIR_YDIR_YMAJOR, size);
         break;
     case DP_DATATYPE:
         val = s->regs.dp_datatype;
@@ -1263,7 +1396,7 @@ static uint16_t ati_scissor_value(const ATIVGAState *s, uint32_t value)
 
 static uint32_t ati_brush_y_x_mask(const ATIVGAState *s)
 {
-    return s->dev_id == PCI_DEVICE_ID_ATI_RAGE128_PF ? 0 :
+    return s->dev_id == PCI_DEVICE_ID_ATI_RAGE128_PF ? 0x1f1f :
            R100_BRUSH_Y_X_MASK;
 }
 
@@ -1273,7 +1406,8 @@ void ati_mmio_write(ATIVGAState *s, hwaddr addr, uint64_t data,
     if (addr < CUR_OFFSET || addr > CUR_CLR1 || ATI_DEBUG_HW_CURSOR) {
         trace_ati_mm_write(size, addr, ati_reg_name(addr & ~3ULL), data);
     }
-    if (ati_3d_write(s, addr, data, size)) {
+    if (ati_2d_reg_write(s, addr, data, size) ||
+        ati_3d_write(s, addr, data, size)) {
         return;
     }
     switch (addr) {
@@ -1294,10 +1428,17 @@ void ati_mmio_write(ATIVGAState *s, hwaddr addr, uint64_t data,
         }
         break;
     case CLOCK_CNTL_INDEX ... CLOCK_CNTL_INDEX + 3:
+    {
+        uint32_t old_index = s->regs.clock_cntl_index;
+
         ati_reg_write_offs(&s->regs.clock_cntl_index,
                            addr - CLOCK_CNTL_INDEX, data, size);
         s->regs.clock_cntl_index &= PLL_INDEX_CNTL_MASK;
+        if ((old_index ^ s->regs.clock_cntl_index) & PLL_DIV_SEL_MASK) {
+            ati_crtc_start(s);
+        }
         break;
+    }
     case CLOCK_CNTL_DATA ... CLOCK_CNTL_DATA + 3:
         ati_pll_write(s, addr, data, size);
         break;
@@ -1447,16 +1588,14 @@ void ati_mmio_write(ATIVGAState *s, hwaddr addr, uint64_t data,
         }
         break;
     case GPIO_MONID ... GPIO_MONID + 3:
-        /* TODO: Implement Radeon MONID GPIO behavior. */
-        if (s->dev_id == PCI_DEVICE_ID_ATI_RAGE128_PF) {
-            /* Rage128p accesses DDC via MONID(1-2) with additional mask bit */
-            ati_reg_write_offs(&s->regs.gpio_monid,
-                               addr - GPIO_MONID, data, size);
-            if ((s->regs.gpio_monid & BIT(25)) &&
-                ((addr <= GPIO_MONID + 2 && addr + size > GPIO_MONID + 2) ||
-                 (addr == GPIO_MONID && (s->regs.gpio_monid & 0x60000)))) {
-                s->regs.gpio_monid = ati_i2c(&s->bbi2c, s->regs.gpio_monid, 1);
-            }
+        ati_reg_write_offs(&s->regs.gpio_monid, addr - GPIO_MONID,
+                           data, size);
+        if (((addr <= GPIO_MONID + 2 && addr + size > GPIO_MONID + 2) ||
+             (addr == GPIO_MONID && (s->regs.gpio_monid & 0x70000))) &&
+            (s->dev_id != PCI_DEVICE_ID_ATI_RAGE128_PF ||
+             (s->regs.gpio_monid & BIT(25)))) {
+            s->regs.gpio_monid = ati_i2c(&s->bbi2c, s->regs.gpio_monid,
+                s->dev_id == PCI_DEVICE_ID_ATI_RAGE128_PF ? 1 : 0);
         }
         break;
     case PALETTE_INDEX ... PALETTE_INDEX + 3:
@@ -1563,6 +1702,8 @@ void ati_mmio_write(ATIVGAState *s, hwaddr addr, uint64_t data,
             s->regs.crtc_offset = value;
             s->crtc_offset_active = value & CRTC_OFFSET_MASK;
             s->crtc_pitch_active = s->regs.crtc_pitch;
+            s->crtc_tile_line_active =
+                s->regs.crtc_offset_cntl & CRTC_TILE_LINE_MASK;
             ati_vga_set_offset(&s->vga, s->crtc_offset_active);
         } else if (value & CRTC_OFFSET_LOCK) {
             s->regs.crtc_offset = value | CRTC_OFFSET_GUI_TRIG_OFFSET;
@@ -1575,6 +1716,8 @@ void ati_mmio_write(ATIVGAState *s, hwaddr addr, uint64_t data,
         } else {
             s->regs.crtc_offset = value;
             s->crtc_offset_active = value & CRTC_OFFSET_MASK;
+            s->crtc_tile_line_active =
+                s->regs.crtc_offset_cntl & CRTC_TILE_LINE_MASK;
             ati_vga_set_offset(&s->vga, s->crtc_offset_active);
             graphic_hw_invalidate(s->vga.con);
         }
@@ -1582,18 +1725,37 @@ void ati_mmio_write(ATIVGAState *s, hwaddr addr, uint64_t data,
     }
     case CRTC_OFFSET_CNTL ... CRTC_OFFSET_CNTL + 3:
     {
-        uint32_t value = (s->regs.crtc_offset_cntl &
+        uint32_t old = s->regs.crtc_offset_cntl;
+        uint32_t value = (old &
                           ~(CRTC_OFFSET_LOCK | CRTC_OFFSET_GUI_TRIG_OFFSET)) |
                          (s->regs.crtc_offset & CRTC_OFFSET_LOCK);
 
         ati_reg_write_offs(&value, addr - CRTC_OFFSET_CNTL, data, size);
-        /* TODO: Implement CRTC scanout tiling selected by this register. */
         s->regs.crtc_offset_cntl = value &
                                   ~(CRTC_OFFSET_LOCK |
                                     CRTC_OFFSET_GUI_TRIG_OFFSET);
+        if ((old ^ value) & CRTC_TILE_EN) {
+            if (s->dev_id == PCI_DEVICE_ID_ATI_RAGE128_PF &&
+                (value & CRTC_TILE_EN)) {
+                qemu_log_mask(LOG_UNIMP,
+                              "ATI Rage128 tiled scanout is not implemented\n");
+            }
+            graphic_hw_invalidate(s->vga.con);
+        }
         /* Shared OFFSET_LOCK is writable; GUI_TRIG_OFFSET is read-only. */
         s->regs.crtc_offset = (s->regs.crtc_offset & ~CRTC_OFFSET_LOCK) |
                               (value & CRTC_OFFSET_LOCK);
+        if (s->dev_id != PCI_DEVICE_ID_ATI_RAGE128_PF &&
+            ((old ^ value) & CRTC_TILE_LINE_MASK)) {
+            if (!ati_crtc_enabled(s) ||
+                !(s->regs.crtc_offset & (CRTC_OFFSET_LOCK |
+                                        CRTC_OFFSET_GUI_TRIG_OFFSET))) {
+                s->crtc_tile_line_active = value & CRTC_TILE_LINE_MASK;
+                graphic_hw_invalidate(s->vga.con);
+            } else {
+                s->regs.crtc_offset |= CRTC_OFFSET_GUI_TRIG_OFFSET;
+            }
+        }
         if (!(value & CRTC_OFFSET_LOCK) &&
             (s->regs.crtc_offset & CRTC_OFFSET_GUI_TRIG_OFFSET)) {
             if (!ati_crtc_enabled(s)) {
@@ -1781,10 +1943,12 @@ void ati_mmio_write(ATIVGAState *s, hwaddr addr, uint64_t data,
         if (!(data & GMC_SRC_PITCH_OFFSET_CNTL)) {
             s->regs.src_offset = s->regs.default_offset;
             s->regs.src_pitch = s->regs.default_pitch;
+            s->regs.src_tile = s->regs.default_tile & 1;
         }
         if (!(data & GMC_DST_PITCH_OFFSET_CNTL)) {
             s->regs.dst_offset = s->regs.default_offset;
             s->regs.dst_pitch = s->regs.default_pitch;
+            s->regs.dst_tile = s->regs.default_tile;
         }
         if (!(data & GMC_SRC_CLIPPING)) {
             s->regs.src_sc_right = s->regs.default_sc_right;
@@ -1798,11 +1962,8 @@ void ati_mmio_write(ATIVGAState *s, hwaddr addr, uint64_t data,
         }
         break;
     case BRUSH_Y_X ... BRUSH_Y_X + 3:
-        if (s->dev_id != PCI_DEVICE_ID_ATI_RAGE128_PF) {
-            ati_reg_write_offs(&s->regs.brush_y_x, addr - BRUSH_Y_X,
-                               data, size);
-            s->regs.brush_y_x &= ati_brush_y_x_mask(s);
-        }
+        ati_reg_write_offs(&s->regs.brush_y_x, addr - BRUSH_Y_X, data, size);
+        s->regs.brush_y_x &= ati_brush_y_x_mask(s);
         break;
     case DST_WIDTH_X:
         s->regs.dst_x = data & 0x3fff;
@@ -1845,16 +2006,26 @@ void ati_mmio_write(ATIVGAState *s, hwaddr addr, uint64_t data,
     {
         unsigned int i = (addr - BRUSH_DATA0) / sizeof(uint32_t);
 
-        if (s->dev_id != PCI_DEVICE_ID_ATI_RAGE128_PF) {
-            ati_reg_write_offs(&s->regs.brush_data[i],
-                               (addr - BRUSH_DATA0) % sizeof(uint32_t),
-                               data, size);
-        }
+        ati_reg_write_offs(&s->regs.brush_data[i],
+                           (addr - BRUSH_DATA0) % sizeof(uint32_t), data, size);
         break;
     }
     case DP_CNTL:
         s->regs.dp_cntl = data;
         break;
+    case DP_CNTL_XDIR_YDIR_YMAJOR ... DP_CNTL_XDIR_YDIR_YMAJOR + 3:
+    {
+        uint32_t val = ati_dp_cntl_directions(s);
+
+        ati_reg_write_offs(&val, addr - DP_CNTL_XDIR_YDIR_YMAJOR, data, size);
+        s->regs.dp_cntl &= ~(DST_X_LEFT_TO_RIGHT | DST_Y_TOP_TO_BOTTOM |
+                             DST_Y_MAJOR);
+        s->regs.dp_cntl |=
+            (val & DST_X_DIR_LEFT_TO_RIGHT ? DST_X_LEFT_TO_RIGHT : 0) |
+            (val & DST_Y_DIR_TOP_TO_BOTTOM ? DST_Y_TOP_TO_BOTTOM : 0) |
+            (val & DST_Y_MAJOR);
+        break;
+    }
     case DP_SRC_FRGD_CLR:
         s->regs.dp_src_frgd_clr = data;
         break;
@@ -2144,7 +2315,7 @@ static int ati_vga_pre_save(void *opaque)
     elapsed = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) -
               s->crtc_frame_start_ns;
     s->crtc_frame_elapsed_ns = elapsed > 0 ?
-                               elapsed % ATI_CRTC_FRAME_NS : 0;
+                               elapsed % ati_crtc_frame_ns(s) : 0;
     return 0;
 }
 
@@ -2152,7 +2323,19 @@ static int ati_vga_post_load(void *opaque, int version_id)
 {
     ATIVGAState *s = opaque;
 
-    if (s->host_data.next >= ATI_HOST_DATA_BANK_DWORDS ||
+    if (version_id < 8) {
+        s->crtc_tile_line_active =
+            s->regs.crtc_offset_cntl & CRTC_TILE_LINE_MASK;
+        memset(s->regs.pll_active, 0, sizeof(s->regs.pll_active));
+        s->regs.pll_pending = false;
+        memset(s->regs.bres, 0, sizeof(s->regs.bres));
+        memset(s->regs.trail, 0, sizeof(s->regs.trail));
+        memset(s->regs.scale, 0, sizeof(s->regs.scale));
+        s->regs.scale_3d_cntl = s->regs.scale_3d_datatype = 0;
+    }
+    /* Version 8 streams may contain an unused fifth tile-line bit. */
+    if (s->crtc_tile_line_active > 31 ||
+        s->host_data.next >= ATI_HOST_DATA_BANK_DWORDS ||
         (version_id >= 3 &&
          s->regs.brush_y_x & ~ati_brush_y_x_mask(s)) ||
         (version_id >= 3 && s->host_data.pending_count > 3) ||
@@ -2169,7 +2352,7 @@ static int ati_vga_post_load(void *opaque, int version_id)
         (version_id >= 4 &&
          (s->crtc_frame & ~ATI_CRTC_FRAME_MASK ||
           s->crtc_frame_elapsed_ns < 0 ||
-          s->crtc_frame_elapsed_ns >= ATI_CRTC_FRAME_NS ||
+          s->crtc_frame_elapsed_ns >= ati_crtc_frame_ns(s) ||
           s->crtc_vline & ~ati_crtc_line_mask(s) ||
           (s->dev_id != PCI_DEVICE_ID_ATI_RAGE128_PF &&
            s->crtc_fix_vsync_timing))) ||
@@ -2221,6 +2404,11 @@ static int ati_vga_post_load(void *opaque, int version_id)
         s->regs.dac_ext_cntl = 0;
         s->regs.dac_macro_cntl = 0;
     }
+    /* Complete an update left pending by an older device implementation. */
+    if (s->regs.pll_pending) {
+        ati_pll_commit(s);
+        s->crtc_frame_elapsed_ns %= ati_crtc_frame_ns(s);
+    }
     if (version_id < 4) {
         s->crtc_frame_start_ns = 0;
         s->crtc_frame_elapsed_ns = 0;
@@ -2269,7 +2457,7 @@ static int ati_vga_post_load(void *opaque, int version_id)
 
 static const VMStateDescription vmstate_ati_vga = {
     .name = "ati-vga",
-    .version_id = 7,
+    .version_id = 8,
     .minimum_version_id = 1,
     .pre_save = ati_vga_pre_save,
     .post_load = ati_vga_post_load,
@@ -2312,6 +2500,14 @@ static const VMStateDescription vmstate_ati_vga = {
         VMSTATE_UINT32_ARRAY_V(r100_3d.scaler_palette, ATIVGAState, 256, 7),
         VMSTATE_UINT8_V(r100_3d.scaler_palette_format, ATIVGAState, 7),
         VMSTATE_BOOL_V(r100_3d.scaler_palette_valid, ATIVGAState, 7),
+        VMSTATE_UINT32_ARRAY_V(regs.pll_active, ATIVGAState, 5, 8),
+        VMSTATE_BOOL_V(regs.pll_pending, ATIVGAState, 8),
+        VMSTATE_UINT32_ARRAY_V(regs.bres, ATIVGAState, 3, 8),
+        VMSTATE_UINT32_ARRAY_V(regs.trail, ATIVGAState, 4, 8),
+        VMSTATE_UINT32_ARRAY_V(regs.scale, ATIVGAState, 9, 8),
+        VMSTATE_UINT32_V(regs.scale_3d_cntl, ATIVGAState, 8),
+        VMSTATE_UINT32_V(regs.scale_3d_datatype, ATIVGAState, 8),
+        VMSTATE_UINT8_V(crtc_tile_line_active, ATIVGAState, 8),
         VMSTATE_STRUCT(bbi2c, ATIVGAState, 0,
                        vmstate_ati_bitbang_i2c, bitbang_i2c_interface),
         VMSTATE_TIMER(vblank_timer, ATIVGAState),
@@ -2446,7 +2642,7 @@ static void ati_vga_realize(PCIDevice *dev, Error **errp)
     pci_register_bar(dev, 1, PCI_BASE_ADDRESS_SPACE_IO, &s->io);
     pci_register_bar(dev, 2, PCI_BASE_ADDRESS_SPACE_MEMORY, &s->mm);
 
-    /* TODO: Implement the remaining ATI interrupt sources. */
+    /* Primary CRTC, software and GUI-idle interrupt sources are modeled. */
     dev->config[PCI_INTERRUPT_PIN] = 1;
     timer_init_ns(&s->vblank_timer, QEMU_CLOCK_VIRTUAL, ati_crtc_event, s);
 }
@@ -2474,6 +2670,7 @@ static void ati_vga_reset(DeviceState *dev)
         s->dev_id == PCI_DEVICE_ID_ATI_RAGE128_PF;
     s->crtc_offset_active = 0;
     s->crtc_pitch_active = 0;
+    s->crtc_tile_line_active = 0;
     s->regs.crtc_gen_cntl = ATI_CRTC_GEN_CNTL_RESET;
     if (s->dev_id == PCI_DEVICE_ID_ATI_RAGE128_PF) {
         /* Rage128's documented reset fields differ from Radeon R100. */

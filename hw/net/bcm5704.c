@@ -15,11 +15,13 @@
 #include "migration/vmstate.h"
 #include "net/net.h"
 #include "net/checksum.h"
+#include "net/eth.h"
 #include "qemu/bswap.h"
 #include "trace.h"
 #include "qapi/error.h"
 #include "qemu/bitops.h"
 #include "qemu/module.h"
+#include "qemu/timer.h"
 
 #define BCM57XX_PCI_PCIX_CAP             0x40
 
@@ -85,6 +87,10 @@ struct BCM57xxState {
     bool irq_pending;
     bool irq_mailbox_mask;
     bool tx_busy;
+    QEMUTimer *rx_coalesce_timer;
+    QEMUTimer *tx_coalesce_timer;
+    uint32_t coalesce_count[2];
+    bool coalesce_interrupt;
     uint32_t tx_len[BCM_RINGS];
     uint32_t tx_flags[BCM_RINGS];
     uint32_t tx_vlan[BCM_RINGS];
@@ -178,6 +184,11 @@ static void bcm57xx_status(BCM57xxState *s, uint32_t flags, bool interrupt)
     if (!(REG(s, HOSTCC_MODE) & 2) || !bcm57xx_bus_master(s)) {
         return;
     }
+    interrupt |= s->coalesce_interrupt;
+    s->coalesce_interrupt = false;
+    memset(s->coalesce_count, 0, sizeof(s->coalesce_count));
+    timer_del(s->rx_coalesce_timer);
+    timer_del(s->tx_coalesce_timer);
     bcm57xx_stats_dma(s);
     s->status_tag++;
     s->status_flags |= flags;
@@ -205,6 +216,87 @@ static void bcm57xx_status(BCM57xxState *s, uint32_t flags, bool interrupt)
         s->irq_pending = true;
     }
     bcm57xx_update_irq(s);
+}
+
+static void bcm57xx_coalesce_timer(void *opaque)
+{
+    bcm57xx_status(opaque, 0, false);
+}
+
+static void bcm57xx_coalesce(BCM57xxState *s, bool tx, uint32_t count)
+{
+    QEMUTimer *timer = tx ? s->tx_coalesce_timer : s->rx_coalesce_timer;
+    uint32_t ticks = REG(s, tx ? 0x3c0c : 0x3c08) & 0x3ff;
+    uint32_t frames = REG(s, tx ? 0x3c14 : 0x3c10) & 0xff;
+
+    if (!(REG(s, HOSTCC_MODE) & 2) || !bcm57xx_bus_master(s)) {
+        return;
+    }
+    s->coalesce_interrupt |= !(REG(s, GRC_MODE) & (tx ? 0x2000 : 0x4000));
+    s->coalesce_count[tx] = MIN((uint64_t)s->coalesce_count[tx] + count,
+                               UINT32_MAX);
+    if ((!ticks && !frames) ||
+        (frames && s->coalesce_count[tx] >= frames)) {
+        bcm57xx_status(s, 0, false);
+    } else if (ticks && !timer_pending(timer)) {
+        /* Host coalescing ticks are microseconds, from the first completion. */
+        timer_mod(timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + ticks * 1000);
+    }
+}
+
+/* Return folded, uncomplemented sums, as defined by the receive BD ABI. */
+static uint32_t bcm57xx_rx_checksum(uint8_t *buf, size_t size,
+                                   uint32_t *flags)
+{
+    size_t off = 14, ihl, length, transport;
+    uint16_t type, l4sum;
+    uint32_t result;
+    uint8_t *ip, *l4;
+
+    if (size < off) {
+        return 0;
+    }
+    type = lduw_be_p(buf + 12);
+    if (type == 0x8100 && size >= 18) {
+        type = lduw_be_p(buf + 16);
+        off += 4;
+    }
+    if (type != 0x0800 || size - off < 20) {
+        return 0;
+    }
+    ip = buf + off;
+    ihl = (ip[0] & 15) * 4;
+    length = lduw_be_p(ip + 2);
+    if (ip[0] >> 4 != 4 || ihl < 20 || length < ihl ||
+        length > size - off) {
+        return 0;
+    }
+    *flags |= 0x1000;
+    result = (uint32_t)(uint16_t)~net_checksum_finish(
+        net_checksum_add(ihl, ip)) << 16;
+    if (lduw_be_p(ip + 6) & 0x3fff) {
+        return result;
+    }
+    l4 = ip + ihl;
+    transport = length - ihl;
+    if (ip[9] == IP_PROTO_TCP) {
+        if (transport < 20 || (l4[12] >> 4) * 4 < 20 ||
+            (l4[12] >> 4) * 4 > transport) {
+            return result;
+        }
+        *flags |= 0x4000;
+    } else if (ip[9] == IP_PROTO_UDP) {
+        if (transport < 8 || !lduw_be_p(l4 + 6) ||
+            lduw_be_p(l4 + 4) < 8 || lduw_be_p(l4 + 4) > transport) {
+            return result;
+        }
+        transport = lduw_be_p(l4 + 4);
+    } else {
+        return result;
+    }
+    l4sum = ~net_checksum_tcpudp(transport, ip[9], ip + 12, l4);
+    *flags |= 0x2000;
+    return result | l4sum;
 }
 
 static void bcm57xx_set_link(NetClientState *nc)
@@ -432,8 +524,9 @@ static ssize_t bcm57xx_receive(NetClientState *nc, const uint8_t *buf,
         return size;
     }
     bcm57xx_desc_store(s, desc + 8, (idxlen & 0xffff0000) | length);
+    bcm57xx_desc_store(s, desc + 16,
+                       bcm57xx_rx_checksum(frame, length - 4, &flags));
     bcm57xx_desc_store(s, desc + 12, flags);
-    bcm57xx_desc_store(s, desc + 16, 0); /* software checksums */
     bcm57xx_desc_store(s, desc + 20, vlan);
     retaddr = bcm57xx_address(SRAM(s, 0x200), SRAM(s, 0x204));
     if (pci_dma_write(&s->parent_obj, retaddr + s->rx_prod * 32,
@@ -460,7 +553,7 @@ static ssize_t bcm57xx_receive(NetClientState *nc, const uint8_t *buf,
         REG(s, 0x88c)++;
         bcm57xx_stat_add(s, 0x418, 1);
     }
-    bcm57xx_status(s, 0, !(REG(s, GRC_MODE) & 0x4000));
+    bcm57xx_coalesce(s, false, 1);
     return size;
 }
 
@@ -562,7 +655,7 @@ static void bcm57xx_transmit(BCM57xxState *s, unsigned ring, bool host)
     uint32_t producer = REG(s, (host ? 0x304 : 0x384) + ring * 8);
     uint64_t base = bcm57xx_address(SRAM(s, rcb), SRAM(s, rcb + 4));
     unsigned budget;
-    bool completed = false;
+    uint32_t completed = 0;
 
     if (s->tx_busy || !(REG(s, MAC_TX_MODE) & 2) ||
         !bcm57xx_bus_master(s) || (cfg & 2) || count < 2 || count > 512) {
@@ -612,7 +705,7 @@ static void bcm57xx_transmit(BCM57xxState *s, unsigned ring, bool host)
         }
         s->tx_len[ring] += len;
         s->tx_cons[ring] = (s->tx_cons[ring] + 1) % count;
-        completed = true;
+        completed++;
         if (!(lf & 4)) {
             continue;
         }
@@ -653,7 +746,7 @@ static void bcm57xx_transmit(BCM57xxState *s, unsigned ring, bool host)
     }
     s->tx_busy = false;
     if (completed) {
-        bcm57xx_status(s, 0, !(REG(s, GRC_MODE) & 0x2000));
+        bcm57xx_coalesce(s, true, completed);
     }
 }
 
@@ -824,6 +917,12 @@ static void bcm57xx_mmio_write(void *opaque, hwaddr addr, uint64_t value,
     default:
         break;
     }
+    if (off == HOSTCC_MODE && (!(v & 2) || (v & 1))) {
+        timer_del(s->rx_coalesce_timer);
+        timer_del(s->tx_coalesce_timer);
+        memset(s->coalesce_count, 0, sizeof(s->coalesce_count));
+        s->coalesce_interrupt = false;
+    }
     /* All DMA/MAC functional blocks implement a self-clearing reset pulse. */
     if ((off >= 0x400 && off <= 0x4c00 && !(off & 0x3ff)) ||
         off == 0x6000 || off == 0x6400 ||
@@ -992,6 +1091,10 @@ static void bcm57xx_core_reset(BCM57xxState *s)
 {
     uint32_t host = pci_get_long(s->parent_obj.config + 0x68);
 
+    timer_del(s->rx_coalesce_timer);
+    timer_del(s->tx_coalesce_timer);
+    memset(s->coalesce_count, 0, sizeof(s->coalesce_count));
+    s->coalesce_interrupt = false;
     memset(s->regs, 0, sizeof(s->regs));
     memset(s->tx_cons, 0, sizeof(s->tx_cons));
     memset(s->rx_cons, 0, sizeof(s->rx_cons));
@@ -1099,6 +1202,17 @@ static void bcm57xx_reset(DeviceState *dev)
     bcm57xx_core_reset(s);
 }
 
+static int bcm57xx_pre_load(void *opaque)
+{
+    BCM57xxState *s = opaque;
+
+    timer_del(s->rx_coalesce_timer);
+    timer_del(s->tx_coalesce_timer);
+    memset(s->coalesce_count, 0, sizeof(s->coalesce_count));
+    s->coalesce_interrupt = false;
+    return 0;
+}
+
 static int bcm57xx_post_load(void *opaque, int version_id)
 {
     BCM57xxState *s = opaque;
@@ -1122,10 +1236,46 @@ static int bcm57xx_post_load(void *opaque, int version_id)
     return 0;
 }
 
+static bool bcm57xx_coalescing_needed(void *opaque)
+{
+    BCM57xxState *s = opaque;
+
+    return s->coalesce_count[0] || s->coalesce_count[1];
+}
+
+static const VMStateDescription vmstate_bcm5701_coalescing = {
+    .name = TYPE_BCM5701 "/coalescing",
+    .version_id = 1,
+    .minimum_version_id = 1,
+    .needed = bcm57xx_coalescing_needed,
+    .fields = (const VMStateField[]) {
+        VMSTATE_TIMER_PTR(rx_coalesce_timer, BCM57xxState),
+        VMSTATE_TIMER_PTR(tx_coalesce_timer, BCM57xxState),
+        VMSTATE_UINT32_ARRAY(coalesce_count, BCM57xxState, 2),
+        VMSTATE_BOOL(coalesce_interrupt, BCM57xxState),
+        VMSTATE_END_OF_LIST()
+    },
+};
+
+static const VMStateDescription vmstate_bcm5704_coalescing = {
+    .name = TYPE_BCM5704 "/coalescing",
+    .version_id = 1,
+    .minimum_version_id = 1,
+    .needed = bcm57xx_coalescing_needed,
+    .fields = (const VMStateField[]) {
+        VMSTATE_TIMER_PTR(rx_coalesce_timer, BCM57xxState),
+        VMSTATE_TIMER_PTR(tx_coalesce_timer, BCM57xxState),
+        VMSTATE_UINT32_ARRAY(coalesce_count, BCM57xxState, 2),
+        VMSTATE_BOOL(coalesce_interrupt, BCM57xxState),
+        VMSTATE_END_OF_LIST()
+    },
+};
+
 static const VMStateDescription vmstate_bcm5701 = {
     .name = TYPE_BCM5701,
     .version_id = 2,
     .minimum_version_id = 1,
+    .pre_load = bcm57xx_pre_load,
     .post_load = bcm57xx_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_PCI_DEVICE(parent_obj, BCM57xxState),
@@ -1150,12 +1300,17 @@ static const VMStateDescription vmstate_bcm5701 = {
                                BCM_MAX_TSO, 2),
         VMSTATE_END_OF_LIST()
     },
+    .subsections = (const VMStateDescription * const []) {
+        &vmstate_bcm5701_coalescing,
+        NULL
+    },
 };
 
 static const VMStateDescription vmstate_bcm5704 = {
     .name = TYPE_BCM5704,
     .version_id = 2,
     .minimum_version_id = 1,
+    .pre_load = bcm57xx_pre_load,
     .post_load = bcm57xx_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_PCI_DEVICE(parent_obj, BCM57xxState),
@@ -1179,6 +1334,10 @@ static const VMStateDescription vmstate_bcm5704 = {
         VMSTATE_UINT8_2DARRAY_V(tx_buf, BCM57xxState, BCM_RINGS,
                                BCM_MAX_TSO, 2),
         VMSTATE_END_OF_LIST()
+    },
+    .subsections = (const VMStateDescription * const []) {
+        &vmstate_bcm5704_coalescing,
+        NULL
     },
 };
 
@@ -1196,6 +1355,11 @@ static void bcm57xx_realize(PCIDevice *pdev, Error **errp)
     if (!bcm57xx_init_config(pdev, errp)) {
         return;
     }
+
+    s->rx_coalesce_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL,
+                                       bcm57xx_coalesce_timer, s);
+    s->tx_coalesce_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL,
+                                       bcm57xx_coalesce_timer, s);
 
     pdev->config[PCI_INTERRUPT_PIN] = 1; /* INTA */
     memory_region_init_io(&s->mmio, OBJECT(s), &bcm57xx_mmio_ops, s,
@@ -1226,6 +1390,8 @@ static void bcm57xx_exit(PCIDevice *pdev)
     BCM57xxState *s = BCM57XX(pdev);
 
     pci_set_irq(pdev, 0);
+    timer_free(s->rx_coalesce_timer);
+    timer_free(s->tx_coalesce_timer);
     qemu_del_nic(s->nic);
     s->nic = NULL;
 }

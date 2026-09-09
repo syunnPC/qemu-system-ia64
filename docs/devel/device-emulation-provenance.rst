@@ -3,7 +3,7 @@
 Device emulation source notice
 ==============================
 
-The following publicly available source files are technical references for
+The following public sources are technical references for
 the device models that link to this notice:
 
 * Linux
@@ -16,6 +16,16 @@ the device models that link to this notice:
   `tg3.c <https://github.com/torvalds/linux/blob/master/drivers/net/ethernet/broadcom/tg3.c>`__
   for BCM5701/BCM5704 registers, SRAM and mailbox layout, PHY access, DMA
   descriptors, packet offloads, status blocks, and interrupts.
+* Linux
+  `drivers/scsi/qla1280.h <https://github.com/torvalds/linux/blob/master/drivers/scsi/qla1280.h>`__
+  and
+  `qla1280.c <https://github.com/torvalds/linux/blob/master/drivers/scsi/qla1280.c>`__
+  for ISP12160 mailbox, target, queue and autosense controls;
+  `drivers/net/ethernet/intel/e100.c <https://github.com/torvalds/linux/blob/master/drivers/net/ethernet/intel/e100.c>`__
+  for 82550/82559 configuration byte 18 receive CRC and stripping controls.
+* Intel's `8254x Family of Gigabit Ethernet Controllers Software Developer's
+  Manual <https://www.intel.com/content/dam/doc/manual/pci-pci-x-family-gbe-controllers-software-dev-manual.pdf>`__,
+  sections 3.2.7 and 3.4.3, for receive and transmit interrupt timers.
 * The public PCI ID Repository
   `pci.ids <https://github.com/pciutils/pciids/blob/master/pci.ids>`__
   for the HP RMP-3 management-function identities.  Linux
