@@ -14,10 +14,12 @@
  */
 
 /*
- * Radeon viewport and PLL calculations follow radeon_legacy_crtc.c:
+ * Radeon viewport, PLL and surface programming follow Linux's
+ * radeon_legacy_crtc.c and r100.c:
  *
  * Copyright 2007-8 Advanced Micro Devices, Inc.
  * Copyright 2008 Red Hat Inc.
+ * Copyright 2009 Jerome Glisse.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -1016,11 +1018,127 @@ static uint32_t ati_dp_cntl_directions(const ATIVGAState *s)
            (s->regs.dp_cntl & DST_Y_MAJOR);
 }
 
+static uint32_t *ati_surface_register(ATIVGAState *s, hwaddr addr)
+{
+    unsigned int index;
+
+    if (!ati_is_rv100_family(s)) {
+        return NULL;
+    }
+    if (addr == R100_SURFACE_CNTL) {
+        return &s->regs.surface_cntl;
+    }
+    if (addr < R100_SURFACE0_LOWER_BOUND ||
+        addr > R100_SURFACE0_INFO + (ATI_SURFACE_COUNT - 1) * 16) {
+        return NULL;
+    }
+    index = (addr - R100_SURFACE_CNTL) / 16;
+    switch (addr & 15) {
+    case 4:
+        return &s->regs.surface_lower[index];
+    case 8:
+        return &s->regs.surface_upper[index];
+    case 12:
+        return &s->regs.surface_info[index];
+    default:
+        return NULL;
+    }
+}
+
+static void ati_surface_update(ATIVGAState *s)
+{
+    bool enabled = false;
+
+    if (!ati_is_rv100_family(s)) {
+        return;
+    }
+    if (!(s->regs.surface_cntl & R100_SURF_TRANSLATION_DIS)) {
+        for (unsigned i = 0; i < ATI_SURFACE_COUNT; i++) {
+            enabled |= (s->regs.surface_info[i] & 0xffff) &&
+                       s->regs.surface_lower[i] <= s->regs.surface_upper[i] &&
+                       s->regs.surface_lower[i] < s->vga.vram_size;
+        }
+    }
+    memory_region_set_enabled(&s->surface_aper, enabled);
+}
+
+static bool ati_surface_offset(ATIVGAState *s, hwaddr addr, uint64_t *offset)
+{
+    *offset = addr;
+    for (unsigned i = 0; i < ATI_SURFACE_COUNT; i++) {
+        uint32_t lower = s->regs.surface_lower[i];
+        uint32_t upper = s->regs.surface_upper[i];
+        uint32_t info = s->regs.surface_info[i];
+        unsigned int pitch = (info & 0xffff) * 16;
+        unsigned int mode = (info >> 16) & 3;
+        uint64_t tiled;
+
+        /* R100 surface pitch is in sixteen-byte units; zero disables tiling. */
+        if (!pitch || addr < lower || addr > upper) {
+            continue;
+        }
+        if ((mode != R100_SURF_TILE_COLOR_MACRO &&
+             mode != R100_SURF_TILE_COLOR_BOTH) ||
+            !ati_2d_tile_offset(s, lower, pitch, 4,
+                                mode == R100_SURF_TILE_COLOR_BOTH ? 3 : 1,
+                                (addr - lower) % pitch,
+                                (addr - lower) / pitch, &tiled)) {
+            return false;
+        }
+        *offset = lower + tiled;
+        return *offset <= upper && *offset < s->vga.vram_size;
+    }
+    return *offset < s->vga.vram_size;
+}
+
+static uint64_t ati_surface_read(void *opaque, hwaddr addr, unsigned int size)
+{
+    ATIVGAState *s = opaque;
+    uint64_t value = 0;
+
+    for (unsigned i = 0; i < size; i++) {
+        uint64_t offset;
+        uint8_t byte = ati_surface_offset(s, addr + i, &offset) ?
+                       s->vga.vram_ptr[offset] : 0xff;
+
+        value |= (uint64_t)byte << (i * 8);
+    }
+    return value;
+}
+
+static void ati_surface_write(void *opaque, hwaddr addr, uint64_t value,
+                              unsigned int size)
+{
+    ATIVGAState *s = opaque;
+
+    for (unsigned i = 0; i < size; i++) {
+        uint64_t offset;
+
+        if (ati_surface_offset(s, addr + i, &offset)) {
+            s->vga.vram_ptr[offset] = value >> (i * 8);
+            memory_region_set_dirty(&s->vga.vram, offset, 1);
+        }
+    }
+}
+
+static const MemoryRegionOps ati_surface_ops = {
+    .read = ati_surface_read,
+    .write = ati_surface_write,
+    .endianness = DEVICE_LITTLE_ENDIAN,
+    .valid = { .min_access_size = 1, .max_access_size = 8, .unaligned = true },
+    .impl = { .min_access_size = 1, .max_access_size = 8, .unaligned = true },
+};
+
 static uint64_t ati_reg_read(void *opaque, hwaddr addr, unsigned int size)
 {
     ATIVGAState *s = opaque;
     uint32_t val = 0;
     uint64_t engine_val;
+    uint32_t *surface = ati_surface_register(s, addr & ~3ULL);
+
+    if (surface && (addr & 3) + size <= 4) {
+        return ati_reg_read_offs(*surface, addr & 3, size);
+    }
 
     if (ati_2d_reg_read(s, addr, &engine_val, size) ||
         ati_3d_read(s, addr, &engine_val, size)) {
@@ -1403,8 +1521,15 @@ static uint32_t ati_brush_y_x_mask(const ATIVGAState *s)
 void ati_mmio_write(ATIVGAState *s, hwaddr addr, uint64_t data,
                     unsigned int size)
 {
+    uint32_t *surface = ati_surface_register(s, addr & ~3ULL);
+
     if (addr < CUR_OFFSET || addr > CUR_CLR1 || ATI_DEBUG_HW_CURSOR) {
         trace_ati_mm_write(size, addr, ati_reg_name(addr & ~3ULL), data);
+    }
+    if (surface && (addr & 3) + size <= 4) {
+        ati_reg_write_offs(surface, addr & 3, data, size);
+        ati_surface_update(s);
+        return;
     }
     if (ati_2d_reg_write(s, addr, data, size) ||
         ati_3d_write(s, addr, data, size)) {
@@ -2323,6 +2448,12 @@ static int ati_vga_post_load(void *opaque, int version_id)
 {
     ATIVGAState *s = opaque;
 
+    if (version_id < 9) {
+        s->regs.surface_cntl = 0;
+        memset(s->regs.surface_lower, 0, sizeof(s->regs.surface_lower));
+        memset(s->regs.surface_upper, 0, sizeof(s->regs.surface_upper));
+        memset(s->regs.surface_info, 0, sizeof(s->regs.surface_info));
+    }
     if (version_id < 8) {
         s->crtc_tile_line_active =
             s->regs.crtc_offset_cntl & CRTC_TILE_LINE_MASK;
@@ -2451,13 +2582,14 @@ static int ati_vga_post_load(void *opaque, int version_id)
         ati_cursor_update_host(s, true);
     }
     ati_vga_update_irq(s);
+    ati_surface_update(s);
     graphic_hw_invalidate(s->vga.con);
     return 0;
 }
 
 static const VMStateDescription vmstate_ati_vga = {
     .name = "ati-vga",
-    .version_id = 8,
+    .version_id = 9,
     .minimum_version_id = 1,
     .pre_save = ati_vga_pre_save,
     .post_load = ati_vga_post_load,
@@ -2508,6 +2640,13 @@ static const VMStateDescription vmstate_ati_vga = {
         VMSTATE_UINT32_V(regs.scale_3d_cntl, ATIVGAState, 8),
         VMSTATE_UINT32_V(regs.scale_3d_datatype, ATIVGAState, 8),
         VMSTATE_UINT8_V(crtc_tile_line_active, ATIVGAState, 8),
+        VMSTATE_UINT32_V(regs.surface_cntl, ATIVGAState, 9),
+        VMSTATE_UINT32_ARRAY_V(regs.surface_lower, ATIVGAState,
+                               ATI_SURFACE_COUNT, 9),
+        VMSTATE_UINT32_ARRAY_V(regs.surface_upper, ATIVGAState,
+                               ATI_SURFACE_COUNT, 9),
+        VMSTATE_UINT32_ARRAY_V(regs.surface_info, ATIVGAState,
+                               ATI_SURFACE_COUNT, 9),
         VMSTATE_STRUCT(bbi2c, ATIVGAState, 0,
                        vmstate_ati_bitbang_i2c, bitbang_i2c_interface),
         VMSTATE_TIMER(vblank_timer, ATIVGAState),
@@ -2637,6 +2776,13 @@ static void ati_vga_realize(PCIDevice *dev, Error **errp)
     memory_region_init(&s->linear_aper, OBJECT(dev), "ati-linear-aperture0",
                        s->linear_aper_sz);
     memory_region_add_subregion(&s->linear_aper, 0, &vga->vram);
+    if (ati_is_rv100_family(s)) {
+        memory_region_init_io(&s->surface_aper, OBJECT(s), &ati_surface_ops,
+                              s, "ati-surface-aperture0", vga->vram_size);
+        memory_region_set_enabled(&s->surface_aper, false);
+        memory_region_add_subregion_overlap(&s->linear_aper, 0,
+                                            &s->surface_aper, 1);
+    }
 
     pci_register_bar(dev, 0, PCI_BASE_ADDRESS_MEM_PREFETCH, &s->linear_aper);
     pci_register_bar(dev, 1, PCI_BASE_ADDRESS_SPACE_IO, &s->io);
@@ -2660,6 +2806,7 @@ static void ati_vga_reset(DeviceState *dev)
 
     /* Reset mutable MMIO state, then apply the modeled device defaults. */
     memset(&s->regs, 0, sizeof(s->regs));
+    ati_surface_update(s);
     s->crtc_frame_start_ns = 0;
     s->crtc_frame_elapsed_ns = 0;
     s->crtc_frame = 0;

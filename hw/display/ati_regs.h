@@ -225,6 +225,14 @@
 #define CAP0_TRIG_CNTL                          0x0950
 #define CAP1_TRIG_CNTL                          0x09c0
 
+#define R100_SURFACE_CNTL                       0x0b00
+#define R100_SURF_TRANSLATION_DIS               BIT(8)
+#define R100_SURFACE0_LOWER_BOUND               0x0b04
+#define R100_SURFACE0_UPPER_BOUND               0x0b08
+#define R100_SURFACE0_INFO                      0x0b0c
+#define R100_SURF_TILE_COLOR_MACRO              0
+#define R100_SURF_TILE_COLOR_BOTH               1
+
 #define RBBM_STATUS                             0x0e40
 
 /*

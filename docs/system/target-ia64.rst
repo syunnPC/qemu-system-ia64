@@ -193,6 +193,11 @@ destination pixel format.  Radeon tiled 2D and scanout support macrotiles in
 scanout returns zero pixel data.  Guests using Rage128 must select linear
 framebuffers for rendering and display.
 
+Radeon CPU accesses through aperture 0 use the configured color-surface tile
+mapping, consistently with 2D rendering and scanout.  Surface registers are
+preserved across migration.  Older snapshots omit these registers; guests
+using tiled framebuffers need a reboot after restoring such a snapshot.
+
 PLL atomic requests complete immediately, and the primary CRTC timer follows
 the programmed pixel clock.  PLL settling and synchronization to vertical
 sync are not modeled.  MONID GPIO participates in DDC, and GUI idle completion

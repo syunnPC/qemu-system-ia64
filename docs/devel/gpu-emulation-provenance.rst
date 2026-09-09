@@ -95,6 +95,14 @@ behavior.
        ``radeon_crtc_do_set_base()`` [r100-linux]_.
      - Radeon macrotiles, 32-bit destination microtiles and tiled panning.
        These layouts are separate from the unsupported Rage128 layout.
+   * - ``ati_surface_read()`` and ``ati_surface_write()`` in
+       ``hw/display/ati.c``
+     - Linux's ``r100_set_surface_reg()`` [r100-surface-linux]_ and the
+       Radeon address layouts above.
+     - CPU aperture 0 translates color surfaces using inclusive byte bounds
+       and a pitch in sixteen-byte units.  Zero pitch or
+       ``SURF_TRANSLATION_DIS`` disables tiling.  Depth surfaces and surface
+       byte swapping are not modeled.
 
 Reference versions and licenses
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -142,3 +150,12 @@ distributed license text.  Notices for adapted code are included in
    <https://github.com/torvalds/linux/blob/v6.12/drivers/gpu/drm/radeon/radeon_legacy_crtc.c>`__.
    The file carries an MIT-style permission notice covering use, modification
    and redistribution with its notices.
+
+.. [r100-surface-linux] Linux v6.12,
+   `drivers/gpu/drm/radeon/r100.c
+   <https://github.com/torvalds/linux/blob/v6.12/drivers/gpu/drm/radeon/r100.c>`__
+   and
+   `drivers/gpu/drm/radeon/radeon_reg.h
+   <https://github.com/torvalds/linux/blob/v6.12/drivers/gpu/drm/radeon/radeon_reg.h>`__.
+   Both files carry MIT-style permission notices, retained in
+   ``hw/display/ati.c`` and ``hw/display/ati_regs.h``.

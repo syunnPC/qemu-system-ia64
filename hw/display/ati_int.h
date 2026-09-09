@@ -50,6 +50,7 @@
 OBJECT_DECLARE_SIMPLE_TYPE(ATIVGAState, ATI_VGA)
 
 #define ATI_PLL_REG_COUNT 64
+#define ATI_SURFACE_COUNT 8
 
 typedef struct ATIVGARegs {
     uint32_t mm_index;
@@ -78,6 +79,10 @@ typedef struct ATIVGARegs {
     uint32_t crtc_offset;
     uint32_t crtc_offset_cntl;
     uint32_t crtc_pitch;
+    uint32_t surface_cntl;
+    uint32_t surface_lower[ATI_SURFACE_COUNT];
+    uint32_t surface_upper[ATI_SURFACE_COUNT];
+    uint32_t surface_info[ATI_SURFACE_COUNT];
     uint32_t cur_offset;
     uint32_t cur_hv_pos;
     uint32_t cur_hv_offs;
@@ -251,6 +256,7 @@ struct ATIVGAState {
     I2CDDCState i2cddc;
     uint64_t linear_aper_sz;
     MemoryRegion linear_aper;
+    MemoryRegion surface_aper;
     MemoryRegion io;
     MemoryRegion mm;
     ATIVGARegs regs;
