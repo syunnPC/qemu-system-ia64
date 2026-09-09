@@ -23,6 +23,14 @@ the device models that link to this notice:
   for ISP12160 mailbox, target, queue and autosense controls;
   `drivers/net/ethernet/intel/e100.c <https://github.com/torvalds/linux/blob/master/drivers/net/ethernet/intel/e100.c>`__
   for 82550/82559 configuration byte 18 receive CRC and stripping controls.
+* Intel's `8255x 10/100 Mbps Ethernet Controller Family Open Source Software
+  Developer Manual <https://www.intel.com/content/dam/doc/manual/8255x-10-100-mbps-ethernet-controller-software-dev-manual.pdf>`__,
+  section 7.3.11, for the PHY equalizer register's NOP command.  Other
+  equalizer commands are not implemented.
+* NetBSD's `sys/dev/ic/isp.c
+  <https://github.com/NetBSD/src/blob/trunk/sys/dev/ic/isp.c>`__
+  (BSD-2-Clause) for the 32-LUN limit and per-LUN queue parameters of
+  Ultra2/Ultra3 SCSI adapters.
 * Intel's `8254x Family of Gigabit Ethernet Controllers Software Developer's
   Manual <https://www.intel.com/content/dam/doc/manual/pci-pci-x-family-gbe-controllers-software-dev-manual.pdf>`__,
   sections 3.2.7 and 3.4.3, for receive and transmit interrupt timers.

@@ -38,6 +38,7 @@ enum {
     E100_SCB_COMMAND = 2,
     E100_SCB_POINTER = 4,
     E100_SCB_PORT = 8,
+    E100_SCB_MDI = 16,
     E100_EEPROM_SEMAPHORE = 30,
     E100_CU_START = 0x10,
     E100_CU_RESUME = 0x20,
@@ -61,6 +62,13 @@ enum {
     E100_STATS_EXTENDED_SIZE = 76,
     E100_STATS_TCO_SIZE = 80,
     E100_STATS_COMPLETE_DUMP_RESET = 0xa007,
+    E100_SCB_STATUS_MDI = BIT(11),
+    E100_MDI_READY = BIT(28),
+    E100_MDI_INTERRUPT = BIT(29),
+    E100_MDI_WRITE = 1U << 26,
+    E100_MDI_READ = 2U << 26,
+    E100_MDI_PHY_1 = 1U << 21,
+    E100_MII_EQUALIZER = 26,
 };
 
 static const E100Model models[] = {
@@ -168,6 +176,43 @@ static void eepro100_flash_aperture(void *obj, void *data,
 
     qpci_iounmap(dev, flash);
     qpci_iounmap(dev, csr);
+}
+
+static void eepro100_mdi_equalizer_nop(void *obj, void *data,
+                                      QGuestAllocator *alloc)
+{
+    QPCIDevice *dev = &((QEEPRO100 *)obj)->dev;
+    const uint32_t equalizer = E100_MDI_PHY_1 | (E100_MII_EQUALIZER << 16);
+
+    qpci_device_enable(dev);
+    for (unsigned int port = 0; port < 2; port++) {
+        QPCIBar bar = qpci_iomap(dev, port, NULL);
+
+        for (unsigned int variant = 0; variant < 2; variant++) {
+            uint32_t command = E100_MDI_WRITE | equalizer |
+                               (variant ? E100_MDI_INTERRUPT | 0x1fff : 0);
+
+            qpci_io_writew(dev, bar, E100_SCB_STATUS, E100_SCB_STATUS_MDI);
+            qpci_io_writel(dev, bar, E100_SCB_MDI, command);
+            g_assert_cmphex(qpci_io_readl(dev, bar, E100_SCB_MDI), ==,
+                            command | E100_MDI_READY);
+            g_assert_cmphex(qpci_io_readw(dev, bar, E100_SCB_STATUS) &
+                            E100_SCB_STATUS_MDI, ==, E100_SCB_STATUS_MDI);
+            g_assert_cmphex(qpci_config_readw(dev, PCI_STATUS) &
+                            PCI_STATUS_INTERRUPT, ==,
+                            variant ? PCI_STATUS_INTERRUPT : 0);
+            qpci_io_writew(dev, bar, E100_SCB_STATUS, E100_SCB_STATUS_MDI);
+            g_assert_cmphex(qpci_config_readw(dev, PCI_STATUS) &
+                            PCI_STATUS_INTERRUPT, ==, 0);
+
+            /* NOP ignores the data field and leaves the equalizer unchanged. */
+            command = E100_MDI_READ | equalizer;
+            qpci_io_writel(dev, bar, E100_SCB_MDI, command);
+            g_assert_cmphex(qpci_io_readl(dev, bar, E100_SCB_MDI), ==,
+                            command | E100_MDI_READY);
+        }
+        qpci_iounmap(dev, bar);
+    }
 }
 
 static void eepro100_extended_commands(void *obj, void *data,
@@ -746,6 +791,8 @@ static void eepro100_register_nodes(void)
         qos_node_produces(models[i].name, "pci-device");
         qos_add_test("bar-layout", models[i].name, eepro100_bar_layout,
                      &bar_opts);
+        qos_add_test("mdi-equalizer-nop", models[i].name,
+                     eepro100_mdi_equalizer_nop, NULL);
     }
 
 #ifndef _WIN32

@@ -209,7 +209,7 @@ static bool isp12160_iocb_parse(const uint8_t *entries, size_t entry_count,
     raw_target = first[ISP12160_IOCB_A64_TARGET_OFFSET];
     candidate.channel = raw_target >> 7;
     candidate.target = raw_target & 0x7f;
-    if (candidate.lun >= 8 || candidate.target >= 16) {
+    if (candidate.lun >= ISP12160_SCSI_MAX_LUNS || candidate.target >= 16) {
         error_setg(errp, "invalid ISP12160 command target or LUN");
         return false;
     }

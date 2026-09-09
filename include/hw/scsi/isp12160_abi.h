@@ -13,6 +13,7 @@
 #define ISP12160_PCI_CLASS                        0x0100U
 #define ISP12160_PCI_INTERRUPT_PIN_INTA           1U
 #define ISP12160_PCI_MMIO_BAR                     1U
+#define ISP12160_SCSI_MAX_LUNS                    32U
 
 #define ISP12160_REG_SIZE                         0x100U
 #define ISP12160_MMIO_BAR_SIZE                    0x1000U

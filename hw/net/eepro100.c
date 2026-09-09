@@ -349,6 +349,7 @@ static const uint16_t eepro100_mdi_default[] = {
 #define E100_MII_BMSR                    1U
 #define E100_MII_BMSR_LINK_STATUS        0x0004U
 #define E100_MII_BMSR_AUTONEG_COMPLETE   0x0020U
+#define E100_MII_EQUALIZER               26U
 
 /* Readonly mask for MDI (PHY) registers */
 static const uint16_t eepro100_mdi_mask[] = {
@@ -1443,7 +1444,8 @@ static const char * const mdi_reg_name[] = {
     "PHY Identification (Word 2)",
     "Auto-Negotiation Advertisement",
     "Auto-Negotiation Link Partner Ability",
-    "Auto-Negotiation Expansion"
+    "Auto-Negotiation Expansion",
+    [E100_MII_EQUALIZER] = "Equalizer Control and Status",
 };
 
 #if defined(DEBUG_EEPRO100)
@@ -1451,7 +1453,7 @@ static const char *reg2name(uint8_t reg)
 {
     static char buffer[10];
     const char *p = buffer;
-    if (reg < ARRAY_SIZE(mdi_reg_name)) {
+    if (reg < ARRAY_SIZE(mdi_reg_name) && mdi_reg_name[reg]) {
         p = mdi_reg_name[reg];
     } else {
         snprintf(buffer, sizeof(buffer), "reg=0x%02x", reg);
@@ -1466,7 +1468,7 @@ static void eepro100_missing_mdi(uint32_t val, const char *reason)
     uint8_t phy = (val & BITS(25, 21)) >> 21;
     uint8_t reg = (val & BITS(20, 16)) >> 16;
     uint16_t data = val & BITS(15, 0);
-    const char *reg_name = reg < ARRAY_SIZE(mdi_reg_name) ?
+    const char *reg_name = reg < ARRAY_SIZE(mdi_reg_name) && mdi_reg_name[reg] ?
                           mdi_reg_name[reg] : "unnamed";
 
     missing("MDI %s: opcode=%u (%s), phy=%u, reg=0x%02x (%s), "
@@ -1517,7 +1519,12 @@ static void eepro100_write_mdi(EEPRO100State *s)
         TRACE(MDI, logout("val=0x%08x (int=%u, %s, phy=%u, %s, data=0x%04x\n",
                           val, raiseint, mdi_op_name[opcode], phy,
                           reg2name(reg), data));
-        if (opcode == 1) {
+        if (opcode == 1 && reg == E100_MII_EQUALIZER) {
+            /* Intel 8255x manual, section 7.3.11: opcode 000 is NOP. */
+            if (data & BITS(15, 13)) {
+                eepro100_missing_mdi(val, "equalizer command not implemented");
+            }
+        } else if (opcode == 1) {
             /* MDI write */
             switch (reg) {
             case 0:            /* Control Register */

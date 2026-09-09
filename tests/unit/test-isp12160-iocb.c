@@ -49,7 +49,7 @@ static void build_seven_segments(
 
     build_no_data(entries);
     entries[0][1] = TEST_ENTRIES;
-    entries[0][8] = 7;
+    entries[0][8] = 31;
     entries[0][9] = 0x80 | 15;
     stw_le_p(entries[0] + 12,
              ISP12160_IOCB_CONTROL_SIMPLE_TAG |
@@ -175,7 +175,7 @@ static void test_continuation(void)
     g_assert_cmpuint(command.entry_count, ==, TEST_ENTRIES);
     g_assert_cmpuint(command.channel, ==, 1);
     g_assert_cmpuint(command.target, ==, 15);
-    g_assert_cmpuint(command.lun, ==, 7);
+    g_assert_cmpuint(command.lun, ==, 31);
     g_assert_cmpuint(command.direction, ==,
                      ISP12160_IOCB_DIRECTION_FROM_DEVICE);
     g_assert_cmpuint(command.segment_count, ==, TEST_SEGMENTS);
@@ -273,7 +273,7 @@ static void test_header_and_shape_rejected(void)
     assert_rejected(entries, 1, TEST_SEGMENTS);
 
     build_no_data(entries);
-    entries[0][8] = 8;
+    entries[0][8] = 32;
     assert_rejected(entries, 1, TEST_SEGMENTS);
 
     build_no_data(entries);

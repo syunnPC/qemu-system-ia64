@@ -1472,6 +1472,73 @@ static void test_scsi_native_firmware(void)
     qtest_quit(qts);
 }
 
+static void scsi_extended_queue_parameters(QTestState *qts, bool write)
+{
+    static const uint16_t targets[] = { 0x0000, 0x0100, 0x8000, 0x8f00 };
+
+    for (unsigned i = 0; i < ARRAY_SIZE(targets); i++) {
+        for (unsigned lun = 0; lun < 32; lun++) {
+            uint16_t mb[MAILBOX_COUNT] = {
+                write ? ISP12160_MBC_SET_DEVICE_QUEUE :
+                        ISP12160_MBC_GET_DEVICE_QUEUE,
+                targets[i] | lun, 32 + i * 32 + lun, 1 + lun,
+            };
+
+            g_assert_cmphex(mailbox_command(qts, mb), ==,
+                            ISP12160_MBS_COMMAND_COMPLETE);
+            if (!write) {
+                g_assert_cmpuint(mailbox_mmio_readw(
+                    qts, ISP12160_REG_MAILBOX0 + 4), ==, mb[2]);
+                g_assert_cmpuint(mailbox_mmio_readw(
+                    qts, ISP12160_REG_MAILBOX0 + 6), ==, mb[3]);
+            }
+            mailbox_ack_completion(qts);
+        }
+    }
+}
+
+static void test_scsi_extended_queue_migration(void)
+{
+    char *path = g_strdup_printf(
+        "%s/ia64-isp12160-extended-queue.XXXXXX", g_get_tmp_dir());
+    g_autofree char *uri = NULL;
+    QTestState *qts;
+    int fd = g_mkstemp(path);
+    static const uint16_t invalid[] = { 0x0020, 0x0f20, 0x1000, 0x9000 };
+
+    g_assert_cmpint(fd, >=, 0);
+    close(fd);
+    g_test_queue_destroy(mailbox_migration_file_cleanup, path);
+    uri = g_strdup_printf("file:%s", path);
+
+    qts = scsi_start();
+    scsi_prepare_queues(qts, 0, 0);
+    scsi_extended_queue_parameters(qts, true);
+    scsi_extended_queue_parameters(qts, false);
+    for (unsigned i = 0; i < ARRAY_SIZE(invalid); i++) {
+        uint16_t mb[MAILBOX_COUNT] = {
+            ISP12160_MBC_SET_DEVICE_QUEUE, invalid[i], 256, 16,
+        };
+
+        g_assert_cmphex(mailbox_command(qts, mb), ==,
+                        ISP12160_MBS_COMMAND_PARAM_ERR);
+        mailbox_ack_completion(qts);
+    }
+
+    qtest_qmp_assert_success(
+        qts, "{'execute':'migrate','arguments':{'uri':%s}}", uri);
+    mailbox_wait_for_migration_complete(qts);
+    qtest_quit(qts);
+
+    qts = scsi_start_with_options("-incoming defer");
+    qtest_qmp_assert_success(
+        qts, "{'execute':'migrate-incoming','arguments':"
+             "{'uri':%s,'exit-on-error':false}}", uri);
+    mailbox_wait_for_migration_complete(qts);
+    scsi_extended_queue_parameters(qts, false);
+    qtest_quit(qts);
+}
+
 static void test_scsi_mailbox_lock_backpressure(void)
 {
     QTestState *qts = scsi_start();
@@ -1525,15 +1592,17 @@ static void scsi_wait_index_equals(QTestState *qts, unsigned int mailbox,
             mailbox, expected);
 }
 
-static void test_scsi_dual_channel_no_data(void)
+static void test_scsi_dual_channel_no_data(gconstpointer opaque)
 {
-    QTestState *qts = scsi_start_with_options(
+    unsigned lun = GPOINTER_TO_UINT(opaque);
+    g_autofree char *options = g_strdup_printf(
         "-blockdev driver=null-co,read-zeroes=on,node-name=scsid0 "
         "-blockdev driver=null-co,read-zeroes=on,node-name=scsid1 "
         "-device scsi-hd,drive=scsid0,bus=isp12160-scsi.0,"
         "channel=0,scsi-id=2,lun=0 "
         "-device scsi-hd,drive=scsid1,bus=isp12160-scsi.0,"
-        "channel=1,scsi-id=2,lun=0");
+        "channel=1,scsi-id=2,lun=%u", lun);
+    QTestState *qts = scsi_start_with_options(options);
     uint8_t requests[2][ISP12160_QUEUE_ENTRY_BYTES];
     uint8_t statuses[2][ISP12160_QUEUE_ENTRY_BYTES];
     bool saw_first = false;
@@ -1542,7 +1611,7 @@ static void test_scsi_dual_channel_no_data(void)
 
     scsi_prepare_queues(qts, 0, 0);
     scsi_build_no_data(requests[0], 0x10203040, 0, 2, 0);
-    scsi_build_no_data(requests[1], 0x50607080, 1, 2, 0);
+    scsi_build_no_data(requests[1], 0x50607080, 1, 2, lun);
     qtest_memwrite(qts, SCSI_REQUEST_DMA, requests, sizeof(requests));
     mailbox_mmio_writew(qts, ISP12160_REG_MAILBOX0 + 8, 2);
     scsi_wait_index_equals(qts, 5, 2);
@@ -2949,10 +3018,14 @@ int main(int argc, char **argv)
                    test_scsi_token_variant_separation);
     qtest_add_func("isp12160-scsi/native-firmware",
                    test_scsi_native_firmware);
+    qtest_add_func("isp12160-scsi/extended-queue-migration",
+                   test_scsi_extended_queue_migration);
     qtest_add_func("isp12160-scsi/mailbox-lock-backpressure",
                    test_scsi_mailbox_lock_backpressure);
-    qtest_add_func("isp12160-scsi/dual-channel-no-data",
-                   test_scsi_dual_channel_no_data);
+    qtest_add_data_func("isp12160-scsi/dual-channel-no-data",
+                        GUINT_TO_POINTER(0), test_scsi_dual_channel_no_data);
+    qtest_add_data_func("isp12160-scsi/extended-lun",
+                        GUINT_TO_POINTER(31), test_scsi_dual_channel_no_data);
     qtest_add_func("isp12160-scsi/response-full-backpressure",
                    test_scsi_response_full_backpressure);
     qtest_add_func("isp12160-scsi/response-during-irq-ack",

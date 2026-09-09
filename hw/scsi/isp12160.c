@@ -27,6 +27,7 @@
 #define ISP12160_MAILBOX_BYTES          (ISP12160_MAILBOX_COUNT * 2)
 #define ISP12160_RISC_WORDS             0x10000u
 #define ISP12160_SCSI_MAX_OUTSTANDING     256U
+#define ISP12160_SCSI_MAX_QUEUES          (32U * ISP12160_SCSI_MAX_LUNS)
 #define ISP12160_SCSI_MAX_CHAIN_ENTRIES   UINT8_MAX
 #define ISP12160_SCSI_MAX_SEGMENTS        \
     (ISP12160_IOCB_COMMAND_SEGMENTS + \
@@ -79,8 +80,8 @@ struct ISP12160State {
     uint16_t target_params[32];
     uint16_t target_sync[32];
     uint16_t target_ppr[32];
-    uint16_t queue_depth[256];
-    uint16_t queue_throttle[256];
+    uint16_t queue_depth[ISP12160_SCSI_MAX_QUEUES];
+    uint16_t queue_throttle[ISP12160_SCSI_MAX_QUEUES];
     SCSIBus scsi_bus;
     ISP12160SCSIRequestList active_requests;
 
@@ -128,7 +129,7 @@ static void isp12160_config_defaults(ISP12160State *s)
         s->target_params[i] = 0xfc00;
         s->target_sync[i] = s->target_ppr[i] = 0;
     }
-    for (unsigned i = 0; i < 256; i++) {
+    for (unsigned i = 0; i < ARRAY_SIZE(s->queue_depth); i++) {
         s->queue_depth[i] = s->queue_throttle[i] =
             ISP12160_SCSI_MAX_OUTSTANDING;
     }
@@ -560,14 +561,14 @@ static uint16_t isp12160_run_mailbox(ISP12160State *s,
     case ISP12160_MBC_SET_DEVICE_QUEUE:
     case ISP12160_MBC_GET_DEVICE_QUEUE: {
         unsigned target = ((mb[1] >> 8) & 15) | ((mb[1] >> 11) & 16);
-        unsigned queue = target * 8 + (mb[1] & 7);
+        unsigned queue = target * ISP12160_SCSI_MAX_LUNS + (mb[1] & 31);
         bool device_queue = mb[0] == ISP12160_MBC_SET_DEVICE_QUEUE ||
                             mb[0] == ISP12160_MBC_GET_DEVICE_QUEUE;
 
         if (!s->risc_running || s->risc_paused) {
             return ISP12160_MBS_COMMAND_ERR;
         }
-        if (mb[1] & ~(device_queue ? 0x8f07U : 0x8f00U)) {
+        if (mb[1] & ~(device_queue ? 0x8f1fU : 0x8f00U)) {
             return ISP12160_MBS_COMMAND_PARAM_ERR;
         }
         switch (mb[0]) {
@@ -1324,7 +1325,7 @@ static bool isp12160_scsi_can_start(ISP12160State *s,
     ISP12160SCSIRequest *p;
     unsigned target = candidate->command.channel * 16 +
                       candidate->command.target;
-    unsigned queue = target * 8 + candidate->command.lun;
+    unsigned queue = target * ISP12160_SCSI_MAX_LUNS + candidate->command.lun;
     unsigned depth = MIN(s->queue_depth[queue], s->queue_throttle[queue]);
     unsigned running = 0;
     bool before = true;
@@ -1551,7 +1552,8 @@ static bool isp12160_scsi_loaded_request_valid(
         (command->entry_count != expected_entries_32 &&
          command->entry_count != expected_entries_a64) ||
         command->segment_count > ISP12160_SCSI_MAX_SEGMENTS ||
-        command->channel > 1 || command->target >= 16 || command->lun >= 8 ||
+        command->channel > 1 || command->target >= 16 ||
+        command->lun >= ISP12160_SCSI_MAX_LUNS ||
         command->direction > ISP12160_IOCB_DIRECTION_TO_DEVICE ||
         command->control_flags & ~ISP12160_IOCB_CONTROL_SUPPORTED ||
         (command->direction == ISP12160_IOCB_DIRECTION_NONE &&
@@ -1693,7 +1695,7 @@ static const SCSIBusInfo isp12160_scsi_bus_info = {
     .tcq = true,
     .max_channel = 1,
     .max_target = 15,
-    .max_lun = 7,
+    .max_lun = ISP12160_SCSI_MAX_LUNS - 1,
     .transfer_data = isp12160_scsi_transfer_data,
     .fail = isp12160_scsi_command_failed,
     .complete = isp12160_scsi_command_complete,
@@ -2087,9 +2089,6 @@ static int isp12160_post_load(void *opaque, int version_id)
     bool firmware_loaded;
     unsigned int i;
 
-    if (version_id < (isp12160_has_scsi(s) ? 4 : 3)) {
-        isp12160_config_defaults(s);
-    }
     for (i = 0; i < ARRAY_SIZE(s->initiator_id); i++) {
         if (s->initiator_id[i] > 15) {
             return -EINVAL;
@@ -2199,8 +2198,8 @@ static int isp12160_post_load(void *opaque, int version_id)
 
 static const VMStateDescription vmstate_isp12160_mailbox = {
     .name = TYPE_ISP12160_MAILBOX,
-    .version_id = 3,
-    .minimum_version_id = 1,
+    .version_id = 4,
+    .minimum_version_id = 4,
     .post_load = isp12160_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_PCI_DEVICE(parent_obj, ISP12160State),
@@ -2222,25 +2221,27 @@ static const VMStateDescription vmstate_isp12160_mailbox = {
         VMSTATE_BOOL(risc_running, ISP12160State),
         VMSTATE_BOOL(risc_paused, ISP12160State),
         VMSTATE_BOOL(mailbox_pending, ISP12160State),
-        VMSTATE_UINT16_V(native_firmware_start, ISP12160State, 2),
-        VMSTATE_UINT16_V(native_firmware_checksum, ISP12160State, 2),
-        VMSTATE_UINT32_V(native_firmware_words, ISP12160State, 2),
-        VMSTATE_BOOL_V(native_firmware_loaded, ISP12160State, 2),
-        VMSTATE_BOOL_V(irq_ack_pending, ISP12160State, 2),
-        VMSTATE_UINT16_ARRAY_V(initiator_id, ISP12160State, 2, 3),
-        VMSTATE_UINT16_ARRAY_V(target_params, ISP12160State, 32, 3),
-        VMSTATE_UINT16_ARRAY_V(target_sync, ISP12160State, 32, 3),
-        VMSTATE_UINT16_ARRAY_V(target_ppr, ISP12160State, 32, 3),
-        VMSTATE_UINT16_ARRAY_V(queue_depth, ISP12160State, 256, 3),
-        VMSTATE_UINT16_ARRAY_V(queue_throttle, ISP12160State, 256, 3),
+        VMSTATE_UINT16(native_firmware_start, ISP12160State),
+        VMSTATE_UINT16(native_firmware_checksum, ISP12160State),
+        VMSTATE_UINT32(native_firmware_words, ISP12160State),
+        VMSTATE_BOOL(native_firmware_loaded, ISP12160State),
+        VMSTATE_BOOL(irq_ack_pending, ISP12160State),
+        VMSTATE_UINT16_ARRAY(initiator_id, ISP12160State, 2),
+        VMSTATE_UINT16_ARRAY(target_params, ISP12160State, 32),
+        VMSTATE_UINT16_ARRAY(target_sync, ISP12160State, 32),
+        VMSTATE_UINT16_ARRAY(target_ppr, ISP12160State, 32),
+        VMSTATE_UINT16_ARRAY(queue_depth, ISP12160State,
+                             ISP12160_SCSI_MAX_QUEUES),
+        VMSTATE_UINT16_ARRAY(queue_throttle, ISP12160State,
+                             ISP12160_SCSI_MAX_QUEUES),
         VMSTATE_END_OF_LIST()
     },
 };
 
 static const VMStateDescription vmstate_isp12160_queue = {
     .name = TYPE_ISP12160_QUEUE,
-    .version_id = 3,
-    .minimum_version_id = 1,
+    .version_id = 4,
+    .minimum_version_id = 4,
     .post_load = isp12160_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_PCI_DEVICE(parent_obj, ISP12160State),
@@ -2275,25 +2276,27 @@ static const VMStateDescription vmstate_isp12160_queue = {
         VMSTATE_BOOL(response_queue.valid, ISP12160State),
         VMSTATE_BOOL(response_queue.a64, ISP12160State),
         VMSTATE_BOOL(mailbox_staging, ISP12160State),
-        VMSTATE_UINT16_V(native_firmware_start, ISP12160State, 2),
-        VMSTATE_UINT16_V(native_firmware_checksum, ISP12160State, 2),
-        VMSTATE_UINT32_V(native_firmware_words, ISP12160State, 2),
-        VMSTATE_BOOL_V(native_firmware_loaded, ISP12160State, 2),
-        VMSTATE_BOOL_V(irq_ack_pending, ISP12160State, 2),
-        VMSTATE_UINT16_ARRAY_V(initiator_id, ISP12160State, 2, 3),
-        VMSTATE_UINT16_ARRAY_V(target_params, ISP12160State, 32, 3),
-        VMSTATE_UINT16_ARRAY_V(target_sync, ISP12160State, 32, 3),
-        VMSTATE_UINT16_ARRAY_V(target_ppr, ISP12160State, 32, 3),
-        VMSTATE_UINT16_ARRAY_V(queue_depth, ISP12160State, 256, 3),
-        VMSTATE_UINT16_ARRAY_V(queue_throttle, ISP12160State, 256, 3),
+        VMSTATE_UINT16(native_firmware_start, ISP12160State),
+        VMSTATE_UINT16(native_firmware_checksum, ISP12160State),
+        VMSTATE_UINT32(native_firmware_words, ISP12160State),
+        VMSTATE_BOOL(native_firmware_loaded, ISP12160State),
+        VMSTATE_BOOL(irq_ack_pending, ISP12160State),
+        VMSTATE_UINT16_ARRAY(initiator_id, ISP12160State, 2),
+        VMSTATE_UINT16_ARRAY(target_params, ISP12160State, 32),
+        VMSTATE_UINT16_ARRAY(target_sync, ISP12160State, 32),
+        VMSTATE_UINT16_ARRAY(target_ppr, ISP12160State, 32),
+        VMSTATE_UINT16_ARRAY(queue_depth, ISP12160State,
+                             ISP12160_SCSI_MAX_QUEUES),
+        VMSTATE_UINT16_ARRAY(queue_throttle, ISP12160State,
+                             ISP12160_SCSI_MAX_QUEUES),
         VMSTATE_END_OF_LIST()
     },
 };
 
 static const VMStateDescription vmstate_isp12160_scsi = {
     .name = TYPE_ISP12160_SCSI,
-    .version_id = 4,
-    .minimum_version_id = 1,
+    .version_id = 5,
+    .minimum_version_id = 5,
     .pre_save = isp12160_scsi_pre_save,
     .post_load = isp12160_post_load,
     .fields = (const VMStateField[]) {
@@ -2335,18 +2338,20 @@ static const VMStateDescription vmstate_isp12160_scsi = {
         VMSTATE_UINT16(pending_status_head, ISP12160State),
         VMSTATE_UINT16(pending_status_count, ISP12160State),
         VMSTATE_BOOL(dma_stalled, ISP12160State),
-        VMSTATE_UINT16_V(native_firmware_start, ISP12160State, 2),
-        VMSTATE_UINT16_V(native_firmware_checksum, ISP12160State, 2),
-        VMSTATE_UINT32_V(native_firmware_words, ISP12160State, 2),
-        VMSTATE_BOOL_V(native_firmware_loaded, ISP12160State, 2),
-        VMSTATE_BOOL_V(irq_ack_pending, ISP12160State, 2),
-        VMSTATE_BOOL_V(response_irq_unobserved, ISP12160State, 3),
-        VMSTATE_UINT16_ARRAY_V(initiator_id, ISP12160State, 2, 4),
-        VMSTATE_UINT16_ARRAY_V(target_params, ISP12160State, 32, 4),
-        VMSTATE_UINT16_ARRAY_V(target_sync, ISP12160State, 32, 4),
-        VMSTATE_UINT16_ARRAY_V(target_ppr, ISP12160State, 32, 4),
-        VMSTATE_UINT16_ARRAY_V(queue_depth, ISP12160State, 256, 4),
-        VMSTATE_UINT16_ARRAY_V(queue_throttle, ISP12160State, 256, 4),
+        VMSTATE_UINT16(native_firmware_start, ISP12160State),
+        VMSTATE_UINT16(native_firmware_checksum, ISP12160State),
+        VMSTATE_UINT32(native_firmware_words, ISP12160State),
+        VMSTATE_BOOL(native_firmware_loaded, ISP12160State),
+        VMSTATE_BOOL(irq_ack_pending, ISP12160State),
+        VMSTATE_BOOL(response_irq_unobserved, ISP12160State),
+        VMSTATE_UINT16_ARRAY(initiator_id, ISP12160State, 2),
+        VMSTATE_UINT16_ARRAY(target_params, ISP12160State, 32),
+        VMSTATE_UINT16_ARRAY(target_sync, ISP12160State, 32),
+        VMSTATE_UINT16_ARRAY(target_ppr, ISP12160State, 32),
+        VMSTATE_UINT16_ARRAY(queue_depth, ISP12160State,
+                             ISP12160_SCSI_MAX_QUEUES),
+        VMSTATE_UINT16_ARRAY(queue_throttle, ISP12160State,
+                             ISP12160_SCSI_MAX_QUEUES),
         VMSTATE_END_OF_LIST()
     },
 };
