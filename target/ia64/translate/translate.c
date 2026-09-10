@@ -4486,6 +4486,7 @@ void ia64_gen_goto_tb_group(DisasContext *ctx, uint64_t dest,
                             bool group_start)
 {
     uint8_t slot = ctx->branch.goto_tb_slots;
+    bool nats_clear = ia64_all_gr_nats_known_clear(ctx);
 
     ia64_gen_store_instruction_group_start(group_start);
     ia64_gen_save_fault_slot_for_exit(ctx);
@@ -4493,11 +4494,28 @@ void ia64_gen_goto_tb_group(DisasContext *ctx, uint64_t dest,
     tcg_gen_movi_i64(cpu_ip, dest);
     if (slot < 2 && ctx->memory.direct_chain_nat_safe &&
         !(ctx->base.tb->flags & IA64_TB_FLAG_IRQ_DEFER) &&
-        ia64_all_gr_nats_known_clear(ctx) &&
+        (nats_clear || (ctx->base.tb->flags & IA64_TB_FLAG_NAT_CLEAR)) &&
         translator_use_goto_tb(&ctx->base, dest)) {
+        TCGLabel *lookup = NULL;
+
+        if (!nats_clear) {
+            TCGv_i64 nats = tcg_temp_new_i64();
+
+            /*
+             * A speculative load can set NaT; recheck before chaining to a
+             * NAT_CLEAR successor.
+             */
+            lookup = gen_new_label();
+            tcg_gen_or_i64(nats, cpu_nat[0], cpu_nat[1]);
+            tcg_gen_brcondi_i64(TCG_COND_NE, nats, 0, lookup);
+        }
         ctx->branch.goto_tb_slots = slot + 1;
         tcg_gen_goto_tb(slot);
         tcg_gen_exit_tb(ctx->base.tb, slot);
+        if (lookup) {
+            gen_set_label(lookup);
+            ia64_gen_lookup_or_exit(ctx);
+        }
     } else {
         ia64_gen_lookup_or_exit(ctx);
     }

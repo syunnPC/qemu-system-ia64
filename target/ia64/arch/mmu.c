@@ -2288,40 +2288,16 @@ static bool ia64_cached_speculative_load_succeeds(
     return true;
 }
 
-uint64_t ia64_mmu_speculative_probe_pa(CPUIA64State *env, uint64_t va,
-                                    uint32_t is_write, uint32_t is_ifetch,
-                                    uint32_t debug_size,
-                                    uint32_t alignment_info, uint64_t *pa)
+static uint64_t ia64_mmu_speculative_probe_cold(
+    CPUIA64State *env, uint64_t va, uint32_t is_write, uint32_t is_ifetch,
+    uint32_t debug_size, uint32_t alignment_info)
 {
-    uint32_t datum_size = alignment_info & IA64_ALIGNMENT_DATUM_MASK;
-    uint32_t natural = (alignment_info & IA64_ALIGNMENT_NATURAL_MASK) >>
-                       IA64_ALIGNMENT_NATURAL_SHIFT;
     bool alignment_fault = false;
     bool debug_fault = false;
     bool itlb_ed = false;
     IA64Exception excp;
     IA64DataReferenceResult translation = { 0 };
 
-    if (pa) {
-        *pa = UINT64_MAX;
-    }
-    if (env->psr & IA64_PSR_ED) {
-        return 0;
-    }
-
-    if (debug_size > datum_size && natural > 1 &&
-        (va & (natural - 1U)) != 0) {
-        /* See the aligned-versus-unaligned FP DBR rule in Vol. 2, 7.1.2. */
-        debug_size = datum_size;
-    }
-    if (ia64_cached_speculative_load_succeeds(
-            env, va, is_write, is_ifetch, debug_size, alignment_info, pa)) {
-        return 1;
-    }
-
-    if (pa) {
-        *pa = UINT64_MAX;
-    }
     if (is_ifetch) {
         alignment_fault = ia64_alignment_fault(
             env, va, alignment_info, is_write, NULL);
@@ -2391,6 +2367,39 @@ qualify:
     return 1;
 }
 
+uint64_t ia64_mmu_speculative_probe_pa(CPUIA64State *env, uint64_t va,
+                                    uint32_t is_write, uint32_t is_ifetch,
+                                    uint32_t debug_size,
+                                    uint32_t alignment_info, uint64_t *pa)
+{
+    uint32_t datum_size = alignment_info & IA64_ALIGNMENT_DATUM_MASK;
+    uint32_t natural = (alignment_info & IA64_ALIGNMENT_NATURAL_MASK) >>
+                       IA64_ALIGNMENT_NATURAL_SHIFT;
+
+    if (pa) {
+        *pa = UINT64_MAX;
+    }
+    if (env->psr & IA64_PSR_ED) {
+        return 0;
+    }
+
+    if (debug_size > datum_size && natural > 1 &&
+        (va & (natural - 1U)) != 0) {
+        /* See the aligned-versus-unaligned FP DBR rule in Vol. 2, 7.1.2. */
+        debug_size = datum_size;
+    }
+    if (ia64_cached_speculative_load_succeeds(
+            env, va, is_write, is_ifetch, debug_size, alignment_info, pa)) {
+        return 1;
+    }
+
+    if (pa) {
+        *pa = UINT64_MAX;
+    }
+    return ia64_mmu_speculative_probe_cold(
+        env, va, is_write, is_ifetch, debug_size, alignment_info);
+}
+
 uint64_t ia64_mmu_speculative_probe(CPUIA64State *env, uint64_t va,
                                     uint32_t is_write, uint32_t is_ifetch,
                                     uint32_t debug_size,
@@ -2404,7 +2413,8 @@ static G_GNUC_NO_INLINE uint64_t
 ia64_mmu_speculative_int_probe_cold(CPUIA64State *env, uint64_t va,
                                     uint32_t size)
 {
-    return ia64_mmu_speculative_probe(
+    /* The integer fast path has already rejected cached qualification. */
+    return ia64_mmu_speculative_probe_cold(
         env, va, 0, 0, size,
         IA64_ALIGNMENT_INFO(size, size, IA64_ALIGNMENT_INTEGER));
 }
@@ -2427,7 +2437,10 @@ uint64_t ia64_mmu_speculative_int_probe_pa(CPUIA64State *env, uint64_t va,
         if (pa) {
             *pa = UINT64_MAX;
         }
-        return ia64_mmu_speculative_int_probe_cold(env, va, size);
+        /* Cached qualification also repairs stale soft-TLB comparators. */
+        return ia64_mmu_speculative_probe(
+            env, va, 0, 0, size,
+            IA64_ALIGNMENT_INFO(size, size, IA64_ALIGNMENT_INTEGER));
     }
 
     if (!ia64_cached_speculative_data_load_qualifies(

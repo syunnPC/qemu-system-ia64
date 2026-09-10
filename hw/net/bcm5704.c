@@ -26,6 +26,7 @@
 #define BCM57XX_PCI_PCIX_CAP             0x40
 
 #define BCM57XX_PCI_MISC_HOST_CTRL       0x68
+#define BCM57XX_MISC_HOST_CTRL_BYTE_SWAP 0x00000004U
 #define BCM57XX_MISC_HOST_CTRL_RW_MASK   0x000003feU
 #define BCM57XX_MISC_HOST_CTRL_CHIPREV_SHIFT 16
 
@@ -98,9 +99,9 @@ struct BCM57xxState {
 };
 
 static void bcm57xx_core_reset(BCM57xxState *s);
-static uint64_t bcm57xx_mmio_read(void *opaque, hwaddr addr, unsigned size);
-static void bcm57xx_mmio_write(void *opaque, hwaddr addr, uint64_t v,
-                              unsigned size);
+static uint64_t bcm57xx_reg_read(BCM57xxState *s, hwaddr addr, unsigned size);
+static void bcm57xx_reg_write(BCM57xxState *s, hwaddr addr, uint64_t v,
+                             unsigned size);
 static uint32_t bcm57xx_config_read(PCIDevice *pdev, uint32_t addr, int len);
 static void bcm57xx_config_write(PCIDevice *pdev, uint32_t addr, uint32_t v,
                                 int len);
@@ -792,9 +793,8 @@ static void bcm57xx_dma_queue(BCM57xxState *s, uint32_t off, bool read)
     }
 }
 
-static uint64_t bcm57xx_mmio_read(void *opaque, hwaddr addr, unsigned size)
+static uint64_t bcm57xx_reg_read(BCM57xxState *s, hwaddr addr, unsigned size)
 {
-    BCM57xxState *s = opaque;
     uint32_t v, off = addr & ~3U;
 
     if (off < 0x100) {
@@ -810,25 +810,22 @@ static uint64_t bcm57xx_mmio_read(void *opaque, hwaddr addr, unsigned size)
     } else {
         v = REG(s, off);
     }
-    trace_bcm57xx_mmio_read(addr, v, size);
     return (v >> ((addr & 3) * 8)) & MAKE_64BIT_MASK(0, size * 8);
 }
 
-static void bcm57xx_mmio_write(void *opaque, hwaddr addr, uint64_t value,
-                              unsigned size)
+static void bcm57xx_reg_write(BCM57xxState *s, hwaddr addr, uint64_t value,
+                             unsigned size)
 {
-    BCM57xxState *s = opaque;
     uint32_t off = addr & ~3U, v = value;
     unsigned i;
 
-    trace_bcm57xx_mmio_write(addr, value, size);
     if (off < 0x100) {
         bcm57xx_config_write(&s->parent_obj, addr, value, size);
         return;
     }
     if (size < 4) {
         uint32_t mask = MAKE_64BIT_MASK((addr & 3) * 8, size * 8);
-        v = (bcm57xx_mmio_read(s, off, 4) & ~mask) |
+        v = (bcm57xx_reg_read(s, off, 4) & ~mask) |
             ((v << ((addr & 3) * 8)) & mask);
     }
     if (off >= 0x8000) {
@@ -949,6 +946,60 @@ static void bcm57xx_mmio_write(void *opaque, hwaddr addr, uint64_t value,
     }
 }
 
+static uint64_t bcm57xx_swap_access(uint64_t value, unsigned size)
+{
+    switch (size) {
+    case 1:
+        return value;
+    case 2:
+        return bswap16(value);
+    case 4:
+        return bswap32(value);
+    default:
+        g_assert_not_reached();
+    }
+}
+
+static bool bcm57xx_mmio_byteswap(BCM57xxState *s)
+{
+    return pci_get_long(s->parent_obj.config + BCM57XX_PCI_MISC_HOST_CTRL) &
+           BCM57XX_MISC_HOST_CTRL_BYTE_SWAP;
+}
+
+/*
+ * MISC_HOST_CTRL byte swapping applies at the MMIO boundary, including the
+ * config mirror and SRAM window.  Internal and PCI config accesses use the
+ * canonical register values.  Partial accesses select the corresponding byte
+ * lanes within a DWORD before converting the value.
+ */
+static uint64_t bcm57xx_mmio_read(void *opaque, hwaddr addr, unsigned size)
+{
+    BCM57xxState *s = opaque;
+    bool swap = bcm57xx_mmio_byteswap(s);
+    hwaddr reg_addr = swap ? addr ^ (4 - size) : addr;
+    uint64_t value = bcm57xx_reg_read(s, reg_addr, size);
+
+    if (swap) {
+        value = bcm57xx_swap_access(value, size);
+    }
+    trace_bcm57xx_mmio_read(addr, value, size);
+    return value;
+}
+
+static void bcm57xx_mmio_write(void *opaque, hwaddr addr, uint64_t value,
+                              unsigned size)
+{
+    BCM57xxState *s = opaque;
+
+    trace_bcm57xx_mmio_write(addr, value, size);
+    /* Decode a write to the control register using its previous byte order. */
+    if (bcm57xx_mmio_byteswap(s)) {
+        addr ^= 4 - size;
+        value = bcm57xx_swap_access(value, size);
+    }
+    bcm57xx_reg_write(s, addr, value, size);
+}
+
 static const MemoryRegionOps bcm57xx_mmio_ops = {
     .read = bcm57xx_mmio_read,
     .write = bcm57xx_mmio_write,
@@ -992,7 +1043,7 @@ static uint32_t bcm57xx_config_read(PCIDevice *pdev, uint32_t addr, int len)
     case 0x80:
         v = pci_get_long(pdev->config + 0x78);
         v = v >= 0x100 && v < BCM57XX_MMIO_SIZE ?
-            bcm57xx_mmio_read(s, v & ~3U, 4) : UINT32_MAX;
+            bcm57xx_reg_read(s, v & ~3U, 4) : UINT32_MAX;
         break;
     case 0x84:
         v = pci_get_long(pdev->config + 0x7c);
@@ -1031,7 +1082,7 @@ static void bcm57xx_config_write(PCIDevice *pdev, uint32_t addr, uint32_t v,
     }
     switch (off) {
     case 0x68:
-        if (v & 1) {
+        if (addr == BCM57XX_PCI_MISC_HOST_CTRL && (v & 1)) {
             s->irq_pending = false;
         }
         bcm57xx_update_irq(s);
@@ -1039,7 +1090,7 @@ static void bcm57xx_config_write(PCIDevice *pdev, uint32_t addr, uint32_t v,
     case 0x80: {
         uint32_t reg = pci_get_long(pdev->config + 0x78);
         if (reg >= 0x100 && reg < BCM57XX_MMIO_SIZE) {
-            bcm57xx_mmio_write(s, reg & ~3U, v, 4);
+            bcm57xx_reg_write(s, reg & ~3U, v, 4);
         }
         break;
     }
@@ -1051,22 +1102,22 @@ static void bcm57xx_config_write(PCIDevice *pdev, uint32_t addr, uint32_t v,
         break;
     }
     case 0x88:
-        bcm57xx_mmio_write(s, GRC_MODE, v, 4);
+        bcm57xx_reg_write(s, GRC_MODE, v, 4);
         break;
     case 0x8c:
-        bcm57xx_mmio_write(s, GRC_MISC_CFG, v, 4);
+        bcm57xx_reg_write(s, GRC_MISC_CFG, v, 4);
         break;
     case 0x90:
-        bcm57xx_mmio_write(s, GRC_LOCAL_CTRL, v, 4);
+        bcm57xx_reg_write(s, GRC_LOCAL_CTRL, v, 4);
         break;
     case 0x9c:
-        bcm57xx_mmio_write(s, 0x26c, v, 4);
+        bcm57xx_reg_write(s, 0x26c, v, 4);
         break;
     case 0xa4:
-        bcm57xx_mmio_write(s, 0x284, v, 4);
+        bcm57xx_reg_write(s, 0x284, v, 4);
         break;
     case 0xac:
-        bcm57xx_mmio_write(s, 0x304, v, 4);
+        bcm57xx_reg_write(s, 0x304, v, 4);
         break;
     default:
         break;

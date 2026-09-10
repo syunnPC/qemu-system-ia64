@@ -189,7 +189,7 @@ static void ati_vga_switch_mode(ATIVGAState *s)
             s->vga.vbe_regs[VBE_DISPI_INDEX_XRES] = h;
             s->vga.vbe_regs[VBE_DISPI_INDEX_YRES] = v;
             s->vga.vbe_regs[VBE_DISPI_INDEX_BPP] = bpp;
-            /* enable mode via ioport so it updates vga regs */
+            /* Enable the common scanout without changing legacy VGA regs. */
             vbe_ioport_write_index(&s->vga, 0, VBE_DISPI_INDEX_ENABLE);
             vbe_ioport_write_data(&s->vga, 0, VBE_DISPI_ENABLED |
                 VBE_DISPI_LFB_ENABLED | VBE_DISPI_NOCLEARMEM |
@@ -652,8 +652,7 @@ static bool ati_graphic_update(void *opaque)
     bool complete;
 
     s->vga.scanout_read = (s->regs.crtc_offset_cntl & CRTC_TILE_EN) &&
-                          s->mode && s->vga.get_bpp(&s->vga) >= 8 &&
-                          ((s->vga.gr[VGA_GFX_MODE] >> 5) & 3) >= 2 ?
+                          s->mode && s->vga.get_bpp(&s->vga) >= 8 ?
                           ati_scanout_read : NULL;
     complete = s->vga.hw_ops->gfx_update(&s->vga);
     s->vga.scanout_read = NULL;
@@ -1053,8 +1052,10 @@ static void ati_surface_update(ATIVGAState *s)
         return;
     }
     if (!(s->regs.surface_cntl & R100_SURF_TRANSLATION_DIS)) {
+        enabled = s->regs.surface_cntl & R100_SURF_AP0_SWP_MASK;
         for (unsigned i = 0; i < ATI_SURFACE_COUNT; i++) {
-            enabled |= (s->regs.surface_info[i] & 0xffff) &&
+            enabled |= (s->regs.surface_info[i] &
+                         (0xffff | R100_SURF_AP0_SWP_MASK)) &&
                        s->regs.surface_lower[i] <= s->regs.surface_upper[i] &&
                        s->regs.surface_lower[i] < s->vga.vram_size;
         }
@@ -1064,6 +1065,8 @@ static void ati_surface_update(ATIVGAState *s)
 
 static bool ati_surface_offset(ATIVGAState *s, hwaddr addr, uint64_t *offset)
 {
+    uint32_t swap = s->regs.surface_cntl;
+
     *offset = addr;
     for (unsigned i = 0; i < ATI_SURFACE_COUNT; i++) {
         uint32_t lower = s->regs.surface_lower[i];
@@ -1073,20 +1076,36 @@ static bool ati_surface_offset(ATIVGAState *s, hwaddr addr, uint64_t *offset)
         unsigned int mode = (info >> 16) & 3;
         uint64_t tiled;
 
-        /* R100 surface pitch is in sixteen-byte units; zero disables tiling. */
-        if (!pitch || addr < lower || addr > upper) {
+        if (!(info & (0xffff | R100_SURF_AP0_SWP_MASK |
+                       R100_SURF_AP1_SWP_MASK)) ||
+            addr < lower || addr > upper) {
             continue;
         }
-        if ((mode != R100_SURF_TILE_COLOR_MACRO &&
-             mode != R100_SURF_TILE_COLOR_BOTH) ||
-            !ati_2d_tile_offset(s, lower, pitch, 4,
-                                mode == R100_SURF_TILE_COLOR_BOTH ? 3 : 1,
-                                (addr - lower) % pitch,
-                                (addr - lower) / pitch, &tiled)) {
-            return false;
+        /* Zero pitch disables tiling, while byte swapping still applies. */
+        if (pitch) {
+            if ((mode != R100_SURF_TILE_COLOR_MACRO &&
+                 mode != R100_SURF_TILE_COLOR_BOTH) ||
+                !ati_2d_tile_offset(s, lower, pitch, 4,
+                                    mode == R100_SURF_TILE_COLOR_BOTH ? 3 : 1,
+                                    (addr - lower) % pitch,
+                                    (addr - lower) / pitch, &tiled)) {
+                return false;
+            }
+            *offset = lower + tiled;
+            if (*offset > upper) {
+                return false;
+            }
         }
-        *offset = lower + tiled;
-        return *offset <= upper && *offset < s->vga.vram_size;
+        swap = info;
+        break;
+    }
+    switch (swap & R100_SURF_AP0_SWP_MASK) {
+    case R100_SURF_AP0_SWP_16BPP:
+        *offset ^= 1;
+        break;
+    case R100_SURF_AP0_SWP_32BPP:
+        *offset ^= 3;
+        break;
     }
     return *offset < s->vga.vram_size;
 }
@@ -1619,9 +1638,6 @@ void ati_mmio_write(ATIVGAState *s, hwaddr addr, uint64_t data,
         }
         ati_reg_write_offs(&s->regs.crtc_gen_cntl,
                            addr - CRTC_GEN_CNTL, data, size);
-        if ((val & CRTC2_CUR_EN) != (s->regs.crtc_gen_cntl & CRTC2_CUR_EN)) {
-            ati_vga_switch_mode(s);
-        }
         if ((val & cursor_mask) !=
             (s->regs.crtc_gen_cntl & cursor_mask)) {
             if (s->cursor_guest_mode) {
@@ -1645,20 +1661,15 @@ void ati_mmio_write(ATIVGAState *s, hwaddr addr, uint64_t data,
     }
     case CRTC_EXT_CNTL ... CRTC_EXT_CNTL + 3:
     {
-        uint32_t val = s->regs.crtc_ext_cntl;
         ati_reg_write_offs(&s->regs.crtc_ext_cntl,
                            addr - CRTC_EXT_CNTL, data, size);
+        /* Blanking changes visibility, not the programmed display mode. */
         if (s->regs.crtc_ext_cntl & CRT_CRTC_DISPLAY_DIS) {
             DPRINTF("Display disabled\n");
             s->vga.ar_index &= ~BIT(5);
         } else {
             DPRINTF("Display enabled\n");
             s->vga.ar_index |= BIT(5);
-            ati_vga_switch_mode(s);
-        }
-        if ((val & CRT_CRTC_DISPLAY_DIS) !=
-            (s->regs.crtc_ext_cntl & CRT_CRTC_DISPLAY_DIS)) {
-            ati_vga_switch_mode(s);
         }
         break;
     }
@@ -2727,6 +2738,7 @@ static void ati_vga_realize(PCIDevice *dev, Error **errp)
         return;
     }
     vga->vbe_legacy_mode_switch = true;
+    vga->vbe_keep_legacy_regs = true;
     vga_init(vga, OBJECT(s), pci_address_space(dev),
              pci_address_space_io(dev), true);
     vga->con = graphic_console_init(DEVICE(s), 0, &ati_graphic_ops, s);

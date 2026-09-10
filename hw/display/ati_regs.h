@@ -227,6 +227,11 @@
 
 #define R100_SURFACE_CNTL                       0x0b00
 #define R100_SURF_TRANSLATION_DIS               BIT(8)
+/* These byte-swap fields have the same layout in SURFACE_CNTL and INFO. */
+#define R100_SURF_AP0_SWP_16BPP                  BIT(20)
+#define R100_SURF_AP0_SWP_32BPP                  BIT(21)
+#define R100_SURF_AP0_SWP_MASK                   (3U << 20)
+#define R100_SURF_AP1_SWP_MASK                   (3U << 22)
 #define R100_SURFACE0_LOWER_BOUND               0x0b04
 #define R100_SURFACE0_UPPER_BOUND               0x0b08
 #define R100_SURFACE0_INFO                      0x0b0c

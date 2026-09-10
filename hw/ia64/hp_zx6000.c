@@ -1525,6 +1525,10 @@ static bool hp_rx2660_create_pci_devices(HPZX6000MachineState *s,
                                            errp)) {
             return false;
         }
+        pci_set_word(s->bcm5704[function]->config + PCI_SUBSYSTEM_VENDOR_ID,
+                     PCI_VENDOR_ID_HP);
+        pci_set_word(s->bcm5704[function]->config + PCI_SUBSYSTEM_ID,
+                     s->profile->network_subsystem_id);
     }
 
     for (function = 0; function < G_N_ELEMENTS(management_types);
@@ -2630,6 +2634,7 @@ static const HPZX6000MachineProfile hp_rx2660_profile = {
     .vga_rom_size = 128 * KiB,
     .vga_rom_bar = HP_RX2660_RN50_ROM_BAR,
     .network_bar_count = 2,
+    .network_subsystem_id = 0x1311,
     .storage_bar_count = 5,
     .storage_rom_size = 4 * MiB,
     .storage_rom_bar = HP_RX2660_SAS_ROM_BAR,

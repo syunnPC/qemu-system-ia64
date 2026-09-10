@@ -129,6 +129,10 @@ selected through rope-group mappings.  The IOMMU translation engine and
 PCI/PCI-X root adapters reuse zx1 behavior.  All rope groups initially use
 context zero, which is configured through the common IOC register bank.
 
+The onboard BCM5704 functions use subsystem identity ``103c:1311`` for guest
+compatibility; this value has not been verified for physical rx2660 hardware.
+Snapshots retain their saved PCI subsystem IDs.
+
 PCIe, Core-I/O management, and iLO/BMC are not implemented.  Management
 functions ``103c:1303`` and ``103c:1302`` enumerate at ``00:01`` but do not
 provide management services.  The ``103c:1048`` console function implements
@@ -163,6 +167,10 @@ processor execution is not implemented; reset supplies the modeled board data
 and firmware-mailbox handshake.  The option-ROM aperture contains no boot
 firmware, and network boot is unavailable.
 
+MMIO register and SRAM accesses honor the MISC_HOST_CTRL byte-swap bit,
+including byte and halfword accesses.  The two MISC_HOST_CTRL word-swap
+controls are not modeled; accesses retain the existing DWORD address layout.
+
 The zx6000's default network backend is attached to its Intel 82550.  To use
 the onboard Broadcom instead, select ``-nic user,model=bcm5701``.  The rx2660
 defaults to ``bcm5704``.
@@ -182,6 +190,10 @@ Scaler palettes are separate from the display DAC palette and are preserved
 across migration.  CRTC offset locking works through both register aliases.
 ATI hardware cursors are composited into the display at the programmed
 position.
+
+Native ATI scanout preserves the legacy VGA register bank.  Older snapshots
+may retain overwritten VGA state; start QEMU without loading the snapshot if
+the legacy console does not restore correctly.
 
 ATI 2D supports Bresenham lines, monochrome and color brushes, and Rage128
 stretch blits.  Rage128 trapezoids use an integer-coordinate approximation.
@@ -244,6 +256,16 @@ precedence.  On ``hp-rx2660``, both default to SCSI and no IDE controller is
 present.  On both virtual PC models, drives without an explicit interface use
 the LSI53C895A SCSI controller.  ``itanium2-vpc`` also provides AHCI; attach
 AHCI media with ``if=none`` and an explicit ``ide-hd`` or ``ide-cd`` device.
+
+Windows host clock resolution
+-----------------------------
+
+When guest time follows the host clock, interval timer resolution depends on
+the Windows performance counter frequency.  For example, a 10 MHz host counter
+makes a 400 MHz guest timer advance in multiples of 40 ticks.  Counter
+frequencies vary by host; see Microsoft's
+`high-resolution time-stamp documentation
+<https://learn.microsoft.com/en-us/windows/win32/sysinfo/acquiring-high-resolution-time-stamps>`_.
 
 ALAT model
 ----------

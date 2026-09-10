@@ -244,6 +244,103 @@ static uint32_t bcm57xx_sram_read(QPCIDevice *dev, uint32_t addr)
     return qpci_config_readl(dev, 0x84);
 }
 
+static void test_bcm57xx_mmio_byteswap(gconstpointer opaque)
+{
+    const char *model = opaque;
+    g_autofree char *cmd = g_strdup_printf(
+        "-machine ia64-vpc,nvram=none -m 4G -nodefaults -bios none -S "
+        "-device %s,bus=pci,addr=7.0", model);
+    QTestState *qts = qtest_init(cmd);
+    QGenericPCIBus gbus;
+    QPCIDevice *dev;
+    QPCIBar bar;
+    uint32_t id, mhcr, value;
+    unsigned i;
+
+    bcm5704_qpci_init(&gbus, qts);
+    dev = qpci_device_find(&gbus.bus, QPCI_DEVFN(7, 0));
+    bar = qpci_iomap(dev, 0, NULL);
+    qpci_device_enable(dev);
+    id = qpci_config_readl(dev, PCI_VENDOR_ID);
+    mhcr = qpci_config_readl(dev, BCM57XX_TEST_MISC_HOST_CTRL);
+
+    /* Enable target byte swapping through PCI configuration space. */
+    qpci_config_writel(dev, BCM57XX_TEST_MISC_HOST_CTRL, 0x2be);
+    g_assert_cmphex(qpci_config_readl(dev, BCM57XX_TEST_MISC_HOST_CTRL),
+                    ==, mhcr | 0x2be);
+    g_assert_cmphex(qpci_config_readl(dev, PCI_VENDOR_ID), ==, id);
+    g_assert_cmphex(qpci_io_readl(dev, bar, PCI_VENDOR_ID), ==, bswap32(id));
+    g_assert_cmphex(qpci_io_readw(dev, bar, 0), ==, bswap16(id >> 16));
+    g_assert_cmphex(qpci_io_readw(dev, bar, 2), ==, bswap16(id));
+    for (i = 0; i < 4; i++) {
+        g_assert_cmphex(qpci_io_readb(dev, bar, i), ==,
+                        (id >> (24 - i * 8)) & 0xff);
+    }
+
+    /* PHY commands execute through the swapped register view. */
+    qpci_io_writel(dev, bar, 0x44c, bswap32(0x28220000));
+    value = bswap32(qpci_io_readl(dev, bar, 0x44c));
+    g_assert_cmphex(value & 0x30000000, ==, 0);
+    g_assert_cmphex(value & 0xffff, ==, 0x20);
+
+    /* SRAM target accesses share the byte order; indirect config does not. */
+    qpci_config_writel(dev, 0x7c, 0);
+    qpci_io_writel(dev, bar, 0x8b50, bswap32(0x4b657654));
+    g_assert_cmphex(bcm57xx_sram_read(dev, 0xb50), ==, 0x4b657654);
+    qpci_io_writel(dev, bar, 0x6804, bswap32(1));
+    g_assert_cmphex(bswap32(qpci_io_readl(dev, bar, 0x8b50)), ==,
+                    ~0x4b657654U);
+
+    /* Eight-byte accesses split into DWORDs with their original addresses. */
+    qpci_io_writeq(dev, bar, 0x8d00, bswap64(UINT64_C(0x1122334455667788)));
+    g_assert_cmphex(bcm57xx_sram_read(dev, 0xd00), ==, 0x11223344);
+    g_assert_cmphex(bcm57xx_sram_read(dev, 0xd04), ==, 0x55667788);
+    g_assert_cmphex(qpci_io_readq(dev, bar, 0x8d00), ==,
+                    bswap64(UINT64_C(0x1122334455667788)));
+
+    /* Byte and halfword writes must update the selected big-endian lanes. */
+    qpci_io_writeb(dev, bar, 0x8d01, 0xa5);
+    qpci_io_writew(dev, bar, 0x8d02, bswap16(0xcdef));
+    g_assert_cmphex(bcm57xx_sram_read(dev, 0xd00), ==, 0x11a5cdef);
+    g_assert_cmphex(qpci_io_readb(dev, bar, 0x8d00), ==, 0x11);
+    g_assert_cmphex(qpci_io_readw(dev, bar, 0x8d00), ==, bswap16(0x11a5));
+    g_assert_cmphex(qpci_io_readw(dev, bar, 0x8d02), ==, bswap16(0xcdef));
+
+    /* Indirect register accesses must not apply the MMIO conversion twice. */
+    qpci_config_writel(dev, 0x78, 0x6800);
+    qpci_config_writel(dev, 0x80, 0x12345678);
+    g_assert_cmphex(qpci_io_readl(dev, bar, 0x6800), ==, bswap32(0x12345678));
+    qpci_io_writel(dev, bar, 0x6800, bswap32(0x11223344));
+    g_assert_cmphex(qpci_config_readl(dev, 0x80), ==, 0x11223344);
+
+    /* Upper control-register lanes must not acknowledge a pending IRQ. */
+    qpci_io_writel(dev, bar, 0x6808, bswap32(4));
+    g_assert_cmphex(qpci_io_readb(dev, bar, 0x680b) & 1, ==, 1);
+    qpci_io_writeb(dev, bar, BCM57XX_TEST_MISC_HOST_CTRL, 1);
+    g_assert_cmphex(qpci_io_readb(dev, bar, 0x680b) & 1, ==, 1);
+    qpci_io_writew(dev, bar, BCM57XX_TEST_MISC_HOST_CTRL, bswap16(1));
+    g_assert_cmphex(qpci_io_readb(dev, bar, 0x680b) & 1, ==, 1);
+    qpci_io_writeb(dev, bar, BCM57XX_TEST_MISC_HOST_CTRL + 3, 0xbf);
+    g_assert_cmphex(qpci_io_readb(dev, bar, 0x680b) & 1, ==, 0);
+
+    /* Writes changing the mode use the byte order in effect before writing. */
+    qpci_io_writel(dev, bar, BCM57XX_TEST_MISC_HOST_CTRL, bswap32(0x2ba));
+    g_assert_cmphex(qpci_config_readl(dev, BCM57XX_TEST_MISC_HOST_CTRL),
+                    ==, mhcr | 0x2ba);
+    g_assert_cmphex(qpci_io_readl(dev, bar, PCI_VENDOR_ID), ==, id);
+    qpci_io_writel(dev, bar, BCM57XX_TEST_MISC_HOST_CTRL, 0x2be);
+    g_assert_cmphex(qpci_io_readl(dev, bar, PCI_VENDOR_ID), ==, bswap32(id));
+    qpci_io_writeb(dev, bar, BCM57XX_TEST_MISC_HOST_CTRL + 3, 0xba);
+    g_assert_cmphex(qpci_config_readl(dev, BCM57XX_TEST_MISC_HOST_CTRL),
+                    ==, mhcr | 0x2ba);
+
+    qtest_system_reset(qts);
+    g_assert_cmphex(qpci_config_readl(dev, BCM57XX_TEST_MISC_HOST_CTRL),
+                    ==, mhcr);
+    g_free(dev);
+    qtest_quit(qts);
+}
+
 static uint16_t bcm57xx_mii_read(QPCIDevice *dev, QPCIBar bar, unsigned reg)
 {
     uint32_t v;
@@ -707,6 +804,10 @@ int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
     qtest_add_func("/bcm57xx/enumeration", test_bcm57xx_enumeration);
+    qtest_add_data_func("/bcm57xx/5701-mmio-byteswap", "bcm5701",
+                       test_bcm57xx_mmio_byteswap);
+    qtest_add_data_func("/bcm57xx/5704-mmio-byteswap", "bcm5704",
+                       test_bcm57xx_mmio_byteswap);
     qtest_add_func("/bcm57xx/diagnostic-dma", test_bcm57xx_dma_queues);
     qtest_add_func("/bcm57xx/tso-interleaved-rings", test_bcm57xx_tso);
     qtest_add_data_func("/bcm57xx/5701-datapath-le", GINT_TO_POINTER(0),

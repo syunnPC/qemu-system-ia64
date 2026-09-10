@@ -710,10 +710,10 @@ static void rx2660_assert_pci_layout(QTestState *qts)
                                         PCI_REVISION_ID), ==, 0x10);
     g_assert_cmphex(rx2660_config_readl(
                         qts, 1, PCI_DEVFN(2, 0), PCI_SUBSYSTEM_VENDOR_ID),
-                    ==, 0x164414e4);
+                    ==, 0x1311103c);
     g_assert_cmphex(rx2660_config_readl(
                         qts, 1, PCI_DEVFN(2, 1), PCI_SUBSYSTEM_VENDOR_ID),
-                    ==, 0x164414e4);
+                    ==, 0x1311103c);
     g_assert_cmphex(rx2660_config_readl(
                         qts, 1, PCI_DEVFN(2, 0), PCI_BASE_ADDRESS_0), ==,
                     0xa0450004);

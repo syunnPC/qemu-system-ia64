@@ -1526,24 +1526,31 @@ test_speculative_load_defers_nat_base = require_registers(
     ], {"ip": 0x60, "exception": IA64_EXCP_NONE, "r4_nat": 1},
     entry=0x10)
 
-test_nat_clear_tb_speculative_exit_rechecks_flags = require_exception(
+test_nat_clear_tb_speculative_exit_rechecks_flags = require_registers(
     "nat_clear_tb_speculative_exit_rechecks_flags", [
-        (0x10, *movl_mlx(4, 0x200)),
-        (0x20, *movl_mlx(19, IA64_PSR_IC | IA64_PSR_AC)),
+        *dtr_setup_bundles(0x1000, HIGH_TR_BASE, 0x400000),
+        (0x1060, 0x10, nop_m(), nop_i(), br_cond(0x1060, 0x10)),
+        (0x10, *movl_mlx(4, HIGH_TR_BASE + 0x8200)),
+        (0x20, *movl_mlx(19, IA64_PSR_IC | IA64_PSR_DT | IA64_PSR_AC)),
         (0x30, 0x00, mov_gr_psr_full(19), nop_i(), nop_i()),
         (0x40, 0x00, srlz_d(), nop_i(), nop_i()),
         (0x50, 0x10, nop_m(), nop_i(), br_cond(0x50, 0x70)),
-        # Execute this TB twice.  Its first speculative load succeeds and
-        # reaches the all-NaT-clear target variant; its second load defers an
-        # unimplemented-address fault and must look up the generic variant.
+        # Translated WB memory lets the first ld.s succeed.  The second
+        # defers an unimplemented-address fault; only the first exit may
+        # use the NaT-clear successor.
         (0x70, 0x00, ld8_s(3, 4), nop_i(), nop_i()),
         (0x80, 0x10, nop_m(), nop_i(), br_cond(0x80, 0xa0)),
-        (0xa0, 0x00, ld1(5, 3), nop_i(), nop_i()),
-        (0xb0, *movl_mlx(4, 0x76520ec5b2369f9e)),
+        (0xa0, 0x00, ld1(5, 3), adds(8, 1, 8), nop_i()),
+        # Bit 60 is not a sign extension of Merced's VA bit 50.
+        (0xb0, *movl_mlx(4, 1 << 60)),
         (0xc0, 0x10, nop_m(), nop_i(), br_cond(0xc0, 0x70)),
-        raw_bundle(0x200, 0x300, 0),
-        raw_bundle(0x300, 0x5a, 0),
-    ], IA64_EXCP_NAT_CONSUMPTION, fault_ip=0xa0, entry=0x10)
+        (IA64_NAT_CONSUMPTION_VECTOR, 0x10, nop_m(), nop_i(),
+         br_cond(IA64_NAT_CONSUMPTION_VECTOR, IA64_NAT_CONSUMPTION_VECTOR)),
+        raw_bundle(0x408200, HIGH_TR_BASE + 0x8300, 0),
+        raw_bundle(0x408300, 0x5a, 0),
+    ], {"ip": IA64_NAT_CONSUMPTION_VECTOR, "exception": IA64_EXCP_NONE,
+        "fault_code": IA64_EXCP_NAT_CONSUMPTION, "fault_ip": 0xa0,
+        "r5": 0x5a, "r8": 1}, entry=0x1000, cpu="merced")
 
 test_nat_clear_self_loop_prefix_rechecks_facts = require_registers(
     "nat_clear_self_loop_prefix_rechecks_facts", [

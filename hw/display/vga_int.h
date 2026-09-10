@@ -115,6 +115,8 @@ typedef struct VGACommonState {
     uint32_t vbe_bank_mask;
     /* A VGA sequencer reset leaves firmware-only VBE mode on real hardware. */
     bool vbe_legacy_mode_switch;
+    /* Native display controllers may use VBE without changing VGA registers. */
+    bool vbe_keep_legacy_regs;
     /* display refresh support */
     QemuConsole *con;
     uint32_t font_offsets[2];

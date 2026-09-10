@@ -823,11 +823,15 @@ extern int64_t clock_start;
    an infinite recursion! */
 #ifdef _WIN32
 extern int64_t clock_freq;
+extern uint32_t clock_ns_per_tick;
 
 static inline int64_t get_clock(void)
 {
     LARGE_INTEGER ti;
     QueryPerformanceCounter(&ti);
+    if (clock_ns_per_tick) {
+        return ti.QuadPart * (uint64_t) clock_ns_per_tick;
+    }
     return muldiv64(ti.QuadPart, NANOSECONDS_PER_SECOND, clock_freq);
 }
 

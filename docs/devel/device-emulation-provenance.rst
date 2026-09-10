@@ -16,6 +16,13 @@ the device models that link to this notice:
   `tg3.c <https://github.com/torvalds/linux/blob/master/drivers/net/ethernet/broadcom/tg3.c>`__
   for BCM5701/BCM5704 registers, SRAM and mailbox layout, PHY access, DMA
   descriptors, packet offloads, status blocks, and interrupts.
+* Broadcom's `BCM57XX Programmer's Guide, 57XX-PG105-R
+  <https://datasheet.datasheetarchive.com/originals/library/Datasheets-ZSAA1/DSAZSAA00017932.pdf>`__,
+  pages 232-234 and 325-326, for the MISC_HOST_CTRL byte-swap bit and target
+  byte ordering.  The illumos
+  `bge_chip2.c
+  <https://github.com/illumos/illumos-gate/blob/master/usr/src/uts/common/io/bge/bge_chip2.c>`__
+  also documents and programs the byte order for native big-endian MMIO.
 * Linux
   `drivers/scsi/qla1280.h <https://github.com/torvalds/linux/blob/master/drivers/scsi/qla1280.h>`__
   and

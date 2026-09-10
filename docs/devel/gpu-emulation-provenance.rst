@@ -83,6 +83,12 @@ behavior.
        the request bit.  Post-divider encoding 5 selects division by 16 on
        Radeon and is reserved on Rage128.  PLL settling and synchronization
        to vertical sync are not modeled.  Invalid timings use a 60 Hz fallback.
+   * - ``ati_vga_switch_mode()`` and the common VGA scanout
+     - The separate VGA and native CRTC save/restore paths in X.Org's
+       ``RADEONSave()`` and ``RADEONRestore()`` [r100-xorg-vga]_.
+     - ATI native scanout uses synthetic VBE geometry without modifying the
+       legacy VGA CRTC, graphics or sequencer registers.  VGA I/O and planar
+       memory accesses keep the legacy register interpretation.
    * - Rage128 paths in ``ati_2d_tile_offset()`` and ``ati_scanout_read()``
      - The references above do not establish a physical tiled framebuffer
        address mapping.
@@ -98,11 +104,14 @@ behavior.
    * - ``ati_surface_read()`` and ``ati_surface_write()`` in
        ``hw/display/ati.c``
      - Linux's ``r100_set_surface_reg()`` [r100-surface-linux]_ and the
-       Radeon address layouts above.
+       Radeon address layouts above; ``radeonfb_set_par()``
+       [r100-fb-linux]_ for non-surface byte swapping.
      - CPU aperture 0 translates color surfaces using inclusive byte bounds
-       and a pitch in sixteen-byte units.  Zero pitch or
-       ``SURF_TRANSLATION_DIS`` disables tiling.  Depth surfaces and surface
-       byte swapping are not modeled.
+       and a pitch in sixteen-byte units.  Zero pitch disables tiling while
+       preserving a surface's 16-bit or 32-bit byte swapping.  Addresses
+       outside enabled surfaces use the non-surface swap control.
+       ``SURF_TRANSLATION_DIS`` bypasses tiling and swapping.  Depth surfaces
+       and CPU aperture 1 are not modeled.
 
 Reference versions and licenses
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -159,3 +168,14 @@ distributed license text.  Notices for adapted code are included in
    <https://github.com/torvalds/linux/blob/v6.12/drivers/gpu/drm/radeon/radeon_reg.h>`__.
    Both files carry MIT-style permission notices, retained in
    ``hw/display/ati.c`` and ``hw/display/ati_regs.h``.
+
+.. [r100-fb-linux] Linux v6.12,
+   `drivers/video/fbdev/aty/radeon_base.c
+   <https://github.com/torvalds/linux/blob/v6.12/drivers/video/fbdev/aty/radeon_base.c>`__
+   (GPL, with an additional XFree86 permission notice), for the non-surface
+   swap controls and their interaction with ``SURF_TRANSLATION_DIS``.
+
+.. [r100-xorg-vga] X.Org xf86-video-ati,
+   `src/radeon_driver.c in the NetBSD xsrc mirror
+   <https://github.com/NetBSD/xsrc/blob/trunk/external/mit/xf86-video-ati/dist/src/radeon_driver.c>`__.
+   The file carries an MIT-style permission notice.

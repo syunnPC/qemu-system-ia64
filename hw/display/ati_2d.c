@@ -1924,6 +1924,39 @@ static bool ati_host_data_consume(ATIVGAState *s, unsigned int bank,
     return s->host_data.active;
 }
 
+static bool ati_host_data_input_complete(const ATIVGAState *s)
+{
+    const ATIHostDataState *host = &s->host_data;
+    uint32_t width = s->regs.dst_width;
+    uint32_t height = s->regs.dst_height;
+    uint32_t datatype = s->regs.dp_datatype & DP_SRC_DATATYPE;
+    uint64_t buffered = host->next * 32;
+    uint64_t remaining;
+
+    if (!width || host->row >= height || host->col >= width) {
+        return true;
+    }
+    if (datatype == SRC_COLOR) {
+        unsigned int bpp = ati_bpp_from_datatype(s);
+
+        remaining = ((uint64_t)(height - host->row) * width - host->col) *
+                    bpp;
+        buffered += host->pending_count * 8;
+    } else if (datatype == SRC_MONO_FRGD_BKGD || datatype == SRC_MONO_FRGD) {
+        unsigned int row_bits = width;
+
+        if ((s->regs.dp_mix & DP_SRC_SOURCE) == DP_SRC_HOST_BYTEALIGN) {
+            row_bits = QEMU_ALIGN_UP(width, 8);
+        }
+        remaining = (uint64_t)(height - host->row - 1) * row_bits +
+                    width - host->col;
+    } else {
+        /* Let the consumer reject the unsupported source format. */
+        return true;
+    }
+    return buffered >= remaining;
+}
+
 bool ati_host_data_write(ATIVGAState *s, uint32_t data, bool last)
 {
     if (!s->host_data.active) {
@@ -1946,8 +1979,13 @@ bool ati_host_data_write(ATIVGAState *s, uint32_t data, bool last)
         memset(s->host_data.pending, 0, sizeof(s->host_data.pending));
     } else {
         s->host_data.next++;
-        if (s->host_data.next == ATI_HOST_DATA_BANK_DWORDS) {
-            ati_host_data_consume(s, 0, ATI_HOST_DATA_BANK_DWORDS);
+        /*
+         * Consume a complete rectangle even without HOST_DATA_LAST, before
+         * a subsequent blit can change the drawing registers.
+         */
+        if (s->host_data.next == ATI_HOST_DATA_BANK_DWORDS ||
+            ati_host_data_input_complete(s)) {
+            ati_host_data_consume(s, 0, s->host_data.next);
             s->host_data.next = 0;
         }
     }
