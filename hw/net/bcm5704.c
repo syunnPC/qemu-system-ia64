@@ -56,6 +56,9 @@
 #define SRAM(s, a)              ((s)->sram[(a) / 4])
 #define MAC_MODE                0x0400
 #define MAC_STATUS              0x0404
+#define MAC_STATUS_LINK_CHANGED 0x00001000U
+#define MAC_STATUS_LINK_ACK     0x00000018U
+#define MAC_STATUS_W1C_MASK     0x0c400418U
 #define MAC_EVENT               0x0408
 #define MAC_MI_COM              0x044c
 #define MAC_TX_MODE             0x045c
@@ -66,6 +69,10 @@
 #define GRC_LOCAL_CTRL          0x6808
 #define GRC_EEPROM_ADDR         0x6838
 #define NVRAM_CMD               0x7000
+#define NVRAM_CMD_RESET         0x00000001U
+#define NVRAM_CMD_DONE          0x00000008U
+#define NVRAM_CMD_DOIT          0x00000010U
+#define NVRAM_CMD_WR            0x00000020U
 #define FW_MBOX                 0x0b50
 #define FW_MAGIC                0x4b657654U
 
@@ -304,7 +311,7 @@ static void bcm57xx_set_link(NetClientState *nc)
 {
     BCM57xxState *s = qemu_get_nic_opaque(nc);
 
-    REG(s, MAC_STATUS) |= 0x1000;
+    REG(s, MAC_STATUS) |= MAC_STATUS_LINK_CHANGED;
     s->phy[0x1a] |= 2;
     bcm57xx_status(s, 2, !!(REG(s, MAC_EVENT) & 0x1000));
 }
@@ -816,7 +823,9 @@ static uint64_t bcm57xx_reg_read(BCM57xxState *s, hwaddr addr, unsigned size)
 static void bcm57xx_reg_write(BCM57xxState *s, hwaddr addr, uint64_t value,
                              unsigned size)
 {
-    uint32_t off = addr & ~3U, v = value;
+    uint32_t off = addr & ~3U;
+    uint32_t written = (uint32_t)value << ((addr & 3) * 8);
+    uint32_t v = written;
     unsigned i;
 
     if (off < 0x100) {
@@ -826,7 +835,7 @@ static void bcm57xx_reg_write(BCM57xxState *s, hwaddr addr, uint64_t value,
     if (size < 4) {
         uint32_t mask = MAKE_64BIT_MASK((addr & 3) * 8, size * 8);
         v = (bcm57xx_reg_read(s, off, 4) & ~mask) |
-            ((v << ((addr & 3) * 8)) & mask);
+            (written & mask);
     }
     if (off >= 0x8000) {
         uint32_t base = pci_get_long(s->parent_obj.config + 0x7c);
@@ -838,10 +847,13 @@ static void bcm57xx_reg_write(BCM57xxState *s, hwaddr addr, uint64_t value,
     }
     switch (off) {
     case MAC_STATUS:
-        if (v & 0x1000) {
+        /* W1C bits respond only to the bytes supplied by the write. */
+        REG(s, off) &= ~(written & MAC_STATUS_W1C_MASK);
+        /* BCM5701/5704 clear Link Changed through Sync/Config Changed. */
+        if (written & MAC_STATUS_LINK_ACK) {
+            REG(s, off) &= ~MAC_STATUS_LINK_CHANGED;
             s->status_flags &= ~2U;
         }
-        REG(s, off) &= ~v;
         return;
     case GRC_MISC_CFG:
         if (v & 1) {
@@ -873,22 +885,27 @@ static void bcm57xx_reg_write(BCM57xxState *s, hwaddr addr, uint64_t value,
         }
         v &= ~0x20000000U;
         break;
-    case NVRAM_CMD:
-        if (v & 0x10) {
+    case NVRAM_CMD: {
+        uint32_t done = REG(s, off) & NVRAM_CMD_DONE;
+
+        if (written & NVRAM_CMD_RESET) {
+            done = 0;
+        } else if (written & NVRAM_CMD_DOIT) {
             unsigned ea = REG(s, 0x700c) & (BCM_EEPROM_SIZE - 4);
-            if (v & 0x20) {
+            if (v & NVRAM_CMD_WR) {
                 if (REG(s, GRC_MODE) & 0x200000) {
                     stl_be_p(s->eeprom + ea, REG(s, 0x7008));
                 }
             } else {
                 REG(s, 0x7010) = ldl_be_p(s->eeprom + ea);
             }
-            v = (v & ~0x10U) | 8;
-        } else if (v & 8) {
-            v = REG(s, off) & ~8U;
+            done = NVRAM_CMD_DONE;
+        } else if (written & NVRAM_CMD_DONE) {
+            done = 0;
         }
-        v &= ~1U;
+        v = (v & ~(NVRAM_CMD_RESET | NVRAM_CMD_DONE | NVRAM_CMD_DOIT)) | done;
         break;
+    }
     case 0x7020: {
         uint32_t req = (REG(s, off) >> 12) & 15;
         req = (req | (v & 15)) & ~((v >> 4) & 15);
@@ -1075,7 +1092,7 @@ static void bcm57xx_config_write(PCIDevice *pdev, uint32_t addr, uint32_t v,
 
     trace_bcm57xx_config_write(addr, v, len);
     pci_default_write_config(pdev, addr, v, len);
-    if (len < 4 && off >= 0x80 && off <= 0x90) {
+    if (len < 4 && off == 0x84) {
         uint32_t mask = MAKE_64BIT_MASK((addr & 3) * 8, len * 8);
         v = (bcm57xx_config_read(pdev, off, 4) & ~mask) |
             ((v << ((addr & 3) * 8)) & mask);
@@ -1090,7 +1107,7 @@ static void bcm57xx_config_write(PCIDevice *pdev, uint32_t addr, uint32_t v,
     case 0x80: {
         uint32_t reg = pci_get_long(pdev->config + 0x78);
         if (reg >= 0x100 && reg < BCM57XX_MMIO_SIZE) {
-            bcm57xx_reg_write(s, reg & ~3U, v, 4);
+            bcm57xx_reg_write(s, (reg & ~3U) + (addr & 3), v, len);
         }
         break;
     }
@@ -1102,22 +1119,22 @@ static void bcm57xx_config_write(PCIDevice *pdev, uint32_t addr, uint32_t v,
         break;
     }
     case 0x88:
-        bcm57xx_reg_write(s, GRC_MODE, v, 4);
+        bcm57xx_reg_write(s, GRC_MODE + (addr & 3), v, len);
         break;
     case 0x8c:
-        bcm57xx_reg_write(s, GRC_MISC_CFG, v, 4);
+        bcm57xx_reg_write(s, GRC_MISC_CFG + (addr & 3), v, len);
         break;
     case 0x90:
-        bcm57xx_reg_write(s, GRC_LOCAL_CTRL, v, 4);
+        bcm57xx_reg_write(s, GRC_LOCAL_CTRL + (addr & 3), v, len);
         break;
     case 0x9c:
-        bcm57xx_reg_write(s, 0x26c, v, 4);
+        bcm57xx_reg_write(s, 0x26c + (addr & 3), v, len);
         break;
     case 0xa4:
-        bcm57xx_reg_write(s, 0x284, v, 4);
+        bcm57xx_reg_write(s, 0x284 + (addr & 3), v, len);
         break;
     case 0xac:
-        bcm57xx_reg_write(s, 0x304, v, 4);
+        bcm57xx_reg_write(s, 0x304 + (addr & 3), v, len);
         break;
     default:
         break;

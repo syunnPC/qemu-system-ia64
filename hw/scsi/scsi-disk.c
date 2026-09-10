@@ -1673,11 +1673,7 @@ static void scsi_disk_emulate_mode_select(SCSIDiskReq *r, uint8_t *inbuf)
         bs = p[5] << 16 | p[6] << 8 | p[7];
 
         /*
-         * Since the existing code only checks/updates bits 8-15 of the block
-         * size, restrict ourselves to the same requirement for now to ensure
-         * that a block size set by a block descriptor and then read back by
-         * a subsequent SCSI command will be the same. Also disallow a block
-         * size of 256 since we cannot handle anything below BDRV_SECTOR_SIZE.
+         * The emulated mode pages support 512-byte multiples up to 65024 bytes.
          */
         if (bs && !(bs & ~0xfe00) && bs != s->qdev.blocksize) {
             s->qdev.blocksize = bs;

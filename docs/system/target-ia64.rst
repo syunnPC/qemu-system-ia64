@@ -71,9 +71,6 @@ within a generation share that clock: ``madison-1500``, but
 
 ``itanium`` aliases ``merced`` and ``itanium2`` aliases ``montecito``.
 ``-cpu help`` displays both canonical names and alias targets.
-The machine-specific ``madison-zx6000`` and cache-only ``madison-6m`` names
-have been replaced by ``madison-1500``; other former Madison cache variants
-also require their clock-qualified names.  Removed names are not aliases.
 
 HP i2000 device layout
 ----------------------
@@ -191,9 +188,9 @@ across migration.  CRTC offset locking works through both register aliases.
 ATI hardware cursors are composited into the display at the programmed
 position.
 
-Native ATI scanout preserves the legacy VGA register bank.  Older snapshots
-may retain overwritten VGA state; start QEMU without loading the snapshot if
-the legacy console does not restore correctly.
+Native ATI scanout preserves the legacy VGA register bank.  Snapshots from
+implementations that overwrite this bank require the guest to reinitialize
+its VGA mode after restore.
 
 ATI 2D supports Bresenham lines, monochrome and color brushes, and Rage128
 stretch blits.  Rage128 trapezoids use an integer-coordinate approximation.
@@ -207,8 +204,8 @@ framebuffers for rendering and display.
 
 Radeon CPU accesses through aperture 0 use the configured color-surface tile
 mapping, consistently with 2D rendering and scanout.  Surface registers are
-preserved across migration.  Older snapshots omit these registers; guests
-using tiled framebuffers need a reboot after restoring such a snapshot.
+preserved across migration.  ATI migration formats before version 9 omit
+surface registers; guests must reinitialize tiled surfaces after restore.
 
 PLL atomic requests complete immediately, and the primary CRTC timer follows
 the programmed pixel clock.  PLL settling and synchronization to vertical

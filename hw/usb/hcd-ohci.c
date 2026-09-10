@@ -2008,7 +2008,7 @@ static USBBusOps ohci_bus_ops = {
 
 void usb_ohci_init(OHCIState *ohci, DeviceState *dev, uint32_t num_ports,
                    dma_addr_t localmem_base, char *masterbus,
-                   uint32_t firstport, AddressSpace *as,
+                   uint32_t firstport, uint32_t portstride, AddressSpace *as,
                    void (*ohci_die_fn)(OHCIState *), Error **errp)
 {
     Error *err = NULL;
@@ -2044,8 +2044,8 @@ void usb_ohci_init(OHCIState *ohci, DeviceState *dev, uint32_t num_ports,
         for (i = 0; i < num_ports; i++) {
             ports[i] = &ohci->rhport[i].port;
         }
-        usb_register_companion(masterbus, ports, num_ports,
-                               firstport, ohci, &ohci_port_ops,
+        usb_register_companion(dev, masterbus, ports, num_ports,
+                               firstport, portstride, ohci, &ohci_port_ops,
                                USB_SPEED_MASK_LOW | USB_SPEED_MASK_FULL,
                                &err);
         if (err) {

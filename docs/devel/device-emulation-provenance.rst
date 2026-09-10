@@ -19,10 +19,18 @@ the device models that link to this notice:
 * Broadcom's `BCM57XX Programmer's Guide, 57XX-PG105-R
   <https://datasheet.datasheetarchive.com/originals/library/Datasheets-ZSAA1/DSAZSAA00017932.pdf>`__,
   pages 232-234 and 325-326, for the MISC_HOST_CTRL byte-swap bit and target
-  byte ordering.  The illumos
+  byte ordering, and pages 379-380 and 550 for MAC status and NVM command
+  write-one-to-clear fields and link-change acknowledgement.  The illumos
   `bge_chip2.c
   <https://github.com/illumos/illumos-gate/blob/master/usr/src/uts/common/io/bge/bge_chip2.c>`__
   also documents and programs the byte order for native big-endian MMIO.
+* Intel's `EHCI specification, revision 1.0
+  <https://www.intel.com/content/dam/www/public/us/en/documents/technical-specifications/ehci-specification-for-usb.pdf>`__,
+  sections 2.2.3, 2.2.5 and 4.2, for companion-controller numbering and port
+  ownership and routing.
+  NEC's `uPD720101 User's Manual, S16336EJ5V0UM
+  <https://www.edbatalha.info/compaq-n610c/uPD720101%20User%20Manual%20S16336EJ5V0UM00.pdf>`__,
+  pages 76-77, specifies the alternating OHCI routing of its five USB ports.
 * Linux
   `drivers/scsi/qla1280.h <https://github.com/torvalds/linux/blob/master/drivers/scsi/qla1280.h>`__
   and

@@ -130,7 +130,7 @@ struct E1000State_st {
 
     QEMUTimer *flush_queue_timer;
 
-/* Compatibility flags for migration to/from qemu 1.3.0 and older */
+/* Migration compatibility flags for QEMU 1.3.0 and older. */
 #define E1000_FLAG_TSO_BIT 3
 #define E1000_FLAG_VET_BIT 4
 #define E1000_FLAG_TSO (1 << E1000_FLAG_TSO_BIT)

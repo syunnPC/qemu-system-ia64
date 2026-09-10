@@ -30,6 +30,7 @@
 #include "hw/pci-host/hp-zx1-iommu.h"
 #include "hw/pci-host/hp-zx1-mio-regs.h"
 #include "hw/pci-host/hp-zx2-mio-regs.h"
+#include "hw/usb/ehci-regs.h"
 
 #define TEST_FIRMWARE_ENV             "QTEST_IA64_FIRMWARE"
 #define IA64_PCI_CONFIG_BASE         0x0000007ff0000000ULL
@@ -1646,6 +1647,64 @@ static void ia64_qpci_init(QGenericPCIBus *gbus, QTestState *qts)
     gbus->gpex_pio_base = IA64_LEGACY_IO_BASE;
 }
 
+typedef struct USBCompanionLayout {
+    unsigned int firstport[2];
+    unsigned int ports[2];
+    unsigned int stride;
+    uint32_t params;
+    uint32_t route;
+} USBCompanionLayout;
+
+static const USBCompanionLayout usb_companion_layouts[] = {
+    { { 0, 3 }, { 3, 2 }, 1, 0x2305, 0x11000 },
+    { { 0, 2 }, { 2, 3 }, 1, 0x2385, 0x11100 },
+    { { 0, 1 }, { 3, 2 }, 2, 0x2385, 0x01010 },
+};
+
+static void test_usb_companion_routing(gconstpointer opaque)
+{
+    const USBCompanionLayout *layout = opaque;
+
+    for (unsigned int reverse = 0; reverse < 2; reverse++) {
+        g_autoptr(GString) args = g_string_new(
+            "-machine ia64-vpc,nvram=none,usb=off -m 256M "
+            "-nodefaults -bios none -S "
+            "-device ich9-usb-ehci1,bus=pci,addr=7.7,multifunction=on,"
+            "id=ehci,num-ports=5");
+        QGenericPCIBus gbus;
+        QTestState *qts;
+        QPCIDevice *ehci;
+        QPCIBar bar;
+
+        for (unsigned int i = 0; i < 2; i++) {
+            unsigned int function = i ^ reverse;
+
+            g_string_append_printf(args,
+                " -device pci-ohci,bus=pci,addr=7.%u,multifunction=on,"
+                "masterbus=ehci.0,firstport=%u,num-ports=%u,portstride=%u",
+                function, layout->firstport[function],
+                layout->ports[function], layout->stride);
+        }
+        qts = qtest_init(args->str);
+        ia64_qpci_init(&gbus, qts);
+        gbus.bus.mmio_alloc_ptr = IA64_PCI_MMIO_BASE + 0x01000000;
+        gbus.bus.mmio_limit = IA64_PCI_MMIO_BASE + IA64_PCI_MMIO_SIZE;
+        ehci = qpci_device_find(&gbus.bus, QPCI_DEVFN(7, 7));
+        g_assert_nonnull(ehci);
+        bar = qpci_iomap(ehci, 0, NULL);
+        qpci_device_enable(ehci);
+
+        g_assert_cmphex(qpci_io_readl(ehci, bar, HCSPARAMS) & 0xff8f,
+                        ==, layout->params);
+        if (layout->params & (1U << 7)) {
+            g_assert_cmphex(qpci_io_readl(ehci, bar, HCSPPORTROUTE1),
+                            ==, layout->route);
+        }
+        g_free(ehci);
+        qtest_quit(qts);
+    }
+}
+
 static void assert_pci_device(QPCIBus *bus, const ExpectedPCIDevice *expected)
 {
     QPCIDevice *dev = qpci_device_find(bus,
@@ -1874,7 +1933,7 @@ static void test_pci_rv100_model(void)
                     PCI_BASE_ADDRESS_MEM_PREFETCH);
     g_assert_cmphex(qpci_config_readl(vga, PCI_BASE_ADDRESS_2), ==,
                     IA64_VGA_LARGE_MMIO_BASE);
-    /* Keep the pre-existing RV100 PCI configuration migration-compatible. */
+    /* RV100 exposes no PCI capabilities. */
     g_assert_cmphex(qpci_config_readb(vga, PCI_CAPABILITY_LIST), ==, 0x00);
 
     saved_bar = qpci_config_readl(vga, PCI_ROM_ADDRESS);
@@ -3977,6 +4036,12 @@ int main(int argc, char **argv)
     qtest_add_func("/ia64-vpc/nvram/extended-file",
                    test_nvram_extended_file);
     qtest_add_func("/ia64-vpc/pci/default-layout", test_pci_default_layout);
+    qtest_add_data_func("/ia64-vpc/usb/companion-contiguous",
+                        &usb_companion_layouts[0], test_usb_companion_routing);
+    qtest_add_data_func("/ia64-vpc/usb/companion-uneven",
+                        &usb_companion_layouts[1], test_usb_companion_routing);
+    qtest_add_data_func("/ia64-vpc/usb/companion-strided",
+                        &usb_companion_layouts[2], test_usb_companion_routing);
     qtest_add_func("/ia64-vpc/pcie/ecam-aer-hotplug-msix",
                    test_pcie_ecam_aer_hotplug_msix);
     qtest_add_func("/ia64-vpc/pcie/intx-and-msi",

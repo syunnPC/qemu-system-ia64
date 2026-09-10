@@ -419,14 +419,14 @@ static const char *test_a_unit_reserved_aliases(void)
         uint8_t x4;
         uint8_t x2b;
     } reserved[] = {
-        { 0x0, 3 }, /* formerly decoded as mux */
-        { 0x5, 0 }, /* formerly decoded as shr */
-        { 0x7, 0 }, /* formerly decoded as extr */
-        { 0x7, 1 }, /* formerly decoded as extr.u */
-        { 0x8, 0 }, /* formerly decoded as mpy4 */
-        { 0x8, 1 }, /* formerly decoded as mpysh */
-        { 0x8, 2 }, /* formerly decoded as mpyuh */
-        { 0xa, 1 }, /* formerly decoded as popcnt */
+        { 0x0, 3 },
+        { 0x5, 0 },
+        { 0x7, 0 },
+        { 0x7, 1 },
+        { 0x8, 0 },
+        { 0x8, 1 },
+        { 0x8, 2 },
+        { 0xa, 1 },
     };
     static const IA64SlotUnit units[] = { IA64_UNIT_M, IA64_UNIT_I };
     unsigned i;

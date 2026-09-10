@@ -982,7 +982,7 @@ static uint64_t nv15_tile_address(NVIDIAQuadro2State *s, uint64_t address)
     unsigned int columns = extract32(cfg, 24, 4);
     unsigned int bank_shift;
 
-    /* Older migration streams did not expose the memory geometry. */
+    /* Unspecified geometry defaults to nine column bits. */
     columns = columns ? MIN(columns, 9) : 9;
     bank_shift = 2 + parts + columns;
     for (unsigned int i = 0; i < 8; i++) {
@@ -1567,7 +1567,7 @@ static void nv15_object_index_insert(NVIDIAQuadro2State *s,
     unsigned int slot = object - s->objects;
     uint8_t *link = &s->object_hash[nv15_object_hash(object->instance)];
 
-    /* Keep the original lowest-slot lookup even for old duplicate entries. */
+    /* Duplicate entries use the lowest slot. */
     while (*link && *link < slot + 1) {
         link = &s->object_next[*link - 1];
     }
@@ -5603,7 +5603,7 @@ static int nv15_post_load(void *opaque, int version_id)
             UINT16_MAX;
         s->ptimer[(NV15_PTIMER_DENOMINATOR - NV15_PTIMER_BASE) >> 2] &=
             UINT16_MAX;
-        /* Older streams exposed the virtual nanosecond clock directly. */
+        /* Legacy streams express PTIMER in virtual nanoseconds. */
         s->ptimer_legacy_clock = true;
         nv15_ptimer_update_rate(s);
         s->ptimer_time_offset = 0;

@@ -1036,14 +1036,8 @@ static void lsi_do_command(LSIState *s)
     if (!s->command_complete) {
         if (n) {
             /*
-             * When disconnect-on-data-wait is false, keep the target
-             * connected and let lsi_do_dma() wait for the SCSI layer
-             * callback.  Disconnect/reselect is legal, but doing it for
-             * every CD-ROM READ makes old guests spin in their
-             * scripts/interrupt polling path for each 2 KiB block.  An
-             * emulated disk has no mechanical seek latency to hide here, and
-             * SCSI targets are not required to disconnect while preparing
-             * data.
+             * With disconnect-on-data-wait disabled, keep the target connected
+             * while lsi_do_dma() waits for the SCSI callback.
              */
             if (s->disconnect_on_data_wait) {
                 /* Command did not complete immediately so disconnect.  */

@@ -1481,7 +1481,8 @@ static bool hp_rx2660_create_pci_devices(HPZX6000MachineState *s,
             qdev_prop_set_string(DEVICE(s->ohci[function]), "masterbus",
                                  usb_bus->name);
             qdev_prop_set_uint32(DEVICE(s->ohci[function]), "firstport",
-                                 function * 3);
+                                 function);
+            qdev_prop_set_uint32(DEVICE(s->ohci[function]), "portstride", 2);
             qdev_prop_set_uint32(DEVICE(s->ohci[function]), "num-ports",
                                  function ? 2 : 3);
             qdev_prop_set_uint8(DEVICE(s->ohci[function]),
@@ -1660,7 +1661,8 @@ static bool hp_zx6000_create_pci_devices(HPZX6000MachineState *s,
             qdev_prop_set_string(DEVICE(s->ohci[function]), "masterbus",
                                  usb_bus->name);
             qdev_prop_set_uint32(DEVICE(s->ohci[function]), "firstport",
-                                 function * 3);
+                                 function);
+            qdev_prop_set_uint32(DEVICE(s->ohci[function]), "portstride", 2);
             qdev_prop_set_uint32(DEVICE(s->ohci[function]), "num-ports",
                                  function ? 2 : 3);
             qdev_prop_set_uint8(DEVICE(s->ohci[function]),

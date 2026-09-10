@@ -1215,8 +1215,8 @@ void usb_uhci_common_realize(PCIDevice *dev, Error **errp)
         for (i = 0; i < UHCI_PORTS; i++) {
             ports[i] = &s->ports[i].port;
         }
-        usb_register_companion(s->masterbus, ports, UHCI_PORTS,
-                               s->firstport, s, &uhci_port_ops,
+        usb_register_companion(DEVICE(dev), s->masterbus, ports, UHCI_PORTS,
+                               s->firstport, 1, s, &uhci_port_ops,
                                USB_SPEED_MASK_LOW | USB_SPEED_MASK_FULL,
                                &err);
         if (err) {

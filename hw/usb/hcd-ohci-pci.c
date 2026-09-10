@@ -43,6 +43,7 @@ struct OHCIPCIState {
     char *masterbus;
     uint32_t num_ports;
     uint32_t firstport;
+    uint32_t portstride;
     uint8_t interrupt_pin;
 };
 
@@ -74,7 +75,7 @@ static void usb_ohci_realize_pci(PCIDevice *dev, Error **errp)
     dev->config[PCI_INTERRUPT_PIN] = ohci->interrupt_pin;
 
     usb_ohci_init(&ohci->state, DEVICE(dev), ohci->num_ports, 0,
-                  ohci->masterbus, ohci->firstport,
+                  ohci->masterbus, ohci->firstport, ohci->portstride,
                   pci_get_address_space(dev), ohci_pci_die, &err);
     if (err) {
         error_propagate(errp, err);
@@ -119,6 +120,7 @@ static const Property ohci_pci_properties[] = {
     DEFINE_PROP_STRING("masterbus", OHCIPCIState, masterbus),
     DEFINE_PROP_UINT32("num-ports", OHCIPCIState, num_ports, 3),
     DEFINE_PROP_UINT32("firstport", OHCIPCIState, firstport, 0),
+    DEFINE_PROP_UINT32("portstride", OHCIPCIState, portstride, 1),
     DEFINE_PROP_UINT8("interrupt-pin", OHCIPCIState, interrupt_pin, 1),
 };
 

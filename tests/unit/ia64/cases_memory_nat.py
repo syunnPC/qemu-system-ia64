@@ -1886,14 +1886,10 @@ _SPLIT_TLB_CODE_PTE = (
     PTE_ED | _SPLIT_TLB_CODE_PHYS_PAGE | 0x661
 )
 
-# Use a fixed raw IA-64 bundle as the regression input.  Its ld8.sa accepts
-# an unaligned pointer, defers the Madison alignment fault through the code
-# PTE's ED bit, and produces a NaT for a later recovery load.  Warm the data
-# soft-TLB at the code VA before fetching it: an incorrectly shared I/D entry
-# grants execute permission, bypasses the modeled ITLB and loses the
-# code-page ED.  The Alternate ITLB handler is consequently reached only by
-# a correctly separated I/D soft-TLB and installs the instruction translation
-# used by the bundle.
+# The raw ld8.sa bundle defers Madison's alignment fault through the code
+# PTE's ED bit and produces NaT for recovery.  Warm the data soft-TLB at the
+# code VA first; the separate instruction lookup must reach the Alternate
+# ITLB handler and retain the instruction translation's ED bit.
 test_ld8_sa_instruction_ed_survives_data_soft_tlb_warmup = \
     require_registers(
         "ld8_sa_instruction_ed_survives_data_soft_tlb_warmup", [

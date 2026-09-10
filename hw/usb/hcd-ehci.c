@@ -727,11 +727,10 @@ static void ehci_detach(USBPort *port)
         USBPort *companion = s->companion_ports[port->index];
         companion->ops->detach(companion);
         companion->dev = NULL;
-        /*
-         * EHCI spec 4.2.2: "When a disconnect occurs... On the event,
-         * the port ownership is returned immediately to the EHCI controller."
-         */
-        *portsc &= ~PORTSC_POWNER;
+        /* EHCI 1.0, 4.2: CF=0 keeps ownership with the companion. */
+        if (s->configflag) {
+            *portsc &= ~PORTSC_POWNER;
+        }
         return;
     }
 
@@ -781,39 +780,81 @@ static void ehci_wakeup(USBPort *port)
     qemu_bh_schedule(s->async_bh);
 }
 
-static void ehci_register_companion(USBBus *bus, USBPort *ports[],
+static void ehci_update_companion_routing(EHCIState *s)
+{
+    unsigned int n_pcc = s->caps[HCSPARAMS + 1] & 0xf;
+
+    s->caps[HCSPARAMS] &= ~(1U << 7);
+    for (unsigned int port = 0; port < s->portnr; port++) {
+        unsigned int companion = s->port_companion[port];
+        unsigned int rank = 0;
+        unsigned int shift = (port & 1) * 4;
+
+        if (!s->companion_ports[port]) {
+            continue;
+        }
+        /* EHCI 1.0, 2.2.5 numbers companions in PCI function order. */
+        for (unsigned int i = 0; i < s->companion_count; i++) {
+            rank += s->companion_devfn[i] < s->companion_devfn[companion];
+        }
+        s->caps[HCSPPORTROUTE1 + port / 2] &= ~(0xfU << shift);
+        s->caps[HCSPPORTROUTE1 + port / 2] |= rank << shift;
+        if (rank != port / n_pcc) {
+            s->caps[HCSPARAMS] |= 1U << 7;
+        }
+    }
+}
+
+static void ehci_register_companion(USBBus *bus, DeviceState *dev,
+                                    USBPort *ports[],
                                     uint32_t portcount, uint32_t firstport,
-                                    Error **errp)
+                                    uint32_t portstride, Error **errp)
 {
     EHCIState *s = container_of(bus, EHCIState, bus);
+    PCIDevice *pdev = (PCIDevice *)object_dynamic_cast(OBJECT(dev),
+                                                     TYPE_PCI_DEVICE);
     uint32_t i;
 
-    if (firstport + portcount > EHCI_PORTS) {
-        error_setg(errp, "firstport must be between 0 and %u",
-                   EHCI_PORTS - portcount);
+    if (!portcount || !portstride) {
+        error_setg(errp, "companion num-ports and portstride must be nonzero");
+        return;
+    }
+
+    if (firstport >= s->portnr ||
+        portcount - 1 > (s->portnr - 1 - firstport) / portstride) {
+        error_setg(errp, "companion ports (firstport=%u, num-ports=%u, "
+                   "portstride=%u) exceed the %u EHCI ports",
+                   firstport, portcount, portstride, s->portnr);
         return;
     }
 
     for (i = 0; i < portcount; i++) {
-        if (s->companion_ports[firstport + i]) {
-            error_setg(errp, "firstport %u asks for ports %u-%u,"
-                       " but port %u has a companion assigned already",
-                       firstport, firstport, firstport + portcount - 1,
-                       firstport + i);
+        uint32_t port = firstport + i * portstride;
+
+        if (s->companion_ports[port]) {
+            error_setg(errp, "EHCI port %u has a companion assigned already",
+                       port);
             return;
         }
     }
 
+    s->companion_devfn[s->companion_count] = pdev ? pdev->devfn :
+                                                 s->companion_count;
     for (i = 0; i < portcount; i++) {
-        s->companion_ports[firstport + i] = ports[i];
-        s->ports[firstport + i].speedmask |=
+        uint32_t port = firstport + i * portstride;
+
+        s->companion_ports[port] = ports[i];
+        s->port_companion[port] = s->companion_count;
+        s->ports[port].speedmask |=
             USB_SPEED_MASK_LOW | USB_SPEED_MASK_FULL;
         /* Ensure devs attached before the initial reset go to the companion */
-        s->portsc[firstport + i] = PORTSC_POWNER;
+        s->portsc[port] = PORTSC_POWNER;
     }
 
     s->companion_count++;
-    s->caps[0x05] = (s->companion_count << 4) | portcount;
+    s->caps[HCSPARAMS + 1] = (s->companion_count << 4) |
+        MAX(s->caps[HCSPARAMS + 1] & 0xf, portcount);
+    ehci_update_companion_routing(s);
 }
 
 static void ehci_wakeup_endpoint(USBBus *bus, USBEndpoint *ep,
@@ -986,7 +1027,9 @@ static void ehci_port_write(void *ptr, hwaddr addr,
     /* The guest may clear, but not set the PED bit */
     *portsc &= val | ~PORTSC_PED;
     /* POWNER is masked out by RO_MASK as it is RO when we've no companion */
-    handle_port_owner_write(s, port, val);
+    if (s->configflag) {
+        handle_port_owner_write(s, port, val);
+    }
     /* And finally apply RO_MASK */
     val &= PORTSC_RO_MASK;
 
@@ -1094,9 +1137,10 @@ static void ehci_opreg_write(void *ptr, hwaddr addr,
 
     case CONFIGFLAG:
         val &= 0x1;
-        if (val) {
-            for (i = 0; i < EHCI_PORTS; i++) {
-                handle_port_owner_write(s, i, 0);
+        /* EHCI 1.0, 4.2.1: only CF transitions change global routing. */
+        if (val != old) {
+            for (i = 0; i < s->portnr; i++) {
+                handle_port_owner_write(s, i, val ? 0 : PORTSC_POWNER);
             }
         }
         break;

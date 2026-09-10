@@ -723,7 +723,7 @@ def test_repeated_timer_rfi_preserves_word_rmw(qemu):
         (0x10, *movl_mlx(2, 0x8000)),
         (0x20, 0x00, st2(2, 0), nop_i(), nop_i()),
         (0x30, *movl_mlx(3, 0x8010)),
-        (0x40, 0x00, st8(3, 0), nop_i(), nop_i()),
+        (0x40, 0x00, st8(3, 0), adds(10, 0, 0), adds(11, 2, 0)),
         (0x50, 0x00, mov_m_gr_ar(0, 44), nop_i(), nop_i()),
         (0x60, *movl_mlx(4, IA64_ITC_TICKS_PER_MILLISECOND)),
         (0x70, 0x00, mov_m_gr_cr(4, IA64_CR_ITM), nop_i(), nop_i()),
@@ -736,10 +736,14 @@ def test_repeated_timer_rfi_preserves_word_rmw(qemu):
         (0xe0, 0x00, ld2(4, 2), nop_i(), nop_i()),
         (0xf0, 0x00, nop_m(), adds(4, 1, 4), nop_i()),
         (0x100, 0x10, st2(2, 4), nop_i(), br_cloop(0x100, 0xe0)),
-        (0x110, 0x00, rsm(1 << 14), nop_i(), nop_i()),
-        (0x120, 0x00, ld2(8, 2), nop_i(), nop_i()),
-        (0x130, 0x00, ld8(9, 3), nop_i(), nop_i()),
-        (0x140, 0x10, nop_m(), nop_i(), br_cond(0x140, 0x140)),
+        # Repeat complete RMW batches until two timer interrupts have arrived.
+        (0x110, 0x00, ld8(9, 3), adds(10, 1, 10), nop_i()),
+        (0x120, 0x00, nop_m(), cmp_ltu_unc(6, 7, 9, 11), nop_i()),
+        (0x130, 0x10, nop_m(), nop_i(), br_cond(0x130, 0xb0, qp=6)),
+        (0x140, 0x00, rsm(1 << 14), nop_i(), nop_i()),
+        (0x150, 0x00, ld2(8, 2), nop_i(), nop_i()),
+        (0x160, 0x00, ld8(9, 3), nop_i(), nop_i()),
+        (0x170, 0x10, nop_m(), nop_i(), br_cond(0x170, 0x170)),
 
         (0x3000, 0x00, mov_m_cr_gr(16, IA64_CR_SAPIC_IVR),
          nop_i(), nop_i()),
@@ -753,17 +757,19 @@ def test_repeated_timer_rfi_preserves_word_rmw(qemu):
         (0x3080, 0x00, st8(18, 19), nop_i(), nop_i()),
         (0x3090, 0x10, mov_m_gr_cr(0, IA64_CR_SAPIC_EOI), nop_i(),
          rfi_b()),
-    ], entry=0x10, terminal_ip=0x140, timeout=8.0)
+    ], entry=0x10, terminal_ip=0x170, timeout=8.0)
     state = result.state
-    expected = iterations & 0xffff
-    if (state.ip != 0x140 or
+    batches = state.gr[10]
+    expected = (iterations * batches) & 0xffff
+    if (state.ip != 0x170 or
         state.exception != IA64_EXCP_NONE or
+        batches < 1 or
         state.gr[8] != expected or
         state.gr[9] < 2):
         raise RuntimeError(
             "repeated_timer_rfi_preserves_word_rmw failed: "
             f"counter={state.gr[8]!r} expected={expected!r} "
-            f"interrupts={state.gr[9]!r} ip={state.ip!r} "
+            f"batches={batches!r} interrupts={state.gr[9]!r} ip={state.ip!r} "
             f"exception={state.exception!r}\n{result.register_output}")
 
 
@@ -1028,9 +1034,7 @@ def test_rse_large_frame_timer_rfi_preserves_high_caller_local(qemu):
 
 test_nested_timer_rfi_preserves_leaf_saved_return_branch = require_registers(
     "nested_timer_rfi_preserves_leaf_saved_return_branch", [
-        # Put r37 of the SOF=9/SOL=8 frame at RNAT bit 29, matching the
-        # externally observed failure.  The architectural result must not
-        # depend on this alignment; it makes a partial-RNAT regression exact.
+        # Place r37 of the SOF=9/SOL=8 frame at RNAT bit 29.
         (0x10, *movl_mlx(2, 0x1000a0)),
         (0x20, 0x00, mov_ar(2, 18), nop_i(), nop_i()),
         (0x30, *movl_mlx(2, 1 << 29)),
@@ -2631,8 +2635,7 @@ test_ia32_flag_writeback_does_not_enable_single_step = \
             (0x20, *movl_mlx(2, IA64_PSR_IC | IA64_PSR_IS)),
             (0x30, *movl_mlx(3, 0x100)),
             *rfi_to_gr(0x40, 2, 3),
-            # This loader-style prologue used to copy a SUB operand into
-            # EFLAGS and synthesize EFLAG.tf.
+            # The prologue must leave EFLAGS.tf clear.
             ia32_bundle(0x100, bytes.fromhex(
                 "55 "                 # push ebp
                 "8d 6c 24 90 "        # lea ebp,[esp-0x70]
@@ -5896,8 +5899,7 @@ test_native_cmp8xchg16_debug_matches_lower_half = require_registers(
     }, entry=0x10, cpu="montecito")
 
 
-# Conversely, the byte immediately following that containing datum is not
-# referenced.  The old raw-r3/size-16 matcher incorrectly included it.
+# cmp8xchg16 does not reference the byte after its containing datum.
 test_native_cmp8xchg16_debug_excludes_following_byte = require_registers(
     "native_cmp8xchg16_debug_excludes_following_byte", [
         (0x10, *movl_mlx(4, 0)),

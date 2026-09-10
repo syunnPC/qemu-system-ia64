@@ -2800,16 +2800,11 @@ static bool ia64_vhpt_lookup_pte(CPUIA64State *env, uint64_t va,
 }
 
 /*
- * Translate for the monitor, gva2gpa and the gdbstub.  This must not disturb
- * the modeled MMU: no TC insertion, no fault, no PSR update.  Returning false
- * makes callers report the address as unmapped; the previous behaviour of
- * falling back to the virtual address silently produced a physical address
- * that belonged to something else entirely.
+ * Translate for the monitor, gva2gpa and the gdbstub without changing MMU
+ * state or raising faults.  Unresolved addresses return false.
  *
- * A miss is not proof that the guest cannot reach the address.  On IA-64 the
- * VHPT is a translation cache rather than the authoritative page table, and
- * an OS that keeps separate tables can map an address this function cannot
- * resolve.
+ * The VHPT is a translation cache; guest page tables may contain mappings
+ * this lookup cannot resolve.
  */
 bool ia64_mmu_translate_debug(CPUIA64State *env, uint64_t va, uint64_t *pa)
 {

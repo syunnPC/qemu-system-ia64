@@ -827,10 +827,8 @@ static void ia64_cpu_set_architectural_reset_rse(CPUIA64State *env)
 static void ia64_cpu_set_boot_handoff_rse(CPUIA64State *env)
 {
     /*
-     * IA64BootInfo is a synthetic post-reset firmware handoff, not the
-     * architectural processor-reset state.  Preserve its historical empty
-     * frame so the firmware and loader microprogram ABI starts with all 96
-     * physical stacked registers in the invalid partition.
+     * The firmware handoff uses an empty frame with all 96 physical stacked
+     * registers in the invalid partition.
      */
     env->cfm_sof = 0;
     env->cfm_sol = 0;
@@ -2319,9 +2317,8 @@ static const IA64CPUModelDef ia64_cpu_model_merced = {
     .implemented_pmd_mask = 0x3ffffULL,
     .perf_cycles_mask = 0xf0ULL,
     /*
-     * The product manual records the old-PAL 0x10 result.  The processor
-     * update identifies that as an erratum through PAL 7.7.28; PAL 8.8.30,
-     * advertised above, reports the implemented PMC4/PMC5 pair.
+     * The processor specification update corrects the product manual's 0x10
+     * result: PAL 8.8.30 reports the implemented PMC4/PMC5 pair.
      */
     .perf_retired_mask = 0x30ULL,
     .rse_has_clean_partition = false,

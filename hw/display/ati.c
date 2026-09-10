@@ -2530,7 +2530,6 @@ static int ati_vga_post_load(void *opaque, int version_id)
         memset(s->r100_3d.fog_table, 0,
                sizeof(s->r100_3d.fog_table));
         s->r100_3d.fog_table_index = 0;
-        /* Older versions did not apply DP_WRITE_MASK to 2D blits. */
         s->regs.dp_write_mask = UINT32_MAX;
         s->crtc_offset_active = s->regs.crtc_offset & CRTC_OFFSET_MASK;
         s->crtc_pitch_active = s->regs.crtc_pitch;
@@ -2546,7 +2545,6 @@ static int ati_vga_post_load(void *opaque, int version_id)
         s->regs.dac_ext_cntl = 0;
         s->regs.dac_macro_cntl = 0;
     }
-    /* Complete an update left pending by an older device implementation. */
     if (s->regs.pll_pending) {
         ati_pll_commit(s);
         s->crtc_frame_elapsed_ns %= ati_crtc_frame_ns(s);

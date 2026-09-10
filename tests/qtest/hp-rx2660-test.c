@@ -19,6 +19,7 @@
 #include "hw/pci-host/hp-zx1-iommu.h"
 #include "hw/pci-host/hp-zx1-mio-regs.h"
 #include "hw/pci-host/hp-zx2-mio-regs.h"
+#include "hw/usb/ehci-regs.h"
 #include "libqtest.h"
 #include "qemu/bswap.h"
 #include "qemu/sockets.h"
@@ -1283,6 +1284,109 @@ static void test_hp_rx2660_ohci_port_resume(void)
     qtest_quit(qts);
 }
 
+static void assert_nec_usb_connection(QTestState *qts,
+                                     const uint64_t ohci[2], int connected)
+{
+    static const unsigned int route[5][2] = {
+        { 0, 0 }, { 1, 0 }, { 0, 1 }, { 1, 1 }, { 0, 2 },
+    };
+    unsigned int function, port;
+
+    for (function = 0; function < 2; function++) {
+        for (port = 0; port < (function ? 2 : 3); port++) {
+            uint32_t expected = connected >= 0 &&
+                route[connected][0] == function &&
+                route[connected][1] == port ? OHCI_PORT_CCS : 0;
+
+            g_assert_cmphex(qtest_readl(qts, ohci[function] +
+                                        OHCI_RH_PORT_STATUS_1 + port * 4) &
+                            OHCI_PORT_CCS, ==, expected);
+        }
+    }
+}
+
+static void test_hp_zx_nec_usb_routing(void)
+{
+    static const struct {
+        const char *machine;
+        uint64_t ohci[2];
+        uint64_t ehci;
+    } cases[] = {
+        { "hp-rx2660", { RX2660_OHCI0_MMIO, RX2660_OHCI1_MMIO },
+          RX2660_EHCI_MMIO },
+        { "hp-zx6000", { UINT64_C(0x80023000), UINT64_C(0x80022000) },
+          UINT64_C(0x80021000) },
+    };
+    unsigned int i, port;
+
+    for (i = 0; i < ARRAY_SIZE(cases); i++) {
+        QTestState *qts = qtest_initf(
+            "-nodefaults -machine %s,usb=on,nvram=none,firmware=none "
+            "-m 1G -smp 1 -S -vga ati -display none -net none",
+            cases[i].machine);
+        uint64_t opregs = cases[i].ehci +
+            qtest_readb(qts, cases[i].ehci + CAPLENGTH);
+        uint32_t params = qtest_readl(qts, cases[i].ehci + HCSPARAMS);
+
+        g_assert_cmphex(params & 0xff8f, ==, 0x2385);
+        g_assert_cmphex(qtest_readl(qts, cases[i].ehci + HCSPPORTROUTE1),
+                        ==, 0x01010);
+        qtest_qmp_assert_success(qts, "{'execute':'cont'}");
+        assert_nec_usb_connection(qts, cases[i].ohci, -1);
+
+        for (port = 0; port < 5; port++) {
+            g_autofree char *path = g_strdup_printf("%u", port + 1);
+            uint64_t portsc = opregs + 0x44 + port * 4;
+
+            qtest_qmp_device_add(qts, "usb-mouse", "routing-mouse",
+                                "{'bus':'usb-bus.0','port':%s,'usb_version':1}",
+                                path);
+            assert_nec_usb_connection(qts, cases[i].ohci, port);
+            qtest_writel(qts, portsc, 0);
+            assert_nec_usb_connection(qts, cases[i].ohci, port);
+
+            qtest_writel(qts, opregs + CONFIGFLAG, 1);
+            assert_nec_usb_connection(qts, cases[i].ohci, -1);
+            qtest_writel(qts, portsc, PORTSC_POWNER);
+            assert_nec_usb_connection(qts, cases[i].ohci, port);
+
+            /* Rewriting CF must preserve a per-port companion handoff. */
+            qtest_writel(qts, opregs + CONFIGFLAG, 1);
+            assert_nec_usb_connection(qts, cases[i].ohci, port);
+
+            /* With CF set, disconnect returns the port to EHCI. */
+            qtest_qmp_device_del(qts, "routing-mouse");
+            assert_nec_usb_connection(qts, cases[i].ohci, -1);
+            g_assert_cmphex(qtest_readl(qts, portsc) & PORTSC_POWNER, ==, 0);
+            qtest_qmp_device_add(qts, "usb-mouse", "routing-mouse",
+                                "{'bus':'usb-bus.0','port':%s,'usb_version':1}",
+                                path);
+            assert_nec_usb_connection(qts, cases[i].ohci, -1);
+            qtest_writel(qts, portsc, PORTSC_POWNER);
+            assert_nec_usb_connection(qts, cases[i].ohci, port);
+
+            qtest_writel(qts, portsc, 0);
+            assert_nec_usb_connection(qts, cases[i].ohci, -1);
+            qtest_writel(qts, opregs + CONFIGFLAG, 0);
+            assert_nec_usb_connection(qts, cases[i].ohci, port);
+
+            qtest_qmp_device_del(qts, "routing-mouse");
+            assert_nec_usb_connection(qts, cases[i].ohci, -1);
+            g_assert_cmphex(qtest_readl(qts, portsc) & PORTSC_POWNER,
+                            ==, PORTSC_POWNER);
+
+            /* With CF clear, reconnects remain visible to the companion. */
+            qtest_qmp_device_add(qts, "usb-mouse", "routing-mouse",
+                                "{'bus':'usb-bus.0','port':%s,'usb_version':1}",
+                                path);
+            assert_nec_usb_connection(qts, cases[i].ohci, port);
+            qtest_qmp_device_del(qts, "routing-mouse");
+            assert_nec_usb_connection(qts, cases[i].ohci, -1);
+        }
+        qtest_quit(qts);
+    }
+}
+
 static void rx2660_console_assert_irq(QTestState *qts, bool asserted)
 {
     uint16_t status = rx2660_config_readw(qts, 0, PCI_DEVFN(1, 2),
@@ -1457,6 +1561,7 @@ int main(int argc, char **argv)
                    test_hp_rx2660_default_usb_input);
     qtest_add_func("/hp-rx2660/ohci-port-resume",
                    test_hp_rx2660_ohci_port_resume);
+    qtest_add_func("/hp-rx2660/nec-usb-routing", test_hp_zx_nec_usb_routing);
     qtest_add_func("/hp-rx2660/console", test_hp_rx2660_console);
     qtest_add_func("/hp-rx2660/console-interrupt-delivery",
                    test_hp_rx2660_console_interrupt_delivery);

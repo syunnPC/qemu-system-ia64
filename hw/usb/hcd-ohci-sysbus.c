@@ -39,7 +39,7 @@ static void ohci_sysbus_realize(DeviceState *dev, Error **errp)
     Error *err = NULL;
 
     usb_ohci_init(&s->ohci, dev, s->num_ports, s->dma_offset,
-                  s->masterbus, s->firstport,
+                  s->masterbus, s->firstport, 1,
                   &address_space_memory, ohci_sysbus_die, &err);
     if (err) {
         error_propagate(errp, err);

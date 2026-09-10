@@ -838,12 +838,7 @@ static bool ia64_vpc_build_vbe_config(IA64VpcMachineState *s, Error **errp)
     }
 
     memset(s->vbe_edid, 0, sizeof(s->vbe_edid));
-    /*
-     * Preserve the historical single-block EDID for the default mode.  For
-     * configured modes, give qemu_edid_generate() room for CEA and DisplayID
-     * extensions when the preferred timing no longer fits in a base EDID
-     * detailed-timing descriptor (4K60 is one such case).
-     */
+    /* The default mode uses one EDID block; custom modes allow extensions. */
     edid_size = s->vbe_prefx == IA64_VBE_DEFAULT_XRES &&
                 s->vbe_prefy == IA64_VBE_DEFAULT_YRES &&
                 s->vbe_maxx == IA64_VBE_DEFAULT_XRES &&

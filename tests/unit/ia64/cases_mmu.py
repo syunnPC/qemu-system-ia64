@@ -2225,10 +2225,8 @@ def test_itc_d_merced_main_tlb_capacity(qemu):
         (0x50, 0x00, adds(31, 0, 0), nop_i(), nop_i()),
     ]
 
-    # The hardware reference defines 96 main data-TLB entries but leaves TC
-    # victim selection implementation-specific.  The model therefore uses
-    # its pre-existing deterministic circular policy; after 97 insertions,
-    # the first entry is the observable victim.
+    # The model uses circular replacement for Merced's 96-entry main data TLB.
+    # The 97th insertion evicts the first entry.
     for index in range(MERCED_DTLB_ENTRIES + 1):
         va = fill_base + index * page_size
         bundles.extend([

@@ -232,8 +232,6 @@ test_alloc_rejects_locals_larger_than_frame = require_exception(
 
 test_alloc_rejects_rotating_region_larger_than_frame = require_exception(
     "alloc_rejects_rotating_region_larger_than_frame", [
-        # In particular, SOF=0 used to expose count - 1 in GR rotation if
-        # malformed CFM state reached the RSE implementation.
         (0x10, 0x00, alloc_m(5, 0, 0, 1, 0), nop_i(), nop_i()),
     ], IA64_EXCP_ILLEGAL, fault_ip=0x10)
 

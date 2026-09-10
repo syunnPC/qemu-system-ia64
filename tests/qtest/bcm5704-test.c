@@ -341,6 +341,88 @@ static void test_bcm57xx_mmio_byteswap(gconstpointer opaque)
     qtest_quit(qts);
 }
 
+static void test_bcm57xx_partial_w1c(gconstpointer opaque)
+{
+    const char *model = opaque;
+    QTestState *qts = qtest_initf(
+        "-machine ia64-vpc,nvram=none -m 256M -nodefaults -bios none -S "
+        "-device %s,bus=pci,addr=7.0", model);
+    QGenericPCIBus gbus;
+    QPCIDevice *dev;
+    QPCIBar bar;
+
+    bcm5704_qpci_init(&gbus, qts);
+    dev = qpci_device_find(&gbus.bus, QPCI_DEVFN(7, 0));
+    g_assert_nonnull(dev);
+    bar = qpci_iomap(dev, 0, NULL);
+    qpci_device_enable(dev);
+
+    for (unsigned int swap = 0; swap < 2; swap++) {
+        qpci_config_writel(dev, BCM57XX_TEST_MISC_HOST_CTRL, 0x80 | swap * 4);
+
+        /* Reading the PHY latches MI Completion (MAC status bit 22). */
+        qpci_io_writel(dev, bar, 0x44c,
+                       swap ? bswap32(0x28220000) : 0x28220000);
+        qpci_config_writel(dev, 0x78, 0x404);
+        g_assert_cmphex(qpci_config_readl(dev, 0x80) & 0x400000, ==, 0x400000);
+
+        qpci_io_writeb(dev, bar, 0x404 + (swap ? 0 : 3), 0xff);
+        g_assert_cmphex(qpci_config_readl(dev, 0x80) & 0x400000, ==, 0x400000);
+        qpci_io_writew(dev, bar, 0x404 + (swap ? 2 : 0), 0xffff);
+        g_assert_cmphex(qpci_config_readl(dev, 0x80) & 0x400000, ==, 0x400000);
+        qpci_io_writew(dev, bar, 0x404 + (swap ? 0 : 2), 0);
+        g_assert_cmphex(qpci_config_readl(dev, 0x80) & 0x400000, ==, 0x400000);
+
+        /* The indirect register window must preserve byte enables too. */
+        qpci_config_writeb(dev, 0x80, 0xff);
+        g_assert_cmphex(qpci_config_readl(dev, 0x80) & 0x400000, ==, 0x400000);
+        qpci_config_writew(dev, 0x80, 0xffff);
+        g_assert_cmphex(qpci_config_readl(dev, 0x80) & 0x400000, ==, 0x400000);
+        qpci_io_writeb(dev, bar, 0x80 + (swap ? 0 : 3), 0xff);
+        g_assert_cmphex(qpci_config_readl(dev, 0x80) & 0x400000, ==, 0x400000);
+        qpci_io_writeb(dev, bar, 0x404 + (swap ? 1 : 2), 0x40);
+        g_assert_cmphex(qpci_config_readl(dev, 0x80) & 0x400000, ==, 0);
+
+        /* BCM5701/5704 acknowledge link changes through bits 3 and 4. */
+        qpci_io_writel(dev, bar, 0x44c,
+                       swap ? bswap32(0x24201140) : 0x24201140);
+        g_assert_cmphex(qpci_config_readl(dev, 0x80) & 0x1000, ==, 0x1000);
+        qpci_config_writeb(dev, 0x81, 0x10);
+        g_assert_cmphex(qpci_config_readl(dev, 0x80) & 0x1000, ==, 0x1000);
+        qpci_io_writew(dev, bar, 0x404 + (swap ? 0 : 2), 0xffff);
+        g_assert_cmphex(qpci_config_readl(dev, 0x80) & 0x1000, ==, 0x1000);
+        qpci_config_writeb(dev, 0x80, 0x18);
+        g_assert_cmphex(qpci_config_readl(dev, 0x80) & 0x1000, ==, 0);
+
+        if (strcmp(model, "bcm5704")) {
+            continue;
+        }
+
+        /* NVRAM Done (bit 3) survives zero writes, including its own lane. */
+        qpci_io_writel(dev, bar, 0x7000, swap ? bswap32(0x10) : 0x10);
+        qpci_config_writel(dev, 0x78, 0x7000);
+        g_assert_cmphex(qpci_config_readl(dev, 0x80) & 8, ==, 8);
+        qpci_io_writeb(dev, bar, 0x7000 + (swap ? 0 : 3), 0);
+        g_assert_cmphex(qpci_config_readl(dev, 0x80) & 8, ==, 8);
+        qpci_io_writew(dev, bar, 0x7000 + (swap ? 2 : 0), 0);
+        g_assert_cmphex(qpci_config_readl(dev, 0x80) & 8, ==, 8);
+        qpci_config_writew(dev, 0x82, 0);
+        g_assert_cmphex(qpci_config_readl(dev, 0x80) & 8, ==, 8);
+        qpci_config_writeb(dev, 0x80, 8);
+        g_assert_cmphex(qpci_config_readl(dev, 0x80) & 8, ==, 0);
+
+        /* Reset clears a completed NVM command without starting another. */
+        qpci_config_writeb(dev, 0x80, 0x10);
+        g_assert_cmphex(qpci_config_readl(dev, 0x80) & 8, ==, 8);
+        qpci_io_writeb(dev, bar, 0x7000 + (swap ? 3 : 0), 1);
+        g_assert_cmphex(qpci_config_readl(dev, 0x80) & 0x19, ==, 0);
+        qpci_config_writel(dev, 0x80, 0x11);
+        g_assert_cmphex(qpci_config_readl(dev, 0x80) & 0x19, ==, 0);
+    }
+    g_free(dev);
+    qtest_quit(qts);
+}
+
 static uint16_t bcm57xx_mii_read(QPCIDevice *dev, QPCIBar bar, unsigned reg)
 {
     uint32_t v;
@@ -808,6 +890,10 @@ int main(int argc, char **argv)
                        test_bcm57xx_mmio_byteswap);
     qtest_add_data_func("/bcm57xx/5704-mmio-byteswap", "bcm5704",
                        test_bcm57xx_mmio_byteswap);
+    qtest_add_data_func("/bcm57xx/5701-partial-w1c", "bcm5701",
+                       test_bcm57xx_partial_w1c);
+    qtest_add_data_func("/bcm57xx/5704-partial-w1c", "bcm5704",
+                       test_bcm57xx_partial_w1c);
     qtest_add_func("/bcm57xx/diagnostic-dma", test_bcm57xx_dma_queues);
     qtest_add_func("/bcm57xx/tso-interleaved-rings", test_bcm57xx_tso);
     qtest_add_data_func("/bcm57xx/5701-datapath-le", GINT_TO_POINTER(0),

@@ -1,9 +1,8 @@
 IA-64 testing
 ===============
 
-The IA-64 tests are organized by the interface they observe.  A CSV inventory
-or the presence of a C symbol is not a test oracle: a test must execute the
-relevant behavior and compare an architectural or guest-visible result.
+The IA-64 tests compare architectural and guest-visible behavior across
+four test layers.
 
 Test layers
 -----------
@@ -45,8 +44,7 @@ Test layers
     IA64TEST suite=<suite> status=DONE passed=<n> failed=<n>
 
   Success requires one result for every required case, ``failed=0``, a valid
-  ``DONE`` count, and a live QEMU process.  Merely keeping QEMU alive or finding
-  a firmware message is not success.  ``test_shell.py`` additionally drives
+  ``DONE`` count, and a live QEMU process.  ``test_shell.py`` additionally drives
   the pre-boot shell through QMP and the serial console, then reuses its NVRAM
   file to verify persistent variables, clock state, and one-shot ``BootNext``.
 
@@ -63,10 +61,8 @@ Run all IA-64 unit and TCG tests::
 
   build/pyvenv/bin/meson test -C build --suite ia64 --print-errorlogs
 
-Use this build-local Meson rather than an arbitrary host installation.  QEMU's
-configure process selects it to match the version that wrote the build data.
-Plain ``meson test`` in the source directory has no build data to read; either
-pass ``-C build`` as above or run ``./pyvenv/bin/meson test`` from ``build``.
+Use the Meson selected by QEMU's configure step and pass ``-C build`` to
+select the build directory.
 
 Run one microprogram, a substring selection, or a repeated case::
 

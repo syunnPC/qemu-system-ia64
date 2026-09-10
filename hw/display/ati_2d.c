@@ -1241,7 +1241,7 @@ static bool ati_2d_do_blt_staged_overlap(ATIVGAState *s,
                 ati_store_pixel(ctx, dst_pixel, make_filler(ctx->bpp, result));
             }
         }
-        /* Even a skipped pixel originally wrote back its preserved value. */
+        /* Skipped pixels write back their preserved values. */
         if (!ati_2d_surface_write(s, ctx, dst_x, dst_y, dst_pixel, bypp)) {
             return false;
         }

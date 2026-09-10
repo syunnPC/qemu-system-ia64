@@ -852,7 +852,7 @@ static void mptsas1068_test_compat(void *obj, void *data,
     g_assert_cmphex(le16_to_cpu(port_reply.IOCStatus), ==,
                     MPI_IOCSTATUS_INVALID_FIELD);
 
-    /* Keep the pre-existing SAS1068 PAGE_DEFAULT success/no-op ABI. */
+    /* SAS1068 PAGE_DEFAULT succeeds without changing the configuration. */
     config_reply = mptspi_config(mpt, MPI_CONFIG_ACTION_PAGE_DEFAULT,
                                  MPI_CONFIG_PAGETYPE_IOC, 4, 0,
                                  0, 0, false);

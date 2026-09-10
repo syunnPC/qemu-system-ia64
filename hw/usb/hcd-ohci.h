@@ -117,7 +117,7 @@ extern const VMStateDescription vmstate_ohci_state;
 
 void usb_ohci_init(OHCIState *ohci, DeviceState *dev, uint32_t num_ports,
                    dma_addr_t localmem_base, char *masterbus,
-                   uint32_t firstport, AddressSpace *as,
+                   uint32_t firstport, uint32_t portstride, AddressSpace *as,
                    void (*ohci_die_fn)(OHCIState *), Error **errp);
 void ohci_bus_stop(OHCIState *ohci);
 void ohci_stop_endpoints(OHCIState *ohci);

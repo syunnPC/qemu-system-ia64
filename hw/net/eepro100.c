@@ -1198,7 +1198,7 @@ static bool eepro100_cu_resume_allowed(EEPRO100State *s,
     MemTxResult result;
 
     if (!context->last_valid) {
-        /* Legacy migration streams did not preserve the previous CB. */
+        /* Legacy migration streams omit the previous command block. */
         return true;
     }
 
@@ -2188,7 +2188,6 @@ static int eepro100_post_load(void *opaque, int version_id)
     if (version_id < 4) {
         cu_state_t legacy_state = get_cu_state(s);
 
-        /* Older versions used one next offset and no queue-local state. */
         s->cu_hp.next_offset = s->cu_lp.next_offset;
         s->cu_lp.last_offset = 0;
         s->cu_hp.last_offset = 0;
@@ -2200,7 +2199,7 @@ static int eepro100_post_load(void *opaque, int version_id)
             s->cu_hp.state = cu_queue_idle;
             break;
         case cu_suspended:
-            /* The old stream cannot identify which queue was suspended. */
+            /* Legacy streams do not identify which queue was suspended. */
             s->cu_lp.state = cu_queue_suspended;
             s->cu_hp.state = info->has_priority_queues ?
                              cu_queue_suspended : cu_queue_idle;
@@ -2593,13 +2592,6 @@ static E100PCIDeviceInfo *eepro100_get_class_by_name(const char *typename)
     E100PCIDeviceInfo *info = NULL;
     int i;
 
-    /* This is admittedly awkward but also temporary.  QOM allows for
-     * parameterized typing and for subclassing both of which would suitable
-     * handle what's going on here.  But class_data is already being used as
-     * a stop-gap hack to allow incremental qdev conversion so we cannot use it
-     * right now.  Once we merge the final QOM series, we can come back here and
-     * do this in a much more elegant fashion.
-     */
     for (i = 0; i < ARRAY_SIZE(e100_devices); i++) {
         if (strcmp(e100_devices[i].name, typename) == 0) {
             info = &e100_devices[i];
