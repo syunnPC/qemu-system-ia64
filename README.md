@@ -161,7 +161,7 @@ and device support remain experimental.
       <img
         width="100%"
         alt="HP-UX 11i v3"
-        src="https://github.com/user-attachments/assets/a6df474a-ea5e-4cff-b5e1-d8ac91958a6e"
+        src="https://github.com/user-attachments/assets/cdc39b4e-027d-4e30-940d-9da310eb250d"
       />
     </td>
     <td width="100%">
