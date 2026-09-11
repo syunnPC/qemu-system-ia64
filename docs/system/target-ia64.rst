@@ -181,8 +181,9 @@ and the default PCI option ROM, and initializes the default Radeon memory and
 system clocks consistently with those tables.  Explicitly supplied option ROMs
 are preserved.  Radeon CRT detection and DDC/EDID are implemented.
 The Radeon command processor handles rectangle fills and copies, transparent
-copies, scanline spans, clipping, character bitmaps and indexed host bitmap
-uploads, including the setup-only packets used before character drawing.
+copies, connected lines, scanline spans, clipping, character bitmaps and
+indexed host bitmap uploads, including the setup-only packets used before
+character drawing.
 Scaler palettes are separate from the display DAC palette and are preserved
 across migration.  CRTC offset locking works through both register aliases.
 ATI hardware cursors are composited into the display at the programmed

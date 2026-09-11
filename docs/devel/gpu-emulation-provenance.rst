@@ -63,6 +63,21 @@ behavior.
      - Integer edge slopes with left-inclusive, right-exclusive spans.
        Fractional coordinates and lengths are truncated, and initial edge
        error terms are ignored.  Setup registers remain unchanged.
+   * - ``r100_polyline()`` in ``hw/display/ati_3d.c`` and
+       ``ati_2d_polyline()`` in ``hw/display/ati_2d.c``
+     - AMD's R5xx legacy packet description [amd-r5xx-packets]_,
+       Linux's ``RADEON_CP_PACKET3_CNTL_POLYLINE`` definition
+       [r100-surface-linux]_; X.Org's
+       ``RADEONSubsequentSolidTwoPointLine()`` [r100-xorg-lines]_;
+       and DirectFB's ``radeonDoDrawLine2D()`` [r100-directfb-lines]_.
+     - ``PACKET3`` opcode ``0x95`` consumes 2D setup followed by connected
+       signed 14-bit coordinates, with X in the low halfword.
+       Each segment excludes its endpoint; zero-length segments draw nothing.
+       The existing 2D raster operations, clipping, write masks and tiling
+       apply.  Signed software line arithmetic approximates diagonal
+       coverage; hardware tie-breaking and post-command line-register state
+       are not modeled.  Line brushes requiring additional packet setup
+       remain unsupported.
    * - ``ati_2d_stretch()`` and ``ati_2d_scale_blend()`` in
        ``hw/display/ati_2d.c``
      - DirectFB's ``ati128StretchBlit()`` [r128-directfb]_; the scale and
@@ -179,3 +194,23 @@ distributed license text.  Notices for adapted code are included in
    `src/radeon_driver.c in the NetBSD xsrc mirror
    <https://github.com/NetBSD/xsrc/blob/trunk/external/mit/xf86-video-ati/dist/src/radeon_driver.c>`__.
    The file carries an MIT-style permission notice.
+
+.. [r100-xorg-lines] `X.Org xf86-video-ati 6.14.6
+   <https://xorg.freedesktop.org/archive/individual/driver/xf86-video-ati-6.14.6.tar.bz2>`__,
+   ``src/radeon_accelfuncs.c``.  Its MIT/X11-style permission notice permits
+   use, modification and redistribution with the copyright and permission
+   notices.  ``RADEONSubsequentSolidTwoPointLine()`` packs ``(y << 16) | x``
+   and draws an additional one-pixel rectangle when ``OMIT_LAST`` is clear.
+
+.. [r100-directfb-lines] DirectFB, commit
+   ``e97c8d40ae10585ad10cb55800efcd2ea13fbdf8``,
+   `gfxdrivers/radeon/radeon_2d.c
+   <https://github.com/DirectFB/directfb/blob/e97c8d40ae10585ad10cb55800efcd2ea13fbdf8/gfxdrivers/radeon/radeon_2d.c>`__.
+   The file carries a 2006 Claudio Ciccani copyright notice and permits
+   LGPL version 2 or later.  Its two-point register writes specify the
+   coordinate packing.
+
+.. [amd-r5xx-packets] AMD, `Radeon R5xx Acceleration, revision 1.3
+   <https://xorg.freedesktop.org/docs/AMD/old/R5xx_Acceleration_v1.3.pdf>`__,
+   sections 5.2.1 through 5.2.2.4, for legacy 2D packet fields.  This guide
+   describes R5xx; the R100 line references are listed separately above.

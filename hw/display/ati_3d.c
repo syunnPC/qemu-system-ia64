@@ -3752,6 +3752,20 @@ static bool r100_paint_multi(ATIVGAState *s, const uint32_t *payload,
     return true;
 }
 
+static bool r100_polyline(ATIVGAState *s, const uint32_t *payload,
+                         unsigned int count)
+{
+    R1002DSettings settings;
+
+    if (!r100_2d_settings_info(payload, count, &settings) ||
+        count < settings.dwords + 2) {
+        return false;
+    }
+    r100_2d_settings_apply(s, payload, &settings);
+    ati_2d_polyline(s, payload + settings.dwords, count - settings.dwords);
+    return !s->r100_3d.command_budget_exhausted;
+}
+
 static bool r100_scanline_spans(ATIVGAState *s, uint32_t height_top,
                                 const uint32_t *spans, unsigned int count)
 {
@@ -4176,6 +4190,8 @@ static bool r100_process_packet3(ATIVGAState *s, unsigned int opcode,
                r100_scanline_spans(s, payload[0], payload + 1, count - 1);
     case R100_PACKET3_CNTL_POLYSCANLINES:
         return r100_polyscanlines(s, payload, count);
+    case R100_PACKET3_CNTL_POLYLINE:
+        return r100_polyline(s, payload, count);
     case R100_PACKET3_LOAD_PALETTE:
         return r100_load_palette(s, payload, count);
     case R100_PACKET3_CNTL_HOSTDATA_BLT:
@@ -4255,6 +4271,7 @@ static bool r100_process_stream(ATIVGAState *s, R100Stream *stream)
              extract32(header, 8, 8) == R100_PACKET3_NEXT_CHAR ||
              extract32(header, 8, 8) == R100_PACKET3_PLY_NEXTSCAN ||
              extract32(header, 8, 8) == R100_PACKET3_CNTL_POLYSCANLINES ||
+             extract32(header, 8, 8) == R100_PACKET3_CNTL_POLYLINE ||
              extract32(header, 8, 8) == R100_PACKET3_CNTL_PAINT_MULTI ||
              extract32(header, 8, 8) == R100_PACKET3_CNTL_BITBLT_MULTI)) {
             max_count = R100_MAX_PACKET_DWORDS;

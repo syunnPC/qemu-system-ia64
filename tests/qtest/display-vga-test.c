@@ -313,6 +313,7 @@
 #define R100_PACKET3_CNTL_POLYSCANLINES 0x98
 #define R100_PACKET3_CNTL_BITBLT     0x92
 #define R100_PACKET3_CNTL_HOSTDATA_BLT 0x94
+#define R100_PACKET3_CNTL_POLYLINE 0x95
 #define R100_PACKET3_CNTL_TRANS_BITBLT 0x9c
 #define R100_PACKET3_CNTL_PAINT_MULTI 0x9a
 #define R100_PACKET3_BITBLT_MULTI 0x9b
@@ -4653,6 +4654,201 @@ static void ati_rv100_cp_nextchar(void)
                 }
                 g_assert_cmphex(le32_to_cpu(pixels[y * PITCH / 4 + x]),
                                 ==, expected);
+            }
+        }
+    }
+    qtest_quit(qts);
+}
+
+static void ati_rv100_cp_polyline(void)
+{
+    enum {
+        DST_OFFSET = 0x2000,
+        IB_OFFSET = 0x4000,
+        PITCH = 64,
+        HEIGHT = 16,
+    };
+    enum {
+        OCTANTS = 8,
+        CONNECTED = OCTANTS,
+        NEGATIVE_X,
+        NEGATIVE_Y,
+        SINGLE_POINT,
+        NO_POINTS,
+        TRUNCATED_SETUP,
+        UNSUPPORTED_BRUSH,
+        TESTS,
+    };
+    const uint32_t canary = 0xa5a5a5a5;
+    const uint32_t color = 0x12345678;
+    const uint32_t write_mask = 0x00ff00ff;
+    const uint32_t marker = 0x4c494e45;
+    const uint32_t gui = ATI_GMC_CLR_CMP_DIS | ATI_GMC_DST_PITCH |
+                         ATI_GMC_DST_CLIPPING | ATI_GMC_BRUSH_SOLID |
+                         ATI_GMC_DST_32BPP | ATI_GMC_SRC_COLOR |
+                         ATI_GMC_ROP3_PATINVERT;
+    /* Seven major-axis steps, with slope 3/7, excluding the endpoint. */
+    const int minor[] = { 0, 0, 1, 1, 2, 2, 3 };
+    const uint32_t setup[] = {
+        0, gui,
+        ((PITCH / 64) << 22) | (DST_OFFSET >> 10),
+        (2U << 16) | 2U,
+        (14U << 16) | 14U,
+        color,
+    };
+    QTestState *qts = qtest_init(
+        "-machine ia64-vpc,nvram=none -m 256M -S "
+        "-vga ati -global ati-vga.model=rv100");
+
+    ati_pci_enable(qts);
+    qtest_writel(qts, IA64_RV100_MMIO_BASE + R100_CP_CSQ_CNTL,
+                 R100_CSQ_PRIBM_INDBM);
+    qtest_writel(qts, IA64_RV100_MMIO_BASE + R100_CP_IB_BASE, IB_OFFSET);
+    for (unsigned int test = 0; test < TESTS; test++) {
+        uint32_t commands[16] = { 0 };
+        uint32_t pixels[PITCH / sizeof(uint32_t) * HEIGHT];
+        uint32_t wire[ARRAY_SIZE(commands)];
+        bool expected[HEIGHT][PITCH / sizeof(uint32_t)] = { 0 };
+        unsigned int words = ARRAY_SIZE(setup);
+        bool valid = test < SINGLE_POINT;
+
+        memcpy(commands, setup, sizeof(setup));
+        g_test_message("polyline case %u", test);
+        if (test < OCTANTS) {
+            bool major_y = test & 4;
+            int xdir = test & 1 ? 1 : -1;
+            int ydir = test & 2 ? 1 : -1;
+            int end_x = 8 + xdir * (major_y ? 3 : 7);
+            int end_y = 8 + ydir * (major_y ? 7 : 3);
+
+            commands[words++] = (8U << 16) | 8U;
+            commands[words++] = (end_y << 16) | end_x;
+            for (unsigned int i = 0; i < ARRAY_SIZE(minor); i++) {
+                int x = 8 + xdir * (major_y ? minor[i] : (int)i);
+                int y = 8 + ydir * (major_y ? (int)i : minor[i]);
+
+                expected[y][x] = true;
+            }
+        } else if (test == CONNECTED) {
+            /* Connected segments must XOR their shared corners only once. */
+            commands[words++] = (3U << 16) | 1U;
+            commands[words++] = (3U << 16) | 12U;
+            commands[words++] = (10U << 16) | 12U;
+            commands[words++] = (10U << 16) | 12U; /* Zero-length segment. */
+            commands[words++] = (10U << 16) | 4U;
+            commands[words++] = (5U << 16) | 4U;
+            for (unsigned int x = 1; x < 12; x++) {
+                expected[3][x] = true;
+            }
+            for (unsigned int y = 3; y < 10; y++) {
+                expected[y][12] = true;
+            }
+            for (unsigned int x = 5; x <= 12; x++) {
+                expected[10][x] = true;
+            }
+            for (unsigned int y = 6; y <= 10; y++) {
+                expected[y][4] = true;
+            }
+        } else if (test == NEGATIVE_X || test == NEGATIVE_Y) {
+            bool vertical = test == NEGATIVE_Y;
+
+            /* Start at -2 on the selected axis. */
+            commands[words++] = vertical ? (0xfffeU << 16) | 6U :
+                                          (6U << 16) | 0xfffeU;
+            commands[words++] = (6U << 16) | 6U;
+            for (unsigned int i = 2; i < 6; i++) {
+                expected[vertical ? i : 6][vertical ? 6 : i] = true;
+            }
+        } else if (test == SINGLE_POINT) {
+            commands[words++] = (6U << 16) | 6U;
+        } else if (test == TRUNCATED_SETUP) {
+            words = 4; /* Truncated clipping/brush setup. */
+        } else if (test == UNSUPPORTED_BRUSH) {
+            commands[1] = (gui & ~ATI_GMC_BRUSH_SOLID) | (2U << 4);
+            commands[words++] = (3U << 16) | 3U;
+            commands[words++] = (6U << 16) | 6U;
+        }
+        commands[0] = R100_CP_PACKET3 | ((words - 2) << 16) |
+                      (R100_PACKET3_CNTL_POLYLINE << 8);
+        commands[words++] = R100_SCRATCH_REG0 >> 2;
+        commands[words++] = marker;
+        for (unsigned int i = 0; i < words; i++) {
+            wire[i] = cpu_to_le32(commands[i]);
+        }
+        qtest_memset(qts, IA64_RV100_FB_BASE + DST_OFFSET, canary & 0xff,
+                     sizeof(pixels));
+        qtest_writel(qts, IA64_RV100_MMIO_BASE + ATI_DP_GUI_MASTER_CNTL, 0);
+        qtest_writel(qts, IA64_RV100_MMIO_BASE + ATI_DP_BRUSH_FRGD_CLR, 0);
+        qtest_writel(qts, IA64_RV100_MMIO_BASE + ATI_DP_WRITE_MASK, write_mask);
+        /* The endpoint coordinates determine direction, not DP_CNTL. */
+        qtest_writel(qts, IA64_RV100_MMIO_BASE + ATI_DP_CNTL, (test ^ 7) & 7);
+        qtest_writel(qts, IA64_RV100_MMIO_BASE + R100_SCRATCH_REG0, 0);
+        qtest_memwrite(qts, IA64_RV100_FB_BASE + IB_OFFSET,
+                       wire, words * sizeof(wire[0]));
+        qtest_writel(qts, IA64_RV100_MMIO_BASE + R100_CP_IB_BUFSZ, words);
+        g_assert_cmphex(qtest_readl(qts, IA64_RV100_MMIO_BASE +
+                                         R100_SCRATCH_REG0), ==,
+                        valid ? marker : 0);
+        /* Reject incomplete packets before applying any setup registers. */
+        g_assert_cmphex(qtest_readl(qts, IA64_RV100_MMIO_BASE +
+                                         ATI_DP_GUI_MASTER_CNTL), ==,
+                        valid ? gui : 0);
+        g_assert_cmphex(qtest_readl(qts, IA64_RV100_MMIO_BASE +
+                                         ATI_DP_BRUSH_FRGD_CLR), ==,
+                        valid ? color : 0);
+        qtest_memread(qts, IA64_RV100_FB_BASE + DST_OFFSET,
+                      pixels, sizeof(pixels));
+        for (unsigned int y = 0; y < HEIGHT; y++) {
+            for (unsigned int x = 0; x < PITCH / sizeof(uint32_t); x++) {
+                bool painted = expected[y][x] &&
+                               x >= 2 && x < 14 && y >= 2 && y < 14;
+
+                g_assert_cmphex(le32_to_cpu(pixels[y * PITCH / 4 + x]), ==,
+                                painted ? canary ^ (color & write_mask) :
+                                          canary);
+            }
+        }
+    }
+    /* Long lists must obey the drawing budget, even when fully clipped. */
+    for (unsigned int pass = 0; pass < 2; pass++) {
+        enum { POINTS = 4100, WORDS = ARRAY_SIZE(setup) + POINTS + 2 };
+        bool exhaust_budget = pass == 0;
+        g_autofree uint32_t *large = g_new0(uint32_t, WORDS);
+        uint32_t pixels[PITCH / sizeof(uint32_t) * HEIGHT];
+
+        memcpy(large, setup, sizeof(setup));
+        large[0] = R100_CP_PACKET3 | ((WORDS - 4) << 16) |
+                   (R100_PACKET3_CNTL_POLYLINE << 8);
+        for (unsigned int i = 0; i < POINTS; i++) {
+            /* X alternates between the signed 14-bit limits at Y = 0. */
+            large[ARRAY_SIZE(setup) + i] = exhaust_budget ?
+                (i & 1 ? 0x1fffU : 0x2000U) :
+                (3U << 16) | (i + 1 == POINTS ? 9U : 3U);
+        }
+        large[WORDS - 2] = R100_SCRATCH_REG0 >> 2;
+        large[WORDS - 1] = marker;
+        for (unsigned int i = 0; i < WORDS; i++) {
+            large[i] = cpu_to_le32(large[i]);
+        }
+        qtest_memset(qts, IA64_RV100_FB_BASE + DST_OFFSET, canary & 0xff,
+                     sizeof(pixels));
+        qtest_writel(qts, IA64_RV100_MMIO_BASE + ATI_DP_WRITE_MASK, write_mask);
+        qtest_writel(qts, IA64_RV100_MMIO_BASE + R100_SCRATCH_REG0, 0);
+        qtest_memwrite(qts, IA64_RV100_FB_BASE + IB_OFFSET,
+                       large, WORDS * sizeof(*large));
+        qtest_writel(qts, IA64_RV100_MMIO_BASE + R100_CP_IB_BUFSZ, WORDS);
+        g_assert_cmphex(qtest_readl(qts, IA64_RV100_MMIO_BASE +
+                                         R100_SCRATCH_REG0), ==,
+                        exhaust_budget ? 0 : marker);
+        qtest_memread(qts, IA64_RV100_FB_BASE + DST_OFFSET,
+                      pixels, sizeof(pixels));
+        for (unsigned int y = 0; y < HEIGHT; y++) {
+            for (unsigned int x = 0; x < PITCH / sizeof(uint32_t); x++) {
+                bool painted = !exhaust_budget && y == 3 && x >= 3 && x < 9;
+
+                g_assert_cmphex(le32_to_cpu(pixels[y * PITCH / 4 + x]), ==,
+                                painted ? canary ^ (color & write_mask) :
+                                          canary);
             }
         }
     }
@@ -12781,6 +12977,8 @@ int main(int argc, char **argv)
                        ati_rv100_cp_nextchar);
         qtest_add_func("/display/pci/ati-rv100-cp-polyscanlines",
                        ati_rv100_cp_polyscanlines);
+        qtest_add_func("/display/pci/ati-rv100-cp-polyline",
+                       ati_rv100_cp_polyline);
         qtest_add_func("/display/pci/ati-rv100-cp-legacy-bitblt",
                        ati_rv100_cp_legacy_bitblt);
         qtest_add_func("/display/pci/ati-rv100-command-budget",

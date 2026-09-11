@@ -614,6 +614,7 @@
 #define R100_PACKET3_3D_DRAW_INDX_2              0x36
 #define R100_PACKET3_CNTL_BITBLT                  0x92
 #define R100_PACKET3_CNTL_HOSTDATA_BLT            0x94
+#define R100_PACKET3_CNTL_POLYLINE                0x95
 #define R100_PACKET3_CNTL_POLYSCANLINES           0x98
 #define R100_PACKET3_LOAD_PALETTE                 0x2c
 #define R100_PACKET3_NEXT_CHAR                    0x19

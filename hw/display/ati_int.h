@@ -292,6 +292,8 @@ bool ati_2d_reg_write(ATIVGAState *s, hwaddr addr, uint64_t value,
                       unsigned int size);
 void ati_2d_complete(ATIVGAState *s);
 void ati_2d_blt(ATIVGAState *s);
+void ati_2d_polyline(ATIVGAState *s, const uint32_t *points,
+                     unsigned int count);
 bool ati_host_data_write(ATIVGAState *s, uint32_t data, bool last);
 void ati_host_data_finish(ATIVGAState *s);
 bool ati_3d_read(ATIVGAState *s, hwaddr addr, uint64_t *data,

@@ -2023,6 +2023,25 @@ void ati_host_data_finish(ATIVGAState *s)
     ati_2d_complete(s);
 }
 
+static bool ati_2d_line_pixel(const ATI2DCtx *ctx, int x, int y,
+                             unsigned int phase)
+{
+    ATI2DCtx pixel = *ctx;
+
+    if (!ati_3d_consume_2d_work(ctx->s, 1)) {
+        return false;
+    }
+    qemu_rect_init(&pixel.dst, x, y, 1, 1);
+    pixel.src = pixel.dst;
+    /* Line brushes advance along the trajectory, even under clipping. */
+    if (ctx->brush_type >= 2 && ctx->brush_type <= 7) {
+        pixel.brush_x = (x - phase) & 31;
+        pixel.brush_y = (y - phase) & 31;
+    }
+    ati_2d_do_blt(ctx->s, &pixel, 0, false);
+    return !ctx->s->r100_3d.command_budget_exhausted;
+}
+
 /* Software Bresenham arithmetic leaves the setup registers unchanged. */
 static void ati_2d_bresenham(ATIVGAState *s, unsigned int length)
 {
@@ -2040,21 +2059,10 @@ static void ati_2d_bresenham(ATIVGAState *s, unsigned int length)
     setup_2d_blt_ctx(s, &ctx);
     ctx.source_clip_active = false;
     for (unsigned int i = 0; i < length; i++) {
-        ATI2DCtx row = ctx;
-
-        if (!ati_3d_consume_2d_work(s, 1)) {
+        if (!ati_2d_line_pixel(&ctx, x, y,
+                              i + (s->regs.brush_y_x & 31))) {
             break;
         }
-        qemu_rect_init(&row.dst, x, y, 1, 1);
-        row.src = row.dst;
-        /* Line brushes advance along the trajectory, even under clipping. */
-        if (ctx.brush_type >= 2 && ctx.brush_type <= 7) {
-            unsigned int phase = s->regs.brush_y_x & 31;
-
-            row.brush_x = (x - i - phase) & 31;
-            row.brush_y = (y - i - phase) & 31;
-        }
-        ati_2d_do_blt(s, &row, 0, false);
         error += inc;
         if (error >= 0) {
             error += dec;
@@ -2068,6 +2076,54 @@ static void ati_2d_bresenham(ATIVGAState *s, unsigned int length)
             y += ydir;
         } else {
             x += xdir;
+        }
+    }
+    ati_2d_complete(s);
+}
+
+void ati_2d_polyline(ATIVGAState *s, const uint32_t *points,
+                     unsigned int count)
+{
+    ATI2DCtx ctx;
+    unsigned int phase = s->regs.brush_y_x & 31;
+
+    ati_host_data_finish(s);
+    setup_2d_blt_ctx(s, &ctx);
+    ctx.source_clip_active = false;
+    for (unsigned int vertex = 1; vertex < count; vertex++) {
+        int x = ati_coord_14(points[vertex - 1]);
+        int y = ati_coord_14(points[vertex - 1] >> 16);
+        int end_x = ati_coord_14(points[vertex]);
+        int end_y = ati_coord_14(points[vertex] >> 16);
+        int dx = abs(end_x - x);
+        int dy = abs(end_y - y);
+        int xdir = end_x >= x ? 1 : -1;
+        int ydir = end_y >= y ? 1 : -1;
+        bool major_y = dy > dx;
+        int length = MAX(dx, dy);
+        int error = -length;
+        int inc = 2 * MIN(dx, dy);
+
+        /* Exclude the endpoint so shared vertices are drawn once. */
+        for (int i = 0; i < length; i++, phase++) {
+            if (!ati_2d_line_pixel(&ctx, x, y, phase)) {
+                ati_2d_complete(s);
+                return;
+            }
+            error += inc;
+            if (error >= 0) {
+                error -= 2 * length;
+                if (major_y) {
+                    x += xdir;
+                } else {
+                    y += ydir;
+                }
+            }
+            if (major_y) {
+                y += ydir;
+            } else {
+                x += xdir;
+            }
         }
     }
     ati_2d_complete(s);
