@@ -232,7 +232,12 @@ static void setup_2d_blt_ctx(ATIVGAState *s, ATI2DCtx *ctx)
         }
     }
     ctx->host_data_active = s->host_data.active;
-    ctx->left_to_right = s->regs.dp_cntl & DST_X_LEFT_TO_RIGHT;
+    /*
+     * X.Org xf86-video-ati 6.14.6 leaves XDIR unchanged in radeon_accelfuncs.c
+     * scanline uploads; model Radeon host-data rows as advancing in positive X.
+     */
+    ctx->left_to_right = (s->regs.dp_cntl & DST_X_LEFT_TO_RIGHT) ||
+                        (ctx->host_data_active && !rage128);
     ctx->top_to_bottom = s->regs.dp_cntl & DST_Y_TOP_TO_BOTTOM;
     ctx->need_swap = (HOST_BIG_ENDIAN != s->vga.big_endian_fb);
     ctx->brush_type = (s->regs.dp_datatype & DP_BRUSH_DATATYPE) >> 8;

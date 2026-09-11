@@ -725,8 +725,8 @@ static void ati_es1000_crtc_2d(void)
         0x55555555, 0x66666666, 0x77777777, 0x88888888,
     };
     static const uint32_t host_expected[] = {
-        0x88888888, 0x77777777, 0x66666666, 0x55555555,
-        0x44444444, 0x33333333, 0x22222222, 0x11111111,
+        0x55555555, 0x66666666, 0x77777777, 0x88888888,
+        0x11111111, 0x22222222, 0x33333333, 0x44444444,
     };
     static const uint8_t mono_initial[] = {
         0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
@@ -735,7 +735,7 @@ static void ati_es1000_crtc_2d(void)
         0xee, 0x11, 0xee, 0x13, 0xee, 0x15, 0xee, 0x17,
     };
     static const uint16_t mono_rop_expected[] = {
-        0x1000, 0x1001, 0x10f2, 0x10f3, 0x1004, 0x1005,
+        0x1000, 0x10f1, 0x1002, 0x10f3, 0x1004, 0x1005,
     };
     static const uint8_t mono_linear_expected[] = {
         0xee, 0x11, 0xee, 0x11, 0xee,
@@ -859,7 +859,7 @@ static void ati_es1000_crtc_2d(void)
                         0xa5a5a5a5);
     }
 
-    /* HOST_DATA follows both reverse X and reverse Y endpoint semantics. */
+    /* Radeon HOST_DATA ignores X direction but follows reverse Y. */
     qtest_writel(qts, IA64_RV100_MMIO_BASE + ATI_DST_OFFSET, 0x1000);
     qtest_writel(qts, IA64_RV100_MMIO_BASE + ATI_DST_PITCH, 4 * 4);
     qtest_writel(qts, IA64_RV100_MMIO_BASE + ATI_SC_BOTTOM_RIGHT,
@@ -870,7 +870,7 @@ static void ati_es1000_crtc_2d(void)
                  ATI_GMC_DST_32BPP | ATI_GMC_SRC_COLOR |
                  ATI_GMC_ROP3_SRCCOPY | ATI_GMC_DP_SRC_HOST);
     qtest_writel(qts, IA64_RV100_MMIO_BASE + ATI_DP_CNTL, 0);
-    qtest_writel(qts, IA64_RV100_MMIO_BASE + ATI_DST_X, 3);
+    qtest_writel(qts, IA64_RV100_MMIO_BASE + ATI_DST_X, 0);
     qtest_writel(qts, IA64_RV100_MMIO_BASE + ATI_DST_Y, 1);
     qtest_writel(qts, IA64_RV100_MMIO_BASE + ATI_DST_HEIGHT, 2);
     qtest_writel(qts, IA64_RV100_MMIO_BASE + ATI_DST_WIDTH, 4);
@@ -1015,7 +1015,7 @@ static void ati_es1000_crtc_2d(void)
     g_assert_cmpmem(mono_actual, sizeof(mono_actual), mono_expected,
                     sizeof(mono_expected));
 
-    /* Leave-alone bits remain no-ops through ROP, mask, clip, and RTL. */
+    /* Leave-alone bits remain no-ops through ROP, mask, and clipping. */
     for (i = 0; i < ARRAY_SIZE(mono_rop_expected); i++) {
         qtest_writew(qts, IA64_RV100_FB_BASE + 0x2b00 + i * 2,
                      0x1000 | i);
@@ -1034,11 +1034,11 @@ static void ati_es1000_crtc_2d(void)
                  ATI_GMC_DST_16BPP | ATI_GMC_SRC_MONO_FG_LA |
                  ATI_GMC_BYTE_LSB_TO_MSB | ATI_GMC_ROP3_SRCINVERT |
                  ATI_GMC_DP_SRC_HOST);
-    qtest_writel(qts, IA64_RV100_MMIO_BASE + ATI_DST_X, 5);
+    qtest_writel(qts, IA64_RV100_MMIO_BASE + ATI_DST_X, 0);
     qtest_writel(qts, IA64_RV100_MMIO_BASE + ATI_DST_Y, 0);
     qtest_writel(qts, IA64_RV100_MMIO_BASE + ATI_DST_HEIGHT, 1);
     qtest_writel(qts, IA64_RV100_MMIO_BASE + ATI_DST_WIDTH, 6);
-    qtest_writel(qts, IA64_RV100_MMIO_BASE + ATI_HOST_DATA_LAST, 0x2d);
+    qtest_writel(qts, IA64_RV100_MMIO_BASE + ATI_HOST_DATA_LAST, 0x2b);
     for (i = 0; i < ARRAY_SIZE(mono_rop_expected); i++) {
         g_assert_cmphex(qtest_readw(qts, IA64_RV100_FB_BASE + 0x2b00 +
                                         i * 2), ==, mono_rop_expected[i]);
@@ -1425,9 +1425,9 @@ static void ati_es1000_crtc_2d(void)
     qtest_quit(qts);
 }
 
-static void ati_host_data_short_upload(void)
+static void ati_host_data_short_upload(gconstpointer opaque)
 {
-    static const char *models[] = { "es1000", "rage128p" };
+    static const char *models[] = { "es1000", "rv100", "rage128p" };
     static const struct {
         unsigned int bypp;
         uint32_t format;
@@ -1446,9 +1446,11 @@ static void ati_host_data_short_upload(void)
         { 1, 51 }, { 7, 51 },
     };
     enum { stride = 64, rows = 51, mono_rows = 5 };
+    bool rtl = GPOINTER_TO_INT(opaque);
 
     for (unsigned int model = 0; model < ARRAY_SIZE(models); model++) {
-        bool rage128 = model == 1;
+        bool rage128 = !strcmp(models[model], "rage128p");
+        bool reverse_x = rage128 && rtl;
         uint64_t mmio = rage128 ? IA64_ATI_MMIO_BASE : IA64_RV100_MMIO_BASE;
         uint64_t fb = rage128 ? IA64_ATI_FB_BASE : IA64_RV100_FB_BASE;
         QTestState *qts = qtest_initf(
@@ -1461,8 +1463,6 @@ static void ati_host_data_short_upload(void)
         ati_pci_enable(qts);
         qtest_writel(qts, mmio + ATI_DST_OFFSET, 0x4000);
         qtest_writel(qts, mmio + ATI_SC_TOP_LEFT, 0);
-        qtest_writel(qts, mmio + ATI_DP_CNTL, ATI_DST_LTR_TTB);
-        qtest_writel(qts, mmio + ATI_DST_X, 0);
         qtest_writel(qts, mmio + ATI_DST_Y, 0);
         for (unsigned int fmt = 0; fmt < ARRAY_SIZE(formats); fmt++) {
             unsigned int bypp = formats[fmt].bypp;
@@ -1479,6 +1479,8 @@ static void ati_host_data_short_upload(void)
                          ATI_GMC_BRUSH_NONE | formats[fmt].format |
                          ATI_GMC_SRC_COLOR | ATI_GMC_ROP3_SRCCOPY |
                          ATI_GMC_DP_SRC_HOST);
+            qtest_writel(qts, mmio + ATI_DP_CNTL,
+                         rtl ? ATI_DST_RTL_TTB : ATI_DST_LTR_TTB);
             for (unsigned int shape = 0; shape < ARRAY_SIZE(shapes); shape++) {
                 unsigned int width = shapes[shape].width;
                 unsigned int height = shapes[shape].height;
@@ -1491,12 +1493,18 @@ static void ati_host_data_short_upload(void)
                     stream[byte] = 0x10 + 7 * byte;
                 }
                 for (unsigned int y = 0; y < height; y++) {
-                    memcpy(expected + y * stride, stream + y * width * bypp,
-                           width * bypp);
+                    for (unsigned int x = 0; x < width; x++) {
+                        unsigned int dst_x = reverse_x ? width - 1 - x : x;
+
+                        memcpy(expected + y * stride + dst_x * bypp,
+                               stream + (y * width + x) * bypp, bypp);
+                    }
                 }
                 qtest_memset(qts, fb + 0x4000, 0xa5, sizeof(actual));
                 qtest_writel(qts, mmio + ATI_SC_BOTTOM_RIGHT,
                              ((height - rage128) << 16) | (right - rage128));
+                qtest_writel(qts, mmio + ATI_DST_X,
+                             reverse_x ? width - 1 : 0);
                 qtest_writel(qts, mmio + ATI_DST_HEIGHT, height);
                 qtest_writel(qts, mmio + ATI_DST_WIDTH, width);
                 /* Complete the upload without writing HOST_DATA_LAST. */
@@ -1527,11 +1535,12 @@ static void ati_host_data_short_upload(void)
                 for (unsigned int x = 0; x < 9; x++) {
                     bool foreground = (x * 3 + y * 5) % 7 < 3;
                     unsigned int bit = y * row_bits + x;
+                    unsigned int dst_x = reverse_x ? 8 - x : x;
 
                     if (foreground) {
                         stream[bit / 8] |= 1U << (bit % 8);
                     }
-                    stl_le_p(expected + y * stride + x * 4,
+                    stl_le_p(expected + y * stride + dst_x * 4,
                              foreground ? 0x002358b2 : 0x00ce7401);
                 }
             }
@@ -1543,6 +1552,9 @@ static void ati_host_data_short_upload(void)
                          ATI_GMC_BYTE_LSB_TO_MSB | ATI_GMC_ROP3_SRCCOPY |
                          (bytealign ? ATI_GMC_DP_SRC_HOST_BYTEALIGN :
                                       ATI_GMC_DP_SRC_HOST));
+            qtest_writel(qts, mmio + ATI_DP_CNTL,
+                         rtl ? ATI_DST_RTL_TTB : ATI_DST_LTR_TTB);
+            qtest_writel(qts, mmio + ATI_DST_X, reverse_x ? 8 : 0);
             qtest_writel(qts, mmio + ATI_DST_HEIGHT, mono_rows);
             qtest_writel(qts, mmio + ATI_DST_WIDTH, 9);
             for (unsigned int word = 0; word < DIV_ROUND_UP(bits, 32); word++) {
@@ -12723,8 +12735,10 @@ int main(int argc, char **argv)
                        ati_rage128_host_data_migration);
         qtest_add_func("/display/pci/ati-rage128-host-data",
                        ati_rage128_host_data);
-        qtest_add_func("/display/pci/ati-host-data-short-upload",
-                       ati_host_data_short_upload);
+        qtest_add_data_func("/display/pci/ati-host-data-short-upload",
+                            GINT_TO_POINTER(false), ati_host_data_short_upload);
+        qtest_add_data_func("/display/pci/ati-host-data-short-upload-rtl",
+                            GINT_TO_POINTER(true), ati_host_data_short_upload);
         qtest_add_func("/display/pci/ati-rage128-vsync",
                        ati_rage128_vsync);
         qtest_add_func("/display/pci/ati-register-endian", ati_register_endian);

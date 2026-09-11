@@ -539,6 +539,8 @@ jobs:
           set -euo pipefail
 
           build_dir="${{ matrix.build_dir }}"
+          version="$(tr -d '\r\n' < VERSION)"
+          install_dir="$(cygpath -m "$PWD/dist/${{ matrix.dist_stem }}-$version")"
           optimization_args=()
           configure_env=(CC=gcc CXX=g++)
           if [[ "${{ matrix.optimized }}" == "true" ]]; then
@@ -571,6 +573,7 @@ jobs:
             cd "$build_dir"
             env "${configure_env[@]}" ../configure \
               "${optimization_args[@]}" \
+              --prefix="$install_dir" \
               --python=/mingw64/bin/python \
               --target-list=ia64-softmmu \
               --enable-system \
