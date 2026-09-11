@@ -179,7 +179,8 @@ bool ia64_rse_br_ctop(CPUIA64State *env);
 bool ia64_rse_br_wexit(CPUIA64State *env, uint32_t qp);
 bool ia64_rse_br_wtop(CPUIA64State *env, uint32_t qp);
 void ia64_rse_clrrrb(CPUIA64State *env, uint32_t predicate_only);
-uint64_t ia64_rse_cloop_zero_st1(CPUIA64State *env, uint32_t base_reg,
+uint64_t ia64_rse_cloop_fill_st1(CPUIA64State *env, uint32_t base_reg,
+                                 uint64_t value,
                                  uint32_t mmu_idx, uint32_t max_stores,
                                  uintptr_t ra);
 

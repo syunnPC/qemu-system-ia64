@@ -250,6 +250,13 @@ struct ATIVGAState {
     bool crtc_vblank_save;
     bool crtc_fix_vsync_timing;
     uint32_t crtc_offset_active;
+    struct {
+        unsigned int cpp;
+        uint32_t pitch;
+        uint32_t base;
+        unsigned int start_line;
+        unsigned int start_tile;
+    } scanout;
     uint32_t crtc_pitch_active;
     uint8_t crtc_tile_line_active;
     bitbang_i2c_interface bbi2c;

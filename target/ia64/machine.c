@@ -273,6 +273,7 @@ static int ia64_cpu_post_load(void *opaque, int version_id)
     memset(env->mmu.tlb_inst_micro, 0,
            sizeof(env->mmu.tlb_inst_micro));
     memset(&env->mmu.code_tlb_ed, 0, sizeof(env->mmu.code_tlb_ed));
+    memset(env->mmu.key_cache, 0, sizeof(env->mmu.key_cache));
     memset(env->mmu.tlb_data_l1_lookup, 0,
            sizeof(env->mmu.tlb_data_l1_lookup));
     env->mmu.tlb_data_l1_last = 0;

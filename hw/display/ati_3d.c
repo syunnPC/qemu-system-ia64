@@ -159,6 +159,8 @@ typedef struct R100TextureState {
 
 typedef struct R100TextureBlock {
     uint64_t address;
+    uint64_t sample;
+    unsigned int bytes;
     uint8_t data[16];
     R100Color palette[4];
     float alpha[8];
@@ -170,6 +172,8 @@ typedef struct R100TextureBlock {
 typedef struct R100TextureBlockCache {
     R100TextureBlock entry[4];
     unsigned int count;
+    unsigned int next;
+    uint64_t sample;
 } R100TextureBlockCache;
 
 typedef struct R100DepthState {
@@ -193,9 +197,14 @@ typedef struct R100DrawState {
     uint32_t color_pitch_reg;
     uint32_t color_pitch;
     uint32_t color_offset;
+    uint32_t color_mask;
+    uint32_t plane_mask;
+    unsigned int color_rop;
+    bool color_reads_destination;
     int clip_left, clip_right, clip_top, clip_bottom;
     R100DepthState depth;
     R100TextureState texture[3];
+    R100TextureBlockCache texture_cache[3];
     uint8_t coordinate_mask;
     bool specular_rgb;
     bool specular_alpha;
@@ -580,6 +589,9 @@ static void r100_dirty_batch_add(ATIVGAState *s, R100DirtyBatch *batch,
     while (i < batch->count) {
         R100DirtyRange *range = &batch->ranges[i];
 
+        if (start >= range->start && end <= range->end) {
+            return;
+        }
         if (start <= range->end && range->start <= end) {
             start = MIN(start, range->start);
             end = MAX(end, range->end);
@@ -1240,6 +1252,7 @@ static R100DrawState *r100_draw_state(ATIVGAState *s, R100DrawState *draw)
     }
     draw->generation = s->r100_state_generation;
     draw->valid = true;
+    memset(draw->texture_cache, 0, sizeof(draw->texture_cache));
     draw->pp_cntl = r100_context_read(r, R100_PP_CNTL);
     draw->rb_cntl = r100_context_read(r, R100_RB3D_CNTL);
     draw->color_format = extract32(draw->rb_cntl,
@@ -1248,6 +1261,16 @@ static R100DrawState *r100_draw_state(ATIVGAState *s, R100DrawState *draw)
     draw->color_pitch_reg = r100_context_read(r, R100_RB3D_COLORPITCH);
     draw->color_pitch = draw->color_pitch_reg & 0x1ff8U;
     draw->color_offset = r100_context_read(r, R100_RB3D_COLOROFFSET) & ~0xfU;
+    draw->color_mask = draw->color_cpp ?
+                      UINT32_MAX >> (32 - 8 * draw->color_cpp) : 0;
+    draw->plane_mask = r100_context_read(r, R100_RB3D_PLANEMASK);
+    draw->color_rop = extract32(r100_context_read(r, R100_RB3D_ROPCNTL), 8, 4);
+    draw->color_reads_destination =
+        (draw->rb_cntl & R100_RB3D_ALPHA_BLEND_ENABLE) ||
+        ((draw->rb_cntl & R100_RB3D_ROP_ENABLE) &&
+         ((draw->color_rop ^ (draw->color_rop >> 1)) & 5)) ||
+        ((draw->rb_cntl & R100_RB3D_PLANE_MASK_ENABLE) &&
+         (draw->plane_mask & draw->color_mask) != draw->color_mask);
     top_left = r->re_top_left;
     width_height = r100_context_read(r, R100_RE_WIDTH_HEIGHT);
     draw->clip_left = top_left & 0xffff;
@@ -1552,23 +1575,34 @@ static R100TextureBlock *r100_texture_cache_read(ATIVGAState *s,
                                                 unsigned int bytes)
 {
     unsigned int i;
-    R100TextureBlock *entry;
+    R100TextureBlock *entry = NULL;
+    uint8_t data[16];
 
     for (i = 0; i < cache->count; i++) {
-        if (cache->entry[i].address == address) {
-            return &cache->entry[i];
+        if (cache->entry[i].address == address &&
+            cache->entry[i].bytes == bytes) {
+            entry = &cache->entry[i];
+            if (entry->sample == cache->sample) {
+                return entry;
+            }
+            break;
         }
     }
-    i = cache->count < ARRAY_SIZE(cache->entry) ? cache->count : 0;
-    entry = &cache->entry[i];
-    entry->decoded = false;
-    if (!ati_r100_gpu_read(s, address, entry->data, bytes)) {
+    if (!ati_r100_gpu_read(s, address, data, bytes)) {
         return NULL;
     }
-    entry->address = address;
-    if (cache->count < ARRAY_SIZE(cache->entry)) {
-        cache->count++;
+    if (!entry) {
+        i = cache->count < ARRAY_SIZE(cache->entry) ? cache->count++ :
+            cache->next++ % ARRAY_SIZE(cache->entry);
+        entry = &cache->entry[i];
+        entry->decoded = false;
+    } else if (memcmp(entry->data, data, bytes)) {
+        entry->decoded = false;
     }
+    memcpy(entry->data, data, bytes);
+    entry->address = address;
+    entry->bytes = bytes;
+    entry->sample = cache->sample;
     return entry;
 }
 
@@ -1768,15 +1802,18 @@ static R100Color r100_sample_texture_level(ATIVGAState *s,
                                            const R100TextureState *texture,
                                            float s_coord, float t_coord,
                                            bool nonparametric,
-                                           unsigned int level, bool linear)
+                                           unsigned int level, bool linear,
+                                           R100TextureBlockCache *shared_cache)
 {
     unsigned int width, height, pitch;
     uint64_t offset;
     R100TextureAxis xaxis;
     R100TextureAxis yaxis;
-    R100TextureBlockCache cache = { .count = 0 };
+    R100TextureBlockCache local_cache = { 0 };
+    R100TextureBlockCache *cache = shared_cache ? shared_cache : &local_cache;
     float u, v;
 
+    cache->sample++;
     r100_texture_level_info(texture, level, &width, &height, &pitch, &offset);
     if (nonparametric) {
         u = s_coord * width / texture->width;
@@ -1801,7 +1838,7 @@ static R100Color r100_sample_texture_level(ATIVGAState *s,
             width, height, pitch, texture->cpp, offset,
             texture->border_color, texture->yuv_to_rgb,
             xaxis.border[0] || yaxis.border[0],
-            xaxis.texel[0], yaxis.texel[0], &cache);
+            xaxis.texel[0], yaxis.texel[0], cache);
     }
     {
         R100Color c00 = r100_texture_texel(
@@ -1809,25 +1846,25 @@ static R100Color r100_sample_texture_level(ATIVGAState *s,
             width, height, pitch, texture->cpp, offset,
             texture->border_color, texture->yuv_to_rgb,
             xaxis.border[0] || yaxis.border[0],
-            xaxis.texel[0], yaxis.texel[0], &cache);
+            xaxis.texel[0], yaxis.texel[0], cache);
         R100Color c10 = r100_texture_texel(
             s, texture->txformat, texture->txoffset, texture->format,
             width, height, pitch, texture->cpp, offset,
             texture->border_color, texture->yuv_to_rgb,
             xaxis.border[1] || yaxis.border[0],
-            xaxis.texel[1], yaxis.texel[0], &cache);
+            xaxis.texel[1], yaxis.texel[0], cache);
         R100Color c01 = r100_texture_texel(
             s, texture->txformat, texture->txoffset, texture->format,
             width, height, pitch, texture->cpp, offset,
             texture->border_color, texture->yuv_to_rgb,
             xaxis.border[0] || yaxis.border[1],
-            xaxis.texel[0], yaxis.texel[1], &cache);
+            xaxis.texel[0], yaxis.texel[1], cache);
         R100Color c11 = r100_texture_texel(
             s, texture->txformat, texture->txoffset, texture->format,
             width, height, pitch, texture->cpp, offset,
             texture->border_color, texture->yuv_to_rgb,
             xaxis.border[1] || yaxis.border[1],
-            xaxis.texel[1], yaxis.texel[1], &cache);
+            xaxis.texel[1], yaxis.texel[1], cache);
 
         return r100_color_lerp(
             r100_color_lerp(c00, c10, xaxis.fraction),
@@ -1843,6 +1880,8 @@ static R100Color r100_sample_texture(ATIVGAState *s, R100DrawState *draw,
                                      const R100TextureGradients *gradients)
 {
     R100TextureState *texture = &r100_draw_state(s, draw)->texture[unit];
+    R100TextureBlockCache *cache = draw->texture_memory_local &&
+        texture->block_bytes ? &draw->texture_cache[unit] : NULL;
     uint32_t filter = texture->filter;
     unsigned int route = texture->route;
     unsigned int min_filter = filter & R100_TXFILTER_MIN_MASK;
@@ -1894,7 +1933,7 @@ static R100Color r100_sample_texture(ATIVGAState *s, R100DrawState *draw,
                    0.5f : 0.0f)) {
         return r100_sample_texture_level(
             s, texture, s_coord, t_coord, nonparametric, 0,
-            filter & R100_TXFILTER_MAG_LINEAR);
+            filter & R100_TXFILTER_MAG_LINEAR, cache);
     }
 
     switch (min_filter) {
@@ -1902,7 +1941,7 @@ static R100Color r100_sample_texture(ATIVGAState *s, R100DrawState *draw,
     case R100_TXFILTER_MIN_LINEAR:
         return r100_sample_texture_level(
             s, texture, s_coord, t_coord, nonparametric, 0,
-            min_filter == R100_TXFILTER_MIN_LINEAR);
+            min_filter == R100_TXFILTER_MIN_LINEAR, cache);
     case R100_TXFILTER_MIN_NEAREST_MIP_NEAREST:
     case R100_TXFILTER_MIN_NEAREST_MIP_LINEAR:
         if (!isfinite(lambda) || lambda >= max_level + 0.5f) {
@@ -1912,7 +1951,7 @@ static R100Color r100_sample_texture(ATIVGAState *s, R100DrawState *draw,
         }
         linear = min_filter == R100_TXFILTER_MIN_NEAREST_MIP_LINEAR;
         return r100_sample_texture_level(s, texture, s_coord, t_coord,
-                                         nonparametric, level, linear);
+                                         nonparametric, level, linear, cache);
     case R100_TXFILTER_MIN_LINEAR_MIP_NEAREST:
     case R100_TXFILTER_MIN_LINEAR_MIP_LINEAR:
     {
@@ -1930,18 +1969,20 @@ static R100Color r100_sample_texture(ATIVGAState *s, R100DrawState *draw,
         fraction = lod - level;
         linear = min_filter == R100_TXFILTER_MIN_LINEAR_MIP_LINEAR;
         lower = r100_sample_texture_level(s, texture, s_coord, t_coord,
-                                          nonparametric, level, linear);
-        if (level == max_level) {
+                                          nonparametric, level, linear, cache);
+        if (level == max_level ||
+            (fraction == 0.0f && draw->texture_memory_local)) {
             return lower;
         }
         upper = r100_sample_texture_level(s, texture, s_coord, t_coord,
-                                          nonparametric, level + 1, linear);
+                                          nonparametric, level + 1, linear,
+                                          cache);
         return r100_color_lerp(lower, upper, fraction);
     }
     default:
         return r100_sample_texture_level(
             s, texture, s_coord, t_coord, nonparametric, 0,
-            filter & R100_TXFILTER_MAG_LINEAR);
+            filter & R100_TXFILTER_MAG_LINEAR, cache);
     }
 }
 
@@ -2419,6 +2460,8 @@ static bool r100_fragment(ATIVGAState *s, int x, int y, float z,
     int clip_right = state->clip_right;
     int clip_bottom = state->clip_bottom;
     unsigned int color_cpp = state->color_cpp;
+    bool read_destination = state->color_reads_destination;
+    uint64_t generation = state->generation;
     uint64_t color_address;
     uint64_t color_pixel_offset;
     uint32_t dst_raw = 0;
@@ -2553,33 +2596,32 @@ static bool r100_fragment(ATIVGAState *s, int x, int y, float z,
         return false;
     }
     color_address = color_offset + color_pixel_offset;
-    {
+    if (generation != s->r100_state_generation) {
         unsigned int rop = extract32(
             r100_context_read(r, R100_RB3D_ROPCNTL), 8, 4);
         uint32_t pixel_mask = UINT32_MAX >> (32 - 8 * color_cpp);
-        bool read_destination = (rb_cntl & R100_RB3D_ALPHA_BLEND_ENABLE) ||
+        read_destination = (rb_cntl & R100_RB3D_ALPHA_BLEND_ENABLE) ||
             ((rb_cntl & R100_RB3D_ROP_ENABLE) && ((rop ^ (rop >> 1)) & 5)) ||
             ((rb_cntl & R100_RB3D_PLANE_MASK_ENABLE) &&
              (r100_context_read(r, R100_RB3D_PLANEMASK) & pixel_mask) !=
              pixel_mask);
 
-        if ((read_destination ||
-             !r100_local_vram_ptr(s, color_address, color_cpp)) &&
-            !r100_read_pixel(s, color_address, color_cpp, &dst_raw)) {
-            return false;
-        }
+    }
+    if ((read_destination ||
+         !r100_local_vram_ptr(s, color_address, color_cpp)) &&
+        !r100_read_pixel(s, color_address, color_cpp, &dst_raw)) {
+        return false;
     }
     if (rb_cntl & R100_RB3D_ALPHA_BLEND_ENABLE) {
         color = r100_blend(r, color, r100_decode_color(dst_raw, color_format));
     }
     result = r100_encode_color(color, color_format);
     if (rb_cntl & R100_RB3D_ROP_ENABLE) {
-        result = r100_apply_rop(extract32(
-            r100_context_read(r, R100_RB3D_ROPCNTL), 8, 4),
+        result = r100_apply_rop(r100_draw_state(s, draw)->color_rop,
             result, dst_raw);
     }
     if (rb_cntl & R100_RB3D_PLANE_MASK_ENABLE) {
-        uint32_t mask = r100_context_read(r, R100_RB3D_PLANEMASK);
+        uint32_t mask = r100_draw_state(s, draw)->plane_mask;
 
         result = (result & mask) | (dst_raw & ~mask);
     }
@@ -2682,9 +2724,57 @@ bool ati_3d_consume_2d_work(ATIVGAState *s, uint64_t work)
     return !r->processing_depth || r100_consume_blit_work(r, work);
 }
 
+static void r100_triangle_gradients(const R100Vertex *v0,
+                                     const R100Vertex *v1,
+                                     const R100Vertex *v2,
+                                     const R100Edge *edge0,
+                                     const R100Edge *edge1,
+                                     const R100Edge *edge2, double area,
+                                     uint8_t mask,
+                                     R100TextureGradients *gradients)
+{
+    for (unsigned int unit = 0; unit < 3; unit++) {
+        if (!(mask & BIT(unit))) {
+            continue;
+        }
+        gradients->dsdx[unit] = (v0->s[unit] * edge0->x +
+                                  v1->s[unit] * edge1->x +
+                                  v2->s[unit] * edge2->x) / area;
+        gradients->dsdy[unit] = (v0->s[unit] * edge0->y +
+                                  v1->s[unit] * edge1->y +
+                                  v2->s[unit] * edge2->y) / area;
+        gradients->dtdx[unit] = (v0->t[unit] * edge0->x +
+                                  v1->t[unit] * edge1->x +
+                                  v2->t[unit] * edge2->x) / area;
+        gradients->dtdy[unit] = (v0->t[unit] * edge0->y +
+                                  v1->t[unit] * edge1->y +
+                                  v2->t[unit] * edge2->y) / area;
+        gradients->dqdx[unit] = (v0->q[unit] * edge0->x +
+                                  v1->q[unit] * edge1->x +
+                                  v2->q[unit] * edge2->x) / area;
+        gradients->dqdy[unit] = (v0->q[unit] * edge0->y +
+                                  v1->q[unit] * edge1->y +
+                                  v2->q[unit] * edge2->y) / area;
+    }
+}
+
+static bool r100_exact_edge_coordinates(const R100Vertex *v)
+{
+    return fabsf(v->x) <= 0x1p20f && fabsf(v->y) <= 0x1p20f &&
+           floorf(v->x * 16) == v->x * 16 &&
+           floorf(v->y * 16) == v->y * 16;
+}
+
+static void r100_draw_begin_primitive(R100DrawState *draw)
+{
+    for (unsigned int unit = 0; unit < ARRAY_SIZE(draw->texture); unit++) {
+        draw->texture[unit].lambda_valid = false;
+    }
+}
+
 static void r100_draw_triangle(ATIVGAState *s, const R100Vertex *v0,
                                const R100Vertex *v1, const R100Vertex *v2,
-                               R100DirtyBatch *batch)
+                               R100DirtyBatch *batch, R100DrawState *draw)
 {
     ATI3DState *r = &s->r100_3d;
     uint32_t top_left = r->re_top_left;
@@ -2704,7 +2794,8 @@ static void r100_draw_triangle(ATIVGAState *s, const R100Vertex *v0,
     double row_value1;
     double row_value2;
     R100TextureGradients gradients;
-    R100DrawState draw = { .valid = false };
+    uint8_t gradients_ready = 0;
+    bool exact_edges;
     int min_x, min_y, max_x, max_y;
     uint64_t pixels;
     unsigned int unit;
@@ -2718,26 +2809,10 @@ static void r100_draw_triangle(ATIVGAState *s, const R100Vertex *v0,
     edge1 = r100_triangle_edge(v2, v0, reverse);
     edge2 = r100_triangle_edge(v0, v1, reverse);
     absolute_area = fabs(area);
-    for (unit = 0; unit < 3; unit++) {
-        gradients.dsdx[unit] = (v0->s[unit] * edge0.x +
-                                v1->s[unit] * edge1.x +
-                                v2->s[unit] * edge2.x) / absolute_area;
-        gradients.dsdy[unit] = (v0->s[unit] * edge0.y +
-                                v1->s[unit] * edge1.y +
-                                v2->s[unit] * edge2.y) / absolute_area;
-        gradients.dtdx[unit] = (v0->t[unit] * edge0.x +
-                                v1->t[unit] * edge1.x +
-                                v2->t[unit] * edge2.x) / absolute_area;
-        gradients.dtdy[unit] = (v0->t[unit] * edge0.y +
-                                v1->t[unit] * edge1.y +
-                                v2->t[unit] * edge2.y) / absolute_area;
-        gradients.dqdx[unit] = (v0->q[unit] * edge0.x +
-                                v1->q[unit] * edge1.x +
-                                v2->q[unit] * edge2.x) / absolute_area;
-        gradients.dqdy[unit] = (v0->q[unit] * edge0.y +
-                                v1->q[unit] * edge1.y +
-                                v2->q[unit] * edge2.y) / absolute_area;
-    }
+    /* These sixteenth-pixel coordinates keep edge sums exact in double. */
+    exact_edges = r100_exact_edge_coordinates(v0) &&
+                  r100_exact_edge_coordinates(v1) &&
+                  r100_exact_edge_coordinates(v2);
     min_x = MAX((int)floorf(MIN(v0->x, MIN(v1->x, v2->x))), clip_left);
     min_y = MAX((int)floorf(MIN(v0->y, MIN(v1->y, v2->y))), clip_top);
     max_x = MIN((int)ceilf(MAX(v0->x, MAX(v1->x, v2->x))), clip_right);
@@ -2750,6 +2825,7 @@ static void r100_draw_triangle(ATIVGAState *s, const R100Vertex *v0,
         return;
     }
 
+    r100_draw_begin_primitive(draw);
     row_value0 = r100_edge_value(&edge0, min_x + 0.5, min_y + 0.5);
     row_value1 = r100_edge_value(&edge1, min_x + 0.5, min_y + 0.5);
     row_value2 = r100_edge_value(&edge2, min_x + 0.5, min_y + 0.5);
@@ -2757,6 +2833,7 @@ static void r100_draw_triangle(ATIVGAState *s, const R100Vertex *v0,
         double value0 = row_value0;
         double value1 = row_value1;
         double value2 = row_value2;
+        bool block_inside = false;
 
         for (x = min_x; x <= max_x; x++) {
             double pixel_value0 = value0;
@@ -2772,15 +2849,41 @@ static void r100_draw_triangle(ATIVGAState *s, const R100Vertex *v0,
             float tex_t[3];
             float tex_q[3];
 
+            if (exact_edges && !((x - min_x) & 7)) {
+                unsigned int count = MIN(8, max_x - x + 1);
+                double end0 = value0 + edge0.x * (count - 1);
+                double end1 = value1 + edge1.x * (count - 1);
+                double end2 = value2 + edge2.x * (count - 1);
+
+                if (!r100_edge_contains(&edge0, MAX(value0, end0)) ||
+                    !r100_edge_contains(&edge1, MAX(value1, end1)) ||
+                    !r100_edge_contains(&edge2, MAX(value2, end2))) {
+                    value0 += edge0.x * count;
+                    value1 += edge1.x * count;
+                    value2 += edge2.x * count;
+                    x += count - 1;
+                    continue;
+                }
+                block_inside = r100_edge_contains(&edge0, MIN(value0, end0)) &&
+                               r100_edge_contains(&edge1, MIN(value1, end1)) &&
+                               r100_edge_contains(&edge2, MIN(value2, end2));
+            }
             value0 += edge0.x;
             value1 += edge1.x;
             value2 += edge2.x;
-            if (!r100_edge_contains(&edge0, pixel_value0) ||
-                !r100_edge_contains(&edge1, pixel_value1) ||
-                !r100_edge_contains(&edge2, pixel_value2)) {
+            if (!block_inside &&
+                (!r100_edge_contains(&edge0, pixel_value0) ||
+                 !r100_edge_contains(&edge1, pixel_value1) ||
+                 !r100_edge_contains(&edge2, pixel_value2))) {
                 continue;
             }
-            state = r100_draw_state(s, &draw);
+            state = r100_draw_state(s, draw);
+            if (state->coordinate_mask & ~gradients_ready) {
+                r100_triangle_gradients(v0, v1, v2, &edge0, &edge1, &edge2,
+                    absolute_area, state->coordinate_mask & ~gradients_ready,
+                    &gradients);
+                gradients_ready |= state->coordinate_mask;
+            }
             w0 = pixel_value0 / absolute_area;
             w1 = pixel_value1 / absolute_area;
             w2 = pixel_value2 / absolute_area;
@@ -2816,7 +2919,7 @@ static void r100_draw_triangle(ATIVGAState *s, const R100Vertex *v0,
             r100_fragment(s, x, y,
                           v0->z * w0 + v1->z * w1 + v2->z * w2, c,
                           specular, tex_s, tex_t, tex_q, &gradients, batch,
-                          &draw);
+                          draw);
         }
         row_value0 += edge0.y;
         row_value1 += edge1.y;
@@ -2826,17 +2929,18 @@ static void r100_draw_triangle(ATIVGAState *s, const R100Vertex *v0,
 }
 
 static void r100_draw_line(ATIVGAState *s, const R100Vertex *a,
-                           const R100Vertex *b, R100DirtyBatch *batch)
+                           const R100Vertex *b, R100DirtyBatch *batch,
+                           R100DrawState *draw)
 {
     /* TODO: Honor SE_LINE_WIDTH and RE_LINE_PATTERN. */
     int steps = ceilf(MAX(fabsf(b->x - a->x), fabsf(b->y - a->y)));
     int i;
-    R100DrawState draw = { .valid = false };
 
     if (steps <= 0 || steps > 8192 ||
         !r100_consume_draw_budget(&s->r100_3d, steps + 1)) {
         return;
     }
+    r100_draw_begin_primitive(draw);
     for (i = 0; i <= steps; i++) {
         float f = (float)i / steps;
         R100Color c = {
@@ -2865,7 +2969,7 @@ static void r100_draw_line(ATIVGAState *s, const R100Vertex *a,
             tex_q[unit] = a->q[unit] + (b->q[unit] - a->q[unit]) * f;
         }
         r100_fragment(s, x, y, a->z + (b->z - a->z) * f, c,
-                      specular, tex_s, tex_t, tex_q, NULL, batch, &draw);
+                      specular, tex_s, tex_t, tex_q, NULL, batch, draw);
     }
     s->r100_3d.submitted_primitives++;
 }
@@ -3019,6 +3123,20 @@ static bool r100_shade_mode_supported(uint32_t variation,
            mode == R100_SE_SHADE_GOURAUD;
 }
 
+static bool r100_flat_shading_needed(ATI3DState *r)
+{
+    uint32_t se_cntl = r100_context_read(r, R100_SE_CNTL);
+
+    return extract32(se_cntl, R100_SE_DIFFUSE_SHADE_SHIFT, 2) ==
+           R100_SE_SHADE_FLAT ||
+           extract32(se_cntl, R100_SE_ALPHA_SHADE_SHIFT, 2) ==
+           R100_SE_SHADE_FLAT ||
+           extract32(se_cntl, R100_SE_SPECULAR_SHADE_SHIFT, 2) ==
+           R100_SE_SHADE_FLAT ||
+           extract32(se_cntl, R100_SE_FOG_SHADE_SHIFT, 2) ==
+           R100_SE_SHADE_FLAT;
+}
+
 static void r100_apply_flat_shading(ATI3DState *r, R100Vertex *vertices,
                                     unsigned int count)
 {
@@ -3063,42 +3181,66 @@ static void r100_apply_flat_shading(ATI3DState *r, R100Vertex *vertices,
 
 static void r100_draw_shaded_line(ATIVGAState *s, const R100Vertex *v0,
                                   const R100Vertex *v1,
-                                  R100DirtyBatch *batch)
+                                  R100DirtyBatch *batch, R100DrawState *draw)
 {
-    R100Vertex vertices[] = { *v0, *v1 };
+    R100Vertex vertices[2];
 
-    r100_apply_flat_shading(&s->r100_3d, vertices, ARRAY_SIZE(vertices));
-    r100_draw_line(s, &vertices[0], &vertices[1], batch);
+    if (r100_flat_shading_needed(&s->r100_3d)) {
+        vertices[0] = *v0;
+        vertices[1] = *v1;
+        r100_apply_flat_shading(&s->r100_3d, vertices, ARRAY_SIZE(vertices));
+        v0 = &vertices[0];
+        v1 = &vertices[1];
+    }
+    r100_draw_line(s, v0, v1, batch, draw);
 }
 
 static void r100_draw_shaded_triangle(ATIVGAState *s,
                                       const R100Vertex *v0,
                                       const R100Vertex *v1,
                                       const R100Vertex *v2,
-                                      R100DirtyBatch *batch)
+                                      R100DirtyBatch *batch,
+                                      R100DrawState *draw)
 {
-    R100Vertex vertices[] = { *v0, *v1, *v2 };
+    R100Vertex vertices[3];
 
-    r100_apply_flat_shading(&s->r100_3d, vertices, ARRAY_SIZE(vertices));
-    r100_draw_triangle(s, &vertices[0], &vertices[1], &vertices[2], batch);
+    if (r100_flat_shading_needed(&s->r100_3d)) {
+        vertices[0] = *v0;
+        vertices[1] = *v1;
+        vertices[2] = *v2;
+        r100_apply_flat_shading(&s->r100_3d, vertices, ARRAY_SIZE(vertices));
+        v0 = &vertices[0];
+        v1 = &vertices[1];
+        v2 = &vertices[2];
+    }
+    r100_draw_triangle(s, v0, v1, v2, batch, draw);
 }
 
 static void r100_draw_shaded_quad(ATIVGAState *s, const R100Vertex *v0,
                                   const R100Vertex *v1,
                                   const R100Vertex *v2,
                                   const R100Vertex *v3,
-                                  bool strip, R100DirtyBatch *batch)
+                                  bool strip, R100DirtyBatch *batch,
+                                  R100DrawState *draw)
 {
-    R100Vertex vertices[] = { *v0, *v1, *v2, *v3 };
+    R100Vertex vertices[4];
 
-    r100_apply_flat_shading(&s->r100_3d, vertices, ARRAY_SIZE(vertices));
-    r100_draw_triangle(s, &vertices[0], &vertices[1], &vertices[2], batch);
+    if (r100_flat_shading_needed(&s->r100_3d)) {
+        vertices[0] = *v0;
+        vertices[1] = *v1;
+        vertices[2] = *v2;
+        vertices[3] = *v3;
+        r100_apply_flat_shading(&s->r100_3d, vertices, ARRAY_SIZE(vertices));
+        v0 = &vertices[0];
+        v1 = &vertices[1];
+        v2 = &vertices[2];
+        v3 = &vertices[3];
+    }
+    r100_draw_triangle(s, v0, v1, v2, batch, draw);
     if (strip) {
-        r100_draw_triangle(s, &vertices[1], &vertices[3], &vertices[2],
-                           batch);
+        r100_draw_triangle(s, v1, v3, v2, batch, draw);
     } else {
-        r100_draw_triangle(s, &vertices[0], &vertices[2], &vertices[3],
-                           batch);
+        r100_draw_triangle(s, v0, v2, v3, batch, draw);
     }
 }
 
@@ -3127,8 +3269,18 @@ static bool r100_draw_state_supported(ATIVGAState *s,
         }
     }
 
-    variation = r100_primitive_variation(vertices, count, primitive);
     se_cntl = r100_context_read(r, R100_SE_CNTL);
+    if (r100_shade_mode_supported(UINT32_MAX, R100_VARY_DIFFUSE, se_cntl,
+                                  R100_SE_DIFFUSE_SHADE_SHIFT) &&
+        r100_shade_mode_supported(UINT32_MAX, R100_VARY_ALPHA, se_cntl,
+                                  R100_SE_ALPHA_SHADE_SHIFT) &&
+        r100_shade_mode_supported(UINT32_MAX, R100_VARY_SPECULAR, se_cntl,
+                                  R100_SE_SPECULAR_SHADE_SHIFT) &&
+        r100_shade_mode_supported(UINT32_MAX, R100_VARY_FOG, se_cntl,
+                                  R100_SE_FOG_SHADE_SHIFT)) {
+        return true;
+    }
+    variation = r100_primitive_variation(vertices, count, primitive);
     if (!r100_shade_mode_supported(variation, R100_VARY_DIFFUSE, se_cntl,
                                    R100_SE_DIFFUSE_SHADE_SHIFT) ||
         !r100_shade_mode_supported(variation, R100_VARY_ALPHA, se_cntl,
@@ -3180,65 +3332,66 @@ static void r100_draw_vertices(ATIVGAState *s, R100Vertex *vertices,
     case R100_VF_PRIM_LINE_LIST:
         for (i = 0; i + 1 < count; i += 2) {
             r100_draw_shaded_line(s, &vertices[i], &vertices[i + 1],
-                                  &batch);
+                                  &batch, &draw);
         }
         break;
     case R100_VF_PRIM_LINE_STRIP:
         for (i = 0; i + 1 < count; i++) {
             r100_draw_shaded_line(s, &vertices[i], &vertices[i + 1],
-                                  &batch);
+                                  &batch, &draw);
         }
         break;
     case R100_VF_PRIM_TRIANGLE_LIST:
         for (i = 0; i + 2 < count; i += 3) {
             r100_draw_shaded_triangle(s, &vertices[i], &vertices[i + 1],
-                                      &vertices[i + 2], &batch);
+                                      &vertices[i + 2], &batch, &draw);
         }
         break;
     case R100_VF_PRIM_RECTANGLE_LIST:
         for (i = 0; i + 2 < count; i += 3) {
-            R100Vertex rectangle[] = {
-                vertices[i], vertices[i + 1], vertices[i + 2],
-            };
+            const R100Vertex *v = &vertices[i];
+            R100Vertex rectangle[3];
             R100Vertex fourth;
 
-            r100_apply_flat_shading(&s->r100_3d, rectangle,
-                                    ARRAY_SIZE(rectangle));
-            fourth = r100_rectangle_fourth_vertex(
-                &rectangle[0], &rectangle[1], &rectangle[2]);
-            r100_draw_triangle(s, &rectangle[0], &rectangle[1],
-                               &rectangle[2], &batch);
-            r100_draw_triangle(s, &rectangle[0], &rectangle[2], &fourth,
-                               &batch);
+            if (r100_flat_shading_needed(&s->r100_3d)) {
+                memcpy(rectangle, v, sizeof(rectangle));
+                r100_apply_flat_shading(&s->r100_3d, rectangle,
+                                        ARRAY_SIZE(rectangle));
+                v = rectangle;
+            }
+            fourth = r100_rectangle_fourth_vertex(&v[0], &v[1], &v[2]);
+            r100_draw_triangle(s, &v[0], &v[1], &v[2], &batch, &draw);
+            r100_draw_triangle(s, &v[0], &v[2], &fourth, &batch, &draw);
         }
         break;
     case R100_VF_PRIM_TRIANGLE_FAN:
         for (i = 1; i + 1 < count; i++) {
             r100_draw_shaded_triangle(s, &vertices[0], &vertices[i],
-                                      &vertices[i + 1], &batch);
+                                      &vertices[i + 1], &batch, &draw);
         }
         break;
     case R100_VF_PRIM_POLYGON:
         r100_apply_flat_shading(&s->r100_3d, vertices, count);
         for (i = 1; i + 1 < count; i++) {
             r100_draw_triangle(s, &vertices[0], &vertices[i],
-                               &vertices[i + 1], &batch);
+                               &vertices[i + 1], &batch, &draw);
         }
         break;
     case R100_VF_PRIM_TRIANGLE_STRIP:
         for (i = 0; i + 2 < count; i++) {
-            R100Vertex triangle[] = {
-                vertices[i], vertices[i + 1], vertices[i + 2],
-            };
+            const R100Vertex *v = &vertices[i];
+            R100Vertex triangle[3];
 
-            r100_apply_flat_shading(&s->r100_3d, triangle,
-                                    ARRAY_SIZE(triangle));
+            if (r100_flat_shading_needed(&s->r100_3d)) {
+                memcpy(triangle, v, sizeof(triangle));
+                r100_apply_flat_shading(&s->r100_3d, triangle,
+                                        ARRAY_SIZE(triangle));
+                v = triangle;
+            }
             if (i & 1) {
-                r100_draw_triangle(s, &triangle[1], &triangle[0],
-                                   &triangle[2], &batch);
+                r100_draw_triangle(s, &v[1], &v[0], &v[2], &batch, &draw);
             } else {
-                r100_draw_triangle(s, &triangle[0], &triangle[1],
-                                   &triangle[2], &batch);
+                r100_draw_triangle(s, &v[0], &v[1], &v[2], &batch, &draw);
             }
         }
         break;
@@ -3246,14 +3399,14 @@ static void r100_draw_vertices(ATIVGAState *s, R100Vertex *vertices,
         for (i = 0; i + 3 < count; i += 4) {
             r100_draw_shaded_quad(s, &vertices[i], &vertices[i + 1],
                                   &vertices[i + 2], &vertices[i + 3], false,
-                                  &batch);
+                                  &batch, &draw);
         }
         break;
     case R100_VF_PRIM_QUAD_STRIP:
         for (i = 0; i + 3 < count; i += 2) {
             r100_draw_shaded_quad(s, &vertices[i], &vertices[i + 1],
                                   &vertices[i + 2], &vertices[i + 3], true,
-                                  &batch);
+                                  &batch, &draw);
         }
         break;
     default:
@@ -3486,6 +3639,49 @@ static bool r100_stream_read(ATIVGAState *s, R100Stream *stream,
     }
     stream->pos++;
     stream->remaining--;
+    return true;
+}
+
+static bool r100_stream_read_payload(ATIVGAState *s, R100Stream *stream,
+                                     uint32_t *payload, unsigned int count)
+{
+    ATI3DState *r = &s->r100_3d;
+    unsigned int done = 0;
+
+    while (done < count) {
+        uint32_t index = stream->ring ? stream->pos & stream->mask :
+                                        stream->pos;
+        uint64_t until_wrap = stream->ring ?
+            (uint64_t)stream->mask + 1 - index :
+            (uint64_t)UINT32_MAX + 1 - index;
+        unsigned int words = MIN(count - done, stream->remaining);
+        uint64_t address, offset, span;
+
+        words = MIN(words, until_wrap);
+        words = MIN(words, r->command_work_remaining);
+        if (words &&
+            !uadd64_overflow(stream->base, (uint64_t)index * 4, &address) &&
+            r100_programmed_vram_span(s, address, (uint64_t)words * 4,
+                                      &offset, &span) && span >= 4) {
+            unsigned int swap = stream->ring ? extract32(
+                r->cp_rb_cntl, R100_RB_BUF_SWAP_SHIFT, 2) : 0;
+
+            words = span / 4;
+            r100_consume_command_work(r, words);
+            memcpy(payload + done, s->vga.vram_ptr + offset, words * 4);
+            for (unsigned int i = 0; i < words; i++) {
+                payload[done + i] = r100_swap_word(
+                    le32_to_cpu(payload[done + i]), swap);
+            }
+            stream->pos += words;
+            stream->remaining -= words;
+            done += words;
+        } else if (r100_stream_read(s, stream, &payload[done])) {
+            done++;
+        } else {
+            return false;
+        }
+    }
     return true;
 }
 
@@ -4219,6 +4415,9 @@ static bool r100_process_packet3(ATIVGAState *s, unsigned int opcode,
 static bool r100_process_stream(ATIVGAState *s, R100Stream *stream)
 {
     ATI3DState *r = &s->r100_3d;
+    uint32_t small_payload[64];
+    g_autofree uint32_t *large_payload = NULL;
+    unsigned int payload_capacity = 0;
     bool outermost = r->processing_depth == 0;
     bool ok = true;
 
@@ -4234,7 +4433,7 @@ static bool r100_process_stream(ATIVGAState *s, R100Stream *stream)
     }
     r->processing_depth++;
     while (stream->remaining) {
-        g_autofree uint32_t *payload = NULL;
+        uint32_t *payload;
         uint32_t header;
         unsigned int type;
         unsigned int count;
@@ -4281,14 +4480,17 @@ static bool r100_process_stream(ATIVGAState *s, R100Stream *stream)
             ok = false;
             break;
         }
-        payload = g_new(uint32_t, count);
-        for (i = 0; i < count; i++) {
-            if (!r100_stream_read(s, stream, &payload[i])) {
-                ok = false;
-                break;
+        if (count <= ARRAY_SIZE(small_payload)) {
+            payload = small_payload;
+        } else {
+            if (count > payload_capacity) {
+                large_payload = g_renew(uint32_t, large_payload, count);
+                payload_capacity = count;
             }
+            payload = large_payload;
         }
-        if (!ok) {
+        if (!r100_stream_read_payload(s, stream, payload, count)) {
+            ok = false;
             break;
         }
         if (type == R100_CP_PACKET0) {

@@ -1356,6 +1356,7 @@ static void ia64_pkr_write(CPUIA64State *env, uint32_t pkr_num,
     }
     env->pkr[pkr_num] = masked;
     if (changed) {
+        memset(env->mmu.key_cache, 0, sizeof(env->mmu.key_cache));
         ia64_tlb_bump_generation(env, false);
         ia64_tlb_bump_generation(env, true);
         tlb_flush(env_cpu(env));

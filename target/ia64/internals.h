@@ -46,6 +46,12 @@ typedef struct IA64ExceptionState {
     bool suppressed_tlb_overflow;
 } IA64ExceptionState;
 
+typedef struct IA64KeyCacheEntry {
+    uint64_t pkr;
+    uint32_t key;
+    bool valid;
+} IA64KeyCacheEntry;
+
 typedef struct IA64MMUState {
     /* Derived translation caches; all entries are reconstructible. */
     IA64TlbEntry tlb_data[IA64_TLB_MAX];
@@ -81,6 +87,7 @@ typedef struct IA64MMUState {
     uint8_t tlb_data_victim_next;
     uint8_t tlb_inst_victim_next;
     IA64CodeTlbEdCache code_tlb_ed;
+    IA64KeyCacheEntry key_cache[4];
 
     /* Transient bookkeeping for architected purge operations. */
     uint16_t pending_purge_data_count;

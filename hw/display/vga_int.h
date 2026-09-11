@@ -28,6 +28,7 @@
 #include "ui/console.h"
 #include "system/ioport.h"
 #include "system/memory.h"
+#include "exec/target_page.h"
 
 #include "hw/display/bochs-vbe.h"
 #include "hw/acpi/acpi_aml_interface.h"
@@ -100,7 +101,17 @@ typedef struct VGACommonState {
     int32_t bank_offset;
     int (*get_bpp)(struct VGACommonState *s);
     /* Optional packed scanout address translation, used while drawing. */
-    uint8_t (*scanout_read)(struct VGACommonState *s, uint32_t address);
+    uint64_t (*scanout_map)(struct VGACommonState *s, uint32_t address,
+                            uint32_t *length);
+    void (*scanout_prepare)(struct VGACommonState *s);
+    bool last_scanout_mapped;
+    uint32_t scanout_address;
+    uint32_t scanout_length;
+    const uint8_t *scanout_data;
+    uint32_t cursor_dirty_offset;
+    uint32_t cursor_dirty_size;
+    bool cursor_dirty_valid;
+    bool cursor_image_dirty;
     void (*get_params)(struct VGACommonState *s, VGADisplayParams *params);
     void (*get_resolution)(struct VGACommonState *s,
                         int *pwidth,
@@ -174,6 +185,33 @@ MemoryRegion *vga_init_io(VGACommonState *s, Object *obj,
                           const MemoryRegionPortio **vga_ports,
                           const MemoryRegionPortio **vbe_ports);
 void vga_common_reset(VGACommonState *s);
+
+typedef struct VGADirtyRange {
+    uint64_t start;
+    uint64_t end;
+} VGADirtyRange;
+
+static inline void vga_dirty_range_flush(VGACommonState *s, VGADirtyRange *r)
+{
+    if (r->end) {
+        memory_region_set_dirty(&s->vram, r->start, r->end - r->start);
+        r->end = 0;
+    }
+}
+
+static inline void vga_dirty_range_add(VGACommonState *s, VGADirtyRange *r,
+                                       uint64_t offset, uint64_t length)
+{
+    uint64_t mask = qemu_target_page_size() - 1;
+    uint64_t start = offset & ~mask;
+    uint64_t end = (offset + length + mask) & ~mask;
+
+    if (r->end && (start > r->end || end < r->start)) {
+        vga_dirty_range_flush(s, r);
+    }
+    r->start = r->end ? MIN(r->start, start) : start;
+    r->end = MAX(r->end, end);
+}
 
 void vga_dirty_log_start(VGACommonState *s);
 void vga_dirty_log_stop(VGACommonState *s);

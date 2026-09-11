@@ -527,9 +527,9 @@ static void ia64_gen_fp_load_advanced_fail_value(const Ia64Instruction *insn)
     const IA64MemoryOperands *op = &insn->operands.memory;
 
     if (insn->opcode == IA64_OP_LDF8) {
-        ia64_gen_fr_mov_sig(op->destination, tcg_constant_i64(0));
+        ia64_gen_fr_mov_sig(insn->ctx, op->destination, tcg_constant_i64(0));
     } else {
-        ia64_gen_fr_mov(op->destination, tcg_constant_i64(0));
+        ia64_gen_fr_mov(insn->ctx, op->destination, tcg_constant_i64(0));
     }
 }
 
@@ -625,7 +625,7 @@ static void ia64_gen_fp_load(DisasContext *ctx, const Ia64Instruction *insn)
             gen_helper_invalidate_alat_fp_reg(
                 tcg_env, tcg_constant_i32(op->destination));
         }
-        ia64_gen_fr_set_nat(op->destination);
+        ia64_gen_fr_set_nat(insn->ctx, op->destination);
 
         gen_set_label(l_done);
         ia64_gen_fp_load_base_update(insn, addr, increment, base_nat,
@@ -731,11 +731,11 @@ static void ia64_gen_fp_load_pair_value(DisasContext *ctx,
             tcg_gen_extr_i128_i64(first, second, pair);
         }
         if (insn->opcode == IA64_OP_LDFPD) {
-            ia64_gen_fr_mov(op->destination, first);
-            ia64_gen_fr_mov(op->source, second);
+            ia64_gen_fr_mov(insn->ctx, op->destination, first);
+            ia64_gen_fr_mov(insn->ctx, op->source, second);
         } else {
-            ia64_gen_fr_mov_sig(op->destination, first);
-            ia64_gen_fr_mov_sig(op->source, second);
+            ia64_gen_fr_mov_sig(insn->ctx, op->destination, first);
+            ia64_gen_fr_mov_sig(insn->ctx, op->source, second);
         }
         break;
     }
@@ -748,8 +748,8 @@ static void ia64_gen_fp_load_pair_nat_set(const Ia64Instruction *insn)
 {
     const IA64MemoryOperands *op = &insn->operands.memory;
 
-    ia64_gen_fr_set_nat(op->destination);
-    ia64_gen_fr_set_nat(op->source);
+    ia64_gen_fr_set_nat(insn->ctx, op->destination);
+    ia64_gen_fr_set_nat(insn->ctx, op->source);
 }
 
 static void ia64_gen_fp_load_pair_advanced_fail_value(
@@ -758,11 +758,11 @@ static void ia64_gen_fp_load_pair_advanced_fail_value(
     const IA64MemoryOperands *op = &insn->operands.memory;
 
     if (insn->opcode == IA64_OP_LDFP8) {
-        ia64_gen_fr_mov_sig(op->destination, tcg_constant_i64(0));
-        ia64_gen_fr_mov_sig(op->source, tcg_constant_i64(0));
+        ia64_gen_fr_mov_sig(insn->ctx, op->destination, tcg_constant_i64(0));
+        ia64_gen_fr_mov_sig(insn->ctx, op->source, tcg_constant_i64(0));
     } else {
-        ia64_gen_fr_mov(op->destination, tcg_constant_i64(0));
-        ia64_gen_fr_mov(op->source, tcg_constant_i64(0));
+        ia64_gen_fr_mov(insn->ctx, op->destination, tcg_constant_i64(0));
+        ia64_gen_fr_mov(insn->ctx, op->source, tcg_constant_i64(0));
     }
 }
 
@@ -1068,8 +1068,7 @@ IA64GenResult ia64_gen_memory(DisasContext *ctx,
         ia64_gen_check_alignment_model(
             ctx, insn, ia64_gr_src(op->base), 8, 8, 8, IA64_ALIGNMENT_FP,
             IA64_ISR_W);
-        gen_helper_getf(value, tcg_env, tcg_constant_i32(op->source),
-                        tcg_constant_i32(0));
+        ia64_gen_fr_read_double(ctx, value, op->source);
         ia64_gen_qemu_st_i64(ctx, value, ia64_gr_src(op->base),
                              ctx->memory.mmu_idx,
                              ia64_data_memop(ctx, MO_LEUQ));
@@ -1252,7 +1251,7 @@ IA64GenResult ia64_gen_memory(DisasContext *ctx,
                                   insn->address, record_iipa,
                                   track_psr_suppression);
         } else {
-            ia64_gen_check_branch(ctx, ia64_gen_fr_nat_read(op->source),
+            ia64_gen_check_branch(ctx, ia64_gen_fr_nat_read(ctx, op->source),
                                   insn->address + op->immediate, insn->address,
                                   record_iipa,
                                   track_psr_suppression);

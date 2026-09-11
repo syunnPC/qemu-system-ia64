@@ -1062,25 +1062,36 @@ static inline bool ia64_key_check_enabled(const CPUIA64State *env,
  * virtual DTLB lookup even while PSR.dt is 0.
  */
 static inline IA64Exception
-ia64_key_exception_for_key(const CPUIA64State *env, uint32_t key,
+ia64_key_exception_for_key(CPUIA64State *env, uint32_t key,
                            uint8_t needed, bool is_ifetch)
 {
-    const uint64_t pkr_key = (uint64_t)key << IA64_PKR_KEY_SHIFT;
-    uint64_t disable_bits = 0;
-    bool matched = false;
+    IA64KeyCacheEntry *cached =
+        &env->mmu.key_cache[key % ARRAY_SIZE(env->mmu.key_cache)];
+    uint64_t disable_bits;
 
-    for (uint32_t i = 0; i < IA64_PKR_COUNT; i++) {
-        uint64_t pkr = env->pkr[i];
+    if (cached->valid && cached->key == key) {
+        disable_bits = cached->pkr;
+    } else {
+        const uint64_t pkr_key = (uint64_t)key << IA64_PKR_KEY_SHIFT;
+        const uint64_t key_mask = ia64_pkr_key_mask(env);
 
-        if ((pkr & IA64_PKR_VALID) &&
-            (pkr & ia64_pkr_key_mask(env)) == pkr_key) {
-            matched = true;
-            disable_bits = pkr;
-            break;
+        disable_bits = 0;
+        for (uint32_t i = 0; i < IA64_PKR_COUNT; i++) {
+            uint64_t pkr = env->pkr[i];
+
+            if ((pkr & IA64_PKR_VALID) && (pkr & key_mask) == pkr_key) {
+                disable_bits = pkr;
+                break;
+            }
         }
+        *cached = (IA64KeyCacheEntry) {
+            .key = key,
+            .pkr = disable_bits,
+            .valid = true,
+        };
     }
 
-    if (!matched) {
+    if (!(disable_bits & IA64_PKR_VALID)) {
         return is_ifetch ? IA64_EXCP_INST_KEY_MISS :
                            IA64_EXCP_DATA_KEY_MISS;
     }
@@ -1095,7 +1106,7 @@ ia64_key_exception_for_key(const CPUIA64State *env, uint32_t key,
 }
 
 static inline IA64Exception
-ia64_key_exception_for_access(const CPUIA64State *env, uint32_t key,
+ia64_key_exception_for_access(CPUIA64State *env, uint32_t key,
                               uint8_t needed, bool is_ifetch, bool is_rse)
 {
     if (!ia64_key_check_enabled(env, is_ifetch, is_rse)) {
@@ -1106,7 +1117,7 @@ ia64_key_exception_for_access(const CPUIA64State *env, uint32_t key,
 }
 
 static inline IA64Exception
-ia64_translation_exception_for_access(const CPUIA64State *env, uint64_t pte,
+ia64_translation_exception_for_access(CPUIA64State *env, uint64_t pte,
                                       uint32_t key, uint8_t perm,
                                       uint8_t needed, bool is_ifetch,
                                       bool is_write, bool is_rse)
@@ -1142,7 +1153,7 @@ ia64_translation_exception_for_access(const CPUIA64State *env, uint64_t pte,
 }
 
 static inline IA64Exception
-ia64_tlb_exception_for_access(const CPUIA64State *env,
+ia64_tlb_exception_for_access(CPUIA64State *env,
                               const IA64TlbEntry *entry, uint8_t perm,
                               uint8_t needed, bool is_ifetch,
                               bool is_write, bool is_rse)
@@ -1243,12 +1254,17 @@ ia64_tlb_find_cached(CPUIA64State *env, uint64_t va, uint32_t rid,
     IA64MicroTlbEntry *victims = is_ifetch ? env->mmu.tlb_inst_victim :
                                              env->mmu.tlb_data_victim;
     for (unsigned i = 0; i < IA64_MICRO_TLB_VICTIM_SIZE; i++) {
-        cached = &victims[i];
-        if (cached->valid && cached->generation == generation &&
-            cached->rid == rid &&
-            ((va ^ cached->va) & cached->page_mask) == 0 &&
-            cached->slot < tlb_count &&
-            cached->slot_generation == tlb[cached->slot].micro_generation) {
+        IA64MicroTlbEntry *victim = &victims[i];
+
+        if (victim->valid && victim->generation == generation &&
+            victim->rid == rid &&
+            ((va ^ victim->va) & victim->page_mask) == 0 &&
+            victim->slot < tlb_count &&
+            victim->slot_generation == tlb[victim->slot].micro_generation) {
+            IA64MicroTlbEntry previous = *cached;
+
+            *cached = *victim;
+            *victim = previous;
             return &tlb[cached->slot];
         }
     }

@@ -8060,8 +8060,40 @@ test_no_ic_data_access_enters_vector_with_ni = require_registers(
     },
 )
 
+test_pkr_cached_permission_updates = require_registers(
+    "pkr_cached_permission_updates", [
+        (0x10, *movl_mlx(2, KEY_TEST_VA)),
+        (0x20, *movl_mlx(16, KEY_TEST_RR)),
+        (0x30, *movl_mlx(18, LOW_VECTOR_TR_PTE)),
+        (0x40, *movl_mlx(7, KEY_TEST_ITIR)),
+        (0x50, *movl_mlx(4, KEY_TEST_PKR)),
+        (0x60, 0x01, mov_rr_write(16, 0), adds(3, 0, 0), nop_i()),
+        (0x70, 0x01, mov_pkr_indexed(3, 4, bit36=1), nop_i(), nop_i()),
+        (0x80, 0x01, mov_m_gr_cr(7, 21), nop_i(), nop_i()),
+        (0x90, 0x01, mov_m_gr_cr(2, 20), nop_i(), nop_i()),
+        (0xa0, 0x01, itc_d(18), nop_i(), nop_i()),
+        (0xb0, 0x01, ssm(IA64_PSR_IC | IA64_PSR_PK), nop_i(), nop_i()),
+        (0xc0, 0x01, srlz_d(), nop_i(), nop_i()),
+        (0xd0, 0x01, probe_r_imm(20, 2, 0), nop_i(), nop_i()),
+        (0xe0, 0x01, probe_w_imm(21, 2, 0), nop_i(), nop_i()),
+        (0xf0, *movl_mlx(4, KEY_TEST_PKR | IA64_PKR_RD)),
+        (0x100, 0x01, mov_pkr_indexed(3, 4, bit36=1), nop_i(), nop_i()),
+        (0x110, 0x01, probe_r_imm(22, 2, 0), nop_i(), nop_i()),
+        (0x120, 0x01, probe_w_imm(23, 2, 0), nop_i(), nop_i()),
+        (0x130, *movl_mlx(4, KEY_TEST_PKR | IA64_PKR_WD)),
+        (0x140, 0x01, adds(3, 1, 0), nop_i(), nop_i()),
+        (0x150, 0x01, mov_pkr_indexed(3, 4, bit36=1), nop_i(), nop_i()),
+        (0x160, 0x01, probe_r_imm(24, 2, 0), nop_i(), nop_i()),
+        (0x170, 0x01, probe_w_imm(25, 2, 0), nop_i(), nop_i()),
+        (0x180, 0x11, nop_m(), nop_i(), br_cond(0x180, 0x180)),
+    ], {
+        "ip": 0x180, "exception": IA64_EXCP_NONE,
+        "r20": 1, "r21": 1, "r22": 0, "r23": 1, "r24": 1, "r25": 0,
+    }, entry=0x10)
+
 GROUP = 'mmu'
 CASE_NAMES = (
+    'pkr_cached_permission_updates',
 
     'alt_dtlb_preserves_iha',
     'alt_dtlb_when_vhpt_disabled',

@@ -125,15 +125,13 @@ void ia64_invalidate_alat_reg_range(CPUIA64State *env,
                                     uint32_t first, uint32_t last,
                                     bool fp)
 {
-    uint32_t i;
+    uint32_t occupied = env->alat_state.alat_occupied;
 
-    if (env->alat_state.alat_active_count == 0) {
-        return;
-    }
+    while (occupied) {
+        unsigned i = ctz32(occupied);
 
-    for (i = 0; i < IA64_ALAT_ENTRIES; i++) {
-        if (env->alat_state.alat[i].valid &&
-            env->alat_state.alat[i].fp == fp &&
+        occupied &= occupied - 1;
+        if (env->alat_state.alat[i].fp == fp &&
             env->alat_state.alat[i].reg >= first &&
             env->alat_state.alat[i].reg < last) {
             ia64_alat_invalidate_entry(env, &env->alat_state.alat[i]);
@@ -166,7 +164,7 @@ static bool ia64_ranges_overlap(uint64_t start, uint64_t size,
 void ia64_invalidate_alat_phys_range(CPUIA64State *env,
                                      uint64_t pa, uint64_t size)
 {
-    uint32_t i;
+    uint32_t occupied;
 
     if (env->alat_state.alat_active_count == 0) {
         return;
@@ -175,9 +173,12 @@ void ia64_invalidate_alat_phys_range(CPUIA64State *env,
         return;
     }
 
-    for (i = 0; i < IA64_ALAT_ENTRIES; i++) {
-        if (env->alat_state.alat[i].valid &&
-            ia64_ranges_overlap(pa, size, env->alat_state.alat[i].phys_addr,
+    occupied = env->alat_state.alat_occupied;
+    while (occupied) {
+        unsigned i = ctz32(occupied);
+
+        occupied &= occupied - 1;
+        if (ia64_ranges_overlap(pa, size, env->alat_state.alat[i].phys_addr,
                                 env->alat_state.alat[i].size)) {
             ia64_alat_invalidate_entry(env, &env->alat_state.alat[i]);
         }
@@ -377,24 +378,29 @@ static uint64_t ia64_check_load_alat(CPUIA64State *env, uint32_t reg,
     return 1;
 }
 
-void ia64_alat_invalidate_reg(CPUIA64State *env, uint32_t reg)
+static void ia64_alat_invalidate_register(CPUIA64State *env, uint32_t reg,
+                                          bool fp)
 {
-    uint64_t generation;
-    int i = ia64_find_alat_reg(env, reg, false, &generation, true);
+    int i;
+
+    if (reg >= IA64_GR_COUNT) {
+        return;
+    }
+    i = env->alat_state.alat_reg_slot[fp][reg] - 1;
 
     if (i >= 0) {
         ia64_alat_invalidate_entry(env, &env->alat_state.alat[i]);
     }
 }
 
+void ia64_alat_invalidate_reg(CPUIA64State *env, uint32_t reg)
+{
+    ia64_alat_invalidate_register(env, reg, false);
+}
+
 void ia64_alat_invalidate_fp_reg(CPUIA64State *env, uint32_t reg)
 {
-    uint64_t generation;
-    int i = ia64_find_alat_reg(env, reg, true, &generation, true);
-
-    if (i >= 0) {
-        ia64_alat_invalidate_entry(env, &env->alat_state.alat[i]);
-    }
+    ia64_alat_invalidate_register(env, reg, true);
 }
 
 uint64_t ia64_alat_check_load(CPUIA64State *env, uint32_t reg,

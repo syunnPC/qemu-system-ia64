@@ -70,9 +70,10 @@ void helper_clrrrb_rse(CPUIA64State *env, uint32_t predicate_only)
     ia64_rse_clrrrb(env, predicate_only);
 }
 
-uint64_t helper_cloop_zero_st1(CPUIA64State *env, uint32_t base_reg,
-                               uint32_t mmu_idx, uint32_t max_stores)
+uint64_t helper_cloop_fill_st1(CPUIA64State *env, uint32_t base_reg,
+                               uint64_t value, uint32_t mmu_idx,
+                               uint32_t max_stores)
 {
-    return ia64_rse_cloop_zero_st1(env, base_reg, mmu_idx, max_stores,
+    return ia64_rse_cloop_fill_st1(env, base_reg, value, mmu_idx, max_stores,
                                    GETPC());
 }

@@ -1514,6 +1514,24 @@ void vga_dirty_log_stop(VGACommonState *s)
     memory_region_set_log(&s->vram, false, DIRTY_MEMORY_VGA);
 }
 
+static bool vga_scanout_dirty(VGACommonState *s, DirtyBitmapSnapshot *snap,
+                              uint32_t address, uint32_t bytes)
+{
+    while (bytes) {
+        uint32_t length = MIN(bytes, UINT64_C(0x100000000) - address);
+        uint64_t offset = s->scanout_map(s, address, &length);
+
+        if (offset < s->vram_size &&
+            memory_region_snapshot_get_dirty(&s->vram, snap, offset,
+                MIN(length, s->vram_size - offset))) {
+            return true;
+        }
+        address += length;
+        bytes -= length;
+    }
+    return false;
+}
+
 /*
  * graphic modes
  */
@@ -1538,10 +1556,14 @@ static void vga_draw_graphic(VGACommonState *s, int full_update)
 #endif
 
     full_update |= update_basic_params(s);
-    /* Tiled scanout can touch pages outside the linear display rectangle. */
-    if (s->scanout_read) {
+    full_update |= s->last_scanout_mapped != (s->scanout_map != NULL);
+    s->last_scanout_mapped = s->scanout_map != NULL;
+    if (s->scanout_map) {
         force_shadow = true;
-        full_update = 1;
+        s->scanout_length = 0;
+        if (s->scanout_prepare) {
+            s->scanout_prepare(s);
+        }
     }
 
     s->get_resolution(s, &width, &height);
@@ -1631,7 +1653,7 @@ static void vga_draw_graphic(VGACommonState *s, int full_update)
     hpel = bits <= 8 ? s->params.hpel & 7 : 0;
     bwidth = DIV_ROUND_UP(width * bits, 8); /* scanline length */
     if (hpel) {
-        bwidth += 4;
+        bwidth += bits == 8 ? 8 : 4;
     }
 
     region_start = (s->params.start_addr * 4);
@@ -1654,6 +1676,16 @@ static void vga_draw_graphic(VGACommonState *s, int full_update)
     if (s->params.line_compare < height) {
         /* split screen mode */
         region_start = 0;
+    }
+    if (s->scanout_map) {
+        /* Swizzled scanlines can use pages outside the linear rectangle. */
+        region_start = 0;
+        region_end = s->vram_size;
+    }
+    if (s->cursor_dirty_size) {
+        region_start = MIN(region_start, s->cursor_dirty_offset);
+        region_end = MAX(region_end, (ram_addr_t)s->cursor_dirty_offset +
+                                     s->cursor_dirty_size);
     }
 
     /*
@@ -1730,6 +1762,12 @@ static void vga_draw_graphic(VGACommonState *s, int full_update)
                                                       region_end - region_start,
                                                       DIRTY_MEMORY_VGA);
     }
+    if (s->cursor_dirty_size) {
+        s->cursor_image_dirty = full_update ||
+            memory_region_snapshot_get_dirty(&s->vram, snap,
+                s->cursor_dirty_offset, s->cursor_dirty_size);
+        s->cursor_dirty_valid = true;
+    }
 
     /* All mode, palette, surface and cursor changes have been checked. */
     if (!full_update && depth >= 8 && shift_control >= 2 &&
@@ -1762,6 +1800,8 @@ static void vga_draw_graphic(VGACommonState *s, int full_update)
         page1 = (addr + bwidth - 1) & s->vbe_size_mask;
         if (full_update) {
             update = 1;
+        } else if (s->scanout_map) {
+            update = vga_scanout_dirty(s, snap, addr, bwidth);
         } else if (page1 < page0) {
             /* scanline wraps from end of video memory to the start */
             assert(force_shadow);

@@ -133,11 +133,25 @@ IA64GenResult ia64_gen_system(DisasContext *ctx,
             ia64_gen_gr_write_nat_clear(insn, op->destination, packed);
         }
         break;
-    case IA64_OP_MOV_GRPR:
+    case IA64_OP_MOV_GRPR: {
+        uint64_t mask = op->immediate & ~UINT64_C(1);
+
         ia64_gen_check_nat_register(insn, op->destination);
-        gen_helper_write_pr(tcg_env, ia64_gr_src(op->destination),
-                            tcg_constant_i64(op->immediate));
+        if (!(mask & ~UINT64_C(0xffff)) && ctpop64(mask) <= 4) {
+            while (mask) {
+                unsigned reg = ctz64(mask);
+
+                mask &= mask - 1;
+                tcg_gen_extract_i64(cpu_pr[reg], ia64_gr_src(op->destination),
+                                    reg, 1);
+            }
+            tcg_gen_movi_i64(cpu_pr[0], 1);
+        } else {
+            gen_helper_write_pr(tcg_env, ia64_gr_src(op->destination),
+                                tcg_constant_i64(op->immediate));
+        }
         break;
+    }
     case IA64_OP_MOV_PR_ROT_IMM:
         gen_helper_write_pr(tcg_env, tcg_constant_i64(op->immediate),
                             tcg_constant_i64(0xffffffffffff0000ULL));

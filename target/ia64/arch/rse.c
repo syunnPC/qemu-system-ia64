@@ -899,6 +899,25 @@ ia64_clear_bit_range(uint64_t bits[2], uint32_t first, uint32_t count)
     }
 }
 
+static void ia64_rse_copy_dirty(uint64_t *dst, const uint64_t *src,
+                                 uint64_t dirty)
+{
+    while (dirty) {
+        unsigned bit = ctz64(dirty);
+        uint64_t shifted = dirty >> bit;
+
+        if ((shifted & 15) == 15) {
+            unsigned count = cto64(shifted);
+
+            memcpy(dst + bit, src + bit, count * sizeof(*dst));
+            dirty &= count == 64 ? 0 : ~(((1ULL << count) - 1) << bit);
+        } else {
+            dst[bit] = src[bit];
+            dirty &= dirty - 1;
+        }
+    }
+}
+
 /*
  * Copy a directly mapped, NaT-free frame into the physical file.  Keep this
  * path separate from the general mapper below: the latter needs snapshots,
@@ -921,19 +940,11 @@ ia64_rse_sync_frame_out_direct(CPUIA64State *env, uint64_t dirty0,
         dirty1 &= (1ULL << (sof - 64)) - 1;
     }
 
-    while (dirty0 != 0) {
-        uint32_t bit = ctz64(dirty0);
-
-        dirty0 &= dirty0 - 1;
-        env->rse.rse_pgr[bol + bit] =
-            env->gr[IA64_STACKED_GR_BASE + bit];
-    }
-    while (dirty1 != 0) {
-        uint32_t bit = ctz64(dirty1);
-
-        dirty1 &= dirty1 - 1;
-        env->rse.rse_pgr[bol + 64 + bit] =
-            env->gr[IA64_STACKED_GR_BASE + 64 + bit];
+    ia64_rse_copy_dirty(&env->rse.rse_pgr[bol],
+                         &env->gr[IA64_STACKED_GR_BASE], dirty0);
+    if (dirty1) {
+        ia64_rse_copy_dirty(&env->rse.rse_pgr[bol + 64],
+                             &env->gr[IA64_STACKED_GR_BASE + 64], dirty1);
     }
 }
 
@@ -1081,51 +1092,49 @@ static void ia64_rse_sync_frame_in_range(CPUIA64State *env, uint32_t first,
                                          uint32_t count)
 {
     uint32_t end = MIN(first + count, (uint32_t)env->cfm_sof);
-    uint32_t i;
+    uint32_t sor = ia64_rse_rotating_gr_count(env);
+    uint32_t rrb = env->cfm_rrb_gr;
+    bool nat_clear = (env->rse.rse_pgr_nat[0] |
+                      env->rse.rse_pgr_nat[1]) == 0;
 
-    if (first >= end) {
+    if (sor && rrb >= sor) {
+        for (uint32_t i = first; i < end; i++) {
+            uint32_t p = ia64_rse_virt_to_phys(env, i);
+
+            env->gr[IA64_STACKED_GR_BASE + i] = env->rse.rse_pgr[p];
+            ia64_gr_nat_set(env, IA64_STACKED_GR_BASE + i,
+                            ia64_rse_pgr_nat_get(env, p));
+        }
         return;
     }
 
-    if (env->cfm_sor == 0 || env->cfm_rrb_gr == 0) {
-        uint32_t p = env->rse.rse_bol + first;
-        uint32_t total = end - first;
-        uint32_t first_span;
-        uint32_t second_span;
+    while (first < end) {
+        uint32_t mapped = first;
+        uint32_t span = end - first;
+        uint32_t p;
 
+        if (first < sor && rrb) {
+            mapped += rrb;
+            if (mapped >= sor) {
+                mapped -= sor;
+            }
+            span = MIN(span, MIN(sor - first, sor - mapped));
+        }
+        p = env->rse.rse_bol + mapped;
         if (p >= IA64_STACKED_GR_COUNT) {
             p -= IA64_STACKED_GR_COUNT;
         }
-        first_span = MIN(total, IA64_STACKED_GR_COUNT - p);
-        second_span = total - first_span;
+        span = MIN(span, IA64_STACKED_GR_COUNT - p);
         memcpy(&env->gr[IA64_STACKED_GR_BASE + first], &env->rse.rse_pgr[p],
-               first_span * sizeof(env->rse.rse_pgr[0]));
-        if (second_span != 0) {
-            memcpy(&env->gr[IA64_STACKED_GR_BASE + first + first_span],
-                   env->rse.rse_pgr,
-                   second_span * sizeof(env->rse.rse_pgr[0]));
-        }
-        if (likely((env->rse.rse_pgr_nat[0] | env->rse.rse_pgr_nat[1]) == 0)) {
+               span * sizeof(env->rse.rse_pgr[0]));
+        if (likely(nat_clear)) {
             ia64_clear_bit_range(env->nat, IA64_STACKED_GR_BASE + first,
-                                 total);
+                                 span);
         } else {
             ia64_copy_bit_range(env->nat, IA64_STACKED_GR_BASE + first,
-                                env->rse.rse_pgr_nat, p, first_span);
-            if (second_span != 0) {
-                ia64_copy_bit_range(
-                    env->nat, IA64_STACKED_GR_BASE + first + first_span,
-                    env->rse.rse_pgr_nat, 0, second_span);
-            }
+                                env->rse.rse_pgr_nat, p, span);
         }
-        return;
-    }
-
-    for (i = first; i < end; i++) {
-        uint32_t p = ia64_rse_virt_to_phys(env, i);
-
-        env->gr[IA64_STACKED_GR_BASE + i] = env->rse.rse_pgr[p];
-        ia64_gr_nat_set(env, IA64_STACKED_GR_BASE + i,
-                        ia64_rse_pgr_nat_get(env, p));
+        first += span;
     }
 }
 
@@ -1158,8 +1167,6 @@ ia64_rse_sync_frame_in_direct(CPUIA64State *env, uint32_t sof, uint32_t bol)
 static G_GNUC_NO_INLINE void
 ia64_rse_sync_frame_in_slow(CPUIA64State *env)
 {
-    uint32_t i;
-
     if (env->cfm_sor == 0 || env->cfm_rrb_gr == 0) {
         uint32_t first = MIN((uint32_t)env->cfm_sof,
                              IA64_STACKED_GR_COUNT - env->rse.rse_bol);
@@ -1193,13 +1200,7 @@ ia64_rse_sync_frame_in_slow(CPUIA64State *env)
         return;
     }
 
-    for (i = 0; i < env->cfm_sof; i++) {
-        uint32_t p = ia64_rse_virt_to_phys(env, i);
-
-        env->gr[IA64_STACKED_GR_BASE + i] = env->rse.rse_pgr[p];
-        ia64_gr_nat_set(env, IA64_STACKED_GR_BASE + i,
-                        ia64_rse_pgr_nat_get(env, p));
-    }
+    ia64_rse_sync_frame_in_range(env, 0, env->cfm_sof);
     env->rse.rse_gr_dirty[0] = 0;
     env->rse.rse_gr_dirty[1] = 0;
 }
@@ -2655,7 +2656,8 @@ void ia64_rse_clrrrb(CPUIA64State *env, uint32_t predicate_only)
 }
 
 
-uint64_t ia64_rse_cloop_zero_st1(CPUIA64State *env, uint32_t base_reg,
+uint64_t ia64_rse_cloop_fill_st1(CPUIA64State *env, uint32_t base_reg,
+                                 uint64_t value,
                                  uint32_t mmu_idx, uint32_t max_stores,
                                  uintptr_t ra)
 {
@@ -2683,16 +2685,20 @@ uint64_t ia64_rse_cloop_zero_st1(CPUIA64State *env, uint32_t base_reg,
 
         if (ia64_exec_probe_host(env, addr, (int)span, MMU_DATA_STORE,
                                  mmu_idx, &host, ra)) {
-            ia64_alat_write_begin(env);
-            memset(host, 0, span);
-            ia64_alat_write_end(env, addr, (uint32_t)span);
+            if (env->alat_state.alat_full) {
+                ia64_alat_write_begin(env);
+            }
+            memset(host, value, span);
+            if (env->alat_state.alat_full) {
+                ia64_alat_write_end(env, addr, (uint32_t)span);
+            }
             env->gr[base_reg] = addr + span;
             done += span;
             env->ar[IA64_AR_LC] = lc - done;
             continue;
         }
 
-        ia64_exec_store_mmuidx(env, addr, 0, 1, false, mmu_idx, ra);
+        ia64_exec_store_mmuidx(env, addr, value, 1, false, mmu_idx, ra);
         env->gr[base_reg] = addr + 1;
         done++;
         env->ar[IA64_AR_LC] = lc - done;

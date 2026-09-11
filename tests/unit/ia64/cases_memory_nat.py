@@ -75,6 +75,7 @@ from .encoding import (
     cmp_eq_and,
     cmp_ge_or,
     cmpxchg4_acq,
+    cmpxchg_acq,
     cmpxchg_rel,
     cover_b,
     czx1_r,
@@ -144,6 +145,7 @@ from .encoding import (
     mov_m_gr_psr_um,
     mov_m_gr_psrl,
     mov_m_imm_ar,
+    mov_gr_pr,
     mov_m_psr_gr,
     mov_pkr_indexed,
     mov_pr_rot_imm,
@@ -1249,6 +1251,24 @@ test_integer_nat_propagates_and_clears = require_registers(
         (0x200, 0x00, 0, 0,
          0),
     ], {"ip": 0x60, "r6_nat": 1, "r7_nat": 0}, entry=0x10)
+
+test_predicated_integer_selects_value_and_nat = require_registers(
+    "predicated_integer_selects_value_and_nat", [
+        (0x10, 0x00, mov_m_imm_ar(36, 1), addl(4, 0x200, 0), nop_i()),
+        (0x20, 0x00, ld8_fill_postinc(5, 4, 0), adds(2, 4, 0),
+         adds(6, 0x55, 0)),
+        (0x30, 0x02, nop_m(), mov_gr_pr(2, 6), nop_i()),
+        (0x40, 0x02, nop_m(), adds(6, 1, 5, qp=1),
+         adds(7, 1, 5, qp=2)),
+        (0x50, 0x02, nop_m(), adds(5, 3, 0, qp=1),
+         or_reg(8, 5, 6, qp=2)),
+        (0x60, 0x02, nop_m(), adds(7, 2, 0, qp=2),
+         adds(6, 1, 6, qp=2)),
+        (0x70, 0x10, nop_m(), nop_i(), br_cond(0x70, 0x70)),
+        raw_bundle(0x200, 0x10, 0),
+    ], {"ip": 0x70, "r5": 0x10, "r5_nat": 1, "r6": 0x56,
+        "r6_nat": 0, "r7": 2, "r7_nat": 0, "r8": 0x55,
+        "r8_nat": 1, "exception": IA64_EXCP_NONE}, entry=0x10)
 
 test_normal_load_clears_stale_nat = require_registers(
     "normal_load_clears_stale_nat", [
@@ -3149,6 +3169,22 @@ test_cloop_zero_st1_clears_cross_page_range = require_registers(
     }, entry=0x10)
 
 
+test_cloop_fill_st1_cross_page_range = require_registers(
+    "cloop_fill_st1_cross_page_range", [
+        (0x10, *movl_mlx(2, 0x7ff0)),
+        (0x20, 0x00, adds(4, 0xa5, 0), addl(8, 8224 - 1, 0), nop_i()),
+        (0x30, 0x02, nop_m(), mov_lc_gr(8), nop_i()),
+        (0x40, 0x10, st1_postinc(2, 4, 1), nop_i(), br_cloop(0x40, 0x40)),
+        (0x50, *movl_mlx(3, 0x7ff0)),
+        (0x60, 0x00, ld8_postinc(10, 3, 16), nop_i(), nop_i()),
+        (0x70, 0x00, ld8(11, 3), adds(3, -8, 2), nop_i()),
+        (0x80, 0x02, ld8(12, 3), mov_ar_lc(9), nop_i()),
+        (0x90, 0x10, nop_m(), nop_i(), br_cond(0x90, 0x90)),
+    ], {"ip": 0x90, "r2": 0xa010, "r4": 0xa5, "r9": 0,
+        "r10": 0xa5a5a5a5a5a5a5a5, "r11": 0xa5a5a5a5a5a5a5a5,
+        "r12": 0xa5a5a5a5a5a5a5a5, "exception": IA64_EXCP_NONE}, entry=0x10)
+
+
 def test_ld2_bias_st2_raw_large_frame_sequence(qemu):
     result = run_program(qemu, [
         (0x10, *movl_mlx(2, 0x8000)),
@@ -3255,6 +3291,16 @@ test_simd_helper_nat_propagates = require_registers("simd_helper_nat_propagates"
     "r9_nat": 1,
     "r10_nat": 1,
 }, entry=0x10)
+
+test_predicate_sparse_write_nat_consumes = register_nat_consumption_test(
+    "predicate_sparse_write_nat_consumes",
+    (0x02, nop_m(), mov_gr_pr(16, 0x8006), nop_i()),
+    1 << IA64_ISR_EI_SHIFT)
+
+test_predicate_empty_write_nat_consumes = register_nat_consumption_test(
+    "predicate_empty_write_nat_consumes",
+    (0x02, nop_m(), mov_gr_pr(16, 0), nop_i()),
+    1 << IA64_ISR_EI_SHIFT)
 
 test_pshr_nat_propagates = require_registers("pshr_nat_propagates", [
     (0x10, 0x00, mov_m_imm_ar(36, 1), addl(4, 0x200, 0),
@@ -3600,8 +3646,50 @@ test_speculative_load_warm_soft_tlb_succeeds = require_registers(
         "r9_nat": 0, "r10_nat": 0, "r11_nat": 0, "r12_nat": 0,
     }, entry=0x10)
 
+def test_cmpxchg_widths_endian_and_alat_modes(qemu):
+    for size_log2 in range(4):
+        size = 1 << size_log2
+        mask = (1 << (size * 8)) - 1
+        old = 0x123456789abcdef0 & mask
+        new = 0xfedcba9876543210
+        mismatch = (old | (1 << (size * 8))) if size < 8 else old ^ 1
+        for big_endian in (False, True):
+            for alat in ("zero", "full"):
+                name = f"cmpxchg_{size}_{big_endian}_{alat}"
+                require_registers(name, [
+                    (0x10, 0x01, addl(3, 0x400, 0), nop_i(), nop_i()),
+                    (0x20, *movl_mlx(4, old)),
+                    (0x30, *movl_mlx(6, new)),
+                    (0x40, *movl_mlx(9, mismatch)),
+                    (0x50, 0x01, sum_um(IA64_PSR_BE if big_endian else 0),
+                     nop_i(), nop_i()),
+                    (0x60, 0x01, store_mem(0x30 + size_log2, 3, 4),
+                     nop_i(), nop_i()),
+                    (0x70, 0x01, mov_m_gr_ar(9, 32), nop_i(), nop_i()),
+                    (0x80, 0x01, cmpxchg_acq(size_log2, 10, 3, 6),
+                     nop_i(), nop_i()),
+                    (0x90, 0x01, load_mem(size_log2, 11, 3),
+                     nop_i(), nop_i()),
+                    (0xa0, 0x01, mov_m_gr_ar(4, 32), nop_i(), nop_i()),
+                    (0xb0, 0x01, cmpxchg_rel(size_log2, 12, 3, 6),
+                     nop_i(), nop_i()),
+                    (0xc0, 0x01, load_mem(size_log2, 13, 3),
+                     nop_i(), nop_i()),
+                    (0xd0, 0x01, ld1(14, 3), nop_i(), nop_i()),
+                    (0xe0, 0x11, nop_m(), nop_i(), br_cond(0xe0, 0xe0)),
+                ], {
+                    "ip": 0xe0, "exception": IA64_EXCP_NONE,
+                    "r10": old, "r11": old, "r12": old, "r13": new & mask,
+                    "r14": (new >> ((size - 1) * 8)) & 0xff if big_endian
+                           else new & 0xff,
+                }, alat=alat)(qemu)
+
+
 GROUP = 'memory-nat'
 CASE_NAMES = (
+    'predicated_integer_selects_value_and_nat',
+    'cloop_fill_st1_cross_page_range',
+    'cmpxchg_widths_endian_and_alat_modes',
 
     'alat_reloading_register_does_not_leave_duplicate',
     'alloc_clears_destination_nat',
@@ -3750,6 +3838,8 @@ CASE_NAMES = (
     'semaphore_ops_clear_result_nat',
     'semaphore_ops_invalidate_advanced_loads',
     'simd_helper_nat_propagates',
+    'predicate_sparse_write_nat_consumes',
+    'predicate_empty_write_nat_consumes',
     'smp_full_alat_model_remains_enabled',
     'speculative_load_defers_nat_base',
     'speculative_load_defers_psr_ed',

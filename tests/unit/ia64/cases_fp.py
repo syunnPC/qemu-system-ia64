@@ -165,6 +165,8 @@ from .encoding import (
     ldfps,
     ldfs,
     mov_gr_psr_full,
+    mov_gr_pr,
+    mov_m_psr_gr,
     mov_i_imm_ar,
     mov_lc_imm,
     mov_m_cr_gr,
@@ -5802,7 +5804,7 @@ test_setf_nat_source_sets_fr_natval = require_registers(
          nop_i()),
         (0x20, 0x08, ld8_fill_postinc(16, 6, 0), nop_i(),
          nop_i()),
-        (0x30, 0x00, setf_sig(7, 16), nop_i(),
+        (0x30, 0x09, setf_sig(7, 16), setf_s(8, 16),
          nop_i()),
         (0x40, 0x10, nop_m(), nop_i(), nop_b()),
         (0x50, 0x02, nop_m(), nop_i(), nop_i()),
@@ -5815,6 +5817,7 @@ test_setf_nat_source_sets_fr_natval = require_registers(
         "ip": 0x70,
         "exception": IA64_EXCP_NONE,
         "f7": ExpectedFP(0, 0x1fffe, nat=True),
+        "f8": ExpectedFP(0, 0x1fffe, nat=True),
     }, entry=0x10)
 
 test_nop_f_decode = require_exception("nop_f_decode", [
@@ -6111,6 +6114,25 @@ test_fselect_natval_propagates = require_registers(
     entry=0x10)
 
 
+def test_getf_d_stfd_across_blocks(qemu):
+    for index, value in enumerate((1, 0x8000000000000000,
+                                   0x7ff0000000000001,
+                                   0xfff8000000000123)):
+        require_registers(f"getf_d_stfd_across_blocks_{index}", [
+            (0x10, *movl_mlx(2, value)),
+            (0x20, *movl_mlx(3, 0x8000000000000000)),
+            (0x30, 0x09, setf_d(6, 2), setf_sig(7, 3), nop_i()),
+            (0x40, 0x10, nop_m(), nop_i(), br_cond(0x40, 0x80)),
+            (0x80, 0x09, getf_d(4, 6), getf_d(5, 7), nop_i()),
+            (0x90, 0x01, addl(8, 0x200, 0), addl(9, 0x208, 0), nop_i()),
+            (0xa0, 0x09, stfd(8, 6), stfd(9, 7), nop_i()),
+            (0xb0, 0x09, ld8(10, 8), ld8(11, 9), nop_i()),
+            (0xc0, 0x10, nop_m(), nop_i(), br_cond(0xc0, 0xc0)),
+        ], {"ip": 0xc0, "r4": value, "r10": value,
+            "r5": 0x43e0000000000000, "r11": 0x43e0000000000000,
+            "exception": IA64_EXCP_NONE}, entry=0x10)(qemu)
+
+
 def _fp_representation_case(name, value, width, model):
     if width == 32:
         value &= 0xffffffff
@@ -6127,8 +6149,9 @@ def _fp_representation_case(name, value, width, model):
 
     low, high = model(value)
     memory_value = spill_to_binary(low, high)
+    input_value = value | (0xa5a55a5a00000000 if width == 32 else 0)
     case = require_registers(name, [
-        (0x10, *movl_mlx(2, value)),
+        (0x10, *movl_mlx(2, input_value)),
         (0x20, 0x00, addl(3, 0x200, 0), addl(4, 0x210, 0), nop_i()),
         (0x30, 0x00, integer_store(3, 2), nop_i(), nop_i()),
         (0x40, 0x00, fp_load(6, 3), nop_i(), nop_i()),
@@ -6160,8 +6183,53 @@ for _width, _vectors, _model in (
         FP_REPRESENTATION_CASES[_name] = _fp_representation_case(
             _name, _value, _width, _model)
 
+test_fp_tracking_predicates_check_load_and_user_mask = require_registers(
+    "fp_tracking_predicates_check_load_and_user_mask", [
+        (0x10, *movl_mlx(2, 0x3ff0000000000000)),
+        (0x20, 0x01, addl(3, 4, 0), addl(4, 0x400, 0), nop_i()),
+        (0x30, 0x01, nop_m(), mov_gr_pr(3, 6), nop_i()),
+        (0x40, 0x01, setf_sig(8, 2), nop_i(), nop_i()),
+        (0x50, 0x01, setf_d(8, 2, qp=1), nop_i(), nop_i()),
+        (0x60, 0x0d, nop_m(), fmov(9, 8), nop_i()),
+        (0x70, 0x01, setf_d(8, 2, qp=2), nop_i(), nop_i()),
+        (0x80, 0x0d, nop_m(), fmov(10, 8), nop_i()),
+        (0x90, 0x01, ldf8_a(40, 4), nop_i(), nop_i()),
+        (0xa0, 0x01, setf_d(40, 2), nop_i(), nop_i()),
+        (0xb0, 0x01, ldf8_c_nc(40, 4), nop_i(), nop_i()),
+        (0xc0, 0x0d, nop_m(), fmov(41, 40), nop_i()),
+        (0xd0, 0x01, rum(IA64_PSR_MFL | IA64_PSR_MFH), nop_i(), nop_i()),
+        (0xe0, 0x01, setf_sig(42, 2, qp=1), nop_i(), nop_i()),
+        (0xf0, 0x01, mov_m_psr_gr(16), nop_i(), nop_i()),
+        (0x100, 0x01, ldf8_c_nc(40, 4), nop_i(), nop_i()),
+        (0x110, 0x01, mov_m_psr_gr(17), nop_i(), nop_i()),
+        (0x120, 0x01, setf_sig(43, 2), nop_i(), nop_i()),
+        (0x130, 0x01, mov_m_psr_gr(18), nop_i(), nop_i()),
+        (0x140, 0x01, setf_sig(44, 2), nop_i(), nop_i()),
+        (0x150, 0x01, rum(IA64_PSR_MFH, qp=2), nop_i(), nop_i()),
+        (0x160, 0x01, setf_sig(45, 2), nop_i(), nop_i()),
+        (0x170, 0x11, nop_m(), nop_i(), br_cond(0x170, 0x170)),
+    ], {
+        "ip": 0x170, "exception": IA64_EXCP_NONE,
+        "f9": ExpectedFP(0x3ff0000000000000, 0x1003e),
+        "f10": ExpectedFP(*binary64_to_spill(0x3ff0000000000000)),
+        "f40": ExpectedFP(*binary64_to_spill(0x3ff0000000000000)),
+        "f41": ExpectedFP(*binary64_to_spill(0x3ff0000000000000)),
+        "f42": ExpectedFP(0, 0),
+        "f43": ExpectedFP(0x3ff0000000000000, 0x1003e),
+        "f44": ExpectedFP(0x3ff0000000000000, 0x1003e),
+        "f45": ExpectedFP(0x3ff0000000000000, 0x1003e),
+        "r16": ExpectedBits(mask=IA64_PSR_MFL | IA64_PSR_MFH, value=0),
+        "r17": ExpectedBits(mask=IA64_PSR_MFL | IA64_PSR_MFH, value=0),
+        "r18": ExpectedBits(mask=IA64_PSR_MFL | IA64_PSR_MFH,
+                            value=IA64_PSR_MFH),
+        "psr": ExpectedBits(mask=IA64_PSR_MFL | IA64_PSR_MFH,
+                            value=IA64_PSR_MFH),
+    }, entry=0x10)
+
+
 GROUP = 'fp'
 CASE_NAMES = (
+    'fp_tracking_predicates_check_load_and_user_mask',
 
     'br_ctop_rotates_floating_registers',
     'chk_a_clr_f_ignores_psr_dfh',
@@ -6462,6 +6530,7 @@ CASE_NAMES = (
     'stf_spill_postinc_decode',
     'stf_spill_preserves_natval',
     'stfd_natval_consumption',
+    'getf_d_stfd_across_blocks',
     'stfe_natval_consumption',
     'stfe_preserves_padding_alat_entry',
     'stfe_stores_extended_float',

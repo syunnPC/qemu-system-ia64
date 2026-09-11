@@ -51,6 +51,8 @@ typedef struct IA64TranslationRestartState {
     uint8_t start_slot;
     uint8_t current_ri;
     bool current_ri_known;
+    bool psr_ic_known;
+    bool psr_ic;
     bool track_iipa;
     bool track_psr_suppression;
     bool exit_after_bundle;
@@ -66,11 +68,12 @@ typedef struct IA64TranslationBranchState {
     TCGLabel *counted_self_label;
     TCGv_i64 counted_self_budget;
     uint64_t counted_self_ip;
-    bool cloop_zero_st1_valid;
+    bool cloop_fill_st1_valid;
     bool counted_self_preserves_nat_clear;
-    bool cloop_zero_st1_release;
-    uint8_t cloop_zero_st1_base;
-    uint8_t cloop_zero_st1_slot;
+    bool cloop_fill_st1_release;
+    uint8_t cloop_fill_st1_base;
+    uint8_t cloop_fill_st1_source;
+    uint8_t cloop_fill_st1_slot;
 } IA64TranslationBranchState;
 
 typedef struct IA64TranslationRegisterState {
@@ -93,9 +96,19 @@ typedef struct IA64TranslationSIMDState {
     TCGv_vec result;
 } IA64TranslationSIMDState;
 
+typedef enum IA64TranslationFRFormat {
+    IA64_FR_FORMAT_UNKNOWN,
+    IA64_FR_FORMAT_BINARY,
+    IA64_FR_FORMAT_SIG,
+    IA64_FR_FORMAT_NAT,
+} IA64TranslationFRFormat;
+
 typedef struct IA64TranslationFPState {
+    uint8_t format[IA64_FR_COUNT];
     uint8_t enabled_sets;
+    uint8_t written_sets;
     bool rotating_synced;
+    bool rotating_live;
 } IA64TranslationFPState;
 
 typedef struct DisasContext {
@@ -150,13 +163,15 @@ extern TCGv_i64 cpu_br[IA64_BR_COUNT];
 extern TCGv_i64 cpu_psr;
 
 TCGv_i64 ia64_gr_src(uint8_t reg);
-TCGv_i64 ia64_gen_fr_sig_read(uint8_t reg);
-TCGv_i64 ia64_gen_fr_sig_mask_read(uint32_t word, uint64_t mask);
+TCGv_i64 ia64_gen_fr_sig_read(DisasContext *ctx, uint8_t reg);
+TCGv_i64 ia64_gen_fr_sig_mask_read(DisasContext *ctx, uint32_t word,
+                                   uint64_t mask);
 TCGv_i64 ia64_fr_significand_src(uint8_t reg);
-TCGv_i64 ia64_gen_fr_nat_read(uint8_t reg);
-TCGv_i64 ia64_gen_fr_special_read(uint8_t reg);
-TCGv_i64 ia64_gen_fr_fmov_slow_read(uint8_t reg);
+TCGv_i64 ia64_gen_fr_nat_read(DisasContext *ctx, uint8_t reg);
+TCGv_i64 ia64_gen_fr_special_read(DisasContext *ctx, uint8_t reg);
+TCGv_i64 ia64_gen_fr_fmov_slow_read(DisasContext *ctx, uint8_t reg);
 TCGv_i64 ia64_fr_binary_src(uint8_t reg);
+void ia64_gen_fr_read_double(DisasContext *ctx, TCGv_i64 result, uint8_t reg);
 TCGv_i64 ia64_gen_gr_nat_read(uint8_t reg);
 bool ia64_gr_nat_is_known_clear(const Ia64Instruction *insn, uint8_t reg);
 bool ia64_gr_nat_is_known_set(const Ia64Instruction *insn, uint8_t reg);
@@ -173,8 +188,9 @@ void ia64_gen_gr_nat_from_2(const Ia64Instruction *insn, uint8_t dst,
 void ia64_gen_gr_nat_from_3(const Ia64Instruction *insn, uint8_t dst,
                             uint8_t src1, uint8_t src2, uint8_t src3);
 void ia64_gen_fr_nat_from_gr(uint8_t dst, uint8_t src);
-void ia64_gen_fr_mov(uint8_t reg, TCGv_i64 value);
-void ia64_gen_fr_mov_sig(uint8_t reg, TCGv_i64 value);
+void ia64_gen_fr_mov(DisasContext *ctx, uint8_t reg, TCGv_i64 value);
+void ia64_gen_fr_mov_sig(DisasContext *ctx, uint8_t reg, TCGv_i64 value);
+void ia64_gen_fr_mov_s(DisasContext *ctx, uint8_t reg, TCGv_i64 value);
 void ia64_gen_qemu_ld_i64(DisasContext *ctx, TCGv_i64 value, TCGv_i64 addr,
                           int mmu_idx, MemOp memop);
 void ia64_gen_qemu_st_i64(DisasContext *ctx, TCGv_i64 value, TCGv_i64 addr,
@@ -195,7 +211,7 @@ void ia64_gen_atomic_fetch_add_i64(DisasContext *ctx, TCGv_i64 result,
 void ia64_gen_fr_load(DisasContext *ctx, uint8_t reg, TCGv_i64 addr,
                       int mmu_idx, MemOp memop,
                       IA64FPRegisterLoadFormat format);
-void ia64_gen_fr_set_nat(uint8_t reg);
+void ia64_gen_fr_set_nat(DisasContext *ctx, uint8_t reg);
 void ia64_gen_predicate_test_write(const Ia64Instruction *insn,
                                    TCGv_i64 cond, TCGv_i64 not_cond);
 void ia64_gen_gr_write_nat_clear(const Ia64Instruction *insn, uint8_t reg,
@@ -304,7 +320,7 @@ bool ia64_gen_completed_direct_branch(DisasContext *ctx, TCGLabel *skip,
 void ia64_gen_lookup_tcg_completed(DisasContext *ctx, TCGv_i64 ip,
                                    uint64_t completed_ip, bool record_iipa,
                                    bool track_psr_suppression);
-bool ia64_gen_zero_st1_cloop(DisasContext *ctx,
+bool ia64_gen_fill_st1_cloop(DisasContext *ctx,
                              const Ia64Instruction *insn,
                              uint64_t target, TCGLabel *l_nobr,
                              bool record_iipa,

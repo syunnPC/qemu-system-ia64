@@ -403,6 +403,79 @@ static void ia64_gen_czx(TCGv_i64 result, TCGv_i64 value,
     tcg_gen_shri_i64(result, result, bits == 8 ? 3 : 4);
 }
 
+static void ia64_gen_mux1(TCGv_i64 result, TCGv_i64 value, uint32_t imm)
+{
+    static const uint8_t permutations[3][8] = {
+        { 0, 4, 2, 6, 1, 5, 3, 7 },
+        { 0, 4, 1, 5, 2, 6, 3, 7 },
+        { 0, 2, 4, 6, 1, 3, 5, 7 },
+    };
+    uint64_t masks[15] = { 0 };
+    TCGv_i64 part = tcg_temp_new_i64();
+    bool first = true;
+
+    if (imm == 0) {
+        tcg_gen_ext8u_i64(result, value);
+        tcg_gen_muli_i64(result, result, UINT64_C(0x0101010101010101));
+        return;
+    }
+    if (imm == 0xb) {
+        tcg_gen_bswap64_i64(result, value);
+        return;
+    }
+    g_assert(imm >= 8 && imm <= 0xa);
+    for (unsigned i = 0; i < 8; i++) {
+        int shift = (int)i - permutations[imm - 8][i];
+
+        masks[shift + 7] |= UINT64_C(0xff) << (i * 8);
+    }
+    for (int shift = -7; shift <= 7; shift++) {
+        if (!masks[shift + 7]) {
+            continue;
+        }
+        if (shift < 0) {
+            tcg_gen_shri_i64(part, value, -shift * 8);
+        } else {
+            tcg_gen_shli_i64(part, value, shift * 8);
+        }
+        tcg_gen_andi_i64(part, part, masks[shift + 7]);
+        if (first) {
+            tcg_gen_mov_i64(result, part);
+            first = false;
+        } else {
+            tcg_gen_or_i64(result, result, part);
+        }
+    }
+}
+
+static void ia64_gen_unpack(TCGv_i64 result, TCGv_i64 a, TCGv_i64 b,
+                            unsigned bits, bool low)
+{
+    TCGv_i64 left = tcg_temp_new_i64();
+    TCGv_i64 right = tcg_temp_new_i64();
+    TCGv_i64 shifted = tcg_temp_new_i64();
+    TCGv_i64 parts[2] = { left, right };
+
+    tcg_gen_extract_i64(left, a, low ? 0 : 32, 32);
+    tcg_gen_extract_i64(right, b, low ? 0 : 32, 32);
+    for (unsigned i = 0; i < ARRAY_SIZE(parts); i++) {
+        TCGv_i64 part = parts[i];
+
+        if (bits <= 16) {
+            tcg_gen_shli_i64(shifted, part, 16);
+            tcg_gen_or_i64(part, part, shifted);
+            tcg_gen_andi_i64(part, part, UINT64_C(0x0000ffff0000ffff));
+        }
+        if (bits == 8) {
+            tcg_gen_shli_i64(shifted, part, 8);
+            tcg_gen_or_i64(part, part, shifted);
+            tcg_gen_andi_i64(part, part, UINT64_C(0x00ff00ff00ff00ff));
+        }
+    }
+    tcg_gen_shli_i64(left, left, bits);
+    tcg_gen_or_i64(result, left, right);
+}
+
 static void ia64_gen_mux2(TCGv_i64 result, TCGv_i64 value, uint32_t imm)
 {
     uint32_t first_lane = imm & 3;
@@ -935,9 +1008,7 @@ IA64GenResult ia64_gen_simd(DisasContext *ctx,
         if (insn->opcode == IA64_OP_MUX2) {
             ia64_gen_mux2(result, ia64_gr_src(op->source1), op->immediate);
         } else {
-            gen_helper_simd_mux(result, tcg_constant_i32(0),
-                                 ia64_gr_src(op->source1),
-                                 tcg_constant_i32(op->immediate));
+            ia64_gen_mux1(result, ia64_gr_src(op->source1), op->immediate);
         }
         tcg_gen_mov_i64(cpu_gr[op->destination], result);
         ia64_gen_gr_nat_from_1(insn, op->destination, op->source1);
@@ -1028,9 +1099,9 @@ IA64GenResult ia64_gen_simd(DisasContext *ctx,
             break;
         }
         result = tcg_temp_new_i64();
-        gen_helper_simd_unpack(result, tcg_constant_i32(sel),
-                               ia64_gr_src(op->source1),
-                               ia64_gr_src(op->source2));
+        ia64_gen_unpack(result, ia64_gr_src(op->source1),
+                         ia64_gr_src(op->source2), 8U << (sel >> 1),
+                         sel & 1);
         tcg_gen_mov_i64(cpu_gr[op->destination], result);
         ia64_gen_gr_nat_from_2(insn, op->destination,
                                op->source1, op->source2);

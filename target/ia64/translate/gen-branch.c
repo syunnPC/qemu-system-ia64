@@ -52,7 +52,7 @@ IA64GenResult ia64_gen_branch(DisasContext *ctx,
         tcg_gen_ld_i64(lc, tcg_env,
                        offsetof(CPUIA64State, ar[IA64_AR_LC]));
         tcg_gen_brcondi_i64(TCG_COND_EQ, lc, 0, l_nobr);
-        if (ia64_gen_zero_st1_cloop(ctx, insn, target, l_nobr, record_iipa,
+        if (ia64_gen_fill_st1_cloop(ctx, insn, target, l_nobr, record_iipa,
                                     track_psr_suppression)) {
             gen_set_label(l_nobr);
             return IA64_GEN_CONTINUE;

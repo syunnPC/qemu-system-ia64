@@ -46,15 +46,15 @@ static void ia64_gen_fp_copy(const Ia64Instruction *insn,
         if (mode == IA64_FP_COPY) {
             significand = gen_new_label();
             tcg_gen_brcondi_i64(TCG_COND_NE,
-                                ia64_gen_fr_fmov_slow_read(op->source1),
-                                0, slow);
+                                ia64_gen_fr_fmov_slow_read(
+                                    insn->ctx, op->source1), 0, slow);
             tcg_gen_brcondi_i64(TCG_COND_NE,
-                                ia64_gen_fr_sig_read(op->source1),
+                                ia64_gen_fr_sig_read(insn->ctx, op->source1),
                                 0, significand);
         } else {
             tcg_gen_brcondi_i64(TCG_COND_NE,
-                                ia64_gen_fr_special_read(op->source1),
-                                0, slow);
+                                ia64_gen_fr_special_read(
+                                    insn->ctx, op->source1), 0, slow);
         }
     }
 
@@ -101,9 +101,9 @@ static void ia64_gen_fp_copy(const Ia64Instruction *insn,
         g_assert_not_reached();
     }
     if (mode == IA64_FP_COPY) {
-        ia64_gen_fr_mov(op->destination, value);
+        ia64_gen_fr_mov(insn->ctx, op->destination, value);
     } else {
-        ia64_gen_fr_mov_sig(op->destination, value);
+        ia64_gen_fr_mov_sig(insn->ctx, op->destination, value);
     }
     if (op->source1 <= 1) {
         return;
@@ -112,7 +112,7 @@ static void ia64_gen_fp_copy(const Ia64Instruction *insn,
 
     if (significand) {
         gen_set_label(significand);
-        ia64_gen_fr_mov_sig(op->destination,
+        ia64_gen_fr_mov_sig(insn->ctx, op->destination,
                             ia64_fr_significand_src(op->source1));
         tcg_gen_br(done);
     }
@@ -142,7 +142,8 @@ static void ia64_gen_fp_copy(const Ia64Instruction *insn,
 }
 
 /* The caller has excluded NaTVal, extended and orphan integer formats. */
-static TCGv_i64 ia64_gen_fp_significand(uint8_t reg)
+static TCGv_i64 ia64_gen_fp_significand(const Ia64Instruction *insn,
+                                        uint8_t reg)
 {
     TCGv_i64 value, exponent;
 
@@ -160,24 +161,26 @@ static TCGv_i64 ia64_gen_fp_significand(uint8_t reg)
     tcg_gen_setcondi_i64(TCG_COND_NE, exponent, exponent, 0);
     tcg_gen_shli_i64(exponent, exponent, 63);
     tcg_gen_or_i64(value, value, exponent);
-    tcg_gen_movcond_i64(TCG_COND_NE, value, ia64_gen_fr_sig_read(reg),
+    tcg_gen_movcond_i64(TCG_COND_NE, value,
+                        ia64_gen_fr_sig_read(insn->ctx, reg),
                         tcg_constant_i64(0), ia64_fr_significand_src(reg),
                         value);
     return value;
 }
 
-static void ia64_gen_fp_bitwise_operands(const IA64FloatingOperands *op,
+static void ia64_gen_fp_bitwise_operands(const Ia64Instruction *insn,
                                           TCGLabel *slow, TCGv_i64 *left,
                                           TCGv_i64 *right)
 {
+    const IA64FloatingOperands *op = &insn->operands.floating;
     TCGv_i64 special = tcg_temp_new_i64();
 
-    tcg_gen_or_i64(special, ia64_gen_fr_fmov_slow_read(op->source1),
-                   ia64_gen_fr_fmov_slow_read(op->source2));
+    tcg_gen_or_i64(special, ia64_gen_fr_fmov_slow_read(insn->ctx, op->source1),
+                   ia64_gen_fr_fmov_slow_read(insn->ctx, op->source2));
     tcg_gen_brcondi_i64(TCG_COND_NE, special, 0, slow);
-    *left = ia64_gen_fp_significand(op->source1);
+    *left = ia64_gen_fp_significand(insn, op->source1);
     *right = op->source1 == op->source2 ? *left :
-             ia64_gen_fp_significand(op->source2);
+             ia64_gen_fp_significand(insn, op->source2);
 }
 
 static void ia64_gen_fp_logical(const Ia64Instruction *insn, uint32_t mode)
@@ -192,7 +195,7 @@ static void ia64_gen_fp_logical(const Ia64Instruction *insn, uint32_t mode)
     slow = gen_new_label();
     done = gen_new_label();
     value = tcg_temp_new_i64();
-    ia64_gen_fp_bitwise_operands(op, slow, &left, &right);
+    ia64_gen_fp_bitwise_operands(insn, slow, &left, &right);
     switch (mode) {
     case 0:
         tcg_gen_and_i64(value, left, right);
@@ -209,7 +212,7 @@ static void ia64_gen_fp_logical(const Ia64Instruction *insn, uint32_t mode)
     default:
         g_assert_not_reached();
     }
-    ia64_gen_fr_mov_sig(op->destination, value);
+    ia64_gen_fr_mov_sig(insn->ctx, op->destination, value);
     tcg_gen_br(done);
     gen_set_label(slow);
 
@@ -257,13 +260,13 @@ static void ia64_gen_fp_swap(const Ia64Instruction *insn, uint32_t form)
     slow = gen_new_label();
     done = gen_new_label();
     value = tcg_temp_new_i64();
-    ia64_gen_fp_bitwise_operands(op, slow, &left, &right);
+    ia64_gen_fp_bitwise_operands(insn, slow, &left, &right);
     tcg_gen_shri_i64(value, left, 32);
     tcg_gen_deposit_i64(value, value, right, 32, 32);
     if (form != 0) {
         tcg_gen_xori_i64(value, value, UINT64_C(1) << (form == 1 ? 63 : 31));
     }
-    ia64_gen_fr_mov_sig(op->destination, value);
+    ia64_gen_fr_mov_sig(insn->ctx, op->destination, value);
     tcg_gen_br(done);
     gen_set_label(slow);
 
@@ -286,7 +289,7 @@ static void ia64_gen_fp_mix(const Ia64Instruction *insn, uint32_t form)
     slow = gen_new_label();
     done = gen_new_label();
     value = tcg_temp_new_i64();
-    ia64_gen_fp_bitwise_operands(op, slow, &left, &right);
+    ia64_gen_fp_bitwise_operands(insn, slow, &left, &right);
     if (form == 2) {
         tcg_gen_shri_i64(value, right, 32);
     } else {
@@ -298,7 +301,7 @@ static void ia64_gen_fp_mix(const Ia64Instruction *insn, uint32_t form)
         tcg_gen_andi_i64(left, left, UINT64_C(0xffffffff00000000));
         tcg_gen_or_i64(value, value, left);
     }
-    ia64_gen_fr_mov_sig(op->destination, value);
+    ia64_gen_fr_mov_sig(insn->ctx, op->destination, value);
     tcg_gen_br(done);
     gen_set_label(slow);
 
@@ -321,7 +324,7 @@ static void ia64_gen_fp_sxt(const Ia64Instruction *insn, uint32_t form)
     slow = gen_new_label();
     done = gen_new_label();
     value = tcg_temp_new_i64();
-    ia64_gen_fp_bitwise_operands(op, slow, &left, &right);
+    ia64_gen_fp_bitwise_operands(insn, slow, &left, &right);
     if (form == 1) {
         tcg_gen_shri_i64(value, right, 32);
         tcg_gen_sari_i64(left, left, 63);
@@ -330,7 +333,7 @@ static void ia64_gen_fp_sxt(const Ia64Instruction *insn, uint32_t form)
         tcg_gen_sextract_i64(left, left, 31, 1);
     }
     tcg_gen_deposit_i64(value, value, left, 32, 32);
-    ia64_gen_fr_mov_sig(op->destination, value);
+    ia64_gen_fr_mov_sig(insn->ctx, op->destination, value);
     tcg_gen_br(done);
     gen_set_label(slow);
 
@@ -354,7 +357,7 @@ static void ia64_gen_fp_parallel_merge(const Ia64Instruction *insn,
     slow = gen_new_label();
     done = gen_new_label();
     value = tcg_temp_new_i64();
-    ia64_gen_fp_bitwise_operands(op, slow, &left, &right);
+    ia64_gen_fp_bitwise_operands(insn, slow, &left, &right);
     uint64_t mask = form == 2 ? UINT64_C(0xff800000ff800000) :
                                 UINT64_C(0x8000000080000000);
 
@@ -364,7 +367,7 @@ static void ia64_gen_fp_parallel_merge(const Ia64Instruction *insn,
     }
     tcg_gen_andi_i64(right, right, ~mask);
     tcg_gen_or_i64(value, value, right);
-    ia64_gen_fr_mov_sig(op->destination, value);
+    ia64_gen_fr_mov_sig(insn->ctx, op->destination, value);
     tcg_gen_br(done);
     gen_set_label(slow);
 
@@ -444,14 +447,14 @@ static void ia64_gen_fmerge(const Ia64Instruction *insn, uint32_t form)
         slow = gen_new_label();
         done = gen_new_label();
         if (op->source1 <= 1) {
-            special = ia64_gen_fr_special_read(op->source2);
+            special = ia64_gen_fr_special_read(insn->ctx, op->source2);
         } else if (op->source2 <= 1) {
-            special = ia64_gen_fr_special_read(op->source1);
+            special = ia64_gen_fr_special_read(insn->ctx, op->source1);
         } else {
             special = tcg_temp_new_i64();
             tcg_gen_or_i64(special,
-                           ia64_gen_fr_special_read(op->source1),
-                           ia64_gen_fr_special_read(op->source2));
+                           ia64_gen_fr_special_read(insn->ctx, op->source1),
+                           ia64_gen_fr_special_read(insn->ctx, op->source2));
         }
         tcg_gen_brcondi_i64(TCG_COND_NE, special, 0, slow);
         if (form == 2) {
@@ -473,7 +476,7 @@ static void ia64_gen_fmerge(const Ia64Instruction *insn, uint32_t form)
     }
     tcg_gen_andi_i64(right, ia64_fr_binary_src(op->source2), ~left_mask);
     tcg_gen_or_i64(result, left, right);
-    ia64_gen_fr_mov(op->destination, result);
+    ia64_gen_fr_mov(insn->ctx, op->destination, result);
     if (op->source1 <= 1 && op->source2 <= 1) {
         return;
     }
@@ -519,12 +522,16 @@ static void ia64_gen_getf(const Ia64Instruction *insn, uint32_t kind)
         return;
     }
 
-    if (kind == 2) {
+    if (kind == 0) {
+        ia64_gen_fr_read_double(insn->ctx, cpu_gr[op->destination],
+                                op->source1);
+    } else if (kind == 2) {
         TCGLabel *slow = gen_new_label();
         TCGLabel *done = gen_new_label();
 
         tcg_gen_brcondi_i64(TCG_COND_EQ,
-                            ia64_gen_fr_sig_read(op->source1), 0, slow);
+                            ia64_gen_fr_sig_read(insn->ctx, op->source1),
+                            0, slow);
         tcg_gen_mov_i64(cpu_gr[op->destination],
                         ia64_fr_significand_src(op->source1));
         tcg_gen_br(done);
@@ -539,7 +546,7 @@ static void ia64_gen_getf(const Ia64Instruction *insn, uint32_t kind)
                         tcg_constant_i32(kind));
     }
     ia64_gen_gr_nat_assign(insn, op->destination,
-                           ia64_gen_fr_nat_read(op->source1));
+                           ia64_gen_fr_nat_read(insn->ctx, op->source1));
 }
 
 static void ia64_gen_xma(const Ia64Instruction *insn, uint32_t mode)
@@ -567,11 +574,12 @@ static void ia64_gen_xma(const Ia64Instruction *insn, uint32_t mode)
     }
     for (uint32_t word = 0; word < ARRAY_SIZE(sig_mask); word++) {
         if (sig_mask[word] != 0) {
-            TCGv_i64 bits = ia64_gen_fr_sig_mask_read(word,
-                                                       sig_mask[word]);
+            TCGv_i64 bits = tcg_temp_new_i64();
 
             /* A significand tag and a NaTVal tag are mutually exclusive. */
-            tcg_gen_xori_i64(bits, bits, sig_mask[word]);
+            tcg_gen_xori_i64(bits, ia64_gen_fr_sig_mask_read(insn->ctx, word,
+                                                           sig_mask[word]),
+                             sig_mask[word]);
             if (missing == NULL) {
                 missing = bits;
             } else {
@@ -605,7 +613,7 @@ static void ia64_gen_xma(const Ia64Instruction *insn, uint32_t mode)
                          ia64_fr_significand_src(op->source1),
                          tcg_constant_i64(0));
     }
-    ia64_gen_fr_mov_sig(op->destination, mode == 0 ? low : high);
+    ia64_gen_fr_mov_sig(insn->ctx, op->destination, mode == 0 ? low : high);
     if (done != NULL) {
         gen_set_label(done);
     }
@@ -885,12 +893,11 @@ IA64GenResult ia64_gen_fp(DisasContext *ctx,
         ia64_gen_getf(insn, 3);
         break;
     case IA64_OP_SETF_D:
-        ia64_gen_fr_mov(op->destination, ia64_gr_src(op->source1));
+        ia64_gen_fr_mov(insn->ctx, op->destination, ia64_gr_src(op->source1));
         ia64_gen_fr_nat_from_gr(op->destination, op->source1);
         break;
     case IA64_OP_SETF_S: {
-        gen_helper_setf_s(tcg_env, tcg_constant_i32(op->destination),
-                          ia64_gr_src(op->source1));
+        ia64_gen_fr_mov_s(insn->ctx, op->destination, ia64_gr_src(op->source1));
         ia64_gen_fr_nat_from_gr(op->destination, op->source1);
         break;
     }
@@ -900,7 +907,8 @@ IA64GenResult ia64_gen_fp(DisasContext *ctx,
         ia64_gen_fr_nat_from_gr(op->destination, op->source1);
         break;
     case IA64_OP_SETF_SIG:
-        ia64_gen_fr_mov_sig(op->destination, ia64_gr_src(op->source1));
+        ia64_gen_fr_mov_sig(insn->ctx, op->destination,
+                            ia64_gr_src(op->source1));
         ia64_gen_fr_nat_from_gr(op->destination, op->source1);
         break;
     case IA64_OP_FCLASS:

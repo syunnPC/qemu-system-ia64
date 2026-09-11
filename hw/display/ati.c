@@ -352,7 +352,8 @@ static bool ati_cursor_define(ATIVGAState *s, const ATICursorParams *params)
     return true;
 }
 
-static void ati_cursor_update_host(ATIVGAState *s, bool redefine)
+static void ati_cursor_update_host_dirty(ATIVGAState *s, bool redefine,
+                                          bool check_image)
 {
     ATICursorParams params;
     const uint8_t *source;
@@ -381,7 +382,8 @@ static void ati_cursor_update_host(ATIVGAState *s, bool redefine)
                     s->cursor_image_width != params.width ||
                     s->cursor_image_height != params.height ||
                     s->cursor_image_mode != params.mode ||
-                    memcmp(s->cursor_image, source, image_size);
+                    (check_image &&
+                     memcmp(s->cursor_image, source, image_size));
     if (shape_changed) {
         if (!ati_cursor_define(s, &params)) {
             s->cursor_image_valid = false;
@@ -410,6 +412,11 @@ static void ati_cursor_update_host(ATIVGAState *s, bool redefine)
     }
 }
 
+static void ati_cursor_update_host(ATIVGAState *s, bool redefine)
+{
+    ati_cursor_update_host_dirty(s, redefine, true);
+}
+
 static void ati_cursor_update_guest_mode(ATIVGAState *s)
 {
     ATICursorParams params;
@@ -418,8 +425,8 @@ static void ati_cursor_update_guest_mode(ATIVGAState *s)
     if (s->vga.force_shadow != enabled) {
         s->vga.force_shadow = enabled;
         s->vga.graphic_mode = -1;
+        graphic_hw_invalidate(s->vga.con);
     }
-    graphic_hw_invalidate(s->vga.con);
 }
 
 static void ati_cursor_hide_host(ATIVGAState *s)
@@ -433,6 +440,9 @@ static void ati_cursor_hide_host(ATIVGAState *s)
 static void ati_cursor_changed(ATIVGAState *s, bool redefine)
 {
     if (s->cursor_guest_mode) {
+        if (redefine) {
+            s->cursor_image_valid = false;
+        }
         ati_cursor_update_guest_mode(s);
     } else {
         ati_cursor_update_host(s, redefine);
@@ -611,39 +621,54 @@ static void ati_graphic_invalidate(void *opaque)
     s->vga.hw_ops->invalidate(&s->vga);
 }
 
-static uint8_t ati_scanout_read(VGACommonState *vga, uint32_t address)
+static void ati_scanout_prepare(VGACommonState *vga)
 {
     ATIVGAState *s = container_of(vga, ATIVGAState, vga);
-    unsigned int bpp = vga->get_bpp(vga);
-    unsigned int cpp = DIV_ROUND_UP(bpp, 8);
-    uint32_t pitch = vga->params.line_offset;
-    uint32_t base = s->crtc_offset_active;
-    unsigned int start_line = s->crtc_tile_line_active & CRTC_TILE_LINE_MASK;
-    unsigned int start_tile = (base >> 11) -
-                              (start_line >> 3) * (pitch >> 8);
+
+    s->scanout.cpp = DIV_ROUND_UP(vga->get_bpp(vga), 8);
+    s->scanout.pitch = vga->params.line_offset;
+    s->scanout.base = s->crtc_offset_active;
+    s->scanout.start_line = s->crtc_tile_line_active & CRTC_TILE_LINE_MASK;
+    s->scanout.start_tile = (s->scanout.base >> 11) -
+        (s->scanout.start_line >> 3) * (s->scanout.pitch >> 8);
+}
+
+static uint64_t ati_scanout_map(VGACommonState *vga, uint32_t address,
+                                uint32_t *length)
+{
+    ATIVGAState *s = container_of(vga, ATIVGAState, vga);
+    uint32_t pitch = s->scanout.pitch;
+    uint32_t base = s->scanout.base;
+    unsigned int start_line = s->scanout.start_line;
     uint32_t x, y;
     uint64_t offset;
 
     /* Rage128 tiled scanout is unsupported; return zero pixel data. */
     if (s->dev_id == PCI_DEVICE_ID_ATI_RAGE128_PF ||
         !pitch || address < base) {
-        return 0;
+        if (address < base) {
+            *length = MIN(*length, base - address);
+        }
+        return UINT64_MAX;
     }
     x = (address - base) % pitch;
     y = (address - base) / pitch;
+    *length = MIN(*length, pitch - x);
     /*
      * OFFSET encodes the tile index and unswizzled position. TILE_LINE
      * supplies the row modulo 16; the tile base selects the bank phase.
      */
     x += base & 255;
     y += start_line;
-    if (!ati_2d_tile_offset(s, start_tile << 11, pitch, cpp, 1,
+    *length = MIN(*length, 64 - (x & 63));
+    if (!ati_2d_tile_offset(s, s->scanout.start_tile << 11, pitch,
+                            s->scanout.cpp, 1,
                             x, y, &offset)) {
-        return 0;
+        return UINT64_MAX;
     }
     offset += base & ~0x7ffU;
     offset -= (uint64_t)(start_line >> 3) * pitch * 8;
-    return offset < vga->vram_size ? vga->vram_ptr[offset] : 0;
+    return offset;
 }
 
 static bool ati_graphic_update(void *opaque)
@@ -651,12 +676,18 @@ static bool ati_graphic_update(void *opaque)
     ATIVGAState *s = opaque;
     bool complete;
 
-    s->vga.scanout_read = (s->regs.crtc_offset_cntl & CRTC_TILE_EN) &&
+    s->vga.scanout_map = (s->regs.crtc_offset_cntl & CRTC_TILE_EN) &&
                           s->mode && s->vga.get_bpp(&s->vga) >= 8 ?
-                          ati_scanout_read : NULL;
+                         ati_scanout_map : NULL;
+    s->vga.scanout_prepare = ati_scanout_prepare;
+    s->vga.cursor_dirty_size = !s->cursor_guest_mode && s->cursor_image_valid ?
+                              s->cursor_image_size : 0;
+    s->vga.cursor_dirty_offset = s->cursor_image_offset;
+    s->vga.cursor_dirty_valid = false;
     complete = s->vga.hw_ops->gfx_update(&s->vga);
-    s->vga.scanout_read = NULL;
-    ati_cursor_update_host(s, false);
+    s->vga.scanout_map = NULL;
+    ati_cursor_update_host_dirty(s, false, !s->vga.cursor_dirty_valid ||
+                                           s->vga.cursor_image_dirty);
     return complete;
 }
 

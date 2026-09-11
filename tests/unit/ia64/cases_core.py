@@ -3285,6 +3285,40 @@ test_mux1_brcst_decode = require_registers("mux1_brcst_decode", [
     "exception": IA64_EXCP_NONE,
 }, entry=0x10)
 
+def test_mux1_permutations_in_place(qemu):
+    for mode, expected in (
+            (0, 0xefefefefefefefef),
+            (8, 0x018945cd23ab67ef),
+            (9, 0x018923ab45cd67ef),
+            (10, 0x014589cd2367abef),
+            (11, 0xefcdab8967452301)):
+        require_registers(f"mux1_in_place_{mode}", [
+            (0x10, *movl_mlx(3, 0x0123456789abcdef)),
+            (0x20, 0x02, nop_m(), mux1(3, 3, mode), nop_i()),
+            (0x30, 0x10, nop_m(), nop_i(), br_cond(0x30, 0x30)),
+        ], {"ip": 0x30, "r3": expected,
+            "exception": IA64_EXCP_NONE}, entry=0x10)(qemu)
+
+
+def test_unpack_source_aliases(qemu):
+    for encode, expected in (
+            (unpack1_l, 0x55ee66ff77008811),
+            (unpack1_h, 0x11aa22bb33cc44dd),
+            (unpack2_l, 0x5566eeff77880011),
+            (unpack2_h, 0x1122aabb3344ccdd),
+            (unpack4_l, 0x55667788eeff0011),
+            (unpack4_h, 0x11223344aabbccdd)):
+        for destination in (2, 3):
+            require_registers(f"{encode.__name__}_alias_{destination}", [
+                (0x10, *movl_mlx(2, 0x1122334455667788)),
+                (0x20, *movl_mlx(3, 0xaabbccddeeff0011)),
+                (0x30, 0x02, nop_m(), adds(4, 0x55, 0), nop_i()),
+                (0x40, 0x02, nop_m(), encode(4, 2, 3, qp=1), nop_i()),
+                (0x50, 0x02, nop_m(), encode(destination, 2, 3), nop_i()),
+                (0x60, 0x10, nop_m(), nop_i(), br_cond(0x60, 0x60)),
+            ], {"ip": 0x60, f"r{destination}": expected, "r4": 0x55,
+                "exception": IA64_EXCP_NONE}, entry=0x10)(qemu)
+
 test_mux1_reserved_mbtype_predicated_off_is_nop = require_registers(
     "mux1_reserved_mbtype_predicated_off_is_nop", [
         (0x10, 0x00, nop_m(), adds(5, 0x44, 0), nop_i()),
@@ -3493,6 +3527,21 @@ test_predicate_register_roundtrip = require_registers(
         "exception": IA64_EXCP_NONE,
     }, entry=0x10)
 
+test_predicate_sparse_write_preserves_other_bits = require_registers(
+    "predicate_sparse_write_preserves_other_bits", [
+        (0x10, *movl_mlx(2, 0x10080)),
+        (0x20, 0x01, nop_m(), mov_gr_pr(2, -2), nop_i()),
+        (0x30, *movl_mlx(2, 0x8202)),
+        (0x40, 0x01, nop_m(), mov_gr_pr(2, 0x8206), nop_i()),
+        (0x50, 0x01, nop_m(), mov_pr_gr(4), nop_i()),
+        (0x60, 0x01, nop_m(), mov_gr_pr(0, 0x8002, qp=1), nop_i()),
+        (0x70, 0x01, nop_m(), adds(5, 1, 0, qp=1), nop_i()),
+        (0x80, 0x01, nop_m(), mov_gr_pr(2, 0x206, qp=1), nop_i()),
+        (0x90, 0x01, nop_m(), mov_pr_gr(6), nop_i()),
+        (0xa0, 0x10, nop_m(), nop_i(), br_cond(0xa0, 0xa0)),
+    ], {"ip": 0xa0, "r4": 0x18283, "r5": 0, "r6": 0x10281,
+        "pr_mask": 0x10281, "exception": IA64_EXCP_NONE}, entry=0x10)
+
 def test_packed_immediate_shift_boundaries(qemu):
     """Exercise every count, with in-place results and signed lanes."""
     word = 0x80017fff80000001
@@ -3682,6 +3731,7 @@ CASE_NAMES = (
     'mpyshl4_decode',
     'mpyshl4_unsupported_true_illegal',
     'mux1_brcst_decode',
+    'mux1_permutations_in_place',
     'mux1_rev_decode',
     'mux1_reserved_mbtype_predicated_off_is_nop',
     'mux1_reserved_mbtype_true_illegal',
@@ -3718,6 +3768,7 @@ CASE_NAMES = (
     'popcnt_size_selector_predicated_off_is_nop',
     'popcnt_size_selector_true_illegal',
     'predicate_register_roundtrip',
+    'predicate_sparse_write_preserves_other_bits',
     'predicated_off_privileged_instruction_does_not_fault',
     'private_extension_opcode_illegal',
     'privileged_instruction_rejected_at_cpl3',
@@ -3765,6 +3816,7 @@ CASE_NAMES = (
     'tf_unc_same_pred_pred_false_illegal',
     'tf_upper_cpuid_feature_bits',
     'unpack2_l_decode',
+    'unpack_source_aliases',
     'vmsw0_madison_illegal_operation',
     'vmsw0_montecito_virtualization_fault',
     'vmsw1_madison_illegal_operation',

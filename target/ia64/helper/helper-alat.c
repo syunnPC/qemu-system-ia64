@@ -85,6 +85,11 @@ void helper_alat_write_end(CPUIA64State *env, uint64_t addr, uint32_t size)
     ia64_alat_write_end(env, addr, size);
 }
 
+void helper_alat_write_cancel(CPUIA64State *env)
+{
+    ia64_alat_write_cancel(env);
+}
+
 void helper_notify_alat_store(CPUIA64State *env)
 {
     ia64_alat_notify_store(env);

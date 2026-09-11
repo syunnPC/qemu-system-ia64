@@ -57,22 +57,15 @@ static CPUState *sapic_redirect_target(CPUState *requested)
         qatomic_read(&requested_cpu->env.cr[IA64_CR_SAPIC_LID]) &
         IA64_SAPIC_LID_EID_MASK;
     unsigned int requested_index = MAX(requested->cpu_index, 0);
-    unsigned int max_index = requested_index;
-    unsigned int span;
     unsigned int best_priority = UINT_MAX;
-    unsigned int best_distance = UINT_MAX;
-
-    CPU_FOREACH(cs) {
-        max_index = MAX(max_index, (unsigned int)MAX(cs->cpu_index, 0));
-    }
-    span = max_index + 1;
+    uint64_t best_order = UINT64_MAX;
 
     CPU_FOREACH(cs) {
         IA64CPU *cpu = ia64_cpu_from_cpu_state(cs);
         uint8_t xtp = ia64_sapic_get_xtp(cs);
         unsigned int priority;
         unsigned int index;
-        unsigned int distance;
+        uint64_t order;
 
         if ((qatomic_read(&cpu->env.cr[IA64_CR_SAPIC_LID]) &
              IA64_SAPIC_LID_EID_MASK) != requested_eid ||
@@ -81,12 +74,13 @@ static CPUState *sapic_redirect_target(CPUState *requested)
         }
         priority = xtp & IA64_SAPIC_XTP_PRIORITY_MASK;
         index = MAX(cs->cpu_index, 0);
-        distance = (index + span - requested_index) % span;
+        /* Walk indices from the requested CPU, then wrap to smaller ones. */
+        order = ((uint64_t)(index < requested_index) << 32) | index;
         if (priority < best_priority ||
-            (priority == best_priority && distance < best_distance)) {
+            (priority == best_priority && order < best_order)) {
             selected = cs;
             best_priority = priority;
-            best_distance = distance;
+            best_order = order;
         }
     }
 

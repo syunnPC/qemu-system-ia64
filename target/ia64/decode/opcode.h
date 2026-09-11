@@ -8,7 +8,7 @@
 #define TARGET_IA64_DECODE_OPCODE_H
 
 typedef enum Ia64Opcode {
-#define IA64_OPCODE(name, generator) IA64_OP_ ## name,
+#define IA64_OPCODE(name, generator, gr, nat) IA64_OP_ ## name,
 #include "opcode.inc"
 #undef IA64_OPCODE
     IA64_OP_COUNT,
