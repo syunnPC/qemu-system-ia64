@@ -811,12 +811,348 @@ static BOOLEAN test_protocol_services(EFI_HANDLE ImageHandle,
         opened != loaded ||
         bs->CloseProtocol(ImageHandle, loaded_image_guid,
                           ImageHandle, NULL) != EFI_SUCCESS ||
+        bs->ReinstallProtocolInterface(ImageHandle, loaded_image_guid,
+                                       loaded, loaded) != EFI_SUCCESS ||
+        bs->HandleProtocol(ImageHandle, loaded_image_guid, &opened) !=
+            EFI_SUCCESS || opened != loaded ||
         bs->LocateProtocol(device_path_guid, NULL, &located) != EFI_SUCCESS ||
         located == NULL) {
         return 0;
     }
     *Loaded = loaded;
     return 1;
+}
+
+static VOID test_protocol_notify(EFI_EVENT Event, VOID *Context)
+{
+    UINTN *count = Context;
+
+    (void)Event;
+    (*count)++;
+}
+
+static BOOLEAN test_reinstall_interface(EFI_BOOT_SERVICES *bs,
+                                        EFI_HANDLE ImageHandle,
+                                        EFI_HANDLE Handle,
+                                        VOID *Original, VOID *Replacement)
+{
+    EFI_EVENT event = NULL;
+    VOID *registration = NULL;
+    VOID *current = Original;
+    VOID *located = NULL;
+    VOID **protocols = NULL;
+    EFI_STATUS status;
+    UINTN original_count;
+    UINTN count;
+    UINTN notifications = 0;
+    UINTN pass;
+    BOOLEAN exclusive = 0;
+    BOOLEAN removed = 0;
+    BOOLEAN ok = 0;
+
+    if (bs->ProtocolsPerHandle(Handle, &protocols, &original_count) !=
+            EFI_SUCCESS) {
+        return 0;
+    }
+    (void)bs->FreePool(protocols);
+    protocols = NULL;
+    if (bs->CreateEvent(EVT_NOTIFY_SIGNAL, TPL_CALLBACK,
+                         test_protocol_notify, &notifications, &event) !=
+            EFI_SUCCESS ||
+        bs->RegisterProtocolNotify(loaded_image_guid, event, &registration) !=
+            EFI_SUCCESS) {
+        goto out;
+    }
+    /* Exclude existing instances from the reinstall notification checks. */
+    do {
+        status = bs->LocateProtocol(loaded_image_guid, registration, &located);
+    } while (status == EFI_SUCCESS);
+    if (status != EFI_NOT_FOUND) {
+        goto out;
+    }
+    if (bs->ReinstallProtocolInterface(Handle, loaded_image_guid,
+                                       Replacement, Original) !=
+            EFI_NOT_FOUND || notifications != 0 ||
+        bs->OpenProtocol(Handle, loaded_image_guid, &located,
+                          ImageHandle, NULL, EFI_OPEN_PROTOCOL_EXCLUSIVE) !=
+            EFI_SUCCESS) {
+        goto out;
+    }
+    exclusive = 1;
+    if (bs->ReinstallProtocolInterface(Handle, loaded_image_guid,
+                                       Original, Replacement) !=
+            EFI_ACCESS_DENIED || notifications != 0 ||
+        bs->CloseProtocol(Handle, loaded_image_guid, ImageHandle, NULL) !=
+            EFI_SUCCESS) {
+        goto out;
+    }
+    exclusive = 0;
+    for (pass = 0; pass < 3U; pass++) {
+        VOID *next = pass == 0 ? Original : Replacement;
+        UINTN matches = 0;
+        UINTN i;
+
+        if (bs->ReinstallProtocolInterface(Handle, loaded_image_guid,
+                                           current, next) != EFI_SUCCESS) {
+            goto out;
+        }
+        current = next;
+        if (notifications != pass + 1U ||
+            bs->HandleProtocol(Handle, loaded_image_guid, &located) !=
+                EFI_SUCCESS || located != current ||
+            bs->LocateProtocol(loaded_image_guid, registration, &located) !=
+                EFI_SUCCESS || located != current ||
+            bs->LocateProtocol(loaded_image_guid, registration, &located) !=
+                EFI_NOT_FOUND ||
+            bs->ProtocolsPerHandle(Handle, &protocols, &count) != EFI_SUCCESS ||
+            count != original_count) {
+            goto out;
+        }
+        for (i = 0; i < count; i++) {
+            matches += ia64_bytes_equal(protocols[i], loaded_image_guid, 16);
+        }
+        (void)bs->FreePool(protocols);
+        protocols = NULL;
+        if (matches != 1U) {
+            goto out;
+        }
+    }
+    if (bs->UninstallProtocolInterface(Handle, loaded_image_guid,
+                                       current) != EFI_SUCCESS) {
+        goto out;
+    }
+    removed = 1;
+    if (bs->HandleProtocol(Handle, loaded_image_guid, &located) !=
+            EFI_UNSUPPORTED || located != NULL ||
+        bs->ProtocolsPerHandle(Handle, &protocols, &count) != EFI_SUCCESS ||
+        count + 1U != original_count || notifications != 3U ||
+        bs->InstallProtocolInterface(&Handle, loaded_image_guid,
+                                      EFI_NATIVE_INTERFACE, Original) !=
+            EFI_SUCCESS) {
+        goto out;
+    }
+    removed = 0;
+    current = Original;
+    ok = notifications == 4U &&
+         bs->LocateProtocol(loaded_image_guid, registration, &located) ==
+             EFI_SUCCESS && located == Original;
+
+out:
+    if (protocols != NULL) {
+        (void)bs->FreePool(protocols);
+    }
+    if (event != NULL) {
+        (void)bs->CloseEvent(event);
+    }
+    if (exclusive) {
+        (void)bs->CloseProtocol(Handle, loaded_image_guid, ImageHandle, NULL);
+    }
+    if (removed) {
+        (void)bs->InstallProtocolInterface(&Handle, loaded_image_guid,
+                                           EFI_NATIVE_INTERFACE, Original);
+    } else if (current != Original) {
+        (void)bs->ReinstallProtocolInterface(Handle, loaded_image_guid,
+                                             current, Original);
+    }
+    return ok;
+}
+
+static BOOLEAN test_reinstall_protocol_services(
+    EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
+{
+    EFI_BOOT_SERVICES *bs = SystemTable->BootServices;
+    EFI_LOADED_IMAGE_PROTOCOL *original = NULL;
+    EFI_LOADED_IMAGE_PROTOCOL replacement;
+    EFI_HANDLE handle = NULL;
+    EFI_HANDLE invalid_handles[3];
+    UINTN marker = 0;
+    UINTN i;
+    BOOLEAN ok;
+
+    if (bs->HandleProtocol(ImageHandle, loaded_image_guid,
+                           (VOID **)&original) != EFI_SUCCESS) {
+        return 0;
+    }
+    replacement = *original;
+    if (!test_reinstall_interface(bs, ImageHandle, ImageHandle,
+                                   original, &replacement) ||
+        bs->InstallMultipleProtocolInterfaces(
+            &handle, connection_test_guid, &marker,
+            loaded_image_guid, original, NULL) != EFI_SUCCESS) {
+        return 0;
+    }
+    ok = test_reinstall_interface(bs, ImageHandle, handle,
+                                   original, &replacement);
+    if (bs->UninstallMultipleProtocolInterfaces(
+            handle, loaded_image_guid, original,
+            connection_test_guid, &marker, NULL) != EFI_SUCCESS) {
+        return 0;
+    }
+    invalid_handles[0] = NULL;
+    invalid_handles[1] = (EFI_HANDLE)(UINTN)1;
+    invalid_handles[2] = handle;
+    for (i = 0; i < sizeof(invalid_handles) / sizeof(invalid_handles[0]); i++) {
+        if (bs->ReinstallProtocolInterface(invalid_handles[i],
+                                           loaded_image_guid,
+                                           original, &replacement) !=
+                EFI_INVALID_PARAMETER ||
+            bs->UninstallProtocolInterface(invalid_handles[i],
+                                           loaded_image_guid, original) !=
+                EFI_INVALID_PARAMETER) {
+            ok = 0;
+        }
+    }
+    return ok;
+}
+
+typedef struct {
+    EFI_DRIVER_BINDING_PROTOCOL Binding;
+    EFI_BOOT_SERVICES *BootServices;
+    EFI_HANDLE Controller;
+    VOID *Interface;
+    VOID *NotifiedInterface;
+    UINTN Starts;
+    UINTN Stops;
+    UINTN Notifications;
+} TEST_REINSTALL_DRIVER;
+
+static EFI_STATUS test_reinstall_driver_supported(
+    EFI_DRIVER_BINDING_PROTOCOL *This, EFI_HANDLE Controller,
+    VOID *RemainingDevicePath)
+{
+    TEST_REINSTALL_DRIVER *driver = (TEST_REINSTALL_DRIVER *)This;
+    VOID *interface = NULL;
+
+    (void)RemainingDevicePath;
+    if (Controller != driver->Controller) {
+        return EFI_UNSUPPORTED;
+    }
+    if (driver->Interface != NULL) {
+        return EFI_ALREADY_STARTED;
+    }
+    return driver->BootServices->HandleProtocol(
+        Controller, connection_test_guid, &interface);
+}
+
+static EFI_STATUS test_reinstall_driver_start(
+    EFI_DRIVER_BINDING_PROTOCOL *This, EFI_HANDLE Controller,
+    VOID *RemainingDevicePath)
+{
+    TEST_REINSTALL_DRIVER *driver = (TEST_REINSTALL_DRIVER *)This;
+    VOID *interface = NULL;
+    EFI_STATUS status;
+
+    (void)RemainingDevicePath;
+    status = driver->BootServices->OpenProtocol(
+        Controller, connection_test_guid, &interface,
+        This->DriverBindingHandle, Controller, EFI_OPEN_PROTOCOL_BY_DRIVER);
+    if (status == EFI_SUCCESS) {
+        driver->Interface = interface;
+        driver->Starts++;
+    }
+    return status;
+}
+
+static EFI_STATUS test_reinstall_driver_stop(
+    EFI_DRIVER_BINDING_PROTOCOL *This, EFI_HANDLE Controller,
+    UINTN NumberOfChildren, EFI_HANDLE *ChildHandleBuffer)
+{
+    TEST_REINSTALL_DRIVER *driver = (TEST_REINSTALL_DRIVER *)This;
+    EFI_STATUS status;
+
+    (void)ChildHandleBuffer;
+    if (Controller != driver->Controller || NumberOfChildren != 0) {
+        return EFI_UNSUPPORTED;
+    }
+    status = driver->BootServices->CloseProtocol(
+        Controller, connection_test_guid, This->DriverBindingHandle,
+        Controller);
+    if (status == EFI_SUCCESS) {
+        driver->Interface = NULL;
+        driver->Stops++;
+    }
+    return status;
+}
+
+static VOID test_reinstall_driver_notify(EFI_EVENT Event, VOID *Context)
+{
+    TEST_REINSTALL_DRIVER *driver = Context;
+
+    (void)Event;
+    driver->Notifications++;
+    driver->NotifiedInterface = driver->Interface;
+}
+
+static BOOLEAN test_reinstall_driver_services(
+    EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
+{
+    EFI_BOOT_SERVICES *bs = SystemTable->BootServices;
+    TEST_REINSTALL_DRIVER driver;
+    EFI_EVENT event = NULL;
+    VOID *registration = NULL;
+    UINTN original = 1;
+    UINTN replacement = 2;
+    VOID *current = &original;
+    UINTN pass;
+    BOOLEAN ok = 0;
+    BOOLEAN cleanup_ok = 1;
+
+    zero_bytes(&driver, sizeof(driver));
+    driver.Binding.Supported = test_reinstall_driver_supported;
+    driver.Binding.Start = test_reinstall_driver_start;
+    driver.Binding.Stop = test_reinstall_driver_stop;
+    driver.Binding.Version = 1;
+    driver.Binding.ImageHandle = ImageHandle;
+    driver.BootServices = bs;
+    if (bs->InstallProtocolInterface(&driver.Controller, connection_test_guid,
+                                     EFI_NATIVE_INTERFACE, current) !=
+            EFI_SUCCESS ||
+        bs->InstallProtocolInterface(&driver.Binding.DriverBindingHandle,
+                                     driver_binding_guid,
+                                     EFI_NATIVE_INTERFACE, &driver.Binding) !=
+            EFI_SUCCESS ||
+        bs->ConnectController(driver.Controller, NULL, NULL, 1) !=
+            EFI_SUCCESS ||
+        driver.Starts != 1U || driver.Interface != &original ||
+        bs->CreateEvent(EVT_NOTIFY_SIGNAL, TPL_CALLBACK,
+                         test_reinstall_driver_notify, &driver, &event) !=
+            EFI_SUCCESS ||
+        bs->RegisterProtocolNotify(connection_test_guid, event,
+                                    &registration) != EFI_SUCCESS) {
+        goto out;
+    }
+    for (pass = 0; pass < 2U; pass++) {
+        if (bs->ReinstallProtocolInterface(driver.Controller,
+                                           connection_test_guid, current,
+                                           &replacement) != EFI_SUCCESS) {
+            goto out;
+        }
+        current = &replacement;
+        if (driver.Starts != pass + 2U || driver.Stops != pass + 1U ||
+            driver.Notifications != pass + 1U ||
+            driver.Interface != current ||
+            driver.NotifiedInterface != current) {
+            goto out;
+        }
+    }
+    ok = 1;
+
+out:
+    if (event != NULL && bs->CloseEvent(event) != EFI_SUCCESS) {
+        cleanup_ok = 0;
+    }
+    if (driver.Controller != NULL &&
+        bs->UninstallProtocolInterface(driver.Controller, connection_test_guid,
+                                        current) != EFI_SUCCESS) {
+        cleanup_ok = 0;
+    }
+    if (driver.Binding.DriverBindingHandle != NULL &&
+        bs->UninstallProtocolInterface(driver.Binding.DriverBindingHandle,
+                                        driver_binding_guid,
+                                        &driver.Binding) != EFI_SUCCESS) {
+        cleanup_ok = 0;
+    }
+    return ok && cleanup_ok;
 }
 
 static BOOLEAN test_multiple_protocol_services(EFI_SYSTEM_TABLE *SystemTable)
@@ -848,6 +1184,10 @@ static BOOLEAN test_multiple_protocol_services(EFI_SYSTEM_TABLE *SystemTable)
     UINT8 wrong_interface = 3;
     VOID *located1 = NULL;
     VOID *located2 = NULL;
+    VOID **protocols = NULL;
+    VOID *enumerated_guid = NULL;
+    UINTN protocol_count;
+    UINTN i;
     BOOLEAN handle_installed = 0;
     BOOLEAN path_installed = 0;
     BOOLEAN ok = 0;
@@ -866,8 +1206,20 @@ static BOOLEAN test_multiple_protocol_services(EFI_SYSTEM_TABLE *SystemTable)
     }
     handle_installed = 1;
 
+    if (bs->ProtocolsPerHandle(handle, &protocols, &protocol_count) !=
+            EFI_SUCCESS || protocol_count != 2U) {
+        goto out;
+    }
+    for (i = 0; i < protocol_count; i++) {
+        if (ia64_bytes_equal(protocols[i], marker1_guid, 16)) {
+            enumerated_guid = protocols[i];
+        }
+    }
+    if (enumerated_guid == NULL) {
+        goto out;
+    }
     if (bs->UninstallMultipleProtocolInterfaces(
-            handle, marker1_guid, &interface1,
+            handle, enumerated_guid, &interface1,
             marker2_guid, &wrong_interface, NULL) !=
             EFI_INVALID_PARAMETER ||
         bs->HandleProtocol(handle, marker1_guid, &located1) != EFI_SUCCESS ||
@@ -892,6 +1244,9 @@ static BOOLEAN test_multiple_protocol_services(EFI_SYSTEM_TABLE *SystemTable)
     ok = 1;
 
 out:
+    if (protocols != NULL) {
+        (void)bs->FreePool(protocols);
+    }
     if (path_installed &&
         bs->UninstallMultipleProtocolInterfaces(
             path_handle, marker1_guid, &interface1,
@@ -1382,15 +1737,6 @@ out:
     return ok && cleanup_ok;
 }
 
-#define START_IMAGE_CHILD_SIGNATURE 0x4941363453544152ULL
-
-typedef struct {
-    UINT64 Signature;
-    EFI_HANDLE Controller;
-    VOID *Interface;
-    BOOLEAN UseExit;
-} TEST_START_IMAGE_CHILD_OPTIONS;
-
 static VOID test_pe_write16(UINT8 *Address, UINT16 Value)
 {
     Address[0] = (UINT8)Value;
@@ -1530,6 +1876,8 @@ static BOOLEAN test_image_section_bounds(EFI_HANDLE ImageHandle,
 static EFI_HANDLE test_start_image_controller;
 static UINTN test_start_image_start_count;
 static EFI_BOOT_SERVICES *test_start_image_bs;
+static VOID *test_start_image_protocol;
+static BOOLEAN test_start_image_connect_ready;
 
 static EFI_STATUS test_start_image_supported(
     EFI_DRIVER_BINDING_PROTOCOL *This, EFI_HANDLE Controller,
@@ -1539,12 +1887,13 @@ static EFI_STATUS test_start_image_supported(
 
     (void)This;
     (void)RemainingDevicePath;
-    if (Controller != test_start_image_controller) {
+    if (Controller != test_start_image_controller ||
+        !test_start_image_connect_ready) {
         return EFI_UNSUPPORTED;
     }
     return test_start_image_bs != NULL &&
            test_start_image_bs->HandleProtocol(
-               Controller, start_image_change_guid, &interface) ==
+               Controller, test_start_image_protocol, &interface) ==
                EFI_SUCCESS &&
            interface != NULL ? EFI_SUCCESS : EFI_UNSUPPORTED;
 }
@@ -1593,6 +1942,7 @@ static BOOLEAN test_start_image_connect(EFI_HANDLE ImageHandle,
     EFI_DRIVER_BINDING_PROTOCOL binding;
     TEST_START_IMAGE_CHILD_OPTIONS options;
     EFI_HANDLE driver = NULL;
+    EFI_HANDLE controller = NULL;
     EFI_HANDLE child = NULL;
     EFI_LOADED_IMAGE_PROTOCOL *loaded = NULL;
     UINTN base_interface = 1;
@@ -1615,6 +1965,7 @@ static BOOLEAN test_start_image_connect(EFI_HANDLE ImageHandle,
         goto out;
     }
     base_installed = 1;
+    controller = test_start_image_controller;
     zero_bytes(&binding, sizeof(binding));
     binding.Supported = test_start_image_supported;
     binding.Start = test_start_image_start;
@@ -1629,15 +1980,14 @@ static BOOLEAN test_start_image_connect(EFI_HANDLE ImageHandle,
     binding_installed = 1;
     binding.DriverBindingHandle = driver;
 
+    zero_bytes(&options, sizeof(options));
     options.Signature = START_IMAGE_CHILD_SIGNATURE;
-    options.Controller = test_start_image_controller;
-    options.Interface = &change_interface;
-    for (pass = 0; pass < 2U; pass++) {
+    for (pass = 0; pass < 4U; pass++) {
         VOID *installed_change = NULL;
         VOID *loaded_device_path = NULL;
         VOID *hii_package_list = NULL;
 
-        options.UseExit = pass != 0;
+        options.UseExit = (pass & 1U) != 0;
         child = NULL;
         loaded = NULL;
         status = bs->LoadImage(0, ImageHandle, &path, NULL, 0, &child);
@@ -1657,12 +2007,31 @@ static BOOLEAN test_start_image_connect(EFI_HANDLE ImageHandle,
             get_u32((UINT8 *)hii_package_list + 20U) != 0xdf000004U) {
             goto out;
         }
+        test_start_image_controller = pass < 2U ? controller : child;
+        test_start_image_protocol = pass < 2U ? start_image_change_guid :
+                                              loaded_image_guid;
+        test_start_image_connect_ready = pass < 2U;
+        options.Controller = test_start_image_controller;
+        options.Interface = pass < 2U ? (VOID *)&change_interface : loaded;
+        options.ReinstallProtocol = pass < 2U ? NULL : loaded_image_guid;
+        options.ConnectReady = &test_start_image_connect_ready;
         loaded->LoadOptions = &options;
         loaded->LoadOptionsSize = sizeof(options);
         status = bs->StartImage(child, NULL, NULL);
+        child = NULL;
         if (status != EFI_SUCCESS ||
-            test_start_image_start_count != pass + 1U ||
-            bs->HandleProtocol(test_start_image_controller,
+            test_start_image_start_count != pass + 1U) {
+            goto out;
+        }
+        if (pass >= 2U) {
+            if (bs->HandleProtocol(test_start_image_controller,
+                                   loaded_image_guid, &installed_change) !=
+                    EFI_INVALID_PARAMETER) {
+                goto out;
+            }
+            continue;
+        }
+        if (bs->HandleProtocol(test_start_image_controller,
                                start_image_change_guid,
                                &installed_change) != EFI_SUCCESS ||
             installed_change != &change_interface) {
@@ -1679,8 +2048,11 @@ static BOOLEAN test_start_image_connect(EFI_HANDLE ImageHandle,
     ok = 1;
 
 out:
+    if (child != NULL && bs->UnloadImage(child) != EFI_SUCCESS) {
+        cleanup_ok = 0;
+    }
     if (change_installed &&
-        bs->UninstallProtocolInterface(test_start_image_controller,
+        bs->UninstallProtocolInterface(controller,
                                        start_image_change_guid,
                                        &change_interface) != EFI_SUCCESS) {
         cleanup_ok = 0;
@@ -1691,7 +2063,7 @@ out:
         cleanup_ok = 0;
     }
     if (base_installed &&
-        bs->UninstallProtocolInterface(test_start_image_controller,
+        bs->UninstallProtocolInterface(controller,
                                        start_image_base_guid,
                                        &base_interface) != EFI_SUCCESS) {
         cleanup_ok = 0;
@@ -3121,6 +3493,14 @@ EFI_STATUS ia64_services_main(EFI_HANDLE ImageHandle,
             &context, "protocol-services",
             test_protocol_services(ImageHandle, SystemTable, &loaded),
             EFI_DEVICE_ERROR, "protocol-behavior");
+        ia64_test_check(
+            &context, "protocol-reinstall",
+            test_reinstall_protocol_services(ImageHandle, SystemTable),
+            EFI_DEVICE_ERROR, "replace-notify-remove-restore");
+        ia64_test_check(
+            &context, "protocol-reinstall-connect",
+            test_reinstall_driver_services(ImageHandle, SystemTable),
+            EFI_DEVICE_ERROR, "disconnect-reconnect-notify");
         ia64_test_check(&context, "multiple-protocol-services",
                         test_multiple_protocol_services(SystemTable),
                         EFI_DEVICE_ERROR,

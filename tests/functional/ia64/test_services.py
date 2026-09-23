@@ -14,6 +14,7 @@ from ia64.media import make_fat_disk
 
 SERVICE_CASES = {
     "memory-services", "event-services", "protocol-services",
+    "protocol-reinstall", "protocol-reinstall-connect",
     "multiple-protocol-services",
     "controller-services", "image-services", "image-section-extents",
     "image-section-bounds", "start-image-connect",

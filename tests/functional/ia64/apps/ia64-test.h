@@ -90,6 +90,7 @@ EFI_STATUS test_call_virtual_procedure(
 #define EFI_OPEN_PROTOCOL_GET_PROTOCOL 0x00000002U
 #define EFI_OPEN_PROTOCOL_BY_CHILD_CONTROLLER 0x00000008U
 #define EFI_OPEN_PROTOCOL_BY_DRIVER   0x00000010U
+#define EFI_OPEN_PROTOCOL_EXCLUSIVE   0x00000020U
 #define EFI_LOCATE_BY_PROTOCOL         2U
 #define EFI_PCI_IO_PASS_THROUGH_BAR   0xffU
 #define EFI_PCI_ATTRIBUTE_IO          0x0100ULL
@@ -343,11 +344,12 @@ struct _EFI_BOOT_SERVICES {
     EFI_STATUS (*CheckEvent)(EFI_EVENT);
     EFI_STATUS (*InstallProtocolInterface)(EFI_HANDLE *, VOID *, UINTN,
                                             VOID *);
-    VOID *ReinstallProtocolInterface;
+    EFI_STATUS (*ReinstallProtocolInterface)(EFI_HANDLE, VOID *, VOID *,
+                                              VOID *);
     EFI_STATUS (*UninstallProtocolInterface)(EFI_HANDLE, VOID *, VOID *);
     EFI_STATUS (*HandleProtocol)(EFI_HANDLE, VOID *, VOID **);
     VOID *Reserved;
-    VOID *RegisterProtocolNotify;
+    EFI_STATUS (*RegisterProtocolNotify)(VOID *, EFI_EVENT, VOID **);
     VOID *LocateHandle;
     EFI_STATUS (*LocateDevicePath)(VOID *, VOID **, EFI_HANDLE *);
     VOID *InstallConfigurationTable;

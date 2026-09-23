@@ -1,15 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 
-#include "ia64-test.h"
-
-#define START_IMAGE_CHILD_SIGNATURE 0x4941363453544152ULL
-
-typedef struct {
-    UINT64 Signature;
-    EFI_HANDLE Controller;
-    VOID *Interface;
-    BOOLEAN UseExit;
-} TEST_START_IMAGE_CHILD_OPTIONS;
+#include "common/services.h"
 
 static UINT8 loaded_image_guid[16] = IA64_GUID_LOADED_IMAGE;
 static UINT8 start_image_change_guid[16] = {
@@ -38,9 +29,18 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
         return EFI_INVALID_PARAMETER;
     }
     controller = options->Controller;
-    status = SystemTable->BootServices->InstallProtocolInterface(
-        &controller, start_image_change_guid, EFI_NATIVE_INTERFACE,
-        options->Interface);
+    if (options->ReinstallProtocol != NULL) {
+        status = SystemTable->BootServices->ReinstallProtocolInterface(
+            controller, options->ReinstallProtocol,
+            options->Interface, options->Interface);
+    } else {
+        status = SystemTable->BootServices->InstallProtocolInterface(
+            &controller, start_image_change_guid, EFI_NATIVE_INTERFACE,
+            options->Interface);
+    }
+    if (status == EFI_SUCCESS && options->ConnectReady != NULL) {
+        *options->ConnectReady = 1;
+    }
     if (status == EFI_SUCCESS && options->UseExit) {
         return SystemTable->BootServices->Exit(ImageHandle, EFI_SUCCESS,
                                                 0, NULL);

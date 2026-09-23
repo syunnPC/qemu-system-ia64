@@ -774,7 +774,8 @@ static BOOLEAN probe_file_protocol_contracts(EFI_BOOT_SERVICES *bs,
                         EFI_FILE_MODE_READ | EFI_FILE_MODE_WRITE, 0);
     if (status != EFI_WRITE_PROTECTED || write_file != NULL ||
         root->Open(root, &file, boot_app_path,
-                   EFI_FILE_MODE_READ, 0) != EFI_SUCCESS || file == NULL ||
+                   EFI_FILE_MODE_READ, EFI_FILE_ARCHIVE) != EFI_SUCCESS ||
+        file == NULL ||
         file->GetPosition(file, &position) != EFI_SUCCESS || position != 0) {
         goto out;
     }

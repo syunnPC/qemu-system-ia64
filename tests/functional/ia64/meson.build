@@ -58,6 +58,7 @@ ia64_start_image_child = custom_target(
     ia64_app_builder,
     ia64_child_linker_script,
     ia64_app_header,
+    ia64_services_header,
   ],
   command: [
     ia64_app_sh,

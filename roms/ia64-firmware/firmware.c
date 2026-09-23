@@ -4799,6 +4799,8 @@ static UINT64 mResetFloatingPointDisableBits;
 
 typedef struct {
     BOOLEAN in_use;
+    BOOLEAN builtin;
+    BOOLEAN removed;
     EFI_HANDLE handle;
     UINT8 guid[16];
     VOID *interface;
@@ -5080,6 +5082,8 @@ EFI_STATUS rs_query_variable_info(UINT32 Attributes,
                                   UINT64 *MaximumVariableSize);
 static BOOLEAN handle_supports_protocol(EFI_HANDLE Handle, void *Protocol,
                                         VOID **Interface);
+static BOOLEAN builtin_protocol_interface(EFI_HANDLE Handle, void *Protocol,
+                                          VOID **Interface);
 static BOOLEAN efi_handle_is_valid(EFI_HANDLE Handle);
 static BOOLEAN protocol_has_open_records(EFI_HANDLE Handle,
                                          const void *Protocol);
@@ -12788,14 +12792,59 @@ EFI_STATUS bs_open_protocol_information(EFI_HANDLE Handle, void *Protocol,
     return EFI_SUCCESS;
 }
 
+static UINTN protocols_per_handle(EFI_HANDLE Handle, void **Buffer)
+{
+    static void *const builtin_protocols[] = {
+        (void *)mBlockIoProtocolGuid,
+        (void *)mDiskIoProtocolGuid,
+        (void *)mSimpleFileSystemProtocolGuid,
+        (void *)mDevicePathProtocolGuid,
+        (void *)mLoadedImageProtocolGuid,
+        (void *)mConInProtocolGuid,
+        (void *)mConInExProtocolGuid,
+        (void *)mConOutProtocolGuid,
+        (void *)mUnicodeCollationProtocolGuid,
+        (void *)mGraphicsOutputProtocolGuid,
+        (void *)mUgaDrawProtocolGuid,
+        (void *)mPciRootBridgeIoProtocolGuid,
+        (void *)mPciIoProtocolGuid,
+        (void *)mLoadedImageDevicePathProtocolGuid,
+        (void *)mHiiPackageListProtocolGuid,
+    };
+    UINTN count = 0;
+    UINTN i;
+
+    for (i = 0; i < FW_ARRAY_SIZE(builtin_protocols); i++) {
+        void *protocol = builtin_protocols[i];
+
+        if (builtin_protocol_interface(Handle, protocol, NULL) &&
+            handle_supports_protocol(Handle, protocol, NULL)) {
+            if (Buffer != NULL) {
+                Buffer[count] = protocol;
+            }
+            count++;
+        }
+    }
+    for (i = 0; i < PROTOCOL_RECORD_MAX; i++) {
+        EFI_PROTOCOL_RECORD *rec = &mProtocolRecords[i];
+
+        if (rec->in_use && !rec->removed && rec->handle == Handle &&
+            !builtin_protocol_interface(Handle, rec->guid, NULL)) {
+            if (Buffer != NULL) {
+                Buffer[count] = rec->guid;
+            }
+            count++;
+        }
+    }
+    return count;
+}
+
 EFI_STATUS bs_protocols_per_handle(EFI_HANDLE Handle, void ***ProtocolBuffer,
                                    UINTN *ProtocolBufferCount)
 {
-    UINTN count = 0;
-    UINTN i;
+    UINTN count;
     void **buffer;
     EFI_STATUS st;
-    const FW_PCI_IO_DEVICE *pci_io_dev;
 
     if (Handle == NULL || ProtocolBuffer == NULL ||
         ProtocolBufferCount == NULL) {
@@ -12803,54 +12852,7 @@ EFI_STATUS bs_protocols_per_handle(EFI_HANDLE Handle, void ***ProtocolBuffer,
     }
     *ProtocolBuffer = NULL;
     *ProtocolBufferCount = 0;
-
-    if (Handle == mRawBlockIoHandle) {
-        count += 3;
-        if (fw_udf_init() || fw_iso_init()) {
-            count++;
-        }
-    }
-    if (Handle == mBlockIoHandle) {
-        count += 3;
-        if (fw_boot_fat_available()) {
-            count++;
-        }
-    }
-    if (Handle == mDiskBlockIoHandle) {
-        count += 3;
-    }
-    if (Handle == mImageHandle) {
-        count += fw_vpc_devices_enabled() ? 4 : 5;
-    }
-    if (Handle == mUnicodeCollationHandle) {
-        count++;
-    }
-    if (Handle == mGraphicsHandle) {
-        count += 4;
-    }
-    if (Handle == mPciRootBridgeHandle) {
-        count += 2;
-    }
-    pci_io_dev = fw_pci_io_device_from_handle(Handle);
-    if (pci_io_dev != NULL) {
-        count++;
-        if (pci_io_dev->ProvidesDevicePath) {
-            count++;
-        }
-    }
-    for (i = 0; i < LOADED_IMAGE_MAX; i++) {
-        if (mLoadedImages[i].in_use && Handle == mLoadedImages[i].handle) {
-            count += 2;
-            if (mLoadedImages[i].hii_package_list != NULL) {
-                count++;
-            }
-        }
-    }
-    for (i = 0; i < PROTOCOL_RECORD_MAX; i++) {
-        if (mProtocolRecords[i].in_use && mProtocolRecords[i].handle == Handle) {
-            count++;
-        }
-    }
+    count = protocols_per_handle(Handle, NULL);
     if (count == 0) {
         return EFI_NOT_FOUND;
     }
@@ -12860,72 +12862,8 @@ EFI_STATUS bs_protocols_per_handle(EFI_HANDLE Handle, void ***ProtocolBuffer,
     if (st != EFI_SUCCESS) {
         return st;
     }
-    count = 0;
-    if (Handle == mRawBlockIoHandle) {
-        buffer[count++] = (void *)mBlockIoProtocolGuid;
-        buffer[count++] = (void *)mDiskIoProtocolGuid;
-        if (fw_udf_init() || fw_iso_init()) {
-            buffer[count++] = (void *)mSimpleFileSystemProtocolGuid;
-        }
-        buffer[count++] = (void *)mDevicePathProtocolGuid;
-    }
-    if (Handle == mBlockIoHandle) {
-        buffer[count++] = (void *)mBlockIoProtocolGuid;
-        buffer[count++] = (void *)mDiskIoProtocolGuid;
-        if (fw_boot_fat_available()) {
-            buffer[count++] = (void *)mSimpleFileSystemProtocolGuid;
-        }
-        buffer[count++] = (void *)mDevicePathProtocolGuid;
-    }
-    if (Handle == mDiskBlockIoHandle) {
-        buffer[count++] = (void *)mBlockIoProtocolGuid;
-        buffer[count++] = (void *)mDiskIoProtocolGuid;
-        buffer[count++] = (void *)mDevicePathProtocolGuid;
-    }
-    if (Handle == mImageHandle) {
-        buffer[count++] = (void *)mLoadedImageProtocolGuid;
-        buffer[count++] = (void *)mConInProtocolGuid;
-        buffer[count++] = (void *)mConInExProtocolGuid;
-        buffer[count++] = (void *)mConOutProtocolGuid;
-        if (!fw_vpc_devices_enabled()) {
-            buffer[count++] = (void *)mDevicePathProtocolGuid;
-        }
-    }
-    if (Handle == mUnicodeCollationHandle) {
-        buffer[count++] = (void *)mUnicodeCollationProtocolGuid;
-    }
-    if (Handle == mGraphicsHandle) {
-        buffer[count++] = (void *)mConOutProtocolGuid;
-        buffer[count++] = (void *)mGraphicsOutputProtocolGuid;
-        buffer[count++] = (void *)mUgaDrawProtocolGuid;
-        buffer[count++] = (void *)mDevicePathProtocolGuid;
-    }
-    if (Handle == mPciRootBridgeHandle) {
-        buffer[count++] = (void *)mPciRootBridgeIoProtocolGuid;
-        buffer[count++] = (void *)mDevicePathProtocolGuid;
-    }
-    if (pci_io_dev != NULL) {
-        buffer[count++] = (void *)mPciIoProtocolGuid;
-        if (pci_io_dev->ProvidesDevicePath) {
-            buffer[count++] = (void *)mDevicePathProtocolGuid;
-        }
-    }
-    for (i = 0; i < LOADED_IMAGE_MAX; i++) {
-        if (mLoadedImages[i].in_use && Handle == mLoadedImages[i].handle) {
-            buffer[count++] = (void *)mLoadedImageProtocolGuid;
-            buffer[count++] = (void *)mLoadedImageDevicePathProtocolGuid;
-            if (mLoadedImages[i].hii_package_list != NULL) {
-                buffer[count++] = (void *)mHiiPackageListProtocolGuid;
-            }
-        }
-    }
-    for (i = 0; i < PROTOCOL_RECORD_MAX; i++) {
-        if (mProtocolRecords[i].in_use && mProtocolRecords[i].handle == Handle) {
-            buffer[count++] = mProtocolRecords[i].guid;
-        }
-    }
     *ProtocolBuffer = buffer;
-    *ProtocolBufferCount = count;
+    *ProtocolBufferCount = protocols_per_handle(Handle, buffer);
     return EFI_SUCCESS;
 }
 
@@ -13062,7 +13000,7 @@ EFI_STATUS bs_install_multiple_protocol_interfaces(EFI_HANDLE *Handle, ...)
 
 EFI_STATUS bs_uninstall_multiple_protocol_interfaces(EFI_HANDLE Handle, ...)
 {
-    void *protocols[64];
+    UINT8 protocols[64][16];
     void *interfaces[64];
     UINTN count = 0;
     UINTN removed = 0;
@@ -13082,7 +13020,8 @@ EFI_STATUS bs_uninstall_multiple_protocol_interfaces(EFI_HANDLE Handle, ...)
             st = EFI_OUT_OF_RESOURCES;
             break;
         }
-        protocols[count] = protocol;
+        /* Removing a protocol may invalidate a caller's GUID pointer. */
+        copy_guid(protocols[count], protocol);
         interfaces[count] = interface;
         count++;
     }
@@ -13358,6 +13297,7 @@ static EFI_STATUS fw_release_loaded_image_record(
     EFI_LOADED_IMAGE_RECORD *Record)
 {
     EFI_HANDLE image_handle;
+    UINTN i;
 
     if (Record == NULL || !Record->in_use) {
         return EFI_INVALID_PARAMETER;
@@ -13381,6 +13321,14 @@ static EFI_STATUS fw_release_loaded_image_record(
     }
     if (Record->device_path != NULL) {
         (void)bs_free_pool(Record->device_path);
+    }
+    for (i = 0; i < PROTOCOL_RECORD_MAX; i++) {
+        EFI_PROTOCOL_RECORD *protocol = &mProtocolRecords[i];
+
+        if (protocol->in_use && protocol->builtin &&
+            protocol->handle == image_handle) {
+            fw_set_mem(protocol, sizeof(*protocol), 0);
+        }
     }
     fw_set_mem(Record, sizeof(*Record), 0);
     efi_debug_image_info_refresh();
@@ -26279,35 +26227,7 @@ static EFI_STATUS fw_partition_discover(EFI_HANDLE ParentHandle,
 
 static BOOLEAN efi_handle_is_valid(EFI_HANDLE Handle)
 {
-    UINTN i;
-
-    if (Handle == NULL) {
-        return 0;
-    }
-    if (Handle == mBlockIoHandle || Handle == mRawBlockIoHandle ||
-        Handle == mDiskBlockIoHandle || Handle == mImageHandle ||
-        Handle == mUnicodeCollationHandle || Handle == mGraphicsHandle ||
-        Handle == mPciRootBridgeHandle ||
-        fw_pci_io_device_from_handle(Handle) != NULL) {
-        return 1;
-    }
-    for (i = 0; i < FW_ARRAY_SIZE(mPartitions); i++) {
-        if (mPartitions[i].in_use && mPartitions[i].handle == Handle) {
-            return 1;
-        }
-    }
-    for (i = 0; i < LOADED_IMAGE_MAX; i++) {
-        if (mLoadedImages[i].in_use && mLoadedImages[i].handle == Handle) {
-            return 1;
-        }
-    }
-    for (i = 0; i < PROTOCOL_RECORD_MAX; i++) {
-        if (mProtocolRecords[i].in_use &&
-            mProtocolRecords[i].handle == Handle) {
-            return 1;
-        }
-    }
-    return 0;
+    return Handle != NULL && protocols_per_handle(Handle, NULL) != 0;
 }
 
 static BOOLEAN partition_driver_manages_controller(EFI_HANDLE Controller)
@@ -28769,8 +28689,8 @@ static EFI_STATUS fs_file_validate_open(UINT64 OpenMode, UINT64 Attributes)
                      EFI_FILE_MODE_CREATE)) {
         return EFI_INVALID_PARAMETER;
     }
-    if ((Attributes & ~EFI_FILE_VALID_ATTR) != 0 ||
-        ((OpenMode & EFI_FILE_MODE_CREATE) == 0 && Attributes != 0)) {
+    if ((OpenMode & EFI_FILE_MODE_CREATE) != 0 &&
+        (Attributes & ~EFI_FILE_VALID_ATTR) != 0) {
         return EFI_INVALID_PARAMETER;
     }
     if ((OpenMode & (EFI_FILE_MODE_WRITE | EFI_FILE_MODE_CREATE)) != 0) {
@@ -34889,8 +34809,8 @@ static void copy_guid(UINT8 *Destination, const void *Source)
     fw_copy_mem(Destination, Source, 16);
 }
 
-static BOOLEAN installed_protocol_interface(EFI_HANDLE Handle, void *Protocol,
-                                            VOID **Interface)
+static EFI_PROTOCOL_RECORD *find_protocol_record(EFI_HANDLE Handle,
+                                                 const void *Protocol)
 {
     UINTN i;
 
@@ -34898,18 +34818,68 @@ static BOOLEAN installed_protocol_interface(EFI_HANDLE Handle, void *Protocol,
         if (mProtocolRecords[i].in_use &&
             mProtocolRecords[i].handle == Handle &&
             guid_matches(Protocol, mProtocolRecords[i].guid)) {
-            if (Interface != NULL) {
-                *Interface = mProtocolRecords[i].interface;
-            }
-            return 1;
+            return &mProtocolRecords[i];
         }
     }
-    return 0;
+    return NULL;
+}
+
+static EFI_PROTOCOL_RECORD *allocate_protocol_record(EFI_HANDLE Handle,
+                                                     void *Protocol)
+{
+    UINTN i;
+
+    for (i = 0; i < PROTOCOL_RECORD_MAX; i++) {
+        EFI_PROTOCOL_RECORD *rec = &mProtocolRecords[i];
+
+        if (!rec->in_use) {
+            fw_set_mem(rec, sizeof(*rec), 0);
+            rec->in_use = 1;
+            rec->handle = Handle;
+            copy_guid(rec->guid, Protocol);
+            return rec;
+        }
+    }
+    return NULL;
+}
+
+static BOOLEAN installed_protocol_interface(EFI_HANDLE Handle, void *Protocol,
+                                            VOID **Interface)
+{
+    EFI_PROTOCOL_RECORD *rec = find_protocol_record(Handle, Protocol);
+
+    if (rec == NULL || rec->removed) {
+        return 0;
+    }
+    if (Interface != NULL) {
+        *Interface = rec->interface;
+    }
+    return 1;
 }
 
 static BOOLEAN handle_supports_protocol(EFI_HANDLE Handle, void *Protocol,
                                         VOID **Interface)
 {
+    EFI_PROTOCOL_RECORD *rec = find_protocol_record(Handle, Protocol);
+
+    if (rec != NULL) {
+        if (rec->removed) {
+            return 0;
+        }
+        if (Interface != NULL) {
+            *Interface = rec->interface;
+        }
+        return 1;
+    }
+    return builtin_protocol_interface(Handle, Protocol, Interface);
+}
+
+static BOOLEAN builtin_protocol_interface(EFI_HANDLE Handle, void *Protocol,
+                                          VOID **Interface)
+{
+    if (Handle == NULL) {
+        return 0;
+    }
     if (Handle == mRawBlockIoHandle &&
         guid_matches(Protocol, mBlockIoProtocolGuid)) {
         if (Interface != NULL) {
@@ -34963,7 +34933,7 @@ static BOOLEAN handle_supports_protocol(EFI_HANDLE Handle, void *Protocol,
 
     if (Handle == mBlockIoHandle &&
         guid_matches(Protocol, mSimpleFileSystemProtocolGuid) &&
-        fw_fat_init() && mBootFatVolume.valid) {
+        fw_boot_fat_available()) {
         if (Interface != NULL) {
             *Interface = (VOID *)&mSimpleFsProto;
         }
@@ -35154,7 +35124,7 @@ static BOOLEAN handle_supports_protocol(EFI_HANDLE Handle, void *Protocol,
         }
     }
 
-    return installed_protocol_interface(Handle, Protocol, Interface);
+    return 0;
 }
 
 static BOOLEAN open_protocol_guid_matches(const EFI_OPEN_PROTOCOL_RECORD *Rec,
@@ -35489,7 +35459,8 @@ EFI_STATUS bs_handle_protocol(EFI_HANDLE Handle, void *Protocol,
     }
     if (!handle_supports_protocol(Handle, Protocol, &interface)) {
         *Interface = NULL;
-        return EFI_UNSUPPORTED;
+        return efi_handle_is_valid(Handle) ? EFI_UNSUPPORTED :
+                                           EFI_INVALID_PARAMETER;
     }
 
     st = add_open_protocol_record(Handle, Protocol, mImageHandle, NULL,
@@ -35507,7 +35478,7 @@ static void fw_locate_handle_add(EFI_HANDLE *Matches, UINTN *Count,
 {
     UINTN i;
 
-    if (Handle == NULL) {
+    if (!efi_handle_is_valid(Handle)) {
         return;
     }
     for (i = 0; i < *Count; i++) {
@@ -35653,6 +35624,7 @@ EFI_STATUS bs_locate_handle(UINTN SearchType, void *Protocol,
 
     for (i = 0; i < PROTOCOL_RECORD_MAX; i++) {
         if (mProtocolRecords[i].in_use &&
+            !mProtocolRecords[i].removed &&
             (SearchType == EFI_LOCATE_ALL_HANDLES ||
              guid_matches(Protocol, mProtocolRecords[i].guid))) {
             fw_locate_handle_add(matches, &found, FW_ARRAY_SIZE(matches),
@@ -35725,7 +35697,7 @@ static VOID fw_claim_dynamic_handle(EFI_HANDLE Handle)
 EFI_STATUS bs_install_protocol(EFI_HANDLE *Handle, void *Protocol,
                                UINTN InterfaceType, VOID *Interface)
 {
-    UINTN i;
+    EFI_PROTOCOL_RECORD *rec;
     BOOLEAN allocated_handle = 0;
 
     if (Handle == NULL || Protocol == NULL) {
@@ -35746,19 +35718,17 @@ EFI_STATUS bs_install_protocol(EFI_HANDLE *Handle, void *Protocol,
     } else {
         fw_claim_dynamic_handle(*Handle);
     }
-    for (i = 0; i < PROTOCOL_RECORD_MAX; i++) {
-        if (!mProtocolRecords[i].in_use) {
-            UINT64 generation = ++mHandleDatabaseGeneration;
-
-            mProtocolRecords[i].in_use = 1;
-            mProtocolRecords[i].handle = *Handle;
-            copy_guid(mProtocolRecords[i].guid, Protocol);
-            mProtocolRecords[i].interface = Interface;
-            mProtocolRecords[i].modification_generation = generation;
-            fw_notify_protocol_installed(*Handle, Protocol);
-            mMapKey++;
-            return EFI_SUCCESS;
-        }
+    rec = find_protocol_record(*Handle, Protocol);
+    if (rec == NULL) {
+        rec = allocate_protocol_record(*Handle, Protocol);
+    }
+    if (rec != NULL) {
+        rec->removed = 0;
+        rec->interface = Interface;
+        rec->modification_generation = ++mHandleDatabaseGeneration;
+        mMapKey++;
+        fw_notify_protocol_installed(*Handle, Protocol);
+        return EFI_SUCCESS;
     }
     fw_release_dynamic_handle_if_empty(*Handle);
     if (allocated_handle) {
@@ -35767,66 +35737,110 @@ EFI_STATUS bs_install_protocol(EFI_HANDLE *Handle, void *Protocol,
     return EFI_OUT_OF_RESOURCES;
 }
 
-EFI_STATUS bs_uninstall_protocol(EFI_HANDLE Handle, void *Protocol, VOID *Interface)
+static EFI_STATUS protocol_record_for_update(EFI_HANDLE Handle,
+                                             void *Protocol, VOID *Interface,
+                                             EFI_PROTOCOL_RECORD **Record)
 {
-    UINTN i;
+    EFI_PROTOCOL_RECORD *rec;
+    VOID *current = NULL;
 
-    if (Handle == NULL || Protocol == NULL) {
+    if (Protocol == NULL || !efi_handle_is_valid(Handle)) {
         return EFI_INVALID_PARAMETER;
     }
-    for (i = 0; i < PROTOCOL_RECORD_MAX; i++) {
-        if (mProtocolRecords[i].in_use &&
-            mProtocolRecords[i].handle == Handle &&
-            mProtocolRecords[i].interface == Interface &&
-            guid_matches(Protocol, mProtocolRecords[i].guid)) {
-            while (open_protocol_driver_open_remains(Handle, Protocol)) {
-                if (open_protocol_remove_driver_opens(Handle, Protocol) !=
-                    EFI_SUCCESS) {
-                    return EFI_ACCESS_DENIED;
-                }
-            }
-            close_uninstall_safe_open_records(Handle, Protocol);
-            if (protocol_has_open_records(Handle, Protocol)) {
-                return EFI_ACCESS_DENIED;
-            }
-            {
-                UINT64 generation = ++mHandleDatabaseGeneration;
-                UINTN j;
+    if (!handle_supports_protocol(Handle, Protocol, &current) ||
+        current != Interface) {
+        return EFI_NOT_FOUND;
+    }
+    rec = find_protocol_record(Handle, Protocol);
+    if (rec == NULL) {
+        rec = allocate_protocol_record(Handle, Protocol);
+        if (rec == NULL) {
+            return EFI_OUT_OF_RESOURCES;
+        }
+        rec->builtin = 1;
+        rec->interface = current;
+    }
+    *Record = rec;
+    return EFI_SUCCESS;
+}
 
-                for (j = 0; j < PROTOCOL_RECORD_MAX; j++) {
-                    if (j != i && mProtocolRecords[j].in_use &&
-                        mProtocolRecords[j].handle == Handle) {
-                        mProtocolRecords[j].modification_generation =
-                            generation;
-                    }
-                }
-            }
-            mProtocolRecords[i].in_use = 0;
-            mProtocolRecords[i].handle = NULL;
-            mProtocolRecords[i].interface = NULL;
-            mProtocolRecords[i].modification_generation = 0;
-            fw_release_dynamic_handle_if_empty(Handle);
-            mMapKey++;
-            return EFI_SUCCESS;
+static EFI_STATUS prepare_protocol_update(EFI_HANDLE Handle, void *Protocol,
+                                          VOID *Interface,
+                                          EFI_PROTOCOL_RECORD **Record)
+{
+    EFI_STATUS st = protocol_record_for_update(Handle, Protocol, Interface,
+                                               Record);
+
+    if (st != EFI_SUCCESS) {
+        return st;
+    }
+    while (open_protocol_driver_open_remains(Handle, Protocol)) {
+        if (open_protocol_remove_driver_opens(Handle, Protocol) !=
+            EFI_SUCCESS) {
+            (void)bs_connect_controller(Handle, NULL, NULL, 1);
+            return EFI_ACCESS_DENIED;
         }
     }
-    return EFI_NOT_FOUND;
+    close_uninstall_safe_open_records(Handle, Protocol);
+    if (protocol_has_open_records(Handle, Protocol)) {
+        (void)bs_connect_controller(Handle, NULL, NULL, 1);
+        return EFI_ACCESS_DENIED;
+    }
+    /* Driver callbacks may have changed the protocol database. */
+    return protocol_record_for_update(Handle, Protocol, Interface, Record);
+}
+
+EFI_STATUS bs_uninstall_protocol(EFI_HANDLE Handle, void *Protocol,
+                                 VOID *Interface)
+{
+    EFI_PROTOCOL_RECORD *rec;
+    EFI_STATUS st;
+    UINT64 generation;
+    UINTN i;
+
+    st = prepare_protocol_update(Handle, Protocol, Interface, &rec);
+    if (st != EFI_SUCCESS) {
+        return st;
+    }
+
+    generation = ++mHandleDatabaseGeneration;
+    for (i = 0; i < PROTOCOL_RECORD_MAX; i++) {
+        if (mProtocolRecords[i].in_use &&
+            mProtocolRecords[i].handle == Handle) {
+            mProtocolRecords[i].modification_generation = generation;
+        }
+    }
+    if (rec->builtin) {
+        /* Suppress the built-in fallback until explicitly installed again. */
+        rec->removed = 1;
+        rec->interface = NULL;
+    } else {
+        fw_set_mem(rec, sizeof(*rec), 0);
+    }
+    fw_release_dynamic_handle_if_empty(Handle);
+    mMapKey++;
+    return EFI_SUCCESS;
 }
 
 EFI_STATUS bs_reinstall_protocol(EFI_HANDLE Handle, void *Protocol,
                                  VOID *OldInterface, VOID *NewInterface)
 {
+    EFI_PROTOCOL_RECORD *rec;
     EFI_STATUS st;
-    EFI_HANDLE h = Handle;
+    UINT8 guid[16];
 
-    if (Handle == NULL || Protocol == NULL) {
-        return EFI_INVALID_PARAMETER;
-    }
-    st = bs_uninstall_protocol(Handle, Protocol, OldInterface);
+    st = prepare_protocol_update(Handle, Protocol, OldInterface, &rec);
     if (st != EFI_SUCCESS) {
         return st;
     }
-    return bs_install_protocol(&h, Protocol, 0, NewInterface);
+    /* Driver callbacks may remove the record that owns the GUID. */
+    copy_guid(guid, rec->guid);
+    rec->interface = NewInterface;
+    rec->modification_generation = ++mHandleDatabaseGeneration;
+    mMapKey++;
+    (void)bs_connect_controller(Handle, NULL, NULL, 1);
+    fw_notify_protocol_installed(Handle, guid);
+    return EFI_SUCCESS;
 }
 
 EFI_STATUS bs_locate_handle_buffer(UINTN SearchType, void *Protocol,
