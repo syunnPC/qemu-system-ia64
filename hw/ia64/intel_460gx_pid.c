@@ -379,14 +379,13 @@ static int pid_post_load(void *opaque, int version_id)
 static const VMStateDescription vmstate_intel_460gx_pid = {
     .name = TYPE_INTEL_460GX_PID,
     .version_id = 2,
-    .minimum_version_id = 1,
+    .minimum_version_id = 2,
     .post_load = pid_post_load,
     .fields = (const VMStateField[]) {
-        /* Reject a v2 stream before overwriting any mutable PID state. */
-        VMSTATE_UINT16_EQUAL_V(initial_id_migration,
-                               Intel460GXPIDState, 2),
-        VMSTATE_UINT32_EQUAL_V(legacy_pin, Intel460GXPIDState, 2),
-        VMSTATE_UINT64_EQUAL_V(test_mmio_base, Intel460GXPIDState, 2),
+        /* Check the destination wiring before overwriting mutable state. */
+        VMSTATE_UINT16_EQUAL(initial_id_migration, Intel460GXPIDState),
+        VMSTATE_UINT32_EQUAL(legacy_pin, Intel460GXPIDState),
+        VMSTATE_UINT64_EQUAL(test_mmio_base, Intel460GXPIDState),
         VMSTATE_UINT64_ARRAY(rte, Intel460GXPIDState,
                              INTEL_460GX_PID_NUM_PINS),
         VMSTATE_UINT8_ARRAY(irq_level, Intel460GXPIDState,

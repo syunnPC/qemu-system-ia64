@@ -587,12 +587,6 @@ static bool zx1_test_post_load(void *opaque, int version_id, Error **errp)
 {
     IA64ZX6000ZX1TestState *s = opaque;
 
-    if (version_id != 1) {
-        error_setg(errp,
-                   "zx6000 zx1 test migration version %d is invalid",
-                   version_id);
-        return false;
-    }
     if (!ia64_zx6000_zx1_test_layout_validate(&s->layout, errp) ||
         !zx1_test_layout_baseline_valid(s, errp) ||
         !zx1_test_system_range_is_ram(s, s->layout.ram.base,

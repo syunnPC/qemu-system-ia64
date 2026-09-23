@@ -113,7 +113,7 @@ static const VMStateDescription vmstate_ia64_ia32_xmm = {
 static const VMStateDescription vmstate_ia64_firmware_debug_rse = {
     .name = "ia64-firmware-debug-rse",
     .version_id = 2,
-    .minimum_version_id = 1,
+    .minimum_version_id = 2,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT64_ARRAY(pgr, IA64FirmwareDebugRseState,
                              IA64_STACKED_GR_COUNT),
@@ -146,13 +146,11 @@ static const VMStateDescription vmstate_ia64_firmware_debug_rse = {
         VMSTATE_UINT8(cfm_rrb_fr, IA64FirmwareDebugRseState),
         VMSTATE_UINT8(cfm_rrb_pr, IA64FirmwareDebugRseState),
         VMSTATE_BOOL(cfle, IA64FirmwareDebugRseState),
-        VMSTATE_BOOL_V(completion_pending, IA64FirmwareDebugRseState, 2),
-        VMSTATE_BOOL_V(completion_demoted, IA64FirmwareDebugRseState, 2),
-        VMSTATE_UINT64_V(completion_psr, IA64FirmwareDebugRseState, 2),
-        VMSTATE_UINT64_V(completion_source_ip,
-                         IA64FirmwareDebugRseState, 2),
-        VMSTATE_UINT8_V(completion_source_slot,
-                        IA64FirmwareDebugRseState, 2),
+        VMSTATE_BOOL(completion_pending, IA64FirmwareDebugRseState),
+        VMSTATE_BOOL(completion_demoted, IA64FirmwareDebugRseState),
+        VMSTATE_UINT64(completion_psr, IA64FirmwareDebugRseState),
+        VMSTATE_UINT64(completion_source_ip, IA64FirmwareDebugRseState),
+        VMSTATE_UINT8(completion_source_slot, IA64FirmwareDebugRseState),
         VMSTATE_END_OF_LIST()
     }
 };
@@ -196,41 +194,6 @@ static int ia64_cpu_post_load(void *opaque, int version_id)
     bool has_clean_partition =
         icc->rse_has_clean_partition;
     unsigned int i;
-
-    if (version_id < 12 && cpu->boot_info_valid &&
-        (cpu->boot_info.firmware_base != 0x100000 ||
-         cpu->boot_info.firmware_size != 0x200000)) {
-        return -EINVAL;
-    }
-    if (version_id < 4) {
-        /* Version 3 used CR.IFA itself as the delivery operand. */
-        env->exception_state.fault_addr = env->cr_ifa;
-    }
-    if (version_id < 5) {
-        env->interrupt.sapic_xtp = IA64_SAPIC_XTP_DISABLE;
-    }
-    if (version_id < 6) {
-        env->interrupt.sapic_pmi_pending = 0;
-        env->interrupt.sapic_init_pending = false;
-    }
-    if (version_id < 7) {
-        env->pal.pal_mc_log_valid = false;
-        env->pal.pal_cmc_pending = false;
-        env->pal.pal_mca_pending = false;
-        env->pal.pal_mca_active = false;
-    }
-    if (version_id < 8) {
-        cpu->mca_rse_valid = false;
-    }
-    if (version_id < 10) {
-        env->interrupt.sapic_init_reason = 0;
-        env->pal.pal_init_active = false;
-        env->pal.pal_init_entry = 0;
-        env->pal.pal_init_gp = 0;
-    }
-    if (version_id < 11) {
-        env->exception_state.psr_i_deferred = false;
-    }
 
     /* Migration stops vCPUs only at instruction boundaries. */
     env->rse.rse_access = false;
@@ -324,27 +287,27 @@ static int ia64_cpu_post_load(void *opaque, int version_id)
 const VMStateDescription vmstate_ia64_cpu = {
     .name = "cpu",
     .version_id = 12,
-    .minimum_version_id = 3,
+    .minimum_version_id = 12,
     .pre_save = ia64_cpu_pre_save,
     .post_load = ia64_cpu_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_STRUCT(parent_obj, IA64CPU, 1, vmstate_cpu_common, CPUState),
-        VMSTATE_UINT64_EQUAL_V(semantic_profile_id, IA64CPU, 9),
-        VMSTATE_UINT32_EQUAL_V(semantic_profile_abi, IA64CPU, 9),
-        VMSTATE_UINT8_EQUAL_V(migration_alat_full, IA64CPU, 9),
-        VMSTATE_UINT64_EQUAL_V(firmware_compat_flags, IA64CPU, 9),
-        VMSTATE_UINT64_EQUAL_V(boot_info.firmware_base, IA64CPU, 12),
-        VMSTATE_UINT64_EQUAL_V(boot_info.firmware_size, IA64CPU, 12),
-        VMSTATE_UINT64_EQUAL_V(boot_info.pal_entry, IA64CPU, 12),
-        VMSTATE_UINT64_EQUAL_V(boot_info.firmware_entry, IA64CPU, 12),
-        VMSTATE_UINT64_EQUAL_V(boot_info.global_pointer, IA64CPU, 12),
-        VMSTATE_UINT32_EQUAL_V(socket_id, IA64CPU, 9),
-        VMSTATE_UINT32_EQUAL_V(core_id, IA64CPU, 9),
-        VMSTATE_UINT32_EQUAL_V(thread_id, IA64CPU, 9),
-        VMSTATE_UINT32_EQUAL_V(cores_per_socket, IA64CPU, 9),
-        VMSTATE_UINT32_EQUAL_V(threads_per_core, IA64CPU, 9),
-        VMSTATE_UINT32_EQUAL_V(package_base, IA64CPU, 9),
-        VMSTATE_UINT32_EQUAL_V(package_cpus, IA64CPU, 9),
+        VMSTATE_UINT64_EQUAL(semantic_profile_id, IA64CPU),
+        VMSTATE_UINT32_EQUAL(semantic_profile_abi, IA64CPU),
+        VMSTATE_UINT8_EQUAL(migration_alat_full, IA64CPU),
+        VMSTATE_UINT64_EQUAL(firmware_compat_flags, IA64CPU),
+        VMSTATE_UINT64_EQUAL(boot_info.firmware_base, IA64CPU),
+        VMSTATE_UINT64_EQUAL(boot_info.firmware_size, IA64CPU),
+        VMSTATE_UINT64_EQUAL(boot_info.pal_entry, IA64CPU),
+        VMSTATE_UINT64_EQUAL(boot_info.firmware_entry, IA64CPU),
+        VMSTATE_UINT64_EQUAL(boot_info.global_pointer, IA64CPU),
+        VMSTATE_UINT32_EQUAL(socket_id, IA64CPU),
+        VMSTATE_UINT32_EQUAL(core_id, IA64CPU),
+        VMSTATE_UINT32_EQUAL(thread_id, IA64CPU),
+        VMSTATE_UINT32_EQUAL(cores_per_socket, IA64CPU),
+        VMSTATE_UINT32_EQUAL(threads_per_core, IA64CPU),
+        VMSTATE_UINT32_EQUAL(package_base, IA64CPU),
+        VMSTATE_UINT32_EQUAL(package_cpus, IA64CPU),
 
         /* Native IA-64 register state. */
         VMSTATE_UINT64_ARRAY(env.gr, IA64CPU, IA64_GR_COUNT),
@@ -359,7 +322,7 @@ const VMStateDescription vmstate_ia64_cpu = {
 
         /* Restart-visible exception state. */
         VMSTATE_UINT64(env.exception_state.fault_ip, IA64CPU),
-        VMSTATE_UINT64_V(env.exception_state.fault_addr, IA64CPU, 4),
+        VMSTATE_UINT64(env.exception_state.fault_addr, IA64CPU),
         VMSTATE_UINT64(env.exception_state.fault_imm, IA64CPU),
         VMSTATE_UINT64(env.exception_state.fault_tmpl, IA64CPU),
         VMSTATE_UINT32(env.exception_state.exception, IA64CPU),
@@ -367,11 +330,10 @@ const VMStateDescription vmstate_ia64_cpu = {
         VMSTATE_UINT32(env.exception_state.fault_slot, IA64CPU),
         VMSTATE_BOOL(env.exception_state.ia32_trap, IA64CPU),
         VMSTATE_BOOL(env.exception_state.ia32_transition_trap, IA64CPU),
-        VMSTATE_BOOL_V(env.exception_state.native_completion_trap, IA64CPU,
-                       3),
-        VMSTATE_UINT64_V(env.exception_state.psr_before_insn, IA64CPU, 3),
+        VMSTATE_BOOL(env.exception_state.native_completion_trap, IA64CPU),
+        VMSTATE_UINT64(env.exception_state.psr_before_insn, IA64CPU),
         VMSTATE_BOOL(env.exception_state.psr_ic_inflight, IA64CPU),
-        VMSTATE_BOOL_V(env.exception_state.psr_i_deferred, IA64CPU, 11),
+        VMSTATE_BOOL(env.exception_state.psr_i_deferred, IA64CPU),
         VMSTATE_UINT64(env.exception_state.psr_suppression_before_insn,
                        IA64CPU),
 
@@ -413,10 +375,10 @@ const VMStateDescription vmstate_ia64_cpu = {
 
         /* Local SAPIC and interval timer. */
         VMSTATE_UINT8(env.interrupt.pending_extint, IA64CPU),
-        VMSTATE_UINT8_V(env.interrupt.sapic_xtp, IA64CPU, 5),
-        VMSTATE_UINT16_V(env.interrupt.sapic_pmi_pending, IA64CPU, 6),
-        VMSTATE_BOOL_V(env.interrupt.sapic_init_pending, IA64CPU, 6),
-        VMSTATE_UINT8_V(env.interrupt.sapic_init_reason, IA64CPU, 10),
+        VMSTATE_UINT8(env.interrupt.sapic_xtp, IA64CPU),
+        VMSTATE_UINT16(env.interrupt.sapic_pmi_pending, IA64CPU),
+        VMSTATE_BOOL(env.interrupt.sapic_init_pending, IA64CPU),
+        VMSTATE_UINT8(env.interrupt.sapic_init_reason, IA64CPU),
         VMSTATE_BOOL(env.interrupt.pal_halt_wake, IA64CPU),
         VMSTATE_UINT64_ARRAY(env.interrupt.sapic_irr, IA64CPU, 4),
         VMSTATE_UINT64_ARRAY(env.interrupt.sapic_isr, IA64CPU, 4),
@@ -439,24 +401,24 @@ const VMStateDescription vmstate_ia64_cpu = {
         VMSTATE_UINT64(env.pal.pal_proc_copy_addr, IA64CPU),
         VMSTATE_UINT64(env.pal.pal_interrupt_block_addr, IA64CPU),
         VMSTATE_UINT64(env.pal.pal_io_block_addr, IA64CPU),
-        VMSTATE_BOOL_V(env.pal.pal_mc_log_valid, IA64CPU, 7),
-        VMSTATE_BOOL_V(env.pal.pal_cmc_pending, IA64CPU, 7),
-        VMSTATE_BOOL_V(env.pal.pal_mca_pending, IA64CPU, 7),
-        VMSTATE_BOOL_V(env.pal.pal_mca_active, IA64CPU, 7),
-        VMSTATE_BOOL_V(env.pal.pal_init_active, IA64CPU, 10),
-        VMSTATE_UINT8_V(env.pal.pal_mc_severity, IA64CPU, 7),
-        VMSTATE_UINT64_V(env.pal.pal_mc_error_map, IA64CPU, 7),
-        VMSTATE_UINT64_V(env.pal.pal_mc_state_parameter, IA64CPU, 7),
-        VMSTATE_UINT64_V(env.pal.pal_mc_status, IA64CPU, 7),
-        VMSTATE_UINT64_V(env.pal.pal_mc_address, IA64CPU, 7),
-        VMSTATE_UINT64_V(env.pal.pal_mc_information, IA64CPU, 7),
-        VMSTATE_UINT64_V(env.pal.pal_mc_ip, IA64CPU, 7),
-        VMSTATE_UINT64_V(env.pal.pal_mca_entry, IA64CPU, 7),
-        VMSTATE_UINT64_V(env.pal.pal_mca_gp, IA64CPU, 7),
-        VMSTATE_UINT64_V(env.pal.pal_mca_pending_record_id, IA64CPU, 7),
-        VMSTATE_UINT64_V(env.pal.pal_mca_active_record_id, IA64CPU, 7),
-        VMSTATE_UINT64_V(env.pal.pal_init_entry, IA64CPU, 10),
-        VMSTATE_UINT64_V(env.pal.pal_init_gp, IA64CPU, 10),
+        VMSTATE_BOOL(env.pal.pal_mc_log_valid, IA64CPU),
+        VMSTATE_BOOL(env.pal.pal_cmc_pending, IA64CPU),
+        VMSTATE_BOOL(env.pal.pal_mca_pending, IA64CPU),
+        VMSTATE_BOOL(env.pal.pal_mca_active, IA64CPU),
+        VMSTATE_BOOL(env.pal.pal_init_active, IA64CPU),
+        VMSTATE_UINT8(env.pal.pal_mc_severity, IA64CPU),
+        VMSTATE_UINT64(env.pal.pal_mc_error_map, IA64CPU),
+        VMSTATE_UINT64(env.pal.pal_mc_state_parameter, IA64CPU),
+        VMSTATE_UINT64(env.pal.pal_mc_status, IA64CPU),
+        VMSTATE_UINT64(env.pal.pal_mc_address, IA64CPU),
+        VMSTATE_UINT64(env.pal.pal_mc_information, IA64CPU),
+        VMSTATE_UINT64(env.pal.pal_mc_ip, IA64CPU),
+        VMSTATE_UINT64(env.pal.pal_mca_entry, IA64CPU),
+        VMSTATE_UINT64(env.pal.pal_mca_gp, IA64CPU),
+        VMSTATE_UINT64(env.pal.pal_mca_pending_record_id, IA64CPU),
+        VMSTATE_UINT64(env.pal.pal_mca_active_record_id, IA64CPU),
+        VMSTATE_UINT64(env.pal.pal_init_entry, IA64CPU),
+        VMSTATE_UINT64(env.pal.pal_init_gp, IA64CPU),
 
         VMSTATE_UINT64_ARRAY(env.rse.rse_pgr, IA64CPU,
                              IA64_STACKED_GR_COUNT),
@@ -469,18 +431,18 @@ const VMStateDescription vmstate_ia64_cpu = {
         VMSTATE_INT32(env.rse.rse_clean_nat, IA64CPU),
         VMSTATE_INT32(env.rse.rse_invalid, IA64CPU),
         VMSTATE_BOOL(env.rse.rse_cfle, IA64CPU),
-        VMSTATE_BOOL_V(env.rse.rse_completion_pending, IA64CPU, 3),
-        VMSTATE_BOOL_V(env.rse.rse_completion_demoted, IA64CPU, 3),
-        VMSTATE_UINT64_V(env.rse.rse_completion_psr, IA64CPU, 3),
-        VMSTATE_UINT64_V(env.rse.rse_completion_source_ip, IA64CPU, 3),
-        VMSTATE_UINT8_V(env.rse.rse_completion_source_slot, IA64CPU, 3),
+        VMSTATE_BOOL(env.rse.rse_completion_pending, IA64CPU),
+        VMSTATE_BOOL(env.rse.rse_completion_demoted, IA64CPU),
+        VMSTATE_UINT64(env.rse.rse_completion_psr, IA64CPU),
+        VMSTATE_UINT64(env.rse.rse_completion_source_ip, IA64CPU),
+        VMSTATE_UINT8(env.rse.rse_completion_source_slot, IA64CPU),
         VMSTATE_UINT64(env.rse.rse_rnat_addr, IA64CPU),
         VMSTATE_UINT64(env.rse.rse_rnat_defined, IA64CPU),
         VMSTATE_UINT64(env.rse.rse_load_rnat, IA64CPU),
         VMSTATE_UINT64(env.rse.rse_load_rnat_addr, IA64CPU),
         VMSTATE_UINT64(env.rse.rse_load_rnat_defined, IA64CPU),
         VMSTATE_BOOL(env.rse.rse_load_rnat_valid, IA64CPU),
-        VMSTATE_STRUCT(env.rse.rse_writeback_rnat, IA64CPU, 2,
+        VMSTATE_STRUCT(env.rse.rse_writeback_rnat, IA64CPU, 0,
                        vmstate_ia64_rnat_writeback_image,
                        IA64RnatWritebackImage),
         VMSTATE_STRUCT_ARRAY(env.rse.rse_rnat_shadow, IA64CPU,
@@ -573,20 +535,20 @@ const VMStateDescription vmstate_ia64_cpu = {
         VMSTATE_STRUCT(firmware_debug.rse, IA64CPU, 1,
                        vmstate_ia64_firmware_debug_rse,
                        IA64FirmwareDebugRseState),
-        VMSTATE_STRUCT(firmware_debug.rse.writeback_rnat, IA64CPU, 2,
+        VMSTATE_STRUCT(firmware_debug.rse.writeback_rnat, IA64CPU, 0,
                        vmstate_ia64_rnat_writeback_image,
                        IA64RnatWritebackImage),
         VMSTATE_UINT16(firmware_debug.vector, IA64CPU),
         VMSTATE_BOOL(firmware_debug.context_valid, IA64CPU),
         VMSTATE_BOOL(firmware_debug.handler_active, IA64CPU),
         VMSTATE_BOOL(firmware_debug.rse_valid, IA64CPU),
-        VMSTATE_STRUCT(mca_rse, IA64CPU, 8,
+        VMSTATE_STRUCT(mca_rse, IA64CPU, 0,
                        vmstate_ia64_firmware_debug_rse,
                        IA64RSEContextState),
-        VMSTATE_STRUCT(mca_rse.writeback_rnat, IA64CPU, 8,
+        VMSTATE_STRUCT(mca_rse.writeback_rnat, IA64CPU, 0,
                        vmstate_ia64_rnat_writeback_image,
                        IA64RnatWritebackImage),
-        VMSTATE_BOOL_V(mca_rse_valid, IA64CPU, 8),
+        VMSTATE_BOOL(mca_rse_valid, IA64CPU),
         VMSTATE_BOOL(boot_info_pending, IA64CPU),
         VMSTATE_END_OF_LIST()
     }

@@ -127,15 +127,6 @@ static void intel_460gx_host_reset(DeviceState *dev)
     }
 }
 
-static int intel_460gx_host_pre_load(void *opaque)
-{
-    Intel460GXHostState *s = opaque;
-
-    /* Reset supplies downstream ranges absent from v1 streams. */
-    intel_460gx_host_core_reset(&s->core);
-    return 0;
-}
-
 static bool intel_460gx_host_post_load(void *opaque, int version_id,
                                        Error **errp)
 {
@@ -188,26 +179,22 @@ static const VMStateDescription vmstate_intel_460gx_downstream_reset = {
 static const VMStateDescription vmstate_intel_460gx_host = {
     .name = TYPE_INTEL_460GX_HOST,
     .version_id = 3,
-    .minimum_version_id = 1,
-    .pre_load = intel_460gx_host_pre_load,
+    .minimum_version_id = 3,
     .post_load_errp = intel_460gx_host_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32(core.config_address, Intel460GXHostState),
         VMSTATE_UINT8(core.cbn, Intel460GXHostState),
         VMSTATE_UINT32(core.chipset_present, Intel460GXHostState),
-        /*
-         * v1/v2 did not carry the reset wiring.  v3 streams reject a
-         * destination whose QOM-supplied reset state differs from source.
-         */
-        VMSTATE_UINT16_EQUAL_V(initial_cbn, Intel460GXHostState, 3),
-        VMSTATE_UINT32_EQUAL_V(initial_chipset_present,
-                               Intel460GXHostState, 3),
+        /* Check the destination's QOM-supplied reset wiring. */
+        VMSTATE_UINT16_EQUAL(initial_cbn, Intel460GXHostState),
+        VMSTATE_UINT32_EQUAL(initial_chipset_present,
+                             Intel460GXHostState),
         VMSTATE_STRUCT_ARRAY(core.downstream, Intel460GXHostState,
-                             INTEL_460GX_DOWNSTREAM_PORTS, 3,
+                             INTEL_460GX_DOWNSTREAM_PORTS, 0,
                              vmstate_intel_460gx_downstream_reset,
                              Intel460GXDownstreamRoute),
         VMSTATE_STRUCT_ARRAY(core.downstream, Intel460GXHostState,
-                             INTEL_460GX_DOWNSTREAM_PORTS, 2,
+                             INTEL_460GX_DOWNSTREAM_PORTS, 0,
                              vmstate_intel_460gx_downstream_route,
                              Intel460GXDownstreamRoute),
         VMSTATE_END_OF_LIST()

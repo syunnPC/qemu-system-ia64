@@ -925,7 +925,7 @@ static bool intel_460gx_chipset_post_load(void *opaque, int version_id,
 static const VMStateDescription vmstate_intel_460gx_chipset = {
     .name = TYPE_INTEL_460GX_CHIPSET,
     .version_id = 5,
-    .minimum_version_id = 2,
+    .minimum_version_id = 5,
     .post_load_errp = intel_460gx_chipset_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT8_EQUAL(expander_mask, Intel460GXChipsetState),

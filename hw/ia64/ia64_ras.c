@@ -732,14 +732,6 @@ static int ia64_ras_hub_post_load(void *opaque, int version_id)
     IA64RasHubState *s = opaque;
     unsigned int bank;
 
-    if (version_id < 2) {
-        s->init_entry = 0;
-        s->init_gp = 0;
-        s->rendezvous_fallback = false;
-        s->wakeup_pending = 0;
-        s->wakeup_current = 0;
-    }
-
     if ((s->cpu_online & ~ia64_ras_present_cpus()) != 0 ||
         s->wakeup_current >= IA64_RAS_MAX_CPUS ||
         (s->cpe_vector != 0 && !ia64_ras_vector_valid(s->cpe_vector)) ||
@@ -834,7 +826,7 @@ static int ia64_ras_hub_post_load(void *opaque, int version_id)
 static const VMStateDescription vmstate_ia64_ras_slot = {
     .name = "ia64-ras-hub/slot",
     .version_id = 2,
-    .minimum_version_id = 1,
+    .minimum_version_id = 2,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT16(length, IA64RasRecordSlot),
         VMSTATE_UINT8_ARRAY(data, IA64RasRecordSlot,
@@ -846,13 +838,13 @@ static const VMStateDescription vmstate_ia64_ras_slot = {
 static const VMStateDescription vmstate_ia64_ras_hub = {
     .name = "ia64-ras-hub",
     .version_id = 2,
-    .minimum_version_id = 1,
+    .minimum_version_id = 2,
     .post_load = ia64_ras_hub_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT64(mca_entry, IA64RasHubState),
         VMSTATE_UINT64(mca_gp, IA64RasHubState),
-        VMSTATE_UINT64_V(init_entry, IA64RasHubState, 2),
-        VMSTATE_UINT64_V(init_gp, IA64RasHubState, 2),
+        VMSTATE_UINT64(init_entry, IA64RasHubState),
+        VMSTATE_UINT64(init_gp, IA64RasHubState),
         VMSTATE_UINT64(cpe_vector, IA64RasHubState),
         VMSTATE_UINT64(rendezvous_vector, IA64RasHubState),
         VMSTATE_UINT64(rendezvous_timeout, IA64RasHubState),
@@ -863,9 +855,9 @@ static const VMStateDescription vmstate_ia64_ras_hub = {
         VMSTATE_UINT64(rendezvous_required, IA64RasHubState),
         VMSTATE_UINT64(rendezvous_arrived, IA64RasHubState),
         VMSTATE_BOOL(rendezvous_active, IA64RasHubState),
-        VMSTATE_BOOL_V(rendezvous_fallback, IA64RasHubState, 2),
-        VMSTATE_UINT64_V(wakeup_pending, IA64RasHubState, 2),
-        VMSTATE_UINT8_V(wakeup_current, IA64RasHubState, 2),
+        VMSTATE_BOOL(rendezvous_fallback, IA64RasHubState),
+        VMSTATE_UINT64(wakeup_pending, IA64RasHubState),
+        VMSTATE_UINT8(wakeup_current, IA64RasHubState),
         VMSTATE_UINT64(next_record_id, IA64RasHubState),
         VMSTATE_UINT8_ARRAY(head, IA64RasHubState, IA64_RAS_BANK_COUNT),
         VMSTATE_UINT8_ARRAY(count, IA64RasHubState, IA64_RAS_BANK_COUNT),

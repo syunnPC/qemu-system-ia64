@@ -970,7 +970,7 @@ static bool hp_zx1_mio_post_load(void *opaque, int version_id,
     HPZX1MIOState *s = opaque;
     unsigned int context;
 
-    if (version_id < 1 || version_id > 2 || !s->iommu_configured) {
+    if (!s->iommu_configured) {
         error_setg(errp,
                    "zx1 MIO migration destination has no IOMMU reset configuration");
         return false;
@@ -1076,7 +1076,7 @@ static const VMStateDescription vmstate_hp_zx2_mio_iommu_context = {
 static const VMStateDescription vmstate_hp_zx1_mio = {
     .name = TYPE_HP_ZX1_MIO,
     .version_id = 2,
-    .minimum_version_id = 1,
+    .minimum_version_id = 2,
     .priority = MIG_PRI_IOMMU,
     .pre_save_errp = hp_zx1_mio_pre_save,
     .post_load_errp = hp_zx1_mio_post_load,
@@ -1099,7 +1099,7 @@ static const VMStateDescription vmstate_hp_zx1_mio = {
                              HPZX1IOTLBSlot),
         VMSTATE_UINT8(migration.iommu.rr_next, HPZX1MIOState),
         VMSTATE_STRUCT_ARRAY(migration.zx2_iommu, HPZX1MIOState,
-                             HP_ZX2_MIO_EXTRA_CONTEXTS, 2,
+                             HP_ZX2_MIO_EXTRA_CONTEXTS, 0,
                              vmstate_hp_zx2_mio_iommu_context,
                              HPZX1IOMMUFrontend),
 
@@ -1127,25 +1127,19 @@ static const VMStateDescription vmstate_hp_zx1_mio = {
         VMSTATE_UINT64_ARRAY(migration.regs.lba_port_control,
                              HPZX1MIOState,
                              HP_ZX1_MIO_LBA_PORT_COUNT),
-        VMSTATE_UINT64_V(migration.regs.error_config, HPZX1MIOState, 2),
-        VMSTATE_UINT64_V(migration.regs.error_status, HPZX1MIOState, 2),
-        VMSTATE_UINT64_V(migration.regs.error_address, HPZX1MIOState, 2),
-        VMSTATE_UINT64_V(migration.regs.error_information,
-                         HPZX1MIOState, 2),
-        VMSTATE_UINT64_ARRAY_V(migration.zx2_regs.group_ropes,
-                               HPZX1MIOState, HP_ZX2_MIO_GROUP_COUNT, 2),
-        VMSTATE_UINT64_ARRAY_V(migration.zx2_regs.group_control,
-                               HPZX1MIOState, HP_ZX2_MIO_GROUP_COUNT, 2),
-        VMSTATE_UINT64_V(migration.zx2_regs.iommu_select,
-                         HPZX1MIOState, 2),
-        VMSTATE_UINT64_V(migration.zx2_regs.error_interrupt,
-                         HPZX1MIOState, 2),
-        VMSTATE_UINT64_V(migration.zx2_regs.error_status,
-                         HPZX1MIOState, 2),
-        VMSTATE_UINT64_V(migration.zx2_regs.error_address,
-                         HPZX1MIOState, 2),
-        VMSTATE_UINT64_V(migration.zx2_regs.error_information,
-                         HPZX1MIOState, 2),
+        VMSTATE_UINT64(migration.regs.error_config, HPZX1MIOState),
+        VMSTATE_UINT64(migration.regs.error_status, HPZX1MIOState),
+        VMSTATE_UINT64(migration.regs.error_address, HPZX1MIOState),
+        VMSTATE_UINT64(migration.regs.error_information, HPZX1MIOState),
+        VMSTATE_UINT64_ARRAY(migration.zx2_regs.group_ropes,
+                             HPZX1MIOState, HP_ZX2_MIO_GROUP_COUNT),
+        VMSTATE_UINT64_ARRAY(migration.zx2_regs.group_control,
+                             HPZX1MIOState, HP_ZX2_MIO_GROUP_COUNT),
+        VMSTATE_UINT64(migration.zx2_regs.iommu_select, HPZX1MIOState),
+        VMSTATE_UINT64(migration.zx2_regs.error_interrupt, HPZX1MIOState),
+        VMSTATE_UINT64(migration.zx2_regs.error_status, HPZX1MIOState),
+        VMSTATE_UINT64(migration.zx2_regs.error_address, HPZX1MIOState),
+        VMSTATE_UINT64(migration.zx2_regs.error_information, HPZX1MIOState),
         VMSTATE_END_OF_LIST()
     },
 };

@@ -541,8 +541,7 @@ static bool hp_zx1_ioa_post_load(void *opaque, int version_id, Error **errp)
     uint32_t pcix_status_allowed = IOA_PCIX_STATUS_RESET |
                                    HP_ZX1_IOA_PCIX_STATUS_W1C;
 
-    if (version_id < 1 || version_id > 2 || !s->setup_done || !bus ||
-        !s->deliver ||
+    if (!s->setup_done || !bus || !s->deliver ||
         pci_bus_num(bus) != s->baseline.secondary_bus ||
         bus->nirq != hp_zx1_ioa_external_inputs(s)) {
         error_setg(errp, "Mercury migration destination is not configured");
@@ -631,10 +630,6 @@ static bool hp_zx1_ioa_post_load(void *opaque, int version_id, Error **errp)
         error_setg(errp, "Mercury migration changed immutable reset straps");
         return false;
     }
-    if (version_id < 2) {
-        regs->error_status = 0;
-        regs->outbound_error_address = 0;
-    }
     if ((regs->error_status & ~HP_ZX1_IOA_ERROR_STATUS_MASK) ||
         (!(regs->error_status & HP_ZX1_IOA_ERROR_SEVERITY_MASK) &&
          (regs->error_status || regs->outbound_error_address))) {
@@ -655,7 +650,7 @@ static bool hp_zx1_ioa_post_load(void *opaque, int version_id, Error **errp)
 static const VMStateDescription vmstate_hp_zx1_ioa_route = {
     .name = TYPE_HP_ZX1_IOA "/intx-route",
     .version_id = 2,
-    .minimum_version_id = 1,
+    .minimum_version_id = 2,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_EQUAL(packed, HPZX1IOARoute),
         VMSTATE_END_OF_LIST()
@@ -665,7 +660,7 @@ static const VMStateDescription vmstate_hp_zx1_ioa_route = {
 static const VMStateDescription vmstate_hp_zx1_ioa = {
     .name = TYPE_HP_ZX1_IOA,
     .version_id = 2,
-    .minimum_version_id = 1,
+    .minimum_version_id = 2,
     .post_load_errp = hp_zx1_ioa_post_load,
     .fields = (const VMStateField[]) {
         /* Reject migration between differently wired board instances. */
@@ -711,8 +706,8 @@ static const VMStateDescription vmstate_hp_zx1_ioa = {
         VMSTATE_UINT64(regs.bus_mode, HPZX1IOAState),
         VMSTATE_UINT64(regs.slave_control, HPZX1IOAState),
         VMSTATE_UINT32(regs.error_configuration, HPZX1IOAState),
-        VMSTATE_UINT64_V(regs.error_status, HPZX1IOAState, 2),
-        VMSTATE_UINT64_V(regs.outbound_error_address, HPZX1IOAState, 2),
+        VMSTATE_UINT64(regs.error_status, HPZX1IOAState),
+        VMSTATE_UINT64(regs.outbound_error_address, HPZX1IOAState),
 
         VMSTATE_UINT32(regs.sapic_selector, HPZX1IOAState),
         VMSTATE_UINT32(regs.sapic_in_service, HPZX1IOAState),
