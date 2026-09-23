@@ -197,6 +197,11 @@ static int ia64_cpu_post_load(void *opaque, int version_id)
         icc->rse_has_clean_partition;
     unsigned int i;
 
+    if (version_id < 12 && cpu->boot_info_valid &&
+        (cpu->boot_info.firmware_base != 0x100000 ||
+         cpu->boot_info.firmware_size != 0x200000)) {
+        return -EINVAL;
+    }
     if (version_id < 4) {
         /* Version 3 used CR.IFA itself as the delivery operand. */
         env->exception_state.fault_addr = env->cr_ifa;
@@ -318,7 +323,7 @@ static int ia64_cpu_post_load(void *opaque, int version_id)
 
 const VMStateDescription vmstate_ia64_cpu = {
     .name = "cpu",
-    .version_id = 11,
+    .version_id = 12,
     .minimum_version_id = 3,
     .pre_save = ia64_cpu_pre_save,
     .post_load = ia64_cpu_post_load,
@@ -328,6 +333,11 @@ const VMStateDescription vmstate_ia64_cpu = {
         VMSTATE_UINT32_EQUAL_V(semantic_profile_abi, IA64CPU, 9),
         VMSTATE_UINT8_EQUAL_V(migration_alat_full, IA64CPU, 9),
         VMSTATE_UINT64_EQUAL_V(firmware_compat_flags, IA64CPU, 9),
+        VMSTATE_UINT64_EQUAL_V(boot_info.firmware_base, IA64CPU, 12),
+        VMSTATE_UINT64_EQUAL_V(boot_info.firmware_size, IA64CPU, 12),
+        VMSTATE_UINT64_EQUAL_V(boot_info.pal_entry, IA64CPU, 12),
+        VMSTATE_UINT64_EQUAL_V(boot_info.firmware_entry, IA64CPU, 12),
+        VMSTATE_UINT64_EQUAL_V(boot_info.global_pointer, IA64CPU, 12),
         VMSTATE_UINT32_EQUAL_V(socket_id, IA64CPU, 9),
         VMSTATE_UINT32_EQUAL_V(core_id, IA64CPU, 9),
         VMSTATE_UINT32_EQUAL_V(thread_id, IA64CPU, 9),

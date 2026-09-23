@@ -1,5 +1,6 @@
 ia64_ss = ss.source_set()
 ia64_ss.add(files('hp_ia64.c', 'ia64_common.c', 'ia64_loader.c'))
+ia64_ss.add(files('ia64_firmware_elf.c'))
 ia64_ss.add(files('ia64_ras.c'))
 ia64_ss.add(when: 'CONFIG_ATI_VGA', if_true: files('hp_int10.c'))
 ia64_ss.add(files('ia64_platform.c'))

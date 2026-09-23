@@ -12,6 +12,7 @@
 #define IA64_FW_COMPAT_FIXED_LOADER_WINDOWS (1ULL << 1)
 #define IA64_FW_COMPAT_SPARSE_SAL_MDT      (1ULL << 2)
 #define IA64_FW_COMPAT_SAL_CODE_GP         (1ULL << 3)
+/* Legacy raw firmware only; ELF firmware always combines runtime sections. */
 #define IA64_FW_COMPAT_COMBINED_RUNTIME    (1ULL << 4)
 #define IA64_FW_COMPAT_ALL_MASK \
     (IA64_FW_COMPAT_LOADER_DIRECT_ALIAS | \

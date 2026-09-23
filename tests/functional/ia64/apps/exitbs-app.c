@@ -26,6 +26,7 @@
 
 typedef struct {
     UINT64 Base;
+    UINT64 VirtualBase;
     UINT64 PteFlags;
     BOOLEAN Code;
 } TEST_RUNTIME_MAPPING;
@@ -38,6 +39,84 @@ static UINT8 efi_global_variable_guid[16] = {
     0xaa, 0x0d, 0x00, 0xe0, 0x98, 0x03, 0x2b, 0x8c,
 };
 static UINT64 wakeup_word;
+static BOOLEAN runtime_bundle_changed;
+static UINT64 *runtime_bundle;
+/* MLX: nop.m 0; movl r8 = 0x1100.  MII: three nop instructions. */
+static const UINT64 test_runtime_movl[2] = {
+    0x0000000100000005ULL, 0x6088000100000000ULL,
+};
+static const UINT64 test_runtime_nop[2] = {
+    0x0000000100000001ULL, 0x0004000000020000ULL,
+};
+
+static VOID replace_runtime_instruction(EFI_EVENT Event, VOID *Context)
+{
+    UINT64 *bundle = Context;
+
+    (void)Event;
+    bundle[0] = test_runtime_nop[0];
+    bundle[1] = test_runtime_nop[1];
+    runtime_bundle_changed = 1;
+}
+
+static BOOLEAN load_runtime_relocation_test(EFI_HANDLE Parent,
+                                            EFI_BOOT_SERVICES *BootServices)
+{
+    static UINT8 source[0x400] __attribute__((aligned(16)));
+    static UINT8 loaded_image_guid[16] = IA64_GUID_LOADED_IMAGE;
+    EFI_LOADED_IMAGE_PROTOCOL *loaded = NULL;
+    EFI_HANDLE image = NULL;
+    EFI_EVENT event;
+
+#define PE16(Offset, Value) (*(UINT16 *)(source + (Offset)) = (Value))
+#define PE32(Offset, Value) (*(UINT32 *)(source + (Offset)) = (Value))
+#define PE64(Offset, Value) (*(UINT64 *)(source + (Offset)) = (Value))
+    PE16(0, 0x5a4d);
+    PE32(0x3c, 0x80);
+    PE32(0x80, 0x4550);
+    PE16(0x84, 0x200); /* IA-64, one section. */
+    PE16(0x86, 1);
+    PE16(0x94, 0xf0);
+    PE16(0x96, 0x202);
+    PE16(0x98, 0x20b);
+    PE32(0x98 + 16, 0x1000); /* Entry point descriptor. */
+    PE32(0x98 + 32, 0x1000);
+    PE32(0x98 + 36, 0x200);
+    PE32(0x98 + 56, 0x2000);
+    PE32(0x98 + 60, 0x200);
+    PE16(0x98 + 68, 12); /* EFI runtime driver. */
+    PE32(0x98 + 108, 16);
+    PE32(0x98 + 112 + 5 * 8, 0x1020);
+    PE32(0x98 + 116 + 5 * 8, 16);
+    PE32(0x188 + 8, 0x200);
+    PE32(0x188 + 12, 0x1000);
+    PE32(0x188 + 16, 0x200);
+    PE32(0x188 + 20, 0x200);
+    PE32(0x188 + 36, 0xe0000020);
+    PE64(0x200, 0x1100);
+    PE64(0x208, 0x1180);
+    PE32(0x220, 0x1000);
+    PE32(0x224, 16);
+    PE16(0x228, 0xa000); /* DIR64 entry and GP, then an IMM64 instruction. */
+    PE16(0x22a, 0xa008);
+    PE16(0x22c, 0x9100);
+    PE64(0x300, test_runtime_movl[0]);
+    PE64(0x308, test_runtime_movl[1]);
+#undef PE16
+#undef PE32
+#undef PE64
+    if (BootServices->LoadImage(0, Parent, NULL, source, sizeof(source),
+                                &image) != EFI_SUCCESS ||
+        BootServices->HandleProtocol(image, loaded_image_guid,
+                                      (VOID **)&loaded) != EFI_SUCCESS ||
+        loaded == NULL) {
+        return 0;
+    }
+    runtime_bundle = (UINT64 *)((UINT8 *)loaded->ImageBase + 0x1100);
+    return BootServices->CreateEvent(
+        0x60000202U, TPL_CALLBACK, replace_runtime_instruction,
+        runtime_bundle, &event) == EFI_SUCCESS;
+}
 
 __asm__(
 ".text\n"
@@ -204,9 +283,9 @@ static BOOLEAN prepare_runtime_virtual_map(EFI_MEMORY_DESCRIPTOR *Map,
         if (end < descriptor->PhysicalStart) {
             return 0;
         }
-        if (descriptor->PhysicalStart < TEST_MAPPING_SIZE) {
-            if (end > TEST_MAPPING_SIZE ||
-                (descriptor->Attribute &
+        if (descriptor->PhysicalStart < TEST_MAPPING_SIZE ||
+            descriptor->Type == EfiRuntimeServicesCode) {
+            if ((descriptor->Attribute &
                  (EFI_MEMORY_UC | EFI_MEMORY_WB)) != EFI_MEMORY_WB) {
                 return 0;
             }
@@ -253,12 +332,10 @@ static BOOLEAN install_runtime_test_mappings(EFI_MEMORY_DESCRIPTOR *Map,
         UINT64 base;
         UINT64 last;
 
-        if ((descriptor->Attribute & EFI_MEMORY_RUNTIME) == 0 ||
-            descriptor->PhysicalStart < TEST_MAPPING_SIZE) {
+        if ((descriptor->Attribute & EFI_MEMORY_RUNTIME) == 0) {
             continue;
         }
-        if (descriptor->VirtualStart != descriptor->PhysicalStart ||
-            descriptor->NumberOfPages == 0 ||
+        if (descriptor->NumberOfPages == 0 ||
             descriptor->NumberOfPages >
                 (~(UINT64)0) / EFI_PAGE_SIZE ||
             !runtime_mapping_pte_flags(descriptor->Attribute,
@@ -270,13 +347,21 @@ static BOOLEAN install_runtime_test_mappings(EFI_MEMORY_DESCRIPTOR *Map,
         if (end <= descriptor->PhysicalStart) {
             return 0;
         }
+        if (end <= TEST_MAPPING_SIZE) {
+            continue;
+        }
         base = descriptor->PhysicalStart & ~TEST_MAPPING_MASK;
+        if (base < TEST_MAPPING_SIZE) {
+            base = TEST_MAPPING_SIZE;
+        }
         last = (end - 1U) & ~TEST_MAPPING_MASK;
         for (;;) {
             UINTN index;
+            UINT64 virtual_base = base + descriptor->VirtualStart -
+                                  descriptor->PhysicalStart;
 
             for (index = 0; index < mapping_count; index++) {
-                if (mappings[index].Base == base) {
+                if (mappings[index].VirtualBase == virtual_base) {
                     break;
                 }
             }
@@ -291,6 +376,7 @@ static BOOLEAN install_runtime_test_mappings(EFI_MEMORY_DESCRIPTOR *Map,
                     return 0;
                 }
                 mappings[mapping_count].Base = base;
+                mappings[mapping_count].VirtualBase = virtual_base;
                 mappings[mapping_count].PteFlags = pte_flags;
                 mappings[mapping_count].Code =
                     descriptor->Type == EfiRuntimeServicesCode;
@@ -314,11 +400,11 @@ static BOOLEAN install_runtime_test_mappings(EFI_MEMORY_DESCRIPTOR *Map,
     install_data_mapping(TEST_WAKEUP_ALIAS, TEST_APPLICATION_BASE,
                          TEST_MAPPING_PTE_WB);
     for (offset = 0; offset < mapping_count; offset++) {
-        install_data_mapping(mappings[offset].Base,
+        install_data_mapping(mappings[offset].VirtualBase,
                              mappings[offset].Base,
                              mappings[offset].PteFlags);
         if (mappings[offset].Code) {
-            install_instruction_mapping(mappings[offset].Base,
+            install_instruction_mapping(mappings[offset].VirtualBase,
                                         mappings[offset].Base,
                                         mappings[offset].PteFlags);
         }
@@ -519,6 +605,27 @@ static BOOLEAN runtime_service_procedures_are_mapped(
     EFI_MEMORY_DESCRIPTOR *Map, UINTN MapSize, UINTN DescriptorSize,
     EFI_RUNTIME_SERVICES *RuntimeServices)
 {
+    EFI_MEMORY_DESCRIPTOR *firmware_descriptor = NULL;
+    UINTN offset;
+
+    /* The firmware's relative references require one runtime descriptor. */
+    for (offset = 0; offset < MapSize; offset += DescriptorSize) {
+        EFI_MEMORY_DESCRIPTOR *descriptor =
+            (EFI_MEMORY_DESCRIPTOR *)((UINT8 *)Map + offset);
+
+        if (memory_map_contains(descriptor, DescriptorSize, DescriptorSize,
+                                RuntimeServices, sizeof(*RuntimeServices),
+                                EFI_MEMORY_RUNTIME)) {
+            firmware_descriptor = descriptor;
+            break;
+        }
+    }
+    if (firmware_descriptor == NULL) {
+        return 0;
+    }
+    Map = firmware_descriptor;
+    MapSize = DescriptorSize;
+
 #define RUNTIME_PROCEDURE(Field) \
     runtime_procedure_is_mapped( \
         Map, MapSize, DescriptorSize, \
@@ -684,6 +791,7 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
     BOOLEAN runtime_pointers_mapped;
     BOOLEAN runtime_functions_mapped;
     BOOLEAN configuration_tables_mapped;
+    BOOLEAN runtime_relocation_ready;
     EFI_GRAPHICS_OUTPUT_PROTOCOL *gop = NULL;
     BOOLEAN graphics_mode_selected;
 
@@ -698,6 +806,11 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
         gop != NULL && gop->SetMode != NULL &&
         gop->SetMode(gop, 1U) == EFI_SUCCESS &&
         vbe_read(VBE_DISPI_INDEX_ENABLE) != 0;
+
+    runtime_relocation_ready = load_runtime_relocation_test(
+        ImageHandle, boot_services);
+    ia64_test_check(&context, "runtime-image-load", runtime_relocation_ready,
+                    EFI_LOAD_ERROR, "runtime-relocation-image");
 
     status = get_final_memory_map(boot_services, &map, &map_size, &map_key,
                                   &descriptor_size, &descriptor_version);
@@ -808,6 +921,12 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
     ia64_test_check(&context, "set-virtual-address-map",
                     status == EFI_SUCCESS,
                     status, "nonidentity-runtime-map");
+    ia64_test_check(&context, "runtime-modified-instruction",
+                    status == EFI_SUCCESS && runtime_relocation_ready &&
+                        runtime_bundle_changed &&
+                        runtime_bundle[0] == test_runtime_nop[0] &&
+                        runtime_bundle[1] == test_runtime_nop[1],
+                    status, "modified-runtime-instruction-preserved");
     if (status == EFI_SUCCESS) {
         UINT64 saved_iva;
         UINT64 target_psr =

@@ -37,6 +37,7 @@ bool hp_ia64_machine_install_platform_descriptor(
     MachineState *ms;
     IA64PlatformDescriptorDevice *device;
     IA64PlatformFirmwareArgs args;
+    IA64PlatformDescriptor placed_header;
     uint32_t platform_id;
 
     if (machine == NULL || header == NULL || arrays == NULL) {
@@ -66,9 +67,23 @@ bool hp_ia64_machine_install_platform_descriptor(
         return false;
     }
 
+    placed_header = *header;
+    if (machine->firmware.base < hmc->descriptor_gpa +
+                                 IA64_PLATFORM_DESC_MAX_SIZE &&
+        hmc->descriptor_gpa < machine->firmware.base +
+                              ROUND_UP(machine->firmware.size, 0x2000)) {
+        error_setg(errp, "firmware-base overlaps the platform descriptor");
+        return false;
+    }
+    placed_header.FirmwareBase = cpu_to_le64(machine->firmware.base);
+    placed_header.FirmwareSize = cpu_to_le64(machine->firmware.size);
+    if (machine->firmware.legacy_raw) {
+        placed_header.FormatRevision =
+            cpu_to_le32(IA64_PLATFORM_DESC_FIXED_REVISION);
+    }
     device = ia64_platform_desc_device_create(
         OBJECT(machine), HP_IA64_DESCRIPTOR_CHILD, hmc->descriptor_gpa,
-        header, arrays, errp);
+        &placed_header, arrays, errp);
     if (device == NULL) {
         return false;
     }
@@ -113,6 +128,7 @@ bool hp_ia64_machine_apply_platform_firmware_args(
     }
 
     result = *info;
+    ia64_machine_firmware_boot_info(&machine->firmware, &result);
     result.firmware_arg0 = installed_args.descriptor_gpa;
     result.firmware_arg1 = installed_args.descriptor_size;
     result.firmware_arg2 = installed_args.platform_id;
@@ -174,6 +190,7 @@ static void hp_ia64_machine_instance_init(Object *obj)
     HPIA64MachineState *s = HP_IA64_MACHINE(obj);
 
     s->alat_full = false;
+    ia64_machine_firmware_init(obj, &s->firmware);
 }
 
 static void hp_ia64_machine_instance_finalize(Object *obj)

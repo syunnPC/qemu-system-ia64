@@ -1,9 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* IA-64 EFI firmware entry point (GCC assembler syntax).
- *
- * The linker script links at VMA=0x100000, so all symbols (`__gp`,
- * firmware_main, etc.) are already at correct runtime addresses.
- * No GP manual offset computation is needed.
+ * QEMU applies physical relocations before entering the firmware.
  */
 
     .section .text._start, "ax"
@@ -441,29 +438,6 @@ start_after_pal:
     mov r7 = r10
     ;;
 
-    /*
-     * QEMU reloads the firmware image on reset, but the raw binary does not
-     * contain the trailing NOBITS .bss.  Clear it here so guest-requested and
-     * monitor-requested resets start with the same firmware state as a fresh
-     * process.
-     */
-    movl r14 = _bss_start
-    ;;
-    movl r15 = _bss_end
-    ;;
-1:
-    cmp.ltu p6, p7 = r14, r15
-    ;;
-(p7) br.cond.dpnt.few 2f
-    ;;
-    st8 [r14] = r0, 8
-    ;;
-    br.cond.sptk.few 1b
-    ;;
-2:
-    ;;
-
-    /* GP = linker-defined __gp (already at runtime VMA=0x100000 address) */
     movl r1 = __gp
     ;;
 

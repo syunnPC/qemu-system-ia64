@@ -189,25 +189,6 @@ static inline bool ia64_firmware_owns_iva(uint64_t iva)
     return iva == 0 || iva == IA64_FIRMWARE_IVT_BASE;
 }
 
-static inline bool ia64_firmware_identity_pa(uint64_t iva,
-                                             uint64_t psr, uint64_t va,
-                                             uint64_t *pa)
-{
-    /* An address in the bootstrap range does not identify its owner. */
-    bool firmware_context =
-        (psr & IA64_PSR_CPL_MASK) == 0 &&
-        ia64_firmware_owns_iva(iva);
-
-    if (firmware_context &&
-        va >= IA64_FW_IDENTITY_BASE &&
-        va < IA64_FW_IDENTITY_BASE + IA64_FW_IDENTITY_SIZE) {
-        *pa = va;
-        return true;
-    }
-
-    return false;
-}
-
 static inline uint64_t ia64_physical_address(uint64_t addr)
 {
     return addr & ~IA64_PHYS_UC_BIT;
@@ -1520,6 +1501,8 @@ static inline void ia64_itc_write(CPUIA64State *env, uint64_t value)
 
 typedef struct IA64BootInfo {
     uint64_t firmware_base;
+    uint64_t firmware_size;
+    uint64_t pal_entry;
     uint64_t firmware_entry;
     uint64_t global_pointer;
     uint64_t iva;
@@ -1573,6 +1556,8 @@ typedef enum IA64CPUModel {
     IA64_CPU_MODEL_MONTECITO,
 } IA64CPUModel;
 
+bool ia64_firmware_contains(CPUIA64State *env, uint64_t address);
+bool ia64_firmware_identity_pa(CPUIA64State *env, uint64_t va, uint64_t *pa);
 void ia64_cpu_set_boot_info(IA64CPU *cpu, const IA64BootInfo *info);
 void ia64_cpu_reset_to_boot_info(IA64CPU *cpu);
 extern const VMStateDescription vmstate_ia64_cpu;

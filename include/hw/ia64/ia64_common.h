@@ -12,6 +12,21 @@
 #include "qemu/typedefs.h"
 #include "target/ia64/cpu.h"
 
+typedef struct IA64MachineFirmware {
+    uint64_t base;
+    uint64_t size;
+    uint64_t entry;
+    uint64_t global_pointer;
+    uint64_t pal_entry;
+    bool automatic;
+    bool elf;
+    bool legacy_raw;
+} IA64MachineFirmware;
+
+void ia64_machine_firmware_init(Object *obj, IA64MachineFirmware *firmware);
+void ia64_machine_firmware_boot_info(const IA64MachineFirmware *firmware,
+                                      IA64BootInfo *info);
+
 typedef IA64BootInfo (*IA64MachineBootInfoFn)(unsigned int cpu_index,
                                               void *opaque);
 typedef IA64BootInfo (*IA64MachineFirmwareBootInfoFn)(
@@ -57,9 +72,8 @@ void ia64_machine_map_pib_with_inta(Object *owner, MemoryRegion **pib,
                                     void *inta_opaque);
 
 bool ia64_machine_load_firmware(MachineState *machine,
-                                hwaddr firmware_base,
-                                uint64_t max_firmware_size,
-                                size_t *firmware_size,
+                                IA64MachineFirmware *firmware,
+                                uint64_t low_ram_end,
                                 Error **errp);
 
 char *ia64_machine_resolve_nvram_path(MachineState *machine,

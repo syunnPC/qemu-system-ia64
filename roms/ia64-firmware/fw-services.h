@@ -125,6 +125,7 @@ BOOLEAN fw_protocol_interface_installed(EFI_HANDLE handle, VOID *protocol,
                                         VOID **interface);
 
 extern UINT64 sal_runtime_area_top;
+VOID *fw_boot_dma_buffer(UINTN Size, UINTN Alignment);
 extern const UINT8 mDevicePathProtocolGuid[16];
 
 #endif /* IA64_FIRMWARE_FW_SERVICES_H */

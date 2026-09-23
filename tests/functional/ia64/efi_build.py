@@ -8,7 +8,8 @@ import shutil
 import subprocess
 
 
-APP_NAMES = ("smoke", "services", "tables", "exitbs", "storage", "input",
+APP_NAMES = ("smoke", "smoke-fixed", "services", "tables", "exitbs", "storage",
+             "input",
              "graphics", "smp", "smp-merced", "pci-bridge",
              "i2000-pci-root", "i2000-runtime", "i2000-loader",
              "start-image-child", "ras", "scsi-pass-thru")
@@ -65,9 +66,11 @@ def build_app(name: str, output: str | Path) -> Path:
     output.parent.mkdir(parents=True, exist_ok=True)
     linker_script = ("i2000-loader-app.lds" if name == "i2000-loader"
                      else "ia64-test-app.lds")
+    source_name = "smoke" if name == "smoke-fixed" else name
     subprocess.run([
         str(APPS_SOURCE_DIR / "build-test-app.sh"), str(output),
-        str(APPS_SOURCE_DIR / f"{name}-app.c"),
+        str(APPS_SOURCE_DIR / f"{source_name}-app.c"),
         str(APPS_SOURCE_DIR / linker_script),
+        "0x100000" if name == "smoke-fixed" else "0x4000000",
     ], check=True)
     return output

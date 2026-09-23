@@ -440,6 +440,18 @@ if 'ia64-softmmu' in target_dirs
        timeout: 30,
        suite: ['unit', 'ia64'])
 
+  ia64_firmware_elf_test = executable(
+    'test-ia64-firmware-elf',
+    ['test-ia64-firmware-elf.c',
+     meson.project_source_root() / 'hw/ia64/ia64_firmware_elf.c'],
+    dependencies: [qemuutil],
+    include_directories: include_directories('../..'))
+  test('test-ia64-firmware-elf', ia64_firmware_elf_test,
+       depends: ia64_firmware_bin,
+       args: [meson.project_build_root() /
+              'roms/ia64-firmware/ia64-firmware.elf'],
+       suite: ['unit', 'ia64'])
+
   test('test-ia64-firmware-layout',
        python,
        depends: ia64_firmware_bin,

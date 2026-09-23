@@ -16,6 +16,7 @@
 #include "hw/pci-host/hp-io-sapic.h"
 #include "hw/pci-host/hp-zx1-ioa-regs.h"
 #include "libqtest.h"
+#include "elf.h"
 #include "qemu/bswap.h"
 #include "qobject/qdict.h"
 #include "qobject/qlist.h"
@@ -179,7 +180,7 @@ static void assert_descriptor(QTestState *qts, unsigned int cpu_count)
                     IA64_ZX6000_ZX1_TEST_RAM_SIZE);
     g_assert_cmphex(le64_to_cpu(descriptor->FirmwareBase), ==,
                     IA64_PLATFORM_FIRMWARE_BASE);
-    g_assert_cmphex(le64_to_cpu(descriptor->FirmwareSize), ==,
+    g_assert_cmphex(le64_to_cpu(descriptor->FirmwareSize), <=,
                     IA64_PLATFORM_FIRMWARE_SIZE);
     g_assert_cmpuint(le32_to_cpu(descriptor->ProcessorCount), ==, cpu_count);
     g_assert_cmpuint(le32_to_cpu(descriptor->SocketCount), ==, cpu_count);
@@ -306,11 +307,31 @@ static void assert_firmware_loaded(QTestState *qts,
 
     g_assert_true(g_file_get_contents(firmware_path, &expected, &size, &err));
     g_assert_no_error(err);
-    g_assert_cmpuint(size, >, 0);
-    g_assert_cmpuint(size, <=, IA64_PLATFORM_FIRMWARE_SIZE);
-    actual = g_malloc(size);
-    qtest_memread(qts, IA64_PLATFORM_FIRMWARE_BASE, actual, size);
-    g_assert_cmpmem(actual, size, expected, size);
+    const uint8_t *data = (const uint8_t *)expected;
+    uint64_t phoff = ldq_le_p(data + 32);
+    unsigned phnum = lduw_le_p(data + 56);
+    unsigned i;
+
+    g_assert_cmpmem(data, 4, "\177ELF", 4);
+    for (i = 0; i < phnum; i++) {
+        const uint8_t *ph = data + phoff + i * sizeof(Elf64_Phdr);
+        uint64_t offset = ldq_le_p(ph + 8);
+        uint64_t address = ldq_le_p(ph + 24);
+        uint64_t filesz = ldq_le_p(ph + 32);
+        uint64_t memsz = ldq_le_p(ph + 40);
+        g_autofree uint8_t *segment = NULL;
+
+        if (ldl_le_p(ph) != PT_LOAD) {
+            continue;
+        }
+        g_assert_cmpuint(offset + filesz, <=, size);
+        g_assert_cmpuint(filesz, <=, memsz);
+        segment = g_malloc0(memsz);
+        memcpy(segment, data + offset, filesz);
+        actual = g_realloc(actual, memsz);
+        qtest_memread(qts, address, actual, memsz);
+        g_assert_cmpmem(actual, memsz, segment, memsz);
+    }
 }
 
 static uint64_t parse_hex_field(const char *registers, const char *field)

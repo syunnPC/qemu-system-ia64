@@ -346,11 +346,9 @@ static BOOLEAN mUsbHcBusy;
 static FW_OHCI_ED mUsbHcTransferEd __attribute__((aligned(16)));
 static FW_OHCI_TD mUsbHcTransferTd[FW_USB_DATA_TD_MAX + 3U]
     __attribute__((aligned(16)));
-static FW_OHCI_ITD mUsbHcIsoTd[FW_USB_ISO_ITD_MAX + 1U]
-    __attribute__((aligned(32)));
+static FW_OHCI_ITD *mUsbHcIsoTd;
 static UINT8 mUsbHcSetupPacket[8] __attribute__((aligned(16)));
-static UINT8 mUsbHcTransferBuffer[FW_USB_MAX_TRANSFER + 1U]
-    __attribute__((aligned(4096)));
+static UINT8 *mUsbHcTransferBuffer;
 
 static BOOLEAN usb_hc_valid(EFI_USB_HC_PROTOCOL *This)
 {
@@ -1931,6 +1929,18 @@ static BOOLEAN usb_keyboard_device_path_init(UINT8 port, UINT8 interface)
 
 BOOLEAN fw_usb_protocols_install(VOID)
 {
+    if (mUsbHcIsoTd == NULL) {
+        mUsbHcIsoTd = fw_boot_dma_buffer(
+            (FW_USB_ISO_ITD_MAX + 1U) * sizeof(*mUsbHcIsoTd), 32);
+    }
+    if (mUsbHcTransferBuffer == NULL) {
+        mUsbHcTransferBuffer = fw_boot_dma_buffer(FW_USB_MAX_TRANSFER + 1U,
+                                                 4096);
+    }
+    if (!mUsbHcIsoTd || !mUsbHcTransferBuffer) {
+        return 0;
+    }
+
     EFI_HANDLE controller = fw_usb_controller_handle();
     EFI_STATUS status;
 

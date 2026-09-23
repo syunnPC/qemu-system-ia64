@@ -873,7 +873,8 @@ IA64GenResult ia64_gen_system(DisasContext *ctx,
     }
     case IA64_OP_BREAK:
         if (op->auxiliary1 == 0 &&
-            ia64_is_firmware_debug_break(insn->address, op->immediate)) {
+            ia64_is_firmware_debug_break(ctx->env, insn->address,
+                                        op->immediate)) {
             TCGv_i32 handled = tcg_temp_new_i32();
             TCGLabel *architected_break = gen_new_label();
 

@@ -37,9 +37,9 @@
 #define SAL_PCI_CONFIG_READ           0x01000010ULL
 #define SAL_STATE_INFO_MAX_SIZE       512U
 #define SAL_SUCCESS                   0ULL
-#define SAL_TABLE_LENGTH              0x170U
-#define SAL_TABLE_ENTRY_COUNT         9U
-#define SAL_MEMORY_DESCRIPTOR_COUNT   5U
+#define SAL_TABLE_LENGTH              0x190U
+#define SAL_TABLE_ENTRY_COUNT         10U
+#define SAL_MEMORY_DESCRIPTOR_COUNT   6U
 
 #define ACPI_SDT_HEADER_SIZE          36U
 #define ACPI_MADT_HEADER_SIZE         44U
@@ -627,7 +627,7 @@ static BOOLEAN sal_memory_descriptors_valid(const TEST_SAL_TABLE *Table)
                SAL_PAGE_ACCESS_RW, SAL_MEMORY_SUPPORTS_WB,
                SAL_MEMORY_TYPE_REGULAR, SAL_MEMORY_USAGE_RUNTIME_DATA) &&
            sal_memory_metadata(
-               &memory[4], 1, SAL_MEMORY_ATTRIBUTE_UC,
+               &memory[5], 1, SAL_MEMORY_ATTRIBUTE_UC,
                SAL_PAGE_ACCESS_RW, SAL_MEMORY_SUPPORTS_UC,
                SAL_MEMORY_TYPE_FIRMWARE,
                SAL_MEMORY_USAGE_UNSPECIFIED) &&
@@ -638,9 +638,14 @@ static BOOLEAN sal_memory_descriptors_valid(const TEST_SAL_TABLE *Table)
            boot_end == memory[2].PhysicalAddress &&
            code_end == memory[3].PhysicalAddress &&
            memory[0].PhysicalAddress >= I2000_FIRMWARE_BASE &&
-           data_end <= I2000_FIRMWARE_END &&
-           memory[4].PhysicalAddress == I2000_FIRMWARE_APERTURE_BASE &&
-           sal_memory_end(&memory[4]) == I2000_FIRMWARE_APERTURE_END;
+           data_end == memory[4].PhysicalAddress &&
+           sal_memory_end(&memory[4]) < I2000_FIRMWARE_END &&
+           sal_memory_metadata(
+               &memory[4], 0, SAL_MEMORY_ATTRIBUTE_WB,
+               SAL_PAGE_ACCESS_RW, SAL_MEMORY_SUPPORTS_WB,
+               SAL_MEMORY_TYPE_REGULAR, SAL_MEMORY_USAGE_BOOT_CODE) &&
+           memory[5].PhysicalAddress == I2000_FIRMWARE_APERTURE_BASE &&
+           sal_memory_end(&memory[5]) == I2000_FIRMWARE_APERTURE_END;
 }
 
 static BOOLEAN sal_entrypoint_valid(const TEST_SAL_TABLE *Table)
@@ -763,7 +768,7 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
                     EFI_DEVICE_ERROR, "sal-procedure-code-gp");
     ia64_test_check(&context, "sal-memory-descriptors",
                     have_sal && sal_memory_descriptors_valid(&sal),
-                    EFI_DEVICE_ERROR, "five-entry-memory-descriptor-table");
+                    EFI_DEVICE_ERROR, "firmware-memory-descriptors");
     ia64_test_check(&context, "sal-call",
                     have_sal && sal_entrypoint_valid(&sal) &&
                         sal_call_valid(&sal),

@@ -513,7 +513,7 @@ static bool ia64_cpu_tlb_fill(CPUState *cs, vaddr addr, int size,
         goto raise_exception;
     }
 
-    if (ia64_firmware_identity_pa(cpu->env.cr_iva, cpu->env.psr,
+    if (ia64_firmware_identity_pa(&cpu->env,
                                   addr, &pa)) {
         int prot = is_ifetch ? PAGE_EXEC : (PAGE_READ | PAGE_WRITE);
 
@@ -787,6 +787,28 @@ raise_exception:
     cpu_loop_exit_restore(cs, retaddr);
 }
 
+
+bool ia64_firmware_contains(CPUIA64State *env, uint64_t address)
+{
+    IA64CPU *cpu = env_archcpu(env);
+    uint64_t base = cpu->boot_info_valid ? cpu->boot_info.firmware_base :
+                    IA64_FW_IDENTITY_BASE;
+    uint64_t size = cpu->boot_info_valid ? cpu->boot_info.firmware_size :
+                    IA64_FW_IDENTITY_SIZE;
+
+    return address >= base && address - base < size;
+}
+
+bool ia64_firmware_identity_pa(CPUIA64State *env, uint64_t va, uint64_t *pa)
+{
+    if ((env->psr & IA64_PSR_CPL_MASK) == 0 &&
+        ia64_firmware_owns_iva(env->cr_iva) &&
+        ia64_firmware_contains(env, va)) {
+        *pa = va;
+        return true;
+    }
+    return false;
+}
 
 void ia64_cpu_set_boot_info(IA64CPU *cpu, const IA64BootInfo *info)
 {

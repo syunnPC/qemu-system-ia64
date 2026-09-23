@@ -1394,7 +1394,13 @@ bool ia64_platform_desc_validate(const IA64PlatformDescriptor *descriptor,
         return false;
     }
     if (le32_to_cpu(descriptor->FormatRevision) !=
-        IA64_PLATFORM_DESC_REVISION) {
+        IA64_PLATFORM_DESC_REVISION &&
+        !(le32_to_cpu(descriptor->FormatRevision) ==
+          IA64_PLATFORM_DESC_FIXED_REVISION &&
+          le64_to_cpu(descriptor->FirmwareBase) ==
+          IA64_PLATFORM_FIRMWARE_BASE &&
+          le64_to_cpu(descriptor->FirmwareSize) ==
+          IA64_PLATFORM_FIRMWARE_SIZE)) {
         error_setg(errp, "unsupported IA-64 platform descriptor revision %u",
                    le32_to_cpu(descriptor->FormatRevision));
         return false;
@@ -1496,8 +1502,11 @@ bool ia64_platform_desc_validate(const IA64PlatformDescriptor *descriptor,
 
     firmware_base = le64_to_cpu(descriptor->FirmwareBase);
     firmware_size = le64_to_cpu(descriptor->FirmwareSize);
-    if (firmware_base != IA64_PLATFORM_FIRMWARE_BASE ||
-        firmware_size != IA64_PLATFORM_FIRMWARE_SIZE) {
+    if (firmware_base < IA64_PLATFORM_FIRMWARE_BASE ||
+        (firmware_base & 0x1fff) || !firmware_size ||
+        firmware_size > IA64_PLATFORM_FIRMWARE_SIZE ||
+        firmware_base > low_ram_end ||
+        firmware_size > low_ram_end - firmware_base) {
         error_setg(errp, "invalid IA-64 platform firmware range");
         return false;
     }

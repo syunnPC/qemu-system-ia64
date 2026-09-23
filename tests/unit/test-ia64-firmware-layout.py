@@ -10,7 +10,7 @@ import sys
 
 
 FW_LOAD_BASE = 0x00100000
-FW_PUBLIC_END = 0x00300000
+FW_MAX_SPAN = 0x00200000
 RUNTIME_ALIGNMENT = 0x2000
 
 
@@ -66,16 +66,19 @@ def run_checks(binary: str, elf: str):
     missing = [name for name in required if name not in sym]
     if missing:
         raise RuntimeError("missing ABI linker symbols: " + ", ".join(missing))
-    if sym["_start"] != FW_LOAD_BASE or sym["_end"] != FW_PUBLIC_END:
+    if sym["_start"] != FW_LOAD_BASE or not (
+            0 < sym["_end"] - FW_LOAD_BASE < FW_MAX_SPAN):
         raise RuntimeError(
             f"firmware address range {sym['_start']:#x}-{sym['_end']:#x} "
-            "does not match the 1--3 MiB public reservation")
+            "exceeds the firmware fixed-span limit")
     if sym["_bss_end"] != sym["__firmware_payload_end"] or not (
-            FW_LOAD_BASE < sym["__firmware_payload_end"] < sym["_end"]):
-        raise RuntimeError("firmware payload does not end below 3 MiB")
-    if os.path.getsize(binary) > FW_PUBLIC_END - FW_LOAD_BASE:
-        raise RuntimeError("flat firmware binary exceeds the 3 MiB boundary")
-    yield "firmware payload fits the 3 MiB public reservation"
+            FW_LOAD_BASE < sym["__firmware_payload_end"] == sym["_end"]):
+        raise RuntimeError(
+            "firmware payload does not identify the fixed-span end")
+    with open(binary, 'rb') as stream:
+        if stream.read(4) != b'\x7fELF':
+            raise RuntimeError("firmware .bin must contain the relocatable ELF")
+    yield "firmware fixed span is less than 2 MiB"
 
     elf_header = command(["ia64-linux-gnu-readelf", "-h", elf])
     entry = re.search(r"Entry point address:\s+0x([0-9a-fA-F]+)", elf_header)
@@ -96,7 +99,7 @@ def run_checks(binary: str, elf: str):
     if sym["__runtime_code_start"] % RUNTIME_ALIGNMENT or \
             sym["__runtime_data_start"] % RUNTIME_ALIGNMENT or \
             not (sym["pal_proc_entry"] < sym["__runtime_code_start"] <=
-                 sym["__runtime_data_start"] < sym["_end"]):
+                 sym["__runtime_data_start"] < sym["__runtime_end"]):
         raise RuntimeError("runtime section boundary/alignment is invalid")
     yield "PAL and runtime boundaries are valid"
 
@@ -106,7 +109,7 @@ def run_checks(binary: str, elf: str):
             sym["__runtime_data_start"] and
             sym["__runtime_code_start"] <= sym["sal_proc_dispatch"] <
             sym["__runtime_data_start"] and
-            sym["__runtime_data_start"] <= sym["__gp"] < sym["_end"]):
+            sym["__runtime_data_start"] <= sym["__gp"] < sym["__runtime_end"]):
         raise RuntimeError("SAL entry, dispatcher, or GP has the wrong usage")
     sal_entry = re.search(
         r"<sal_proc_entry>:(.*?)(?=\n[0-9a-fA-F]{16} "

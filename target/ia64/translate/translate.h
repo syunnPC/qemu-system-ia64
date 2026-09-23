@@ -310,7 +310,8 @@ void ia64_gen_check_branch(DisasContext *ctx, TCGv_i64 failed,
                            bool record_iipa,
                            bool track_psr_suppression);
 bool ia64_is_pal_proc_break(CPUIA64State *env, uint64_t address);
-bool ia64_is_firmware_debug_break(uint64_t address, uint64_t imm);
+bool ia64_is_firmware_debug_break(CPUIA64State *env,
+                                   uint64_t address, uint64_t imm);
 
 bool ia64_gen_completed_direct_branch(DisasContext *ctx, TCGLabel *skip,
                                       uint64_t target,

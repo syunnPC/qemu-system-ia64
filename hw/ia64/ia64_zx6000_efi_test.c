@@ -556,18 +556,20 @@ static bool zx6000_efi_machine_build(MachineState *ms, Error **errp)
     ia64_machine_map_pib(
         OBJECT(machine), &hp->pib, "ia64-zx6000-efi-test.pib",
         layout.pib.base, IA64_ZX6000_EFI_TEST_LOCAL_SAPIC_SIZE);
+    if (!ia64_machine_load_firmware(ms, &hp->firmware,
+                                      layout.ram.size, errp)) {
+        return false;
+    }
     if (!zx6000_efi_machine_create_topology(machine, errp) ||
         !zx6000_efi_machine_install_descriptor(machine, &layout, errp) ||
-        !ia64_machine_create_cpus(ms, &cpu_config, errp) ||
-        !ia64_machine_load_firmware(
-            ms, IA64_PLATFORM_FIRMWARE_BASE,
-            IA64_PLATFORM_FIRMWARE_SIZE, &hp->firmware_size, errp)) {
+        !ia64_machine_create_cpus(ms, &cpu_config, errp)) {
         return false;
     }
 
     ia64_machine_init_firmware_notifier(
-        &hp->firmware_notifier, ms, IA64_PLATFORM_FIRMWARE_BASE,
-        hp->firmware_size, zx6000_efi_machine_firmware_boot_info,
+        &hp->firmware_notifier, ms, hp->firmware.base,
+        hp->firmware.elf ? 0 : hp->firmware.size,
+        zx6000_efi_machine_firmware_boot_info,
         NULL, machine);
     return true;
 }

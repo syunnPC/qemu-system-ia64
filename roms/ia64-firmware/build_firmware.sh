@@ -22,6 +22,7 @@ CC="${CC:-ia64-linux-gnu-gcc}"
 LD="${LD:-ia64-linux-gnu-ld}"
 OBJCOPY="${OBJCOPY:-ia64-linux-gnu-objcopy}"
 SIZE="${SIZE:-ia64-linux-gnu-size}"
+PYTHON="${PYTHON:-python3}"
 LIBGCC="$("$CC" -print-libgcc-file-name)"
 # ui/vgafont.h uses the compiler-provided freestanding <stdint.h>.
 CC_INCLUDE_DIR="$("$CC" -print-file-name=include)"
@@ -58,6 +59,8 @@ while IFS= read -r source || [ -n "$source" ]; do
                 -Wall -Wextra -Wno-unused-parameter \
                 -MMD -MP -MF "$object_depfile" -MT "$OUT_BIN" \
                 -c -o "$object" "$source_path"
+            "$OBJCOPY" --set-section-flags \
+                '.rodata.*=alloc,load,readonly,data,contents' "$object"
             set -- "$@" "$object"
             DEPFILES="${DEPFILES} ${object_depfile}"
             ;;
@@ -76,14 +79,24 @@ if [ -z "$LINKER_SCRIPT" ]; then
     exit 2
 fi
 
-"$LD" -nostdlib -static --gc-sections -T "$LINKER_SCRIPT" -Map="$FW_MAP" \
-    -o "$FW_ELF" "$@" "$LIBGCC"
-"$OBJCOPY" -O binary "$FW_ELF" "$OUT_BIN"
+LAYOUT_SCRIPT="${SRC_DIR}/firmware_layout.py"
+GENERATED_LDS="${OUT_DIR}/ia64-firmware.generated.lds"
+FIXUPS="${OUT_DIR}/ia64-firmware.fixups"
+"$LD" -nostdlib -static --gc-sections --emit-relocs -z max-page-size=0x2000 \
+    -T "$LINKER_SCRIPT" -Map="$FW_MAP" -o "$FW_ELF" "$@" "$LIBGCC"
+"$PYTHON" "$LAYOUT_SCRIPT" linker "$FW_ELF" "$FW_MAP" \
+    "$GENERATED_LDS" "$LINKER_SCRIPT"
+"$LD" -nostdlib -static --gc-sections --emit-relocs -z max-page-size=0x2000 \
+    -T "$GENERATED_LDS" -Map="$FW_MAP" -o "$FW_ELF" "$@" "$LIBGCC"
+"$PYTHON" "$LAYOUT_SCRIPT" fixups "$FW_ELF" "$FW_MAP" "$FIXUPS"
+"$OBJCOPY" --update-section ".fw.virtual_fixups=$FIXUPS" "$FW_ELF"
+cp "$FW_ELF" "$OUT_BIN"
 "$SIZE" -A "$FW_ELF" > "$FW_SECTIONS"
 
 {
     for dependency in $DEPFILES; do
         command cat "$dependency"
     done
-    echo "$OUT_BIN: $MANIFEST $LINKER_SCRIPT $SRC_DIR/build_firmware.sh"
+    echo "$OUT_BIN: $MANIFEST $LINKER_SCRIPT" \
+        "$SRC_DIR/build_firmware.sh $LAYOUT_SCRIPT"
 } > "$DEPFILE"

@@ -9,6 +9,10 @@
 #include "qemu/datadir.h"
 #include "qemu/error-report.h"
 #include "qapi/error.h"
+#include "qapi/visitor.h"
+#include "qemu/cutils.h"
+#include "hw/ia64/ia64_platform_abi.h"
+#include "hw/ia64/ia64_vpc_abi.h"
 #include "hw/core/boards.h"
 #include "hw/core/loader.h"
 #include "hw/ia64/ia64_common.h"
@@ -213,34 +217,101 @@ bool ia64_machine_validate_socket_smp(const MachineState *machine,
     return true;
 }
 
+static void ia64_firmware_base_get(Object *obj, Visitor *v, const char *name,
+                                    void *opaque, Error **errp)
+{
+    IA64MachineFirmware *fw = opaque;
+    g_autofree char *value = fw->automatic ? g_strdup("auto") :
+        g_strdup_printf("0x%" PRIx64, fw->base);
+
+    visit_type_str(v, name, &value, errp);
+}
+
+static void ia64_firmware_base_set(Object *obj, Visitor *v, const char *name,
+                                    void *opaque, Error **errp)
+{
+    IA64MachineFirmware *fw = opaque;
+    g_autofree char *value = NULL;
+    uint64_t base;
+
+    if (!visit_type_str(v, name, &value, errp)) {
+        return;
+    }
+    if (!strcmp(value, "auto")) {
+        fw->automatic = true;
+    } else if (qemu_strtou64(value, NULL, 0, &base) ||
+               base < IA64_PLATFORM_FIRMWARE_BASE || (base & 0x1fff)) {
+        error_setg(errp, "firmware-base must be 'auto' or an 8 KiB aligned "
+                   "RAM address at or above 1 MiB");
+    } else {
+        fw->automatic = false;
+        fw->base = base;
+    }
+}
+
+void ia64_machine_firmware_init(Object *obj, IA64MachineFirmware *fw)
+{
+    fw->base = IA64_PLATFORM_FIRMWARE_BASE;
+    fw->size = IA64_PLATFORM_FIRMWARE_SIZE;
+    fw->entry = fw->base;
+    fw->global_pointer = fw->base;
+    fw->pal_entry = fw->base + 0x60;
+    object_property_add(obj, "firmware-base", "str", ia64_firmware_base_get,
+                        ia64_firmware_base_set, NULL, fw);
+    object_property_set_description(obj, "firmware-base",
+        "Firmware RAM address (default 0x100000), or auto for upper low RAM");
+}
+
+void ia64_machine_firmware_boot_info(const IA64MachineFirmware *fw,
+                                      IA64BootInfo *info)
+{
+    info->firmware_base = fw->base;
+    info->firmware_size = fw->size;
+    info->pal_entry = fw->pal_entry;
+    if (fw->elf) {
+        info->firmware_entry = fw->entry;
+        info->global_pointer = fw->global_pointer;
+    }
+}
+
+static bool ia64_firmware_placement_valid(uint64_t base, uint64_t size,
+                                          uint64_t limit)
+{
+    /* ACPI tables occupy 8--8.125 MiB; assist storage is above limit. */
+    return base >= IA64_PLATFORM_FIRMWARE_BASE && base <= limit &&
+           size <= limit - base &&
+           !(base < 0x820000 && base + size > 0x800000);
+}
+
 bool ia64_machine_load_firmware(MachineState *machine,
-                                hwaddr firmware_base,
-                                uint64_t max_firmware_size,
-                                size_t *firmware_size,
-                                Error **errp)
+                                IA64MachineFirmware *fw,
+                                uint64_t low_ram_end, Error **errp)
 {
     g_autofree char *firmware_path = NULL;
     g_autofree char *image = NULL;
     g_autoptr(GError) gerr = NULL;
+    IA64FirmwareElf elf = { 0 };
+    uint64_t limit;
     gsize image_size;
+    unsigned i;
 
-    if (firmware_size == NULL) {
-        error_setg(errp, "IA-64 firmware size output is required");
+    if (low_ram_end <= IA64_FW_BOOT_STACK_SIZE + 0x400000) {
+        error_setg(errp, "insufficient low RAM for IA-64 firmware");
         return false;
     }
-    *firmware_size = 0;
-    if (max_firmware_size == 0 ||
-        max_firmware_size > HWADDR_MAX - firmware_base) {
-        error_setg(errp, "invalid IA-64 firmware address range");
-        return false;
-    }
-    if (machine->firmware == NULL ||
-        g_str_equal(machine->firmware, "none")) {
+    /* Leave the aligned EFI system table pointer page below assist storage. */
+    limit = (low_ram_end - IA64_FW_BOOT_STACK_SIZE - 0x1000) &
+            ~UINT64_C(0x3fffff);
+    if (!machine->firmware || g_str_equal(machine->firmware, "none")) {
+        if (fw->automatic || fw->base != IA64_PLATFORM_FIRMWARE_BASE) {
+            error_setg(errp,
+                       "firmware-base requires a relocatable firmware ELF");
+            return false;
+        }
         return true;
     }
-
     firmware_path = qemu_find_file(QEMU_FILE_TYPE_BIOS, machine->firmware);
-    if (firmware_path == NULL) {
+    if (!firmware_path) {
         firmware_path = g_strdup(machine->firmware);
     }
     if (!g_file_get_contents(firmware_path, &image, &image_size, &gerr)) {
@@ -248,13 +319,52 @@ bool ia64_machine_load_firmware(MachineState *machine,
                    machine->firmware, gerr->message);
         return false;
     }
-    if (image_size == 0 || (uint64_t)image_size > max_firmware_size) {
-        error_setg(errp, "invalid firmware image size for '%s'",
-                   machine->firmware);
-        return false;
+    if (image_size >= 4 && !memcmp(image, "\177ELF", 4)) {
+        if (!ia64_firmware_elf_load(image, image_size, 0, &elf, errp)) {
+            return false;
+        }
+        if (fw->automatic) {
+            fw->base = (limit - ROUND_UP(elf.size, 0x2000)) &
+                       ~(elf.alignment - 1);
+        }
+        fw->size = elf.size;
+        if (!ia64_firmware_placement_valid(fw->base,
+                                          ROUND_UP(fw->size, 0x2000), limit)) {
+            ia64_firmware_elf_clear(&elf);
+            error_setg(errp, "firmware-base overlaps reserved memory or "
+                       "is outside low RAM");
+            return false;
+        }
+        ia64_firmware_elf_clear(&elf);
+        if (!ia64_firmware_elf_load(image, image_size, fw->base, &elf, errp)) {
+            return false;
+        }
+        fw->elf = true;
+        fw->entry = elf.entry;
+        fw->global_pointer = elf.global_pointer;
+        fw->pal_entry = elf.pal_entry;
+        for (i = 0; i < elf.segments->len; i++) {
+            IA64FirmwareSegment *segment = &g_array_index(
+                elf.segments, IA64FirmwareSegment, i);
+            g_autofree char *name = g_strdup_printf("%s.segment.%u",
+                                                    machine->firmware, i);
+            rom_add_blob_fixed(name, elf.data + segment->offset, segment->size,
+                               fw->base + segment->offset);
+        }
+        ia64_firmware_elf_clear(&elf);
+    } else {
+        if (fw->automatic || fw->base != IA64_PLATFORM_FIRMWARE_BASE) {
+            error_setg(errp,
+                       "raw IA-64 firmware requires firmware-base=0x100000");
+            return false;
+        }
+        if (!image_size || image_size > IA64_PLATFORM_FIRMWARE_SIZE) {
+            error_setg(errp, "invalid raw IA-64 firmware size");
+            return false;
+        }
+        fw->legacy_raw = true;
+        rom_add_blob_fixed(machine->firmware, image, image_size, fw->base);
     }
-    rom_add_blob_fixed(machine->firmware, image, image_size, firmware_base);
-    *firmware_size = image_size;
     return true;
 }
 

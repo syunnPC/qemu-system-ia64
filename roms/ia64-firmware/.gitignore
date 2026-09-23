@@ -5,3 +5,5 @@
 *.map
 *.sections
 *.pei
+*.generated.lds
+*.fixups

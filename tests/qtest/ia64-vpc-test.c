@@ -5,6 +5,7 @@
  */
 
 #include "qemu/osdep.h"
+#include "elf.h"
 #include "qemu/bitops.h"
 #include "qemu/bswap.h"
 #include "qemu/sockets.h"
@@ -1208,6 +1209,86 @@ static void assert_firmware_handoff(QTestState *qts, uint64_t i8042,
                     IA64_FW_COMPAT_HANDOFF_VERSION);
     g_assert_cmphex(le64_to_cpu(compat.Size), ==, sizeof(compat));
     g_assert_cmphex(le64_to_cpu(compat.Flags), ==, compat_flags);
+}
+
+static void test_firmware_invalid_placement(void)
+{
+    static const char *machines[] = {
+        "ia64-vpc", "hp-i2000", "hp-zx2000", "hp-zx6000", "hp-rx2660",
+    };
+    static const char *bases[] = {
+        "0", "0x401000", "0x800000", "0x7f000000", "0x100000000",
+    };
+    g_autofree char *firmware = g_shell_quote(g_getenv(TEST_FIRMWARE_ENV));
+    unsigned i, j;
+
+    for (i = 0; i < G_N_ELEMENTS(machines); i++) {
+        if (!qtest_has_machine(machines[i])) {
+            continue;
+        }
+        for (j = 0; j < G_N_ELEMENTS(bases) + (i != 0); j++) {
+            const char *base = j < G_N_ELEMENTS(bases) ? bases[j] : "0x300000";
+            g_autofree char *args = g_strdup_printf(
+                "-machine %s,nvram=none,firmware-base=%s -m 2G "
+                "-S -nodefaults -bios %s", machines[i], base, firmware);
+            QTestState *qts = qtest_init_ext(NULL, args, NULL, false);
+
+            qtest_set_expected_status(qts, EXIT_FAILURE);
+            qtest_wait_qemu(qts);
+            qtest_quit(qts);
+        }
+    }
+}
+
+static void test_firmware_relocated_reset(void)
+{
+    const uint64_t base = 0x400000;
+    const uint64_t sentinel = UINT64_C(0x0123456789abcdef);
+    const char *firmware = g_getenv(TEST_FIRMWARE_ENV);
+    g_autofree char *quoted = g_shell_quote(firmware);
+    g_autofree char *file = NULL;
+    gsize length;
+    uint64_t phoff, gap = 0, bss = 0;
+    unsigned i, phnum;
+    uint8_t original[16], actual[16];
+    QTestState *qts;
+
+    g_assert_true(g_file_get_contents(firmware, &file, &length, NULL));
+    phoff = ldq_le_p(file + 32);
+    phnum = lduw_le_p(file + 56);
+    for (i = 0; i < phnum; i++) {
+        const uint8_t *ph = (uint8_t *)file + phoff + i * sizeof(Elf64_Phdr);
+        uint64_t addr = ldq_le_p(ph + 16) - 0x100000 + base;
+        uint64_t filesz = ldq_le_p(ph + 32);
+        uint64_t memsz = ldq_le_p(ph + 40);
+
+        if (ldl_le_p(ph) != PT_LOAD) {
+            continue;
+        }
+        if (!gap) {
+            gap = ROUND_UP(addr + memsz, 8);
+        }
+        if (memsz >= filesz + 8) {
+            bss = (addr + memsz - 8) & ~UINT64_C(7);
+        }
+    }
+    g_assert_cmphex(gap, <, base + 0x2000);
+    g_assert_cmphex(bss, >, base);
+    qts = qtest_initf("-machine ia64-vpc,firmware-base=0x400000,nvram=none "
+                       "-m 256M -S -nodefaults -bios %s", quoted);
+    qtest_memread(qts, base, original, sizeof(original));
+    g_assert_cmphex(qtest_readq(qts, bss), ==, 0);
+    qtest_writeq(qts, base, sentinel);
+    qtest_writeq(qts, bss, sentinel);
+    qtest_writeq(qts, gap, sentinel);
+    qtest_writeq(qts, 0x100000, sentinel);
+    qtest_system_reset(qts);
+    qtest_memread(qts, base, actual, sizeof(actual));
+    g_assert_cmpmem(actual, sizeof(actual), original, sizeof(original));
+    g_assert_cmphex(qtest_readq(qts, bss), ==, 0);
+    g_assert_cmphex(qtest_readq(qts, gap), ==, sentinel);
+    g_assert_cmphex(qtest_readq(qts, 0x100000), ==, sentinel);
+    qtest_quit(qts);
 }
 
 static void test_firmware_handoff_defaults(void)
@@ -3782,6 +3863,7 @@ typedef struct TestCPUProfileMigration {
     const char *source_extra;
     const char *destination_extra;
     bool compatible;
+    uint64_t preserve_address;
 } TestCPUProfileMigration;
 
 static char *wait_for_migration_terminal(QTestState *qts)
@@ -3827,6 +3909,9 @@ static void test_cpu_profile_migration(const void *opaque)
         test->source_machine ?: "ia64-vpc", test->source,
         test->source_extra ?: "");
     qts = qtest_init(args);
+    if (test->preserve_address) {
+        qtest_writeq(qts, test->preserve_address, 0x0123456789abcdefULL);
+    }
     qtest_qmp_assert_success(
         qts, "{'execute':'migrate','arguments':{'uri':%s}}", uri);
     status = wait_for_migration_terminal(qts);
@@ -3846,6 +3931,10 @@ static void test_cpu_profile_migration(const void *opaque)
              "{'uri':%s,'exit-on-error':false}}", uri);
     status = wait_for_migration_terminal(qts);
     g_assert_cmpstr(status, ==, test->compatible ? "completed" : "failed");
+    if (test->compatible && test->preserve_address) {
+        g_assert_cmphex(qtest_readq(qts, test->preserve_address), ==,
+                        0x0123456789abcdefULL);
+    }
     qtest_quit(qts);
     g_assert_cmpint(g_unlink(path), ==, 0);
 }
@@ -3931,8 +4020,28 @@ int main(int argc, char **argv)
         },
     };
     unsigned i;
+    g_autofree char *firmware = g_shell_quote(g_getenv(TEST_FIRMWARE_ENV));
+    g_autofree char *bios = g_strdup_printf("-bios %s", firmware);
+    TestCPUProfileMigration placement = {
+        .source_machine = "ia64-vpc,firmware-base=0x400000",
+        .destination_machine = "ia64-vpc,firmware-base=0x400000",
+        .source = "montecito", .destination = "montecito",
+        .source_extra = bios, .destination_extra = bios, .compatible = true,
+        .preserve_address = 0x400200,
+    };
+    TestCPUProfileMigration mismatch = placement;
+    mismatch.destination_machine = "ia64-vpc,firmware-base=0x100000";
+    mismatch.compatible = false;
 
     g_test_init(&argc, &argv, NULL);
+    qtest_add_func("/ia64-vpc/firmware/invalid-placement",
+                   test_firmware_invalid_placement);
+    qtest_add_func("/ia64-vpc/firmware/relocated-reset",
+                   test_firmware_relocated_reset);
+    qtest_add_data_func("/ia64-vpc/firmware/migration", &placement,
+                        test_cpu_profile_migration);
+    qtest_add_data_func("/ia64-vpc/firmware/migration-mismatch", &mismatch,
+                        test_cpu_profile_migration);
     qtest_add_func("/ia64-vpc/acpi-reset-register",
                    test_acpi_reset_register);
     qtest_add_func("/ia64-vpc/vga/int10-rom", test_int10_rom);

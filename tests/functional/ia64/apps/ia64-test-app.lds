@@ -3,7 +3,7 @@ ENTRY(__efi_entry_descriptor)
 
 SECTIONS
 {
-    . = 0x04000000;
+    . = DEFINED(__test_image_base) ? __test_image_base : 0x04000000;
 
     .text : { *(.text*) }
     . = ALIGN(16);

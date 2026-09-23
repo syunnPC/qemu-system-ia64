@@ -5,7 +5,7 @@
 
 from pathlib import Path
 
-from qemu_test import QemuSystemTest
+from qemu_test import QemuSystemTest, wait_for_console_pattern
 
 from ia64.console import Ia64FirmwareTest
 from ia64.efi_build import app_path
@@ -19,6 +19,23 @@ SMOKE_CASES = {
 
 
 class Ia64FirmwareSmoke(Ia64FirmwareTest):
+    def test_fixed_image_relocated_firmware(self):
+        path = Path(self.scratch_file("fixed.img"))
+        make_fat_disk(path, app_path("smoke-fixed"))
+        vm = self.launch_ia64(
+            media=path, machine_options=(
+                "firmware-console=serial,nvram=none,firmware-base=0x400000"))
+        self.wait_ia64_suite(vm, "smoke", SMOKE_CASES)
+        vm.cmd("system_reset")
+        self.wait_ia64_suite(vm, "smoke", SMOKE_CASES)
+
+    def test_fixed_image_firmware_collision(self):
+        path = Path(self.scratch_file("collision.img"))
+        make_fat_disk(path, app_path("smoke-fixed"))
+        vm = self.launch_ia64(
+            media=path, machine_options="firmware-console=serial,nvram=none")
+        wait_for_console_pattern(self, "Block I/O: LoadImage failed", vm=vm)
+
     def make_disk(self, name: str = "smoke.img") -> Path:
         path = Path(self.scratch_file(name))
         make_fat_disk(path, app_path("smoke"))

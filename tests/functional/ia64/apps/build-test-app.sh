@@ -29,10 +29,12 @@ if test -n "$common_source"; then
         -fno-stack-protector -fno-common -fno-optimize-sibling-calls \
         -fno-pic -Wall -Wextra -Werror \
         -c -o "$common_object" "$common_source"
-    $ld -nostdlib -static -T "$linker_script" -o "$elf" \
+    $ld -nostdlib -static --defsym=__test_image_base="$image_base" \
+        -T "$linker_script" -o "$elf" \
         "$object" "$common_object" "$libgcc"
 else
-    $ld -nostdlib -static -T "$linker_script" -o "$elf" \
+    $ld -nostdlib -static --defsym=__test_image_base="$image_base" \
+        -T "$linker_script" -o "$elf" \
         "$object" "$libgcc"
 fi
 $objcopy --strip-debug -R .comment -O pei-ia64 \

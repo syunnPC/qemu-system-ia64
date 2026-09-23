@@ -272,6 +272,18 @@ All machine models use ``ia64-firmware.bin`` by default.  QEMU searches its
 firmware and data directories for this file.  Use ``-bios PATH`` to load a
 different image, or ``-bios none`` when booting without firmware.
 
+The in-tree ``ia64-firmware.bin`` is an ELF image whose symbol and relocation
+tables must be retained.
+Firmware loads at 1 MiB by default.  Use ``-machine ...,firmware-base=0x400000``
+to load it at 4 MiB, or ``firmware-base=auto`` to select a location near the
+top of low RAM.  An explicit address must be at least 1 MiB, aligned to 8 KiB,
+and leave room for the complete firmware below the boot stack and handoff
+storage, without overlapping the ACPI tables at 8--8.125 MiB or the platform
+descriptor at 3 MiB on HP models.  QEMU rejects invalid placements before
+starting the CPUs.
+Legacy raw firmware images require the default 1 MiB address.
+Migration requires matching firmware placement at both ends.
+
 A typical invocation is::
 
   build/qemu-system-ia64 \

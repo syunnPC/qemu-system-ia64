@@ -14,7 +14,7 @@ ia64_firmware_bin = custom_target(
     'ia64-firmware.map',
     'ia64-firmware.sections',
   ],
-  input: files(firmware_inputs + [firmware_manifest]),
+  input: files(firmware_inputs + [firmware_manifest, 'firmware_layout.py']),
   command: [
     sh_prog,
     build_fw_script,
@@ -26,6 +26,7 @@ ia64_firmware_bin = custom_target(
     '@DEPFILE@',
   ],
   depfile: 'ia64-firmware.d',
+  env: {'PYTHON': python.full_path()},
   build_by_default: true,
   install: get_option('install_blobs'),
   install_dir: [qemu_datadir, false, false, false],

@@ -443,6 +443,10 @@ static bool i2000_machine_build(MachineState *ms, Error **errp)
                          "ia64-i2000-efi-test.pib",
                          layout_460gx_test.pib.base,
                          layout_460gx_test.pib.size);
+    if (!ia64_machine_load_firmware(ms, &hp->firmware,
+                                      layout_460gx_test.ram.size, errp)) {
+        return false;
+    }
     if (!i2000_machine_create_topology(machine, errp) ||
         !i2000_machine_install_descriptor(machine, &layout_460gx_test,
                                            errp)) {
@@ -450,16 +454,14 @@ static bool i2000_machine_build(MachineState *ms, Error **errp)
     }
     cpu_config.firmware_compat_flags =
         hp->firmware_args.firmware_compat_flags;
-    if (!ia64_machine_create_cpus(ms, &cpu_config, errp) ||
-        !ia64_machine_load_firmware(ms, layout_460gx_test.firmware.base,
-                                    layout_460gx_test.firmware.size,
-                                    &hp->firmware_size, errp)) {
+    if (!ia64_machine_create_cpus(ms, &cpu_config, errp)) {
         return false;
     }
 
     ia64_machine_init_firmware_notifier(
-        &hp->firmware_notifier, ms, layout_460gx_test.firmware.base,
-        hp->firmware_size, i2000_machine_firmware_boot_info,
+        &hp->firmware_notifier, ms, hp->firmware.base,
+        hp->firmware.elf ? 0 : hp->firmware.size,
+        i2000_machine_firmware_boot_info,
         NULL, machine);
     return true;
 }

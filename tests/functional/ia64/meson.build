@@ -15,9 +15,9 @@ ia64_functional_test_apps = []
 foreach app : [
   'smoke', 'services', 'tables', 'exitbs', 'storage', 'input', 'graphics',
   'smp', 'smp-merced', 'pci-bridge', 'i2000-pci-root', 'i2000-runtime',
-  'i2000-loader', 'ras', 'scsi-pass-thru',
+  'i2000-loader', 'ras', 'scsi-pass-thru', 'smoke-fixed',
 ]
-  app_source = files('apps/' + app + '-app.c')
+  app_source = files('apps/' + (app == 'smoke-fixed' ? 'smoke' : app) + '-app.c')
   app_linker_script = ia64_app_linker_script
   if app == 'i2000-loader'
     app_linker_script = files('apps/i2000-loader-app.lds')
@@ -34,6 +34,9 @@ foreach app : [
     '@INPUT@',
     app_linker_script,
   ]
+  if app == 'smoke-fixed'
+    app_command += ['0x100000']
+  endif
   if app == 'services' or app == 'tables'
     app_depend_files += [ia64_services_common, ia64_services_header]
     app_command += ['0x4000000', ia64_services_common]

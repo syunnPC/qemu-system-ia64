@@ -1584,20 +1584,23 @@ static bool hp_i2000_build(MachineState *machine, Error **errp)
         return false;
     }
 
+    if (!ia64_machine_load_firmware(machine, &hp->firmware,
+                                      MIN(machine->ram_size,
+                                          HP_I2000_LOW_RAM_LIMIT), errp)) {
+        return false;
+    }
     if (!hp_i2000_install_descriptor(s, errp)) {
         return false;
     }
     cpu_config.firmware_compat_flags =
         hp->firmware_args.firmware_compat_flags;
-    if (!ia64_machine_create_cpus(machine, &cpu_config, errp) ||
-        !ia64_machine_load_firmware(machine, HP_I2000_FIRMWARE_BASE,
-                                    HP_I2000_FIRMWARE_SIZE,
-                                    &hp->firmware_size, errp)) {
+    if (!ia64_machine_create_cpus(machine, &cpu_config, errp)) {
         return false;
     }
     ia64_machine_init_firmware_notifier(
-        &hp->firmware_notifier, machine, HP_I2000_FIRMWARE_BASE,
-        hp->firmware_size, hp_i2000_firmware_boot_info, NULL, s);
+        &hp->firmware_notifier, machine, hp->firmware.base,
+        hp->firmware.elf ? 0 : hp->firmware.size,
+        hp_i2000_firmware_boot_info, NULL, s);
     return true;
 }
 

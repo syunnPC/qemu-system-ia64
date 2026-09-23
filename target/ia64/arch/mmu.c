@@ -168,7 +168,7 @@ static bool ia64_data_address_to_mapped_phys_attr(CPUIA64State *env,
     uint32_t rid;
     const IA64TlbEntry *entry;
 
-    if (ia64_firmware_identity_pa(env->cr_iva, env->psr, va,
+    if (ia64_firmware_identity_pa(env, va,
                                   pa)) {
         if (spec) {
             *spec = IA64_MEM_SPECULATIVE;
@@ -268,7 +268,7 @@ ia64_translate_nonaccess(CPUIA64State *env, uint64_t va,
 
         /* Preserve the synthetic firmware identity window used at boot. */
         if (!is_tpa &&
-            ia64_firmware_identity_pa(env->cr_iva, env->psr,
+            ia64_firmware_identity_pa(env,
                                       va, pa)) {
             return IA64_EXCP_NONE;
         }
@@ -1300,7 +1300,7 @@ static uint64_t ia64_probe_address(CPUIA64State *env, uint64_t va,
         return 0;
     }
 
-    if (ia64_firmware_identity_pa(env->cr_iva, env->psr, va,
+    if (ia64_firmware_identity_pa(env, va,
                                   &pa)) {
         return 1;
     }
@@ -1514,7 +1514,7 @@ ia64_data_reference_exception(CPUIA64State *env, uint64_t va,
             (va & IA64_PHYS_UC_BIT) ? IA64_PTE_MA_UC : IA64_PTE_MA_WB);
         return IA64_EXCP_NONE;
     }
-    if (ia64_firmware_identity_pa(env->cr_iva, env->psr, va,
+    if (ia64_firmware_identity_pa(env, va,
                                   &pa)) {
         ia64_set_data_reference_result(result, pa, IA64_MEM_SPECULATIVE,
                                        IA64_PTE_MA_WB);
@@ -2198,8 +2198,7 @@ static bool ia64_cached_speculative_data_load_qualifies(
     }
 
     /* Firmware identity mappings additionally depend on the current IP. */
-    if (va >= IA64_FW_IDENTITY_BASE &&
-        va < IA64_FW_IDENTITY_BASE + IA64_FW_IDENTITY_SIZE) {
+    if (ia64_firmware_contains(env, va)) {
         return false;
     }
 
@@ -2628,7 +2627,7 @@ static IA64VhptEntryStatus ia64_vhpt_entry_phys(CPUIA64State *env,
     uint8_t perm;
     uint32_t rid;
 
-    if (ia64_firmware_identity_pa(env->cr_iva, env->psr,
+    if (ia64_firmware_identity_pa(env,
                                   entry_va, entry_pa)) {
         return IA64_VHPT_ENTRY_TRANSLATED;
     }
@@ -2821,7 +2820,7 @@ bool ia64_mmu_translate_debug(CPUIA64State *env, uint64_t va, uint64_t *pa)
         *pa = va;
         return true;
     }
-    if (ia64_firmware_identity_pa(env->cr_iva, env->psr, va, pa)) {
+    if (ia64_firmware_identity_pa(env, va, pa)) {
         return true;
     }
 

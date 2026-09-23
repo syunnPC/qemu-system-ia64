@@ -26,7 +26,7 @@ struct HPIA64MachineState {
     IA64PlatformFirmwareArgs firmware_args;
     uint64_t descriptor_low_ram_end;
     bool firmware_args_valid;
-    size_t firmware_size;
+    IA64MachineFirmware firmware;
     IA64MachineFirmwareNotifier firmware_notifier;
 };
 

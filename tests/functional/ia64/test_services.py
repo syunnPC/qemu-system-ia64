@@ -24,6 +24,7 @@ SERVICE_CASES = {
     "sal-rse-byte-order",
 }
 EXITBS_CASES = {
+    "runtime-image-load", "runtime-modified-instruction",
     "memory-map", "exit-boot-services", "system-table-handoff",
     "system-table-crc",
     "runtime-pointer-ranges", "runtime-function-ranges",
@@ -52,11 +53,24 @@ class Ia64EfiServices(Ia64FirmwareTest):
         self.assertSetEqual(set(result.cases), SERVICE_CASES)
 
     def test_exit_boot_services(self):
+        self.run_exit_boot_services("0x100000")
+
+    def test_exit_boot_services_relocated(self):
+        self.run_exit_boot_services("0x400000")
+
+    def test_exit_boot_services_auto(self):
+        self.run_exit_boot_services("auto")
+
+    def test_exit_boot_services_cross_loader_boundary(self):
+        self.run_exit_boot_services("0xff8000")
+
+    def run_exit_boot_services(self, base):
         disk = Path(self.scratch_file("exitbs.img"))
         make_fat_disk(disk, app_path("exitbs"))
         vm = self.launch_ia64(
             media=disk,
-            machine_options="firmware-console=vga,nvram=none")
+            machine_options=("firmware-console=vga,nvram=none,"
+                             f"firmware-base={base}"))
         self.wait_ia64_suite(vm, "exitbs", EXITBS_CASES, timeout=35.0)
 
 

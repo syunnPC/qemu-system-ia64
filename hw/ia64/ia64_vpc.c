@@ -477,7 +477,7 @@ struct IA64VpcMachineState {
     uint64_t watchdog_timeout;
     uint64_t watchdog_code;
     uint8_t nvram_data[IA64_NVRAM_SIZE];
-    size_t firmware_size;
+    IA64MachineFirmware firmware;
     char *nvram_resolved_path;
     bool nvram_write_warning;
     ACPIREGS acpi_regs;
@@ -2952,7 +2952,8 @@ static bool ia64_vpc_init_usb(IA64VpcMachineState *s, PCIBus *pci_bus,
 static IA64BootInfo ia64_vpc_boot_info(unsigned int cpu_index,
                                        uint64_t entry,
                                        uint64_t global_pointer,
-                                       uint64_t low_ram_size)
+                                       uint64_t low_ram_size,
+                                       IA64MachineFirmware *fw)
 {
     uint64_t cpu_assist_base = low_ram_size - IA64_FW_BOOT_STACK_SIZE;
     IA64BootInfo info = {
@@ -2970,6 +2971,7 @@ static IA64BootInfo ia64_vpc_boot_info(unsigned int cpu_index,
         .powered_off = cpu_index != 0,
     };
 
+    ia64_machine_firmware_boot_info(fw, &info);
     return info;
 }
 
@@ -2979,7 +2981,8 @@ static IA64BootInfo ia64_vpc_initial_boot_info(unsigned int cpu_index,
     MachineState *machine = opaque;
 
     return ia64_vpc_boot_info(cpu_index, IA64_FW_BASE, IA64_FW_BASE,
-                              MIN(machine->ram_size, IA64_LOW_RAM_LIMIT));
+                              MIN(machine->ram_size, IA64_LOW_RAM_LIMIT),
+                              &IA64_VPC_MACHINE(machine)->firmware);
 }
 
 static IA64BootInfo ia64_vpc_firmware_boot_info(
@@ -2989,7 +2992,8 @@ static IA64BootInfo ia64_vpc_firmware_boot_info(
     MachineState *machine = opaque;
 
     return ia64_vpc_boot_info(cpu_index, entry, global_pointer,
-                              MIN(machine->ram_size, IA64_LOW_RAM_LIMIT));
+                              MIN(machine->ram_size, IA64_LOW_RAM_LIMIT),
+                              &IA64_VPC_MACHINE(machine)->firmware);
 }
 
 /*
@@ -3084,6 +3088,11 @@ static bool ia64_vpc_build(MachineState *machine, Error **errp)
     ia64_vpc_init_nvram(s);
     ia64_vpc_write_firmware_handoff(s);
 
+    if (!ia64_machine_load_firmware(machine, &s->firmware,
+                                    MIN(machine->ram_size, IA64_LOW_RAM_LIMIT),
+                                    errp)) {
+        return false;
+    }
     if (!ia64_machine_create_cpus(machine, &cpu_config, errp)) {
         return false;
     }
@@ -3108,11 +3117,6 @@ static bool ia64_vpc_build(MachineState *machine, Error **errp)
                        DEVICE_LITTLE_ENDIAN);
     }
 
-    if (!ia64_machine_load_firmware(machine, IA64_FW_BASE,
-                                    machine->ram_size - IA64_FW_BASE,
-                                    &s->firmware_size, errp)) {
-        return false;
-    }
 
     /* Fill IVT with break bundles (one-time, before any reset) */
     {
@@ -3127,7 +3131,8 @@ static bool ia64_vpc_build(MachineState *machine, Error **errp)
 
     /* Defer PE32+ plabel parsing until after ROM content is loaded. */
     ia64_machine_init_firmware_notifier(
-        &s->firmware_notifier, machine, IA64_FW_BASE, s->firmware_size,
+        &s->firmware_notifier, machine, s->firmware.base,
+        s->firmware.elf ? 0 : s->firmware.size,
         ia64_vpc_firmware_boot_info, ia64_vpc_machine_done, s);
 
     pci_host = qdev_new(s->pcie ? TYPE_IA64_PCIE_HOST_BRIDGE :
@@ -3305,6 +3310,7 @@ static void ia64_vpc_machine_instance_init(Object *obj)
     IA64VpcMachineState *s = IA64_VPC_MACHINE(obj);
 
     s->alat_full = false;
+    ia64_machine_firmware_init(obj, &s->firmware);
 
 #ifdef CONFIG_IA64_VPC_PS2
     IA64VpcMachineClass *ivmc = IA64_VPC_MACHINE_GET_CLASS(obj);

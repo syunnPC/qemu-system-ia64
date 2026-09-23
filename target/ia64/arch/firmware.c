@@ -283,8 +283,7 @@ uint32_t ia64_firmware_debug_enter(CPUIA64State *env, uint64_t address)
     if (!debug->context_valid || debug->handler_active ||
         vector_base != IA64_FIRMWARE_IVT_BASE ||
         address < vector_address || address >= vector_address + 0x100 ||
-        handler < IA64_FW_IDENTITY_BASE ||
-        handler >= IA64_FW_IDENTITY_BASE + IA64_FW_IDENTITY_SIZE ||
+        !ia64_firmware_contains(env, handler) ||
         (handler & (IA64_BUNDLE_SIZE - 1))) {
         return 0;
     }
