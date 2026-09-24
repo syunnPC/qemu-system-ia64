@@ -184,7 +184,9 @@ static bool isp12160_iocb_parse(const uint8_t *entries, size_t entry_count,
 
         if (entry[ISP12160_IOCB_HEADER_TYPE_OFFSET] !=
                 format->continuation_type ||
-            entry[ISP12160_IOCB_HEADER_COUNT_OFFSET] != 1 ||
+            (entry[ISP12160_IOCB_HEADER_COUNT_OFFSET] != 1 &&
+             entry[ISP12160_IOCB_HEADER_COUNT_OFFSET] !=
+                 entry_count - continuation) ||
             entry[ISP12160_IOCB_HEADER_STATUS_OFFSET]) {
             error_setg(errp, "invalid ISP12160 continuation entry header");
             return false;

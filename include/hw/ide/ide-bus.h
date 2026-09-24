@@ -17,6 +17,7 @@ struct IDEBus {
     IDEDMA *dma;
     uint8_t unit;
     uint8_t cmd;
+    bool irq_pending;
     qemu_irq irq; /* bus output */
 
     int error_status;

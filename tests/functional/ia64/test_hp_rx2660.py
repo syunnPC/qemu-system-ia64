@@ -25,6 +25,7 @@ SMOKE_CASES = {
     "entry", "system-table", "loaded-image", "device-path",
     "root-device-path", "controller-device-path", "console-output",
     "console-variables",
+    "low-memory-allocation",
 }
 
 

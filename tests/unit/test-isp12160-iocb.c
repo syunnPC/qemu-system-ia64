@@ -274,6 +274,73 @@ static void test_32bit_continuation(void)
     error_free(err);
 }
 
+static void test_continuation_chain(gconstpointer opaque)
+{
+    unsigned int mode = GPOINTER_TO_UINT(opaque);
+    bool a64 = mode & 1;
+    bool remaining_count = mode & 2;
+    uint8_t entries[4][ISP12160_IOCB_ENTRY_BYTES] = { 0 };
+    ISP12160IOCBSegment segments[24];
+    ISP12160IOCBCommand command;
+    unsigned int command_segments = a64 ? 2 : 4;
+    unsigned int continuation_segments = a64 ? 5 : 7;
+    unsigned int segment_count = command_segments +
+                                 3 * continuation_segments - 1;
+    unsigned int segment = 0;
+    uint64_t base = a64 ? UINT64_C(0x1234567800000000) : 0x12340000;
+    Error *err = NULL;
+    bool (*parse)(const uint8_t *, size_t, ISP12160IOCBCommand *,
+                  ISP12160IOCBSegment *, size_t, Error **) =
+        a64 ? isp12160_iocb_parse_a64 : isp12160_iocb_parse_32;
+
+    entries[0][0] = a64 ? ISP12160_IOCB_COMMAND_A64_TYPE :
+                         ISP12160_IOCB_COMMAND_TYPE;
+    entries[0][1] = ARRAY_SIZE(entries);
+    stw_le_p(entries[0] + 10, 10);
+    stw_le_p(entries[0] + 12, ISP12160_IOCB_CONTROL_DATA_TO_DEVICE);
+    stw_le_p(entries[0] + 18, segment_count);
+    entries[0][20] = 0x2e;
+    for (unsigned int i = 0; i < ARRAY_SIZE(entries); i++) {
+        unsigned int offset = i ? (a64 ? 4 : 8) : (a64 ? 40 : 32);
+        unsigned int capacity = i ? continuation_segments : command_segments;
+
+        if (i) {
+            entries[i][0] = a64 ? ISP12160_IOCB_CONTINUE_A64_TYPE :
+                                 ISP12160_IOCB_CONTINUE_TYPE;
+            entries[i][1] = remaining_count ? ARRAY_SIZE(entries) - i : 1;
+        }
+        for (unsigned int j = 0; j < capacity && segment < segment_count;
+             j++, segment++) {
+            uint64_t address = base + segment * 0x1000;
+            uint32_t length = (segment + 1) * 0x100;
+
+            if (a64) {
+                set_segment(entries[i], offset + j * 12, address, length);
+            } else {
+                set_segment_32(entries[i], offset + j * 8, address, length);
+            }
+        }
+    }
+
+    g_assert_true(parse(entries[0], ARRAY_SIZE(entries), &command, segments,
+                        ARRAY_SIZE(segments), &err));
+    g_assert_null(err);
+    g_assert_cmpuint(command.entry_count, ==, ARRAY_SIZE(entries));
+    g_assert_cmpuint(command.segment_count, ==, segment_count);
+    g_assert_cmpuint(command.transfer_length, ==,
+                     segment_count * (segment_count + 1) / 2 * 0x100);
+    for (unsigned int i = 0; i < segment_count; i++) {
+        g_assert_cmphex(segments[i].address, ==, base + i * 0x1000);
+        g_assert_cmpuint(segments[i].length, ==, (i + 1) * 0x100);
+    }
+
+    entries[2][1] = 3;
+    g_assert_false(parse(entries[0], ARRAY_SIZE(entries), &command, segments,
+                         ARRAY_SIZE(segments), &err));
+    g_assert_nonnull(err);
+    error_free(err);
+}
+
 static void test_header_and_shape_rejected(void)
 {
     uint8_t entries[TEST_ENTRIES][ISP12160_IOCB_ENTRY_BYTES];
@@ -447,6 +514,14 @@ int main(int argc, char **argv)
     g_test_add_func("/isp12160-iocb/continuation", test_continuation);
     g_test_add_func("/isp12160-iocb/32bit-continuation",
                     test_32bit_continuation);
+    g_test_add_data_func("/isp12160-iocb/32bit-continuation-chain",
+                         GUINT_TO_POINTER(0), test_continuation_chain);
+    g_test_add_data_func("/isp12160-iocb/a64-continuation-chain",
+                         GUINT_TO_POINTER(1), test_continuation_chain);
+    g_test_add_data_func("/isp12160-iocb/32bit-continuation-remaining-count",
+                         GUINT_TO_POINTER(2), test_continuation_chain);
+    g_test_add_data_func("/isp12160-iocb/a64-continuation-remaining-count",
+                         GUINT_TO_POINTER(3), test_continuation_chain);
     g_test_add_func("/isp12160-iocb/header-shape-rejected",
                     test_header_and_shape_rejected);
     g_test_add_func("/isp12160-iocb/segments-rejected",

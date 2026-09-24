@@ -97,6 +97,57 @@ static BOOLEAN system_table_crc_valid(EFI_SYSTEM_TABLE *SystemTable)
            crc == expected;
 }
 
+static BOOLEAN low_memory_allocation_valid(EFI_SYSTEM_TABLE *SystemTable)
+{
+    static const EFI_PHYSICAL_ADDRESS reserved[] = { 0, 0x10000 };
+    EFI_BOOT_SERVICES *bs = SystemTable->BootServices;
+    EFI_PHYSICAL_ADDRESS address;
+    /* Force guest RAM accesses for the allocation read/write check. */
+    volatile UINT8 *bytes;
+    EFI_STATUS status;
+    BOOLEAN valid;
+    UINTN i;
+
+    for (i = 0; i < sizeof(reserved) / sizeof(reserved[0]); i++) {
+        address = reserved[i];
+        status = bs->AllocatePages(AllocateAddress, EfiLoaderData, 1,
+                                    &address);
+        if (status == EFI_SUCCESS) {
+            (void)bs->FreePages(address, 1);
+            return 0;
+        }
+        if (status != EFI_NOT_FOUND) {
+            return 0;
+        }
+    }
+
+    address = EFI_PAGE_SIZE;
+    status = bs->AllocatePages(AllocateAddress, EfiLoaderData, 1, &address);
+    if (status != EFI_SUCCESS) {
+        return 0;
+    }
+    if (address != EFI_PAGE_SIZE) {
+        (void)bs->FreePages(address, 1);
+        return 0;
+    }
+    bytes = (UINT8 *)(UINTN)address;
+    bytes[0] = 0xa5;
+    bytes[EFI_PAGE_SIZE - 1U] = 0x5a;
+    valid = bytes[0] == 0xa5 && bytes[EFI_PAGE_SIZE - 1U] == 0x5a;
+    if (bs->FreePages(address, 1) != EFI_SUCCESS) {
+        return 0;
+    }
+
+    address = 2U * EFI_PAGE_SIZE - 1U;
+    status = bs->AllocatePages(AllocateMaxAddress, EfiLoaderData, 1,
+                                &address);
+    if (status != EFI_SUCCESS) {
+        return 0;
+    }
+    valid = valid && address == EFI_PAGE_SIZE;
+    return bs->FreePages(address, 1) == EFI_SUCCESS && valid;
+}
+
 typedef struct {
     UINT32 Serial;
     UINT32 Graphics;
@@ -352,6 +403,10 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
                 EFI_RUNTIME_SERVICES_SIGNATURE &&
             system_table_crc_valid(SystemTable),
         EFI_DEVICE_ERROR, "signature-or-crc");
+
+    ia64_test_check(&context, "low-memory-allocation",
+                    low_memory_allocation_valid(SystemTable),
+                    EFI_DEVICE_ERROR, "low-page-or-reserved-memory");
 
     status = SystemTable->BootServices->HandleProtocol(
         ImageHandle, loaded_image_guid, (VOID **)&loaded);

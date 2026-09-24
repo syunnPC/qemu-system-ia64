@@ -15,6 +15,7 @@ from ia64.media import make_el_torito_iso, make_fat_disk
 SMOKE_CASES = {
     "entry", "system-table", "loaded-image", "device-path",
     "root-device-path", "console-output", "console-variables",
+    "low-memory-allocation",
 }
 
 

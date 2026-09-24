@@ -1540,8 +1540,13 @@ static int mptsas_hard_reset(MPTSASState *s)
     s->ioc1_flags = 0;
     s->ioc1_coalescing_timeout = 0;
     s->ioc1_coalescing_depth = 0;
-    s->spi_port_configuration = MPTSPI_DEFAULT_PORT_CONFIGURATION;
-    s->spi_port_on_bus_timer = 0;
+    s->spi_port_configuration = s->spi_port1_nvram_written ?
+        s->spi_port1_nvram_configuration : MPTSPI_DEFAULT_PORT_CONFIGURATION;
+    s->spi_port_on_bus_timer = s->spi_port1_nvram_written ?
+        s->spi_port1_nvram_on_bus_timer : 0;
+    s->spi_port2_written = s->spi_port2_nvram_written;
+    memcpy(s->spi_port2_current, s->spi_port2_nvram,
+           sizeof(s->spi_port2_current));
     memset(s->spi_requested_params, 0, sizeof(s->spi_requested_params));
     memset(s->spi_configuration, 0, sizeof(s->spi_configuration));
 
@@ -2089,7 +2094,13 @@ static int mptsas_post_load(void *opaque, int version_id)
         if (!s->max_devices || s->max_devices > MPTSPI_MAX_TARGETS ||
             s->max_buses > 1 ||
             (s->spi_port_configuration & ~spi_port_configuration_mask) ||
-            port_id >= MPTSPI_MAX_TARGETS) {
+            port_id >= MPTSPI_MAX_TARGETS ||
+            (s->spi_port1_nvram_written &&
+             ((s->spi_port1_nvram_configuration &
+               ~spi_port_configuration_mask) ||
+              (s->spi_port1_nvram_configuration &
+               MPI_SCSIPORTPAGE1_CFG_PORT_SCSI_ID_MASK) >=
+                  MPTSPI_MAX_TARGETS))) {
             return -EINVAL;
         }
     } else if (!s->max_devices || s->max_devices > MPTSAS_NUM_PORTS ||
@@ -2166,6 +2177,13 @@ static const VMStateDescription vmstate_mptspi_variant = {
                              MPTSPI_MAX_TARGETS),
         VMSTATE_UINT32(spi_port_configuration, MPTSASState),
         VMSTATE_UINT32(spi_port_on_bus_timer, MPTSASState),
+        VMSTATE_BOOL(spi_port1_nvram_written, MPTSASState),
+        VMSTATE_UINT32(spi_port1_nvram_configuration, MPTSASState),
+        VMSTATE_UINT32(spi_port1_nvram_on_bus_timer, MPTSASState),
+        VMSTATE_BOOL(spi_port2_written, MPTSASState),
+        VMSTATE_UINT8_ARRAY(spi_port2_current, MPTSASState, 72),
+        VMSTATE_BOOL(spi_port2_nvram_written, MPTSASState),
+        VMSTATE_UINT8_ARRAY(spi_port2_nvram, MPTSASState, 72),
         VMSTATE_END_OF_LIST()
     },
 };

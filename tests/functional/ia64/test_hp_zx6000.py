@@ -19,6 +19,7 @@ from ia64.protocol import wait_for_suite
 SMOKE_CASES = {
     "entry", "system-table", "loaded-image", "device-path",
     "root-device-path", "console-output", "console-variables",
+    "low-memory-allocation",
 }
 
 MPT_SMOKE_CASES = SMOKE_CASES | {"controller-device-path"}
@@ -158,6 +159,9 @@ class HPZx6000Boot(QemuSystemTest):
                 root.append(memory_window(0xA0000, 0x60000))
             root.append(memory_window(base, 0x10000000 if index == 4
                                       else 0x8000000))
+            if index == 0:
+                root += [memory_window(base, 8)
+                         for base in (0xFEC00000, 0xFEC02000)]
             windows.append(root)
         assert_pci_windows(self, dsdt[ACPI_HEADER_SIZE:], windows)
 

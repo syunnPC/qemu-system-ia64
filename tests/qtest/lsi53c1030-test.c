@@ -317,7 +317,7 @@ static void mptspi_test_config_and_reset(void *obj, void *data,
     g_assert_cmpuint(reply.PageVersion, ==, 0x03);
     g_assert_cmpuint(reply.PageLength, ==, sizeof(port_page_1) / 4);
     g_assert_cmphex(reply.PageType, ==,
-                    MPI_CONFIG_PAGEATTR_CHANGEABLE |
+                    MPI_CONFIG_PAGEATTR_PERSISTENT |
                     MPI_CONFIG_PAGETYPE_SCSI_PORT);
 
     port_page_1[0] = 0x03;
@@ -426,6 +426,48 @@ static void mptspi_test_config_and_reset(void *obj, void *data,
     g_assert_cmphex(lduw_le_p(port_page_2 + 14), ==, 0x000f);
     g_assert_cmpuint(port_page_2[73], ==, 0x08);
     g_assert_cmphex(lduw_le_p(port_page_2 + 74), ==, 0x000f);
+
+    stw_le_p(port_page_2 + 14, 0x0007);
+    qtest_memwrite(mpt->dev.bus->qts, page_address, port_page_2,
+                   sizeof(port_page_2));
+    reply = mptspi_config(mpt, MPI_CONFIG_ACTION_PAGE_WRITE_CURRENT,
+                          MPI_CONFIG_PAGETYPE_SCSI_PORT, 2, 0,
+                          page_address, sizeof(port_page_2), true);
+    g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==, MPI_IOCSTATUS_SUCCESS);
+    reply = mptspi_config(mpt, MPI_CONFIG_ACTION_PAGE_READ_CURRENT,
+                          MPI_CONFIG_PAGETYPE_SCSI_PORT, 2, 0,
+                          page_address, sizeof(port_page_2), false);
+    g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==, MPI_IOCSTATUS_SUCCESS);
+    qtest_memread(mpt->dev.bus->qts, page_address, port_page_2,
+                  sizeof(port_page_2));
+    g_assert_cmphex(lduw_le_p(port_page_2 + 14), ==, 0x0007);
+    reply = mptspi_config(mpt, MPI_CONFIG_ACTION_PAGE_WRITE_NVRAM,
+                          MPI_CONFIG_PAGETYPE_SCSI_PORT, 2, 0,
+                          page_address, sizeof(port_page_2), true);
+    g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==,
+                    MPI_IOCSTATUS_SUCCESS);
+    reply = mptspi_config(mpt, MPI_CONFIG_ACTION_PAGE_WRITE_CURRENT,
+                          MPI_CONFIG_PAGETYPE_SCSI_PORT, 2, 0,
+                          page_address, sizeof(port_page_2) - 1, true);
+    g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==,
+                    MPI_IOCSTATUS_CONFIG_INVALID_DATA);
+    reply = mptspi_config(mpt, MPI_CONFIG_ACTION_PAGE_READ_NVRAM,
+                          MPI_CONFIG_PAGETYPE_SCSI_PORT, 2, 0,
+                          page_address, sizeof(port_page_2), false);
+    g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==, MPI_IOCSTATUS_SUCCESS);
+    qtest_memread(mpt->dev.bus->qts, page_address, port_page_2,
+                  sizeof(port_page_2));
+    g_assert_cmphex(lduw_le_p(port_page_2 + 14), ==, 0x0007);
+    reply = mptspi_config(mpt, MPI_CONFIG_ACTION_PAGE_DEFAULT,
+                          MPI_CONFIG_PAGETYPE_SCSI_PORT, 2, 0, 0, 0, false);
+    g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==, MPI_IOCSTATUS_SUCCESS);
+    reply = mptspi_config(mpt, MPI_CONFIG_ACTION_PAGE_READ_CURRENT,
+                          MPI_CONFIG_PAGETYPE_SCSI_PORT, 2, 0,
+                          page_address, sizeof(port_page_2), false);
+    g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==, MPI_IOCSTATUS_SUCCESS);
+    qtest_memread(mpt->dev.bus->qts, page_address, port_page_2,
+                  sizeof(port_page_2));
+    g_assert_cmphex(lduw_le_p(port_page_2 + 14), ==, 0x000f);
 
     reply = mptspi_config(mpt, MPI_CONFIG_ACTION_PAGE_READ_CURRENT,
                           MPI_CONFIG_PAGETYPE_IO_UNIT, 1, 0,
@@ -715,11 +757,13 @@ static void *mptspi_snapshot_setup(GString *cmd_line, void *arg)
 static void mptspi_test_config_savevm(void *obj, void *data,
                                       QGuestAllocator *alloc)
 {
+    const uint8_t diag_keys[] = { 0x04, 0x0b, 0x02, 0x07, 0x0d };
     QMptSpi *mpt = obj;
     MPIMsgConfigReply reply;
     uint8_t device_page_1[16] = { 0 };
     uint8_t ioc_page_1[16] = { 0 };
     uint8_t port_page_1[16] = { 0 };
+    uint8_t port_page_2[76];
     uint64_t page_address;
     g_autofree char *response = NULL;
 
@@ -729,7 +773,29 @@ static void mptspi_test_config_savevm(void *obj, void *data,
     }
 
     mptspi_ioc_init(mpt);
-    page_address = guest_alloc(alloc, sizeof(ioc_page_1));
+    page_address = guest_alloc(alloc, sizeof(port_page_2));
+
+    reply = mptspi_config(mpt, MPI_CONFIG_ACTION_PAGE_READ_CURRENT,
+                          MPI_CONFIG_PAGETYPE_SCSI_PORT, 2, 0,
+                          page_address, sizeof(port_page_2), false);
+    g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==, MPI_IOCSTATUS_SUCCESS);
+    qtest_memread(mpt->dev.bus->qts, page_address, port_page_2,
+                  sizeof(port_page_2));
+    stw_le_p(port_page_2 + 14, 0x0007);
+    qtest_memwrite(mpt->dev.bus->qts, page_address, port_page_2,
+                   sizeof(port_page_2));
+    reply = mptspi_config(mpt, MPI_CONFIG_ACTION_PAGE_WRITE_CURRENT,
+                          MPI_CONFIG_PAGETYPE_SCSI_PORT, 2, 0,
+                          page_address, sizeof(port_page_2), true);
+    g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==, MPI_IOCSTATUS_SUCCESS);
+
+    stw_le_p(port_page_2 + 14, 0x0005);
+    qtest_memwrite(mpt->dev.bus->qts, page_address, port_page_2,
+                  sizeof(port_page_2));
+    reply = mptspi_config(mpt, MPI_CONFIG_ACTION_PAGE_WRITE_NVRAM,
+                          MPI_CONFIG_PAGETYPE_SCSI_PORT, 2, 0,
+                          page_address, sizeof(port_page_2), true);
+    g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==, MPI_IOCSTATUS_SUCCESS);
 
     ioc_page_1[0] = 0x03;
     ioc_page_1[1] = sizeof(ioc_page_1) / 4;
@@ -750,7 +816,7 @@ static void mptspi_test_config_savevm(void *obj, void *data,
     port_page_1[0] = 0x03;
     port_page_1[1] = sizeof(port_page_1) / 4;
     port_page_1[2] = 1;
-    port_page_1[3] = MPI_CONFIG_PAGEATTR_CHANGEABLE |
+    port_page_1[3] = MPI_CONFIG_PAGEATTR_PERSISTENT |
                      MPI_CONFIG_PAGETYPE_SCSI_PORT;
     stl_le_p(port_page_1 + 4, 0x00400006);
     stl_le_p(port_page_1 + 8, 0x50607080);
@@ -761,6 +827,15 @@ static void mptspi_test_config_savevm(void *obj, void *data,
                           page_address, sizeof(port_page_1), true);
     g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==,
                     MPI_IOCSTATUS_SUCCESS);
+
+    stl_le_p(port_page_1 + 4, 0x00200005);
+    stl_le_p(port_page_1 + 8, 0x70abcdef);
+    qtest_memwrite(mpt->dev.bus->qts, page_address, port_page_1,
+                  sizeof(port_page_1));
+    reply = mptspi_config(mpt, MPI_CONFIG_ACTION_PAGE_WRITE_NVRAM,
+                          MPI_CONFIG_PAGETYPE_SCSI_PORT, 1, 0,
+                          page_address, sizeof(port_page_1), true);
+    g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==, MPI_IOCSTATUS_SUCCESS);
 
     device_page_1[0] = 0x05;
     device_page_1[1] = sizeof(device_page_1) / 4;
@@ -782,6 +857,10 @@ static void mptspi_test_config_savevm(void *obj, void *data,
     g_clear_pointer(&response, g_free);
 
     reply = mptspi_config(mpt, MPI_CONFIG_ACTION_PAGE_DEFAULT,
+                          MPI_CONFIG_PAGETYPE_SCSI_PORT, 2, 0,
+                          0, 0, false);
+    g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==, MPI_IOCSTATUS_SUCCESS);
+    reply = mptspi_config(mpt, MPI_CONFIG_ACTION_PAGE_DEFAULT,
                           MPI_CONFIG_PAGETYPE_IOC, 1, 0, 0, 0, false);
     g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==,
                     MPI_IOCSTATUS_SUCCESS);
@@ -796,9 +875,31 @@ static void mptspi_test_config_savevm(void *obj, void *data,
     g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==,
                     MPI_IOCSTATUS_SUCCESS);
 
+    stw_le_p(port_page_2 + 14, 0x0003);
+    qtest_memwrite(mpt->dev.bus->qts, page_address, port_page_2,
+                  sizeof(port_page_2));
+    reply = mptspi_config(mpt, MPI_CONFIG_ACTION_PAGE_WRITE_NVRAM,
+                          MPI_CONFIG_PAGETYPE_SCSI_PORT, 2, 0,
+                          page_address, sizeof(port_page_2), true);
+    g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==, MPI_IOCSTATUS_SUCCESS);
+    stl_le_p(port_page_1 + 4, 0x00100004);
+    qtest_memwrite(mpt->dev.bus->qts, page_address, port_page_1,
+                  sizeof(port_page_1));
+    reply = mptspi_config(mpt, MPI_CONFIG_ACTION_PAGE_WRITE_NVRAM,
+                          MPI_CONFIG_PAGETYPE_SCSI_PORT, 1, 0,
+                          page_address, sizeof(port_page_1), true);
+    g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==, MPI_IOCSTATUS_SUCCESS);
+
     response = qtest_hmp(mpt->dev.bus->qts, "loadvm config-pages");
     g_assert_cmpstr(response, ==, "");
 
+    reply = mptspi_config(mpt, MPI_CONFIG_ACTION_PAGE_READ_CURRENT,
+                          MPI_CONFIG_PAGETYPE_SCSI_PORT, 2, 0,
+                          page_address, sizeof(port_page_2), false);
+    g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==, MPI_IOCSTATUS_SUCCESS);
+    qtest_memread(mpt->dev.bus->qts, page_address, port_page_2,
+                  sizeof(port_page_2));
+    g_assert_cmphex(lduw_le_p(port_page_2 + 14), ==, 0x0007);
     memset(ioc_page_1, 0, sizeof(ioc_page_1));
     reply = mptspi_config(mpt, MPI_CONFIG_ACTION_PAGE_READ_CURRENT,
                           MPI_CONFIG_PAGETYPE_IOC, 1, 0, page_address,
@@ -833,6 +934,44 @@ static void mptspi_test_config_savevm(void *obj, void *data,
                   sizeof(device_page_1));
     g_assert_cmphex(ldl_le_p(device_page_1 + 4), ==, 0x20ff0807);
     g_assert_cmphex(ldl_le_p(device_page_1 + 12), ==, 0x08);
+
+    reply = mptspi_config(mpt, MPI_CONFIG_ACTION_PAGE_READ_NVRAM,
+                          MPI_CONFIG_PAGETYPE_SCSI_PORT, 1, 0,
+                          page_address, sizeof(port_page_1), false);
+    g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==, MPI_IOCSTATUS_SUCCESS);
+    qtest_memread(mpt->dev.bus->qts, page_address, port_page_1,
+                 sizeof(port_page_1));
+    g_assert_cmphex(ldl_le_p(port_page_1 + 4), ==, 0x00200005);
+    g_assert_cmphex(ldl_le_p(port_page_1 + 8), ==, 0x70abcdef);
+    reply = mptspi_config(mpt, MPI_CONFIG_ACTION_PAGE_READ_NVRAM,
+                          MPI_CONFIG_PAGETYPE_SCSI_PORT, 2, 0,
+                          page_address, sizeof(port_page_2), false);
+    g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==, MPI_IOCSTATUS_SUCCESS);
+    qtest_memread(mpt->dev.bus->qts, page_address, port_page_2,
+                 sizeof(port_page_2));
+    g_assert_cmphex(lduw_le_p(port_page_2 + 14), ==, 0x0005);
+
+    for (unsigned int i = 0; i < ARRAY_SIZE(diag_keys); i++) {
+        qpci_io_writel(&mpt->dev, mpt->bar, MPI_WRITE_SEQUENCE_OFFSET,
+                      diag_keys[i]);
+    }
+    qpci_io_writel(&mpt->dev, mpt->bar, MPI_DIAGNOSTIC_OFFSET,
+                  MPI_DIAG_RESET_ADAPTER);
+    reply = mptspi_config(mpt, MPI_CONFIG_ACTION_PAGE_READ_CURRENT,
+                          MPI_CONFIG_PAGETYPE_SCSI_PORT, 1, 0,
+                          page_address, sizeof(port_page_1), false);
+    g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==, MPI_IOCSTATUS_SUCCESS);
+    qtest_memread(mpt->dev.bus->qts, page_address, port_page_1,
+                 sizeof(port_page_1));
+    g_assert_cmphex(ldl_le_p(port_page_1 + 4), ==, 0x00200005);
+    g_assert_cmphex(ldl_le_p(port_page_1 + 8), ==, 0x70abcdef);
+    reply = mptspi_config(mpt, MPI_CONFIG_ACTION_PAGE_READ_CURRENT,
+                          MPI_CONFIG_PAGETYPE_SCSI_PORT, 2, 0,
+                          page_address, sizeof(port_page_2), false);
+    g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==, MPI_IOCSTATUS_SUCCESS);
+    qtest_memread(mpt->dev.bus->qts, page_address, port_page_2,
+                 sizeof(port_page_2));
+    g_assert_cmphex(lduw_le_p(port_page_2 + 14), ==, 0x0005);
 
     guest_free(alloc, page_address);
 }

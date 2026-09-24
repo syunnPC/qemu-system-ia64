@@ -1220,7 +1220,8 @@ static void hp_i2000_assert_descriptor(QTestState *qts, uint64_t ram_size,
     g_assert_cmphex(ia64_platform_firmware_compat_flags(
                         le32_to_cpu(descriptor->PlatformId),
                         le32_to_cpu(descriptor->Flags)), ==,
-                    IA64_FW_COMPAT_ALL_MASK);
+                    IA64_FW_COMPAT_ALL_MASK &
+                    ~IA64_FW_COMPAT_SPARSE_SAL_MDT);
     g_assert_cmpuint(hp_i2000_checksum(storage, expected_size), ==, 0);
 
     ranges = (const IA64PlatformRamRange *)(

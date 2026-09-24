@@ -2346,7 +2346,8 @@ static bool hp_zx6000_install_descriptor(HPZX6000MachineState *s,
             IA64_PLATFORM_FLAG_NVRAM_PERSISTENT);
     }
 
-    if (s->profile->platform_id == IA64_PLATFORM_ID_HP_ZX2000) {
+    if (s->profile->platform_id == IA64_PLATFORM_ID_HP_ZX2000 ||
+        s->profile->platform_id == IA64_PLATFORM_ID_HP_ZX6000) {
         header.UartCount = cpu_to_le32(HP_ZX6000_PDH_UART_COUNT);
         for (root = 0; root < HP_ZX6000_PDH_UART_COUNT; root++) {
             header.Uart[root].Base = cpu_to_le64(

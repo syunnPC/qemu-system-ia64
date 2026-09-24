@@ -16,8 +16,8 @@ DefinitionBlock ("", "DSDT", 2, "QEMU  ", "I2K4DSDT", 0x00000001)
     {
         Device (PCI0)
         {
-            Name (_HID, "PNP0A03")
-            Name (_CID, "PNP0A03")
+            Name (_HID, EisaId ("PNP0A03"))
+            Name (_CID, EisaId ("PNP0A03"))
             Name (_SEG, Zero)
             Name (_BBN, Zero)
             Name (_UID, Zero)
@@ -26,16 +26,16 @@ DefinitionBlock ("", "DSDT", 2, "QEMU  ", "I2K4DSDT", 0x00000001)
             {
                 WordBusNumber (ResourceProducer, MinFixed, MaxFixed,
                     PosDecode, 0, 0, 0, 0, 1)
-                QWordIO (ResourceProducer, MinFixed, MaxFixed, PosDecode,
+                WordIO (ResourceProducer, MinFixed, MaxFixed, PosDecode,
                     EntireRange, 0, 0, 0x000001CD, 0, 0x000001CE,
                     , , , TypeStatic, DenseTranslation)
-                QWordIO (ResourceProducer, MinFixed, MaxFixed, PosDecode,
+                WordIO (ResourceProducer, MinFixed, MaxFixed, PosDecode,
                     EntireRange, 0, 0x000001D2, 0x000003AF, 0, 0x000001DE,
                     , , , TypeStatic, DenseTranslation)
-                QWordIO (ResourceProducer, MinFixed, MaxFixed, PosDecode,
+                WordIO (ResourceProducer, MinFixed, MaxFixed, PosDecode,
                     EntireRange, 0, 0x000003E0, 0x00003FFF, 0, 0x00003C20,
                     , , , TypeStatic, DenseTranslation)
-                QWordMemory (ResourceProducer, PosDecode, MinFixed,
+                DWordMemory (ResourceProducer, PosDecode, MinFixed,
                     MaxFixed, NonCacheable, ReadWrite,
                     0, 0x90000000, 0x9FFFFFFF, 0, 0x10000000)
             })
@@ -97,8 +97,8 @@ DefinitionBlock ("", "DSDT", 2, "QEMU  ", "I2K4DSDT", 0x00000001)
 
         Device (PCI1)
         {
-            Name (_HID, "PNP0A03")
-            Name (_CID, "PNP0A03")
+            Name (_HID, EisaId ("PNP0A03"))
+            Name (_CID, EisaId ("PNP0A03"))
             Name (_SEG, Zero)
             Name (_BBN, One)
             Name (_UID, One)
@@ -107,10 +107,10 @@ DefinitionBlock ("", "DSDT", 2, "QEMU  ", "I2K4DSDT", 0x00000001)
             {
                 WordBusNumber (ResourceProducer, MinFixed, MaxFixed,
                     PosDecode, 0, 1, 1, 0, 1)
-                QWordIO (ResourceProducer, MinFixed, MaxFixed, PosDecode,
+                WordIO (ResourceProducer, MinFixed, MaxFixed, PosDecode,
                     EntireRange, 0, 0x00004000, 0x00007FFF, 0, 0x00004000,
                     , , , TypeStatic, DenseTranslation)
-                QWordMemory (ResourceProducer, PosDecode, MinFixed,
+                DWordMemory (ResourceProducer, PosDecode, MinFixed,
                     MaxFixed, NonCacheable, ReadWrite,
                     0, 0xA0000000, 0xAFFFFFFF, 0, 0x10000000)
             })
@@ -122,8 +122,8 @@ DefinitionBlock ("", "DSDT", 2, "QEMU  ", "I2K4DSDT", 0x00000001)
 
         Device (PCI2)
         {
-            Name (_HID, "PNP0A03")
-            Name (_CID, "PNP0A03")
+            Name (_HID, EisaId ("PNP0A03"))
+            Name (_CID, EisaId ("PNP0A03"))
             Name (_SEG, Zero)
             Name (_BBN, 0x02)
             Name (_UID, 0x02)
@@ -132,10 +132,10 @@ DefinitionBlock ("", "DSDT", 2, "QEMU  ", "I2K4DSDT", 0x00000001)
             {
                 WordBusNumber (ResourceProducer, MinFixed, MaxFixed,
                     PosDecode, 0, 2, 2, 0, 1)
-                QWordIO (ResourceProducer, MinFixed, MaxFixed, PosDecode,
+                WordIO (ResourceProducer, MinFixed, MaxFixed, PosDecode,
                     EntireRange, 0, 0x00008000, 0x0000BFFF, 0, 0x00004000,
                     , , , TypeStatic, DenseTranslation)
-                QWordMemory (ResourceProducer, PosDecode, MinFixed,
+                DWordMemory (ResourceProducer, PosDecode, MinFixed,
                     MaxFixed, NonCacheable, ReadWrite,
                     0, 0xB0000000, 0xBFFFFFFF, 0, 0x10000000)
             })
@@ -144,8 +144,8 @@ DefinitionBlock ("", "DSDT", 2, "QEMU  ", "I2K4DSDT", 0x00000001)
 
         Device (PCI3)
         {
-            Name (_HID, "PNP0A03")
-            Name (_CID, "PNP0A03")
+            Name (_HID, EisaId ("PNP0A03"))
+            Name (_CID, EisaId ("PNP0A03"))
             Name (_SEG, Zero)
             Name (_BBN, 0x03)
             Name (_UID, 0x03)
@@ -154,19 +154,19 @@ DefinitionBlock ("", "DSDT", 2, "QEMU  ", "I2K4DSDT", 0x00000001)
             {
                 WordBusNumber (ResourceProducer, MinFixed, MaxFixed,
                     PosDecode, 0, 3, 3, 0, 1)
-                QWordIO (ResourceProducer, MinFixed, MaxFixed, PosDecode,
+                WordIO (ResourceProducer, MinFixed, MaxFixed, PosDecode,
                     EntireRange, 0, 0x0000C000, 0x0000FFFF, 0, 0x00004000,
                     , , , TypeStatic, DenseTranslation)
-                QWordIO (ResourceProducer, MinFixed, MaxFixed, PosDecode,
+                WordIO (ResourceProducer, MinFixed, MaxFixed, PosDecode,
                     EntireRange, 0, 0x000001CE, 0x000001D1, 0, 0x00000004,
                     , , , TypeStatic, DenseTranslation)
-                QWordIO (ResourceProducer, MinFixed, MaxFixed, PosDecode,
+                WordIO (ResourceProducer, MinFixed, MaxFixed, PosDecode,
                     EntireRange, 0, 0x000003B0, 0x000003DF, 0, 0x00000030,
                     , , , TypeStatic, DenseTranslation)
                 DWordMemory (ResourceProducer, PosDecode, MinFixed,
                     MaxFixed, NonCacheable, ReadWrite,
                     0, 0x000A0000, 0x000FFFFF, 0, 0x00060000)
-                QWordMemory (ResourceProducer, PosDecode, MinFixed,
+                DWordMemory (ResourceProducer, PosDecode, MinFixed,
                     MaxFixed, NonCacheable, ReadWrite,
                     0, 0xE0000000, 0xEFFFFFFF, 0, 0x10000000)
             })

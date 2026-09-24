@@ -17,6 +17,7 @@ from ia64.protocol import wait_for_suite
 SMOKE_CASES = {
     "entry", "system-table", "loaded-image", "device-path",
     "root-device-path", "console-output", "console-variables",
+    "low-memory-allocation",
 }
 
 GRAPHICS_CASES = {
@@ -100,14 +101,20 @@ class HPI2000Boot(QemuSystemTest):
         self.assertIn(
             b"ResetSystem:          enabled (shutdown unavailable)", output
         )
-        self.assertIn(b"Firmware flags:       0x000000000000001F", output)
+        self.assertIn(b"Firmware flags:       0x000000000000001B", output)
         self.assertIn(b"GOP/UGA VGA text console ready", output)
         self.assertIn(b"Graphics Output:      GOP/UGA VGA BGRx", output)
         self.assertTrue(vm.is_running(), "QEMU exited during firmware boot")
 
     def test_scsi_disk_boot(self):
+        self.run_scsi_disk_boot("none")
+
+    def test_scsi_disk_boot_with_graphics(self):
+        self.run_scsi_disk_boot("quadro2")
+
+    def run_scsi_disk_boot(self, vga):
         self.require_accelerator("tcg")
-        path = self.media_path("isp12160.img")
+        path = self.media_path(f"isp12160-{vga}.img")
         make_fat_disk(path, app_path("smoke"))
 
         vm = self.get_vm()
@@ -120,6 +127,7 @@ class HPI2000Boot(QemuSystemTest):
             "-display", "none",
             "-net", "none",
             "-drive", f"file={path},format=raw",
+            "-vga", vga,
         )
         vm.launch()
 

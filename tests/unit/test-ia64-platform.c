@@ -1826,7 +1826,8 @@ static void test_i2000_profile_valid(void)
     g_assert_cmphex(ia64_platform_firmware_compat_flags(
                         IA64_PLATFORM_ID_HP_I2000,
                         le32_to_cpu(descriptor->Flags)), ==,
-                    IA64_FW_COMPAT_ALL_MASK);
+                    IA64_FW_COMPAT_ALL_MASK &
+                    ~IA64_FW_COMPAT_SPARSE_SAL_MDT);
     g_assert_cmphex(ia64_platform_firmware_compat_flags(
                         IA64_PLATFORM_ID_HP_ZX6000,
                         (le32_to_cpu(descriptor->Flags) &

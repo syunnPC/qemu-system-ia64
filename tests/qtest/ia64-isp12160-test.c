@@ -1772,6 +1772,7 @@ static void test_scsi_response_after_queue_snapshot(void)
     unsigned int i;
 
     scsi_prepare_queues(qts, 0, 0);
+    qtest_qmp_assert_success(qts, "{'execute':'cont'}");
     scsi_build_no_data(request, 0x11223344, 0, 15, 0);
     qtest_memwrite(qts, SCSI_REQUEST_DMA, request, sizeof(request));
     mailbox_mmio_writew(qts, ISP12160_REG_MAILBOX0 + 8, 1);
@@ -1800,6 +1801,19 @@ static void test_scsi_response_after_queue_snapshot(void)
 
     mailbox_mmio_writew(qts, ISP12160_REG_HOST_COMMAND,
                         ISP12160_HC_CLEAR_RISC_INT);
+    for (i = 0; i < 10; i++) {
+        g_assert_cmphex(mailbox_mmio_readw(qts, ISP12160_REG_ISTATUS) &
+                        ISP12160_ISTATUS_RISC_INT, ==, 0);
+        mailbox_mmio_writew(qts, ISP12160_REG_HOST_COMMAND,
+                            ISP12160_HC_CLEAR_RISC_INT);
+    }
+    mailbox_mmio_writew(qts, ISP12160_REG_SEMAPHORE,
+                        ISP12160_SEMAPHORE_LOCK);
+    qtest_clock_step(qts, 1000000);
+    g_assert_cmphex(mailbox_mmio_readw(qts, ISP12160_REG_ISTATUS) &
+                    ISP12160_ISTATUS_RISC_INT, ==, 0);
+    mailbox_mmio_writew(qts, ISP12160_REG_SEMAPHORE, 0);
+    qtest_clock_step(qts, 1000000);
     g_assert_cmphex(mailbox_mmio_readw(qts, ISP12160_REG_ISTATUS) &
                     ISP12160_ISTATUS_RISC_INT, ==,
                     ISP12160_ISTATUS_RISC_INT);
@@ -1809,6 +1823,7 @@ static void test_scsi_response_after_queue_snapshot(void)
     mailbox_mmio_writew(qts, ISP12160_REG_MAILBOX0 + 10, 2);
     mailbox_mmio_writew(qts, ISP12160_REG_HOST_COMMAND,
                         ISP12160_HC_CLEAR_RISC_INT);
+    qtest_clock_step(qts, 1000000);
     g_assert_cmphex(mailbox_mmio_readw(qts, ISP12160_REG_ISTATUS) &
                     ISP12160_ISTATUS_RISC_INT, ==, 0);
 
@@ -1829,9 +1844,12 @@ static void test_scsi_response_after_queue_snapshot(void)
                     ISP12160_ISTATUS_RISC_INT, ==,
                     ISP12160_ISTATUS_RISC_INT);
     mailbox_mmio_writew(qts, ISP12160_REG_HOST_COMMAND,
+                        ISP12160_HC_CLEAR_RISC_INT);
+    mailbox_mmio_writew(qts, ISP12160_REG_HOST_COMMAND,
                         ISP12160_HC_RESET_RISC);
     mailbox_mmio_writew(qts, ISP12160_REG_HOST_COMMAND,
                         ISP12160_HC_CLEAR_RISC_INT);
+    qtest_clock_step(qts, 1000000);
     g_assert_cmphex(mailbox_mmio_readw(qts, ISP12160_REG_ISTATUS) &
                     ISP12160_ISTATUS_RISC_INT, ==, 0);
     qtest_quit(qts);
@@ -1857,6 +1875,7 @@ static void test_scsi_response_irq_migration(void)
 
     qts = scsi_start();
     scsi_prepare_queues(qts, 0, 0);
+    qtest_qmp_assert_success(qts, "{'execute':'cont'}");
     scsi_build_no_data(request, 0x52495251, 0, 15, 0);
     qtest_memwrite(qts, SCSI_REQUEST_DMA, request, sizeof(request));
     mailbox_mmio_writew(qts, ISP12160_REG_MAILBOX0 + 8, 1);
@@ -1869,6 +1888,10 @@ static void test_scsi_response_irq_migration(void)
     }
     g_assert_cmpuint(i, <, MAILBOX_BH_POLL_LIMIT);
 
+    mailbox_mmio_writew(qts, ISP12160_REG_HOST_COMMAND,
+                        ISP12160_HC_CLEAR_RISC_INT);
+    g_assert_cmphex(mailbox_mmio_readw(qts, ISP12160_REG_ISTATUS) &
+                    ISP12160_ISTATUS_RISC_INT, ==, 0);
     qtest_qmp_assert_success(
         qts, "{'execute':'migrate','arguments':{'uri':%s}}", uri);
     mailbox_wait_for_migration_complete(qts);
@@ -1880,16 +1903,21 @@ static void test_scsi_response_irq_migration(void)
              "{'uri':%s,'exit-on-error':false}}", uri);
     mailbox_wait_for_migration_complete(qts);
 
-    mailbox_mmio_writew(qts, ISP12160_REG_HOST_COMMAND,
-                        ISP12160_HC_CLEAR_RISC_INT);
+    qtest_qmp_assert_success(qts, "{'execute':'cont'}");
+    g_assert_cmphex(mailbox_mmio_readw(qts, ISP12160_REG_ISTATUS) &
+                    ISP12160_ISTATUS_RISC_INT, ==, 0);
+    qtest_clock_step(qts, 1000000);
     g_assert_cmphex(mailbox_mmio_readw(qts, ISP12160_REG_ISTATUS) &
                     ISP12160_ISTATUS_RISC_INT, ==,
                     ISP12160_ISTATUS_RISC_INT);
+    mailbox_mmio_writew(qts, ISP12160_REG_HOST_COMMAND,
+                        ISP12160_HC_CLEAR_RISC_INT);
     g_assert_cmphex(mailbox_mmio_readw(qts, ISP12160_REG_MAILBOX0 + 10), ==,
                     1);
     mailbox_mmio_writew(qts, ISP12160_REG_MAILBOX0 + 10, 1);
     mailbox_mmio_writew(qts, ISP12160_REG_HOST_COMMAND,
                         ISP12160_HC_CLEAR_RISC_INT);
+    qtest_clock_step(qts, 1000000);
     g_assert_cmphex(mailbox_mmio_readw(qts, ISP12160_REG_ISTATUS) &
                     ISP12160_ISTATUS_RISC_INT, ==, 0);
     qtest_quit(qts);
@@ -2722,6 +2750,107 @@ static void test_scsi_task_ordering(void)
     qtest_quit(qts);
 }
 
+static void test_scsi_stop_start_queue(gconstpointer opaque)
+{
+    bool migrate = GPOINTER_TO_INT(opaque);
+    const char *options =
+        "-blockdev driver=null-co,size=1048576,node-name=disk0 "
+        "-blockdev driver=null-co,size=1048576,node-name=disk1 "
+        "-blockdev driver=null-co,size=1048576,node-name=disk2 "
+        "-device scsi-hd,drive=disk0,bus=isp12160-scsi.0,"
+        "channel=0,scsi-id=3,lun=0 "
+        "-device scsi-hd,drive=disk1,bus=isp12160-scsi.0,"
+        "channel=0,scsi-id=3,lun=31 "
+        "-device scsi-hd,drive=disk2,bus=isp12160-scsi.0,"
+        "channel=1,scsi-id=3,lun=0";
+    QTestState *qts = scsi_start_with_options(options);
+    uint8_t commands[3][ISP12160_QUEUE_ENTRY_BYTES];
+    uint16_t mb[MAILBOX_COUNT] = { ISP12160_MBC_STOP_QUEUE, 0x0300 };
+
+    mailbox_program_bars(qts, true);
+    g_assert_cmphex(mailbox_command(qts, mb), ==, ISP12160_MBS_COMMAND_ERR);
+    mailbox_ack_completion(qts);
+    scsi_prepare_queues(qts, 0, 0);
+    mb[1] = 0x0320;
+    g_assert_cmphex(mailbox_command(qts, mb), ==,
+                    ISP12160_MBS_COMMAND_PARAM_ERR);
+    mailbox_ack_completion(qts);
+    mb[1] = 0x0300;
+    g_assert_cmphex(mailbox_command(qts, mb), ==,
+                    ISP12160_MBS_COMMAND_COMPLETE);
+    mailbox_ack_completion(qts);
+
+    scsi_build_no_data(commands[0], 1, 0, 3, 0);
+    scsi_build_no_data(commands[1], 2, 0, 3, 31);
+    scsi_build_no_data(commands[2], 3, 1, 3, 0);
+    qtest_memwrite(qts, SCSI_REQUEST_DMA, commands, sizeof(commands));
+    mailbox_mmio_writew(qts, ISP12160_REG_MAILBOX0 + 8, 3);
+    scsi_wait_index_equals(qts, 4, 3);
+    scsi_wait_index_equals(qts, 5, 2);
+    scsi_assert_completion(qts, 0, 2, ISP12160_IOCB_CS_COMPLETE);
+    scsi_assert_completion(qts, 1, 3, ISP12160_IOCB_CS_COMPLETE);
+    mailbox_mmio_writew(qts, ISP12160_REG_MAILBOX0 + 10, 2);
+    mailbox_ack_completion(qts);
+
+    if (migrate) {
+        char *path = g_strdup_printf("%s/isp12160-stopped.XXXXXX",
+                                     g_get_tmp_dir());
+        g_autofree char *uri = NULL;
+        g_autofree char *incoming = g_strdup_printf("%s -incoming defer",
+                                                   options);
+        int fd = g_mkstemp(path);
+
+        g_assert_cmpint(fd, >=, 0);
+        close(fd);
+        g_test_queue_destroy(mailbox_migration_file_cleanup, path);
+        uri = g_strdup_printf("file:%s", path);
+        qtest_qmp_assert_success(
+            qts, "{'execute':'migrate','arguments':{'uri':%s}}", uri);
+        mailbox_wait_for_migration_complete(qts);
+        qtest_quit(qts);
+        qts = scsi_start_with_options(incoming);
+        qtest_qmp_assert_success(
+            qts, "{'execute':'migrate-incoming','arguments':"
+                 "{'uri':%s,'exit-on-error':false}}", uri);
+        mailbox_wait_for_migration_complete(qts);
+    }
+
+    /* Starting a different channel must leave the stopped request pending. */
+    mb[0] = ISP12160_MBC_START_QUEUE;
+    mb[1] = 0x8300;
+    g_assert_cmphex(mailbox_command(qts, mb), ==,
+                    ISP12160_MBS_COMMAND_COMPLETE);
+    mailbox_ack_completion(qts);
+    for (unsigned i = 0; i < 100; i++) {
+        g_assert_cmpuint(mailbox_mmio_readw(qts, ISP12160_REG_MAILBOX0 + 10),
+                         ==, 2);
+    }
+    mb[1] = 0x0300;
+    g_assert_cmphex(mailbox_command(qts, mb), ==,
+                    ISP12160_MBS_COMMAND_COMPLETE);
+    mailbox_mmio_writew(qts, ISP12160_REG_SEMAPHORE, 0);
+    mailbox_mmio_writew(qts, ISP12160_REG_HOST_COMMAND,
+                        ISP12160_HC_CLEAR_RISC_INT);
+    scsi_wait_index_equals(qts, 5, 3);
+    scsi_assert_completion(qts, 2, 1, ISP12160_IOCB_CS_COMPLETE);
+    mailbox_mmio_writew(qts, ISP12160_REG_MAILBOX0 + 10, 3);
+    mailbox_ack_completion(qts);
+
+    mb[0] = ISP12160_MBC_STOP_QUEUE;
+    g_assert_cmphex(mailbox_command(qts, mb), ==,
+                    ISP12160_MBS_COMMAND_COMPLETE);
+    mailbox_ack_completion(qts);
+    mailbox_mmio_writew(qts, ISP12160_REG_HOST_COMMAND,
+                        ISP12160_HC_RESET_RISC);
+    scsi_prepare_queues(qts, 0, 0);
+    scsi_build_no_data(commands[0], 4, 0, 3, 0);
+    qtest_memwrite(qts, SCSI_REQUEST_DMA, commands[0], sizeof(commands[0]));
+    mailbox_mmio_writew(qts, ISP12160_REG_MAILBOX0 + 8, 1);
+    scsi_wait_index_equals(qts, 5, 1);
+    scsi_assert_completion(qts, 0, 4, ISP12160_IOCB_CS_COMPLETE);
+    qtest_quit(qts);
+}
+
 static void test_scsi_queue_timeout(void)
 {
     QTestState *qts = scsi_start_with_options(
@@ -3270,6 +3399,10 @@ int main(int argc, char **argv)
 
     qtest_add_func("isp12160-scsi/task-ordering", test_scsi_task_ordering);
     qtest_add_func("isp12160-scsi/queue-timeout", test_scsi_queue_timeout);
+    qtest_add_data_func("isp12160-scsi/stop-start-queue",
+                        GINT_TO_POINTER(false), test_scsi_stop_start_queue);
+    qtest_add_data_func("isp12160-scsi/stopped-queue-migration",
+                        GINT_TO_POINTER(true), test_scsi_stop_start_queue);
     qtest_add_func("isp12160-scsi/deferred-request-sense",
                    test_scsi_deferred_request_sense);
     qtest_add_func("isp12160-scsi/autosense-controls",

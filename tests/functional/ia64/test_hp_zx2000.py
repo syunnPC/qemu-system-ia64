@@ -19,6 +19,7 @@ from ia64.protocol import wait_for_suite
 SMOKE_CASES = {
     "entry", "system-table", "loaded-image", "device-path",
     "root-device-path", "console-output", "console-variables",
+    "low-memory-allocation",
 }
 
 
@@ -123,9 +124,7 @@ class HPZx2000Boot(QemuSystemTest):
                           result.raw_console)
         self.assertIsNotNone(match, "EFI app did not report its boot path")
         path = bytes.fromhex(match[1])
-        # Check the expanded ACPI root, PCI IDE controller and ATA unit.
-        prefix = (struct.pack("<BBHIII3x", 2, 2, 19, 0x000222F0, 0x500,
-                              0x0A0341D0) +
+        prefix = (struct.pack("<BBHII", 2, 1, 12, 0x000222F0, 0x500) +
                   struct.pack("<BBHBB", 1, 1, 6, 0, 2) +
                   struct.pack("<BBHBBH", 3, 1, 8, 0, unit, 0))
         self.assertEqual(path[:len(prefix)], prefix)

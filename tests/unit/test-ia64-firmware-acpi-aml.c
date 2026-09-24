@@ -339,6 +339,57 @@ static BOOLEAN prt_entry(const UINT8 *aml, UINTN aml_size,
     return 1;
 }
 
+static int test_i2000_root_resources(void)
+{
+    static const UINTN counts[] = { 5, 3, 3, 6 };
+    static const AddressSpace windows[][6] = {
+        {
+            { 2, 2, 0, 0, 0, 0, 1 },
+            { 2, 1, 3, 0, 0x1cd, 0, 0x1ce },
+            { 2, 1, 3, 0x1d2, 0x3af, 0, 0x1de },
+            { 2, 1, 3, 0x3e0, 0x3fff, 0, 0x3c20 },
+            { 4, 0, 1, 0x90000000, 0x9fffffff, 0, 0x10000000 },
+        },
+        {
+            { 2, 2, 0, 1, 1, 0, 1 },
+            { 2, 1, 3, 0x4000, 0x7fff, 0, 0x4000 },
+            { 4, 0, 1, 0xa0000000, 0xafffffff, 0, 0x10000000 },
+        },
+        {
+            { 2, 2, 0, 2, 2, 0, 1 },
+            { 2, 1, 3, 0x8000, 0xbfff, 0, 0x4000 },
+            { 4, 0, 1, 0xb0000000, 0xbfffffff, 0, 0x10000000 },
+        },
+        {
+            { 2, 2, 0, 3, 3, 0, 1 },
+            { 2, 1, 3, 0xc000, 0xffff, 0, 0x4000 },
+            { 2, 1, 3, 0x1ce, 0x1d1, 0, 4 },
+            { 2, 1, 3, 0x3b0, 0x3df, 0, 0x30 },
+            { 4, 0, 1, 0xa0000, 0xfffff, 0, 0x60000 },
+            { 4, 0, 1, 0xe0000000, 0xefffffff, 0, 0x10000000 },
+        },
+    };
+    const UINT8 *aml = mI2000DsdtAmlTemplate;
+    UINTN length = sizeof(mI2000DsdtAmlTemplate);
+    UINTN offset = 0;
+    UINTN root;
+
+    for (root = 0; root < FW_ARRAY_SIZE(counts); root++) {
+        UINTN data_offset;
+        UINTN data_size;
+        UINT64 bus;
+
+        offset = find_name(aml, length, "_BBN", offset);
+        CHECK(aml_integer(aml, length, &offset, &bus) && bus == root);
+        offset = find_name(aml, length, "_CRS", offset);
+        CHECK(resource_template(aml, length, offset, &data_offset, &data_size));
+        CHECK(address_spaces(aml + data_offset, data_size,
+                             windows[root], counts[root]));
+        offset = data_offset + data_size;
+    }
+    return 0;
+}
+
 static int test_i2000_prt_routes(void)
 {
     static const UINT8 route_counts[] = { 3, 1, 0, 1 };
@@ -1368,7 +1419,7 @@ static int test_failure_paths(void)
 int main(void)
 {
     return test_ssdt_legacy_device_parent() || test_named_objects() ||
-        test_i2000_prt_routes() ||
+        test_i2000_root_resources() || test_i2000_prt_routes() ||
         test_pkg_length_compaction() ||
         test_large_pkg_lengths() || test_resource_descriptors() ||
         test_zx6000_namespace(ZX6000_LEGACY_IO_BASE) ||

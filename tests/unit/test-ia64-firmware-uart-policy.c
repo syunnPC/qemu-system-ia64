@@ -160,8 +160,7 @@ static BOOLEAN byte_sequence_present(const UINT8 *haystack, UINTN haystack_size,
 static int test_i2000_dsdt_contract(void)
 {
     static const UINT8 pci_hid[] = {
-        0x08, '_', 'H', 'I', 'D', 0x0d,
-        'P', 'N', 'P', '0', 'A', '0', '3', 0x00,
+        0x08, '_', 'H', 'I', 'D', 0x0c, 0x41, 0xd0, 0x0a, 0x03,
     };
     static const UINT8 pci0[] = { 'P', 'C', 'I', '0' };
     static const UINT8 pci1[] = { 'P', 'C', 'I', '1' };

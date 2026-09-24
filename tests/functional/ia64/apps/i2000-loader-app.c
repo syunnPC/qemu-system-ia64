@@ -27,6 +27,8 @@
 #define SAL_MEMORY_SUPPORTS_WB        (1U << 0)
 #define SAL_MEMORY_SUPPORTS_UC        (1U << 1)
 #define SAL_MEMORY_TYPE_REGULAR       0U
+#define SAL_MEMORY_TYPE_SAPIC         2U
+#define SAL_MEMORY_TYPE_IO_PORT       3U
 #define SAL_MEMORY_TYPE_FIRMWARE      4U
 #define SAL_MEMORY_USAGE_UNSPECIFIED  0U
 #define SAL_MEMORY_USAGE_PAL_CODE     1U
@@ -37,9 +39,6 @@
 #define SAL_PCI_CONFIG_READ           0x01000010ULL
 #define SAL_STATE_INFO_MAX_SIZE       512U
 #define SAL_SUCCESS                   0ULL
-#define SAL_TABLE_LENGTH              0x190U
-#define SAL_TABLE_ENTRY_COUNT         10U
-#define SAL_MEMORY_DESCRIPTOR_COUNT   6U
 
 #define ACPI_SDT_HEADER_SIZE          36U
 #define ACPI_MADT_HEADER_SIZE         44U
@@ -111,6 +110,7 @@ typedef struct {
     const TEST_SAL_HEADER *Header;
     const TEST_SAL_ENTRYPOINT *Entrypoint;
     const TEST_SAL_MEMORY_DESCRIPTOR *Memory;
+    UINTN MemoryCount;
 } TEST_SAL_TABLE;
 
 static UINT8 loaded_image_guid[16] = IA64_GUID_LOADED_IMAGE;
@@ -583,9 +583,10 @@ static BOOLEAN sal_table_init(EFI_SYSTEM_TABLE *SystemTable,
     const UINT8 *trailer;
 
     if (header == NULL || header->Signature != 0x5f545353U ||
-        header->Length != SAL_TABLE_LENGTH ||
+        header->Length < 240U || header->Length > 0x4000U ||
         header->Revision < 0x0300U ||
-        header->EntryCount != SAL_TABLE_ENTRY_COUNT ||
+        header->EntryCount < 5U ||
+        header->Length != 208U + (header->EntryCount - 4U) * 32U ||
         ia64_checksum8(header, header->Length) != 0) {
         return 0;
     }
@@ -594,69 +595,96 @@ static BOOLEAN sal_table_init(EFI_SYSTEM_TABLE *SystemTable,
     Table->Entrypoint = (const TEST_SAL_ENTRYPOINT *)entries;
     Table->Memory = (const TEST_SAL_MEMORY_DESCRIPTOR *)(
         entries + sizeof(*Table->Entrypoint));
-    trailer = (const UINT8 *)(Table->Memory + SAL_MEMORY_DESCRIPTOR_COUNT);
+    Table->MemoryCount = header->EntryCount - 4U;
+    trailer = (const UINT8 *)(Table->Memory + Table->MemoryCount);
     return Table->Entrypoint->Type == SAL_DESCRIPTOR_ENTRYPOINT &&
            trailer[0] == SAL_DESCRIPTOR_FEATURES &&
            trailer[16] == SAL_DESCRIPTOR_TR &&
            trailer[48] == SAL_DESCRIPTOR_AP_WAKE;
 }
 
+static const TEST_SAL_MEMORY_DESCRIPTOR *sal_find_usage(
+    const TEST_SAL_TABLE *Table, UINT8 Type, UINT8 Usage)
+{
+    UINTN i;
+
+    for (i = 0; i < Table->MemoryCount; i++) {
+        const TEST_SAL_MEMORY_DESCRIPTOR *memory = &Table->Memory[i];
+
+        if (memory->MemoryType == Type && memory->MemoryUsage == Usage) {
+            return memory;
+        }
+    }
+    return NULL;
+}
+
 static BOOLEAN sal_memory_descriptors_valid(const TEST_SAL_TABLE *Table)
 {
-    const TEST_SAL_ENTRYPOINT *entry = Table->Entrypoint;
-    const TEST_SAL_MEMORY_DESCRIPTOR *memory = Table->Memory;
-    UINT64 pal_end = sal_memory_end(&memory[0]);
-    UINT64 boot_end = sal_memory_end(&memory[1]);
-    UINT64 code_end = sal_memory_end(&memory[2]);
-    UINT64 data_end = sal_memory_end(&memory[3]);
+    const TEST_SAL_MEMORY_DESCRIPTOR *pal = sal_find_usage(
+        Table, SAL_MEMORY_TYPE_REGULAR, SAL_MEMORY_USAGE_PAL_CODE);
+    const TEST_SAL_MEMORY_DESCRIPTOR *sapic = sal_find_usage(
+        Table, SAL_MEMORY_TYPE_SAPIC, SAL_MEMORY_USAGE_UNSPECIFIED);
+    const TEST_SAL_MEMORY_DESCRIPTOR *io = sal_find_usage(
+        Table, SAL_MEMORY_TYPE_IO_PORT, SAL_MEMORY_USAGE_UNSPECIFIED);
+    UINT64 ram_bytes = 0;
+    UINTN i;
+    UINTN j;
 
-    return sal_memory_metadata(
-               &memory[0], 0, SAL_MEMORY_ATTRIBUTE_WB,
-               SAL_PAGE_ACCESS_RX, SAL_MEMORY_SUPPORTS_WB,
-               SAL_MEMORY_TYPE_REGULAR, SAL_MEMORY_USAGE_PAL_CODE) &&
-           sal_memory_metadata(
-               &memory[1], 0, SAL_MEMORY_ATTRIBUTE_WB,
-               SAL_PAGE_ACCESS_RX, SAL_MEMORY_SUPPORTS_WB,
-               SAL_MEMORY_TYPE_REGULAR, SAL_MEMORY_USAGE_BOOT_CODE) &&
-           sal_memory_metadata(
-               &memory[2], 1, SAL_MEMORY_ATTRIBUTE_WB,
-               SAL_PAGE_ACCESS_RX, SAL_MEMORY_SUPPORTS_WB,
-               SAL_MEMORY_TYPE_REGULAR, SAL_MEMORY_USAGE_RUNTIME_CODE) &&
-           sal_memory_metadata(
-               &memory[3], 1, SAL_MEMORY_ATTRIBUTE_WB,
-               SAL_PAGE_ACCESS_RW, SAL_MEMORY_SUPPORTS_WB,
-               SAL_MEMORY_TYPE_REGULAR, SAL_MEMORY_USAGE_RUNTIME_DATA) &&
-           sal_memory_metadata(
-               &memory[5], 1, SAL_MEMORY_ATTRIBUTE_UC,
-               SAL_PAGE_ACCESS_RW, SAL_MEMORY_SUPPORTS_UC,
-               SAL_MEMORY_TYPE_FIRMWARE,
-               SAL_MEMORY_USAGE_UNSPECIFIED) &&
-           memory[0].PhysicalAddress ==
-               (entry->PalProc & ~(UINT64)(EFI_PAGE_SIZE - 1U)) &&
-           memory[0].PageCount == 1 &&
-           pal_end == memory[1].PhysicalAddress &&
-           boot_end == memory[2].PhysicalAddress &&
-           code_end == memory[3].PhysicalAddress &&
-           memory[0].PhysicalAddress >= I2000_FIRMWARE_BASE &&
-           data_end == memory[4].PhysicalAddress &&
-           sal_memory_end(&memory[4]) < I2000_FIRMWARE_END &&
-           sal_memory_metadata(
-               &memory[4], 0, SAL_MEMORY_ATTRIBUTE_WB,
-               SAL_PAGE_ACCESS_RW, SAL_MEMORY_SUPPORTS_WB,
-               SAL_MEMORY_TYPE_REGULAR, SAL_MEMORY_USAGE_BOOT_CODE) &&
-           memory[5].PhysicalAddress == I2000_FIRMWARE_APERTURE_BASE &&
-           sal_memory_end(&memory[5]) == I2000_FIRMWARE_APERTURE_END;
+    if (pal == NULL || sapic == NULL || io == NULL ||
+        !sal_memory_metadata(pal, 1, SAL_MEMORY_ATTRIBUTE_WB,
+                             SAL_PAGE_ACCESS_RX, SAL_MEMORY_SUPPORTS_WB,
+                             SAL_MEMORY_TYPE_REGULAR,
+                             SAL_MEMORY_USAGE_PAL_CODE) ||
+        Table->Entrypoint->PalProc < pal->PhysicalAddress ||
+        Table->Entrypoint->PalProc >= sal_memory_end(pal) ||
+        !sal_memory_metadata(sapic, 0, SAL_MEMORY_ATTRIBUTE_UC,
+                             SAL_PAGE_ACCESS_RW, SAL_MEMORY_SUPPORTS_UC,
+                             SAL_MEMORY_TYPE_SAPIC,
+                             SAL_MEMORY_USAGE_UNSPECIFIED) ||
+        sapic->PhysicalAddress != 0xfee00000ULL ||
+        sal_memory_end(sapic) != 0xff000000ULL ||
+        !sal_memory_metadata(io, 1, SAL_MEMORY_ATTRIBUTE_UC,
+                             SAL_PAGE_ACCESS_RW, SAL_MEMORY_SUPPORTS_UC,
+                             SAL_MEMORY_TYPE_IO_PORT,
+                             SAL_MEMORY_USAGE_UNSPECIFIED) ||
+        io->PhysicalAddress != 0xffffc000000ULL ||
+        sal_memory_end(io) != 0x100000000000ULL) {
+        return 0;
+    }
+    for (i = 0; i < Table->MemoryCount; i++) {
+        const TEST_SAL_MEMORY_DESCRIPTOR *memory = &Table->Memory[i];
+        UINT64 end = sal_memory_end(memory);
+
+        if (memory->Type != SAL_DESCRIPTOR_MEMORY || memory->PageCount == 0 ||
+            (memory->PhysicalAddress & (EFI_PAGE_SIZE - 1U)) != 0 ||
+            end <= memory->PhysicalAddress || memory->Reserved0 != 0 ||
+            memory->Reserved1 != 0 || memory->OemReserved != 0) {
+            return 0;
+        }
+        for (j = 0; j < i; j++) {
+            if (memory->PhysicalAddress < sal_memory_end(&Table->Memory[j]) &&
+                Table->Memory[j].PhysicalAddress < end) {
+                return 0;
+            }
+        }
+        if (memory->MemoryType == SAL_MEMORY_TYPE_REGULAR) {
+            ram_bytes += end - memory->PhysicalAddress;
+        }
+    }
+    return ram_bytes >= 0xfff00000ULL && ram_bytes <= 0x100000000ULL;
 }
 
 static BOOLEAN sal_entrypoint_valid(const TEST_SAL_TABLE *Table)
 {
     const TEST_SAL_ENTRYPOINT *entry = Table->Entrypoint;
-    UINT64 code_start = Table->Memory[2].PhysicalAddress;
-    UINT64 code_end = sal_memory_end(&Table->Memory[2]);
+    const TEST_SAL_MEMORY_DESCRIPTOR *code = sal_find_usage(
+        Table, SAL_MEMORY_TYPE_REGULAR, SAL_MEMORY_USAGE_RUNTIME_CODE);
 
-    return entry->PalProc != 0 && entry->SalProc >= code_start &&
-           entry->SalProc < code_end && entry->SalGp >= code_start &&
-           entry->SalGp < code_end;
+    return code != NULL && entry->PalProc != 0 &&
+           entry->SalProc >= code->PhysicalAddress &&
+           entry->SalProc < sal_memory_end(code) &&
+           entry->SalGp >= code->PhysicalAddress &&
+           entry->SalGp < sal_memory_end(code);
 }
 
 static BOOLEAN sal_call_valid(const TEST_SAL_TABLE *Table)
@@ -732,8 +760,13 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
     have_map = get_memory_map(SystemTable, &map);
     have_sal = sal_table_init(SystemTable, &sal);
     if (have_sal) {
-        runtime_start = sal.Memory[2].PhysicalAddress;
-        runtime_end = sal_memory_end(&sal.Memory[3]);
+        const TEST_SAL_MEMORY_DESCRIPTOR *code = sal_find_usage(
+            &sal, SAL_MEMORY_TYPE_REGULAR, SAL_MEMORY_USAGE_RUNTIME_CODE);
+
+        if (code != NULL) {
+            runtime_start = code->PhysicalAddress;
+            runtime_end = sal_memory_end(code);
+        }
     }
 
     ia64_test_check(&context, "image-placement",

@@ -134,7 +134,7 @@ static inline unsigned long long ia64_platform_firmware_compat_flags(
     if ((flags & IA64_PLATFORM_FLAG_FAMILY_MASK) ==
             IA64_PLATFORM_FLAG_FAMILY_HP_I2000 &&
         (flags & IA64_PLATFORM_FLAG_FIRMWARE_COMPAT) != 0) {
-        return IA64_FW_COMPAT_ALL_MASK;
+        return IA64_FW_COMPAT_ALL_MASK & ~IA64_FW_COMPAT_SPARSE_SAL_MDT;
     }
     return 0;
 }

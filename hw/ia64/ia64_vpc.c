@@ -2708,20 +2708,6 @@ static void ia64_vpc_configure_vga(PCIDevice *pci_dev)
 
 }
 
-static bool ia64_vpc_enable_vga_legacy_switch(PCIDevice *pci_dev,
-                                               Error **errp)
-{
-    if (pci_dev == NULL ||
-        !object_property_find(OBJECT(pci_dev),
-                              "x-vbe-legacy-mode-switch")) {
-        return true;
-    }
-
-    return object_property_set_bool(OBJECT(pci_dev),
-                                    "x-vbe-legacy-mode-switch", true,
-                                    errp);
-}
-
 static void ia64_vpc_configure_nic(PCIDevice *pci_dev, unsigned int index)
 {
     uint64_t mmio_base;
@@ -3239,9 +3225,6 @@ static bool ia64_vpc_build(MachineState *machine, Error **errp)
         }
     }
 #endif
-    if (!ia64_vpc_enable_vga_legacy_switch(s->vga_dev, errp)) {
-        return false;
-    }
     ia64_vpc_configure_vga(s->vga_dev);
     ia64_vpc_map_vga_fixed_windows(s, s->vga_dev);
 #ifdef CONFIG_IA64_VPC_GRAPHICS

@@ -2742,13 +2742,14 @@ static void ati_rage128_host_data_migration(void)
     g_assert_cmpint(g_unlink(path), ==, 0);
 }
 
-static void vbe_legacy_data_port(void)
+static void vbe_legacy_data_port(gconstpointer data)
 {
     QTestState *qts;
     uint16_t id;
 
     if (g_str_equal(qtest_get_arch(), "ia64")) {
-        qts = qtest_init("-machine ia64-vpc,nvram=none -vga std");
+        qts = qtest_initf("-machine ia64-vpc,nvram=none -vga std %s",
+                          data ? (const char *)data : "");
         qtest_writew(qts, IA64_LEGACY_IO_PORT_PA(VBE_DISPI_IOPORT_INDEX),
                      VBE_DISPI_INDEX_ID);
         id = qtest_readw(
@@ -2766,6 +2767,11 @@ static void vbe_legacy_data_port(void)
         qtest_writeb(qts, IA64_LEGACY_IO_PORT_PA(VGA_SEQ_INDEX),
                      VGA_SEQ_RESET);
         qtest_writeb(qts, IA64_LEGACY_IO_PORT_PA(VGA_SEQ_DATA), 1);
+        g_assert_cmphex(qtest_readw(
+            qts, IA64_LEGACY_IO_PORT_PA(VBE_DISPI_IOPORT_INDEX + 2)), ==,
+            data ? 0 : VBE_DISPI_ENABLED | VBE_DISPI_LFB_ENABLED);
+        qtest_writew(qts,
+                     IA64_LEGACY_IO_PORT_PA(VBE_DISPI_IOPORT_INDEX + 2), 0);
         g_assert_cmphex(qtest_readw(
             qts, IA64_LEGACY_IO_PORT_PA(VBE_DISPI_IOPORT_INDEX + 2)), ==, 0);
     } else {
@@ -13145,8 +13151,13 @@ int main(int argc, char **argv)
         qtest_add_func("/display/pci/multihead", pci_multihead);
     }
     if (qtest_has_device("VGA")) {
-        qtest_add_func("/display/pci/vbe-legacy-data-port",
-                       vbe_legacy_data_port);
+        qtest_add_data_func("/display/pci/vbe-legacy-data-port", NULL,
+                            vbe_legacy_data_port);
+        if (g_str_equal(qtest_get_arch(), "ia64")) {
+            qtest_add_data_func("/display/pci/vbe-legacy-mode-switch",
+                                "-global VGA.x-vbe-legacy-mode-switch=on",
+                                vbe_legacy_data_port);
+        }
     }
     if (g_str_equal(qtest_get_arch(), "ia64") &&
         qtest_has_device("ati-vga")) {

@@ -2642,6 +2642,14 @@ static void test_hp_zx6000_descriptor(void)
                     IA64_PLATFORM_ACPI_PM_SIZE);
     g_assert_cmpuint(le32_to_cpu(descriptor->AcpiSciGsi), ==,
                      ZX6000_ACPI_SCI_GSI);
+    g_assert_cmpuint(le32_to_cpu(descriptor->UartCount), ==, 2);
+    g_assert_cmphex(le64_to_cpu(descriptor->Uart[0].Base), ==, 0xfec00000);
+    g_assert_cmphex(le64_to_cpu(descriptor->Uart[1].Base), ==, 0xfec02000);
+    for (root = 0; root < 2; root++) {
+        g_assert_cmpuint(le32_to_cpu(descriptor->Uart[root].Gsi), ==,
+                         24 + root);
+        g_assert_cmpuint(le32_to_cpu(descriptor->Uart[root].RootIndex), ==, 0);
+    }
     g_assert_cmpuint(zx6000_checksum(storage, total_size), ==, 0);
 
     ram = (const IA64PlatformRamRange *)(

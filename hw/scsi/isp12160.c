@@ -34,6 +34,7 @@
      ISP12160_IOCB_CONTINUE_SEGMENTS * \
      (ISP12160_SCSI_MAX_CHAIN_ENTRIES - 1U))
 #define ISP12160_SCSI_BH_BUDGET           64U
+#define ISP12160_RESPONSE_IRQ_RETRY_NS    (NANOSECONDS_PER_SECOND / 1000)
 #define ISP12160_SCSI_REQUEST_MAGIC        UINT32_C(0x49533252)
 
 #define ISP12160_HC_RESET_RELEASE_DISABLE \
@@ -75,12 +76,14 @@ struct ISP12160State {
     QEMUBH *mailbox_bh;
     QEMUBH *queue_bh;
     QEMUTimer *request_timer;
+    QEMUTimer *response_irq_timer;
     uint16_t initiator_id[2];
     uint16_t target_params[32];
     uint16_t target_sync[32];
     uint16_t target_ppr[32];
     uint16_t queue_depth[ISP12160_SCSI_MAX_QUEUES];
     uint16_t queue_throttle[ISP12160_SCSI_MAX_QUEUES];
+    bool queue_stopped[ISP12160_SCSI_MAX_QUEUES];
     SCSIBus scsi_bus;
     ISP12160SCSIRequestList active_requests;
 
@@ -192,6 +195,7 @@ static void isp12160_update_irq(ISP12160State *s)
 
 static void isp12160_reset_queues(ISP12160State *s)
 {
+    memset(s->queue_stopped, 0, sizeof(s->queue_stopped));
     memset(&s->request_queue, 0, sizeof(s->request_queue));
     memset(&s->response_queue, 0, sizeof(s->response_queue));
     s->response_irq_unobserved = false;
@@ -540,6 +544,25 @@ static uint16_t isp12160_run_mailbox(ISP12160State *s,
         isp12160_scsi_reset_transport(s);
         return ISP12160_MBS_COMMAND_COMPLETE;
 
+    case ISP12160_MBC_STOP_QUEUE:
+    case ISP12160_MBC_START_QUEUE: {
+        unsigned target = ((mb[1] >> 8) & 15) | ((mb[1] >> 11) & 16);
+        unsigned queue = target * ISP12160_SCSI_MAX_LUNS + (mb[1] & 31);
+
+        if (!isp12160_has_scsi(s)) {
+            return ISP12160_MBS_INVALID_COMMAND;
+        }
+        if (!s->risc_running || s->risc_paused) {
+            return ISP12160_MBS_COMMAND_ERR;
+        }
+        if (mb[1] & ~0x8f1fU) {
+            return ISP12160_MBS_COMMAND_PARAM_ERR;
+        }
+        s->queue_stopped[queue] = mb[0] == ISP12160_MBC_STOP_QUEUE;
+        isp12160_scsi_schedule_queue(s);
+        return ISP12160_MBS_COMMAND_COMPLETE;
+    }
+
     case ISP12160_MBC_SET_INITIATOR_ID:
     case ISP12160_MBC_GET_INITIATOR_ID:
         if (!s->risc_running || s->risc_paused) {
@@ -725,6 +748,29 @@ static bool isp12160_scsi_mailboxes_available(const ISP12160State *s)
 {
     return !s->mailbox_pending && !s->mailbox_staging &&
            !(s->semaphore & ISP12160_SEMAPHORE_LOCK);
+}
+
+static void isp12160_scsi_retry_response_irq(ISP12160State *s)
+{
+    timer_mod(s->response_irq_timer,
+              qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+              ISP12160_RESPONSE_IRQ_RETRY_NS);
+}
+
+static void isp12160_scsi_response_irq(void *opaque)
+{
+    ISP12160State *s = opaque;
+
+    if (!s->response_irq_unobserved) {
+        return;
+    }
+    if (!isp12160_scsi_transport_ready(s) ||
+        !isp12160_scsi_mailboxes_available(s) || s->irq_ack_pending) {
+        isp12160_scsi_retry_response_irq(s);
+        return;
+    }
+    s->istatus |= ISP12160_ISTATUS_RISC_INT;
+    isp12160_update_irq(s);
 }
 
 static void isp12160_scsi_schedule_queue(ISP12160State *s)
@@ -1056,6 +1102,7 @@ static bool isp12160_scsi_flush_status(ISP12160State *s)
         posted = true;
     }
     if (posted) {
+        timer_del(s->response_irq_timer);
         s->response_irq_unobserved = true;
         s->istatus |= ISP12160_ISTATUS_RISC_INT;
         isp12160_update_irq(s);
@@ -1349,6 +1396,9 @@ static bool isp12160_scsi_can_start(ISP12160State *s,
     bool ordered = candidate->command.control_flags &
                    ISP12160_IOCB_CONTROL_ORDERED_TAG;
 
+    if (s->queue_stopped[queue]) {
+        return false;
+    }
     if (!(s->target_params[target] & BIT(11))) {
         depth = 1;
     }
@@ -1479,6 +1529,7 @@ static void isp12160_scsi_reset_transport(ISP12160State *s)
     }
     s->resetting = true;
     timer_del(s->request_timer);
+    timer_del(s->response_irq_timer);
     if (s->queue_bh) {
         qemu_bh_cancel(s->queue_bh);
     }
@@ -1765,7 +1816,12 @@ static void isp12160_host_command_write(ISP12160State *s, uint16_t value)
         s->istatus &= ~ISP12160_ISTATUS_RISC_INT;
         s->irq_ack_pending = false;
         if (s->response_irq_unobserved) {
-            s->istatus |= ISP12160_ISTATUS_RISC_INT;
+            /*
+             * Acknowledge the interrupt even if the producer advanced after
+             * the host read it. Re-notify asynchronously so the cleared latch
+             * is visible while preserving the unobserved completion.
+             */
+            isp12160_scsi_retry_response_irq(s);
         }
         isp12160_update_irq(s);
         isp12160_scsi_schedule_queue(s);
@@ -1804,6 +1860,9 @@ static uint64_t isp12160_register_read(void *opaque, hwaddr address,
         if (!s->mailbox_staging && index == 5 &&
             s->response_queue.valid) {
             s->response_irq_unobserved = false;
+            if (s->response_irq_timer) {
+                timer_del(s->response_irq_timer);
+            }
             return s->response_queue.producer;
         }
         return s->mailbox[index];
@@ -2130,8 +2189,7 @@ static int isp12160_post_load(void *opaque, int version_id)
         (s->irq_ack_pending &&
          !(s->istatus & ISP12160_ISTATUS_RISC_INT)) ||
         (s->response_irq_unobserved &&
-         (!isp12160_has_scsi(s) || !s->response_queue.valid ||
-          !(s->istatus & ISP12160_ISTATUS_RISC_INT)))) {
+         (!isp12160_has_scsi(s) || !s->response_queue.valid))) {
         return -EINVAL;
     }
 
@@ -2359,6 +2417,7 @@ static const VMStateDescription vmstate_isp12160_scsi = {
         VMSTATE_BOOL(native_firmware_loaded, ISP12160State),
         VMSTATE_BOOL(irq_ack_pending, ISP12160State),
         VMSTATE_BOOL(response_irq_unobserved, ISP12160State),
+        VMSTATE_TIMER_PTR(response_irq_timer, ISP12160State),
         VMSTATE_UINT16_ARRAY(initiator_id, ISP12160State, 2),
         VMSTATE_UINT16_ARRAY(target_params, ISP12160State, 32),
         VMSTATE_UINT16_ARRAY(target_sync, ISP12160State, 32),
@@ -2367,6 +2426,8 @@ static const VMStateDescription vmstate_isp12160_scsi = {
                              ISP12160_SCSI_MAX_QUEUES),
         VMSTATE_UINT16_ARRAY(queue_throttle, ISP12160State,
                              ISP12160_SCSI_MAX_QUEUES),
+        VMSTATE_BOOL_ARRAY(queue_stopped, ISP12160State,
+                           ISP12160_SCSI_MAX_QUEUES),
         VMSTATE_END_OF_LIST()
     },
 };
@@ -2401,6 +2462,8 @@ static void isp12160_realize(PCIDevice *pdev, Error **errp)
     if (isp12160_has_scsi(s)) {
         s->request_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL,
                                          isp12160_scsi_timeout, s);
+        s->response_irq_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL,
+                                             isp12160_scsi_response_irq, s);
         s->queue_bh = aio_bh_new_guarded(
             qemu_get_aio_context(), isp12160_scsi_queue_bh, s,
             &DEVICE(pdev)->mem_reentrancy_guard);
@@ -2418,6 +2481,7 @@ static void isp12160_exit(PCIDevice *pdev)
     pci_set_irq(pdev, false);
     if (s->queue_bh) {
         timer_free(s->request_timer);
+        timer_free(s->response_irq_timer);
         qemu_bh_delete(s->queue_bh);
         s->queue_bh = NULL;
     }

@@ -452,7 +452,7 @@ static size_t mptspi_config_port_1(MPTSASState *s, uint8_t **data,
     }
 
     return MPTSAS_CONFIG_PACK(1,
-                              MPI_CONFIG_PAGEATTR_CHANGEABLE |
+                              MPI_CONFIG_PAGEATTR_PERSISTENT |
                               MPI_CONFIG_PAGETYPE_SCSI_PORT,
                               0x03, "llb*bw", s->spi_port_configuration,
                               s->spi_port_on_bus_timer, 0, 0);
@@ -474,7 +474,7 @@ static size_t mptspi_config_port_2(MPTSASState *s, uint8_t **data,
     }
 
     size = MPTSAS_CONFIG_PACK(2,
-                              MPI_CONFIG_PAGEATTR_RO_PERSISTENT |
+                              MPI_CONFIG_PAGEATTR_PERSISTENT |
                               MPI_CONFIG_PAGETYPE_SCSI_PORT,
                               0x02, "ll" repl(8, "*s4") repl(8, "*s4"), 0,
                               MPI_SCSIPORTPAGE2_PORT_BIOS_OS_INIT_HBA |
@@ -1091,7 +1091,7 @@ static int mptsas_write_ioc_1(MPTSASState *s, int address, uint64_t pa,
 }
 
 static int mptspi_write_port_1(MPTSASState *s, int address, uint64_t pa,
-                               uint32_t dmalen)
+                               uint32_t dmalen, bool nvram)
 {
     const uint32_t configuration_mask =
         MPI_SCSIPORTPAGE1_CFG_PORT_SCSI_ID_MASK |
@@ -1124,8 +1124,42 @@ static int mptspi_write_port_1(MPTSASState *s, int address, uint64_t pa,
         return MPI_IOCSTATUS_CONFIG_INVALID_DATA;
     }
 
-    s->spi_port_configuration = configuration;
-    s->spi_port_on_bus_timer = ldl_le_p(page_data + 8);
+    if (nvram) {
+        s->spi_port1_nvram_configuration = configuration;
+        s->spi_port1_nvram_on_bus_timer = ldl_le_p(page_data + 8);
+        s->spi_port1_nvram_written = true;
+    } else {
+        s->spi_port_configuration = configuration;
+        s->spi_port_on_bus_timer = ldl_le_p(page_data + 8);
+    }
+    return MPI_IOCSTATUS_SUCCESS;
+}
+
+static int mptspi_write_port_2(MPTSASState *s, int address, uint64_t pa,
+                               uint32_t dmalen, bool nvram)
+{
+    uint8_t page[4 + sizeof(s->spi_port2_current)];
+
+    if (mptspi_port_addr_get(address) < 0) {
+        return MPI_IOCSTATUS_CONFIG_INVALID_PAGE;
+    }
+    if (dmalen < sizeof(page)) {
+        return MPI_IOCSTATUS_CONFIG_INVALID_DATA;
+    }
+    if (pci_dma_read(PCI_DEVICE(s), pa, page, sizeof(page)) != MEMTX_OK) {
+        return MPI_IOCSTATUS_INTERNAL_ERROR;
+    }
+    if (page[0] != 2 || page[1] != sizeof(page) / 4 || page[2] != 2 ||
+        (page[3] & MPI_CONFIG_PAGETYPE_MASK) != MPI_CONFIG_PAGETYPE_SCSI_PORT) {
+        return MPI_IOCSTATUS_CONFIG_INVALID_DATA;
+    }
+    if (nvram) {
+        memcpy(s->spi_port2_nvram, page + 4, sizeof(s->spi_port2_nvram));
+        s->spi_port2_nvram_written = true;
+    } else {
+        memcpy(s->spi_port2_current, page + 4, sizeof(s->spi_port2_current));
+        s->spi_port2_written = true;
+    }
     return MPI_IOCSTATUS_SUCCESS;
 }
 
@@ -1140,7 +1174,12 @@ static int mptsas_write_current(MPTSASState *s, int type, int number,
     }
     if (mptsas_is_spi(s) && type == MPI_CONFIG_PAGETYPE_SCSI_PORT &&
         number == 1) {
-        return mptspi_write_port_1(s, address, pa, dmalen);
+        return mptspi_write_port_1(s, address, pa, dmalen, false);
+    }
+
+    if (mptsas_is_spi(s) && type == MPI_CONFIG_PAGETYPE_SCSI_PORT &&
+        number == 2) {
+        return mptspi_write_port_2(s, address, pa, dmalen, false);
     }
 
     if (!mptsas_is_spi(s) || type != MPI_CONFIG_PAGETYPE_SCSI_DEVICE ||
@@ -1196,6 +1235,13 @@ static int mptsas_set_current_to_default(MPTSASState *s, int type,
         }
         s->spi_port_configuration = MPTSPI_DEFAULT_PORT_CONFIGURATION;
         s->spi_port_on_bus_timer = 0;
+        return MPI_IOCSTATUS_SUCCESS;
+    }
+    if (type == MPI_CONFIG_PAGETYPE_SCSI_PORT && number == 2) {
+        if (mptspi_port_addr_get(address) < 0) {
+            return MPI_IOCSTATUS_CONFIG_INVALID_PAGE;
+        }
+        s->spi_port2_written = false;
         return MPI_IOCSTATUS_SUCCESS;
     }
 
@@ -1479,15 +1525,33 @@ void mptsas_process_config(MPTSASState *s, MPIMsgConfig *req)
     case MPI_CONFIG_ACTION_PAGE_READ_NVRAM:
     case MPI_CONFIG_ACTION_PAGE_READ_CURRENT:
     case MPI_CONFIG_ACTION_PAGE_READ_DEFAULT:
-        if (type == MPI_CONFIG_PAGETYPE_IOC && page->number == 1 &&
+        if (mptsas_is_spi(s) && type == MPI_CONFIG_PAGETYPE_SCSI_PORT &&
+            page->number == 2 && s->spi_port2_written &&
+            req->Action == MPI_CONFIG_ACTION_PAGE_READ_CURRENT) {
+            memcpy(data + 4, s->spi_port2_current,
+                   sizeof(s->spi_port2_current));
+        } else if (mptsas_is_spi(s) &&
+                   type == MPI_CONFIG_PAGETYPE_SCSI_PORT &&
+                   page->number == 2 && s->spi_port2_nvram_written &&
+                   req->Action == MPI_CONFIG_ACTION_PAGE_READ_NVRAM) {
+            memcpy(data + 4, s->spi_port2_nvram,
+                   sizeof(s->spi_port2_nvram));
+        } else if (type == MPI_CONFIG_PAGETYPE_IOC && page->number == 1 &&
             req->Action != MPI_CONFIG_ACTION_PAGE_READ_CURRENT) {
             memset(data + 4, 0, length - 4);
         } else if (mptsas_is_spi(s) &&
                    type == MPI_CONFIG_PAGETYPE_SCSI_PORT &&
                    page->number == 1 &&
                    req->Action != MPI_CONFIG_ACTION_PAGE_READ_CURRENT) {
-            stl_le_p(data + 4, MPTSPI_DEFAULT_PORT_CONFIGURATION);
+            bool nvram = req->Action == MPI_CONFIG_ACTION_PAGE_READ_NVRAM &&
+                         s->spi_port1_nvram_written;
+
+            stl_le_p(data + 4, nvram ? s->spi_port1_nvram_configuration :
+                                      MPTSPI_DEFAULT_PORT_CONFIGURATION);
             memset(data + 8, 0, length - 8);
+            if (nvram) {
+                stl_le_p(data + 8, s->spi_port1_nvram_on_bus_timer);
+            }
         } else if (mptsas_is_spi(s) &&
                    type == MPI_CONFIG_PAGETYPE_SCSI_DEVICE &&
                    page->number == 1 &&
@@ -1511,6 +1575,18 @@ void mptsas_process_config(MPTSASState *s, MPIMsgConfig *req)
         break;
 
     case MPI_CONFIG_ACTION_PAGE_WRITE_NVRAM:
+        if (mptsas_is_spi(s) && type == MPI_CONFIG_PAGETYPE_SCSI_PORT &&
+            page->number == 1) {
+            reply.IOCStatus = mptspi_write_port_1(
+                s, req->PageAddress, pa, dmalen, true);
+            break;
+        }
+        if (mptsas_is_spi(s) && type == MPI_CONFIG_PAGETYPE_SCSI_PORT &&
+            page->number == 2) {
+            reply.IOCStatus = mptspi_write_port_2(
+                s, req->PageAddress, pa, dmalen, true);
+            break;
+        }
         reply.IOCStatus = mptsas_write_config_page(
             s, type, page->number, req->PageAddress, pa, dmalen,
             data, length, true);

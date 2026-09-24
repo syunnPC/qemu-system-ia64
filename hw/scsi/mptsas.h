@@ -135,6 +135,13 @@ struct MPTSASState {
 
     uint32_t spi_port_configuration;
     uint32_t spi_port_on_bus_timer;
+    bool spi_port1_nvram_written;
+    uint32_t spi_port1_nvram_configuration;
+    uint32_t spi_port1_nvram_on_bus_timer;
+    bool spi_port2_written;
+    uint8_t spi_port2_current[72];
+    bool spi_port2_nvram_written;
+    uint8_t spi_port2_nvram[72];
     uint32_t spi_requested_params[MPTSPI_MAX_TARGETS];
     uint32_t spi_configuration[MPTSPI_MAX_TARGETS];
 

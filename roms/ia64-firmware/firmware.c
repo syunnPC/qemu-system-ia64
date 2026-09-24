@@ -14823,7 +14823,8 @@ static BOOLEAN efi_init_memory_map(void)
      * profiles, keep the ACPI and UART register pages typed as MMIO.  Split
      * the surrounding aperture to avoid overlapping EFI descriptors.
      */
-    if (!mPlatformProfile.Present || fw_hp_zx_profile_enabled() ||
+    if (!mPlatformProfile.Present || fw_i2000_profile_enabled() ||
+        fw_hp_zx_profile_enabled() ||
         fw_compat_enabled(IA64_FW_COMPAT_SPARSE_SAL_MDT)) {
         if (fw_hp_zx_profile_enabled()) {
             efi_add_zx_firmware_ranges(&index);
@@ -14935,10 +14936,18 @@ static BOOLEAN efi_init_memory_map(void)
                                 EFI_MEMORY_WB | EFI_MEMORY_RUNTIME) ||
         !efi_mark_memory_range(EfiBootServicesCode,
                                 (UINTN)&__boot_start, (UINTN)&__boot_end,
-                                EFI_MEMORY_WB)) {
+                                EFI_MEMORY_WB) ||
+        !efi_reserve_platform_descriptor()) {
         return 0;
     }
-    return efi_reserve_platform_descriptor();
+    /* Preserve a platform descriptor's reservation in the first 8 KiB. */
+    if (mPlatformProfile.Present &&
+        mPlatformProfile.DescriptorGpa < IA64_EFI_MEMORY_ALIGN) {
+        return 1;
+    }
+    /* Keep page zero and IVA reserved while providing a low page. */
+    return efi_mark_memory_range(EfiConventionalMemory, EFI_PAGE_SIZE,
+                                 2U * EFI_PAGE_SIZE, EFI_MEMORY_WB);
 }
 
 static BOOLEAN fw_zx_iommu_init(void)
@@ -15656,12 +15665,85 @@ static BOOLEAN sal_table_append_sparse_mdt(
 static BOOLEAN sal_table_append_memory_descriptors(
     UINT8 **Cursor, UINTN *MemoryDescriptorCount)
 {
+    UINTN i;
+
     if (sal_use_sparse_mdt()) {
         return sal_table_append_sparse_mdt(
             Cursor, MemoryDescriptorCount);
     }
 
-    /* Without the sparse-MDT flag, omit Type 1 memory descriptors. */
+    if (!fw_i2000_profile_enabled()) {
+        return 1;
+    }
+
+    /* The legacy SAL map describes the same ranges as the EFI map. */
+    for (i = 0; i < mMemoryMapEntries; i++) {
+        const EFI_MEMORY_DESCRIPTOR *entry = &mMemoryMap[i];
+        UINT8 type = SAL_MEMORY_TYPE_REGULAR;
+        UINT8 usage = SAL_MEMORY_USAGE_UNSPECIFIED;
+        UINT8 access = SAL_PAGE_ACCESS_RW;
+        BOOLEAN cached = (entry->Attribute & EFI_MEMORY_WB) != 0;
+
+        switch (entry->Type) {
+        case EfiReservedMemoryType:
+            usage = SAL_MEMORY_USAGE_RESERVED;
+            break;
+        case EfiLoaderCode:
+        case EfiBootServicesCode:
+            usage = SAL_MEMORY_USAGE_BOOT_CODE;
+            access = SAL_PAGE_ACCESS_RX;
+            break;
+        case EfiLoaderData:
+        case EfiBootServicesData:
+            usage = SAL_MEMORY_USAGE_BOOT_DATA;
+            break;
+        case EfiRuntimeServicesCode:
+            usage = SAL_MEMORY_USAGE_RUNTIME_CODE;
+            access = SAL_PAGE_ACCESS_RX;
+            break;
+        case EfiRuntimeServicesData:
+            if (cached) {
+                usage = SAL_MEMORY_USAGE_RUNTIME_DATA;
+            } else {
+                type = SAL_MEMORY_TYPE_FIRMWARE;
+            }
+            break;
+        case EfiConventionalMemory:
+            break;
+        case EfiUnusableMemory:
+            type = SAL_MEMORY_TYPE_BAD;
+            break;
+        case EfiACPIReclaimMemory:
+            usage = SAL_MEMORY_USAGE_ACPI_RECLAIM;
+            break;
+        case EfiACPIMemoryNVS:
+            usage = SAL_MEMORY_USAGE_ACPI_NVS;
+            break;
+        case EfiMemoryMappedIO:
+            type = entry->PhysicalStart == fw_platform_local_sapic_base() ?
+                SAL_MEMORY_TYPE_SAPIC : SAL_MEMORY_TYPE_MMIO;
+            break;
+        case EfiMemoryMappedIOPortSpace:
+            type = SAL_MEMORY_TYPE_IO_PORT;
+            break;
+        case EfiPalCode:
+            usage = SAL_MEMORY_USAGE_PAL_CODE;
+            access = SAL_PAGE_ACCESS_RX;
+            break;
+        default:
+            return 0;
+        }
+        if (!sal_table_append_memory_range(
+                Cursor, MemoryDescriptorCount, entry->PhysicalStart,
+                entry->PhysicalStart + (entry->NumberOfPages << 12),
+                (entry->Attribute & EFI_MEMORY_RUNTIME) != 0,
+                cached ? SAL_MEMORY_ATTRIBUTE_WB : SAL_MEMORY_ATTRIBUTE_UC,
+                access, cached ? SAL_MEMORY_SUPPORTS_WB :
+                                 SAL_MEMORY_SUPPORTS_UC,
+                type, usage)) {
+            return 0;
+        }
+    }
     return 1;
 }
 
@@ -24652,7 +24734,8 @@ static UINTN fw_platform_pci_root_path_node_build(
     uid = fw_platform_pci_root_path_uid(RootIndex);
 
     if (mPlatformProfile.Descriptor.PciRootIdentity ==
-            IA64_PLATFORM_PCI_ROOT_IDENTITY_HP_ZX) {
+            IA64_PLATFORM_PCI_ROOT_IDENTITY_HP_ZX &&
+        !fw_hp_zx2000_profile_enabled()) {
         FW_ACPI_EXPANDED_HID_DEVICE_PATH_NODE *node;
         UINTN size = sizeof(*node) + 3U;
 
