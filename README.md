@@ -117,11 +117,6 @@ from the other values. Use `-accel tcg,thread=multi` for more than one vCPU.
 Instruction emulation, privileged behavior, floating-point handling,
 and device support remain experimental.
 
-## Related projects
-
-- [IA-64 ATI XPDM driver](https://github.com/syunnPC/qemu-system-ia64-ati-xpdm)
-- [IA-64 NVIDIA XPDM driver](https://github.com/syunnPC/qemu-system-ia64-nv-xpdm)
-
 ## Screenshots
 
 <table align="center">
@@ -154,6 +149,22 @@ and device support remain experimental.
         width="100%"
         alt="Debian 7.11.0 with GUI"
         src="https://github.com/user-attachments/assets/d1e5cdaa-64d6-4f91-9215-277423e268a2"
+      />
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img 
+        width="100%"
+        alt="Ubuntu Server 9 with GUI"
+        src="https://github.com/user-attachments/assets/025938de-6e40-4bc9-ac16-1c124b3bd5f3"
+      />
+    </td>
+    <td width="100%">
+     <img 
+       width="100%"
+       alt="IBM AIX 5.1 IA-64 startup"
+       src="https://github.com/user-attachments/assets/e2eadc51-ffbf-4948-9453-d084a2e889ac"
       />
     </td>
   </tr>
