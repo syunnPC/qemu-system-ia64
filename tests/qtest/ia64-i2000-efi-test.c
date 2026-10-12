@@ -345,7 +345,7 @@ static void assert_descriptor(QTestState *qts, unsigned int cpu_count)
     g_assert_cmpuint(profile->IdeFunction, ==,
                      IA64_I2000_PROFILE_IDE_FUNCTION);
     g_assert_cmpuint(profile->IdeUnitMask, ==,
-                     IA64_I2000_PROFILE_IDE_PRIMARY_MASTER_UNIT_MASK);
+                     IA64_I2000_PROFILE_IDE_UNIT_MASK);
 
     g_assert_true(qtest_qom_get_bool(
         qts, IA64_I2000_EFI_TEST_460GX_TEST_QOM_PATH,

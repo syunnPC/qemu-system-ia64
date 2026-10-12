@@ -981,6 +981,8 @@ static const struct {
     { "madison", "madison-1600-3m" },
     { "montecito", "montecito-9050" },
     { "montvale", "montvale-9150n" },
+    { "tukwila", "tukwila-9350" },
+    { "itanium-9300", "tukwila-9350" },
     { "itanium", "merced-800" },
     { "itanium2", "montecito-9050" },
 };
@@ -2109,6 +2111,7 @@ static void ia64_cpu_class_init(ObjectClass *oc, const void *data)
         "QEMU Montecito-compatible IA-64 CPU 1.60GHz 24MB";
     icc->frequency_base_hz = 100000000;
     icc->itc_frequency_hz = 400000000;
+    icc->pal_l2i_cache_size = 1 * MiB;
     icc->pal_l3_cache_size = 12 * MiB;
     icc->pal_package_cache_size = 24 * MiB;
     icc->pal_processor_frequency_hz = 1600000000ULL;
@@ -2726,6 +2729,44 @@ static const IA64CPUVariantDef ia64_cpu_montvale = {
     .l3_associativity = 12,
 };
 
+/*
+ * Intel 323169, table 3: E0 CPUID 0020020404; Intel 322821,
+ * table 1-1: 50 physical address bits. Execution and PAL controls retain
+ * the Montecito profile. This is QEMU PAL, not Intel's binary PAL firmware.
+ */
+static void ia64_cpu_tukwila_class_init(ObjectClass *oc, const void *data)
+{
+    IA64CPUClass *icc = IA64_CPU_CLASS(oc);
+
+    ia64_cpu_variant_class_init(oc, data);
+    icc->cpuid_version = 0x0000000020020404ULL;
+    icc->pal_l2i_cache_size = 512 * KiB;
+    icc->phys_addr_bits = 50;
+    icc->impl_va_msb = 60;
+    icc->pal_version = 0x0000042701000427ULL;
+}
+
+#define IA64_TUKWILA_VARIANT(_number, _mhz, _l3_mb, _package_mb) \
+    static const IA64CPUVariantDef ia64_cpu_tukwila_##_number = { \
+        .semantic_profile_id = UINT64_C(0x74756b0000000000) | (_number), \
+        .brand = "QEMU Tukwila " #_number "-compatible IA-64 CPU", \
+        .itc_frequency_hz = 400000000U, \
+        .l3_cache_size = (_l3_mb) * MiB, \
+        .package_cache_size = (_package_mb) * MiB, \
+        .processor_frequency_hz = (_mhz) * 1000000ULL, \
+        .bus_frequency_hz = 2400000000ULL, \
+        .processor_ratio = IA64_FREQUENCY_RATIO((_mhz), 100), \
+        .bus_ratio = IA64_FREQUENCY_RATIO(24, 1), \
+        .itc_ratio = IA64_FREQUENCY_RATIO(4, 1), \
+        .l3_associativity = (_l3_mb), \
+    }
+
+IA64_TUKWILA_VARIANT(9310, 1600, 5, 10);
+IA64_TUKWILA_VARIANT(9320, 1333, 4, 16);
+IA64_TUKWILA_VARIANT(9330, 1466, 5, 20);
+IA64_TUKWILA_VARIANT(9340, 1600, 5, 20);
+IA64_TUKWILA_VARIANT(9350, 1733, 6, 24);
+
 static const TypeInfo ia64_cpu_type_info[] = {
     {
         .name = TYPE_IA64_CPU,
@@ -2888,6 +2929,36 @@ static const TypeInfo ia64_cpu_type_info[] = {
         .parent = IA64_CPU_TYPE_NAME("montvale-9150n"),
         .class_init = ia64_cpu_variant_class_init,
         .class_data = &ia64_cpu_montvale_9152m,
+    },
+    {
+        .name = IA64_CPU_TYPE_NAME("tukwila-9310"),
+        .parent = IA64_CPU_TYPE_NAME("montecito-base"),
+        .class_init = ia64_cpu_tukwila_class_init,
+        .class_data = &ia64_cpu_tukwila_9310,
+    },
+    {
+        .name = IA64_CPU_TYPE_NAME("tukwila-9320"),
+        .parent = IA64_CPU_TYPE_NAME("montecito-base"),
+        .class_init = ia64_cpu_tukwila_class_init,
+        .class_data = &ia64_cpu_tukwila_9320,
+    },
+    {
+        .name = IA64_CPU_TYPE_NAME("tukwila-9330"),
+        .parent = IA64_CPU_TYPE_NAME("montecito-base"),
+        .class_init = ia64_cpu_tukwila_class_init,
+        .class_data = &ia64_cpu_tukwila_9330,
+    },
+    {
+        .name = IA64_CPU_TYPE_NAME("tukwila-9340"),
+        .parent = IA64_CPU_TYPE_NAME("montecito-base"),
+        .class_init = ia64_cpu_tukwila_class_init,
+        .class_data = &ia64_cpu_tukwila_9340,
+    },
+    {
+        .name = IA64_CPU_TYPE_NAME("tukwila-9350"),
+        .parent = IA64_CPU_TYPE_NAME("montecito-base"),
+        .class_init = ia64_cpu_tukwila_class_init,
+        .class_data = &ia64_cpu_tukwila_9350,
     },
 };
 

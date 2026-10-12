@@ -58,7 +58,7 @@ case "$QEMU_DEFAULT_MACHINE" in
       virtio_scsi="-device virtio-scsi-ccw,id=scsi0,iothread=iothread0"
       ;;
   *)
-      virtio_scsi="-device pci-bridge,id=bridge1,chassis_nr=1,bus=pci.0
+      virtio_scsi="-device pci-bridge,id=bridge1,chassis_nr=1
           -device virtio-scsi-pci,bus=bridge1,addr=0x1f,id=scsi0,iothread=iothread0"
       ;;
 esac

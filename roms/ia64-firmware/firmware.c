@@ -9,6 +9,7 @@
 
 /* Freestanding — no libc or hosted headers. */
 
+#include "fw-dmar.h"
 #include "fw-base.h"
 #include "fw-acpi-aml.h"
 #include "fw-allocation-policy.h"
@@ -177,7 +178,7 @@
 #define FW_NVRAM_RTC_OFFSET 0x000000000000f000ULL
 #define FW_NVRAM_COMMIT_OFFSET (FW_NVRAM_SIZE - sizeof(UINT64))
 #define FW_NVRAM_COMMIT_MAGIC 0x54494d4d4f43564eULL /* "NVCOMMIT" */
-#define FW_HIGH_RAM_RANGE_MAX 4U
+#define FW_HIGH_RAM_RANGE_MAX 5U
 #define FW_MEMORY_AFFINITY_MAX (1U + FW_HIGH_RAM_RANGE_MAX)
 #define FW_AP_STACK_SIZE  IA64_FW_CPU_STACK_SIZE
 #define FW_SYSTEM_TABLE_POINTER_ALIGN 0x0000000000400000ULL
@@ -1134,12 +1135,12 @@ typedef struct {
 
 typedef struct {
     ACPI_SDT_HEADER Hdr;
-    UINT64 Entry[9];
+    UINT64 Entry[10];
 } __attribute__((packed)) ACPI_XSDT;
 
 typedef struct {
     ACPI_SDT_HEADER Hdr;
-    UINT32 Entry[9];
+    UINT32 Entry[10];
 } __attribute__((packed)) ACPI_RSDT;
 
 typedef struct {
@@ -1890,8 +1891,8 @@ FW_STATIC_ASSERT(SAL_BACKING_STORE_SIZE / FW_MAX_CPUS >=
                  IA64_EFI_MIN_BACKING_BYTES,
                  sal_ap_backing_store_capacity);
 FW_STATIC_ASSERT(sizeof(ACPI_FADT) == 244, acpi_fadt_size);
-FW_STATIC_ASSERT(sizeof(ACPI_XSDT) == 108, acpi_xsdt_size);
-FW_STATIC_ASSERT(sizeof(ACPI_RSDT) == 72, acpi_rsdt_size);
+FW_STATIC_ASSERT(sizeof(ACPI_XSDT) == 116, acpi_xsdt_size);
+FW_STATIC_ASSERT(sizeof(ACPI_RSDT) == 76, acpi_rsdt_size);
 FW_STATIC_ASSERT(sizeof(ACPI_RSDP) == 36, acpi_rsdp_size);
 FW_STATIC_ASSERT(sizeof(ACPI_FACS) == 64, acpi_facs_size);
 FW_STATIC_ASSERT(sizeof(ACPI_DSDT) ==
@@ -1930,7 +1931,7 @@ FW_STATIC_ASSERT(sizeof(ACPI_SRAT_PROCESSOR_AFFINITY) == 16,
                  acpi_srat_processor_affinity_size);
 FW_STATIC_ASSERT(sizeof(ACPI_SRAT_MEMORY_AFFINITY) == 40,
                  acpi_srat_memory_affinity_size);
-FW_STATIC_ASSERT(sizeof(ACPI_SRAT) == 1272, acpi_srat_size);
+FW_STATIC_ASSERT(sizeof(ACPI_SRAT) == 1312, acpi_srat_size);
 FW_STATIC_ASSERT(sizeof(ACPI_SLIT) == 108, acpi_slit_size);
 FW_STATIC_ASSERT(sizeof(ACPI_GENERIC_ADDRESS) == 12, acpi_gas_size);
 FW_STATIC_ASSERT(sizeof(ACPI_SPCR) == 80, acpi_spcr_size);
@@ -2066,6 +2067,7 @@ static IA64_SAL_SYSTEM_TABLE   mSalSystemTable
     __attribute__((aligned(8)));
 static BOOLEAN                mSalSystemTableValid;
 static ACPI_FADT               mFadt;
+static unsigned char          mDmar[FW_DMAR_SIZE];
 static ACPI_XSDT               mXsdt;
 static ACPI_RSDT               mRsdt;
 static ACPI_RSDP               mRsdp;
@@ -2215,6 +2217,7 @@ static ACPI_SLIT              *mAcpiSlit;
 static ACPI_HCDP              *mAcpiHcdp;
 static ACPI_DBGP              *mAcpiDbgp;
 static ACPI_SPCR              *mAcpiSpcr;
+static unsigned char         *mAcpiDmar;
 static UINTN                   mAcpiTableEnd;
 
 static const UINT8 gEfiAcpi20TableGuid[16] = {
@@ -2331,7 +2334,9 @@ typedef struct {
     UINT64 DebugPortBase;
 } FW_HANDOFF_LEGACY;
 
-FW_STATIC_ASSERT(sizeof(IA64VpcHandoff) == 120, fw_handoff_size);
+FW_STATIC_ASSERT(sizeof(IA64VpcHandoff) == 128, fw_handoff_size);
+FW_STATIC_ASSERT(__builtin_offsetof(IA64VpcHandoff, PciIntxLines) == 120,
+                 fw_handoff_pci_intx_lines_offset);
 FW_STATIC_ASSERT(__builtin_offsetof(IA64VpcHandoff, ProcessorCount) == 64,
                  fw_handoff_processor_count_offset);
 FW_STATIC_ASSERT(__builtin_offsetof(IA64VpcHandoff, NvramPersistent) == 72,
@@ -2359,7 +2364,7 @@ FW_STATIC_ASSERT(sizeof(IA64PlatformI2000Profile) == 88,
 FW_STATIC_ASSERT(__builtin_offsetof(IA64PlatformI2000Profile,
                                     Isp12160Capabilities) == 80,
                  fw_i2000_isp12160_capabilities_offset);
-FW_STATIC_ASSERT(IA64_PLATFORM_MAX_RAM_RANGES ==
+FW_STATIC_ASSERT(IA64_PLATFORM_MAX_RAM_RANGES <=
                  1U + FW_HIGH_RAM_RANGE_MAX,
                  fw_platform_ram_range_capacity);
 FW_STATIC_ASSERT(IA64_PLATFORM_IO_SAPIC_ALIGNMENT == EFI_PAGE_SIZE,
@@ -4169,6 +4174,20 @@ static BOOLEAN fw_handoff_valid(const FW_HANDOFF_HEADER *Handoff)
            Handoff->Version <= IA64_FW_HANDOFF_VERSION;
 }
 
+static UINTN fw_handoff_pci_intx_lines(void)
+{
+    FW_HANDOFF_HEADER *header =
+        (FW_HANDOFF_HEADER *)(UINTN)IA64_FW_HANDOFF_ADDR;
+    IA64VpcHandoff *handoff =
+        (IA64VpcHandoff *)(UINTN)IA64_FW_HANDOFF_ADDR;
+
+    if (fw_handoff_valid(header) &&
+        handoff->Version >= 12 && handoff->PciIntxLines == 8) {
+        return 8;
+    }
+    return 4;
+}
+
 static void fw_init_behavior_flags(void)
 {
     IA64VpcCompatHandoff *handoff =
@@ -4298,6 +4317,16 @@ static void fw_add_guest_high_ram_range(UINT64 Base, UINT64 Limit,
     *Remaining -= size;
 }
 
+static BOOLEAN acpi_dmar_present(void)
+{
+    const IA64VtdHandoff *vtd =
+        (const IA64VtdHandoff *)(UINTN)IA64_VTD_HANDOFF_ADDR;
+
+    return !mPlatformProfile.Present &&
+           vtd->Magic == IA64_VTD_HANDOFF_MAGIC &&
+           vtd->Version == IA64_VTD_HANDOFF_VERSION;
+}
+
 static void fw_init_guest_high_ram_ranges(UINT64 RamSize)
 {
     UINT64 remaining;
@@ -4336,8 +4365,17 @@ static void fw_init_guest_high_ram_ranges(UINT64 RamSize)
         ras_base + ras_size <= local_sapic_base) {
         fw_add_guest_high_ram_range(FW_HIGH_RAM_AFTER_PCI_BASE,
                                     ras_base, &remaining);
-        fw_add_guest_high_ram_range(ras_base + ras_size,
-                                    local_sapic_base, &remaining);
+        const IA64VtdHandoff *vtd =
+            (const IA64VtdHandoff *)(UINTN)IA64_VTD_HANDOFF_ADDR;
+        if (acpi_dmar_present() && vtd->Vtbar < local_sapic_base) {
+            fw_add_guest_high_ram_range(ras_base + ras_size,
+                                        vtd->Vtbar, &remaining);
+            fw_add_guest_high_ram_range(vtd->Vtbar + 0x2000,
+                                        local_sapic_base, &remaining);
+        } else {
+            fw_add_guest_high_ram_range(ras_base + ras_size,
+                                        local_sapic_base, &remaining);
+        }
     } else {
         fw_add_guest_high_ram_range(FW_HIGH_RAM_AFTER_PCI_BASE,
                                     local_sapic_base, &remaining);
@@ -6667,7 +6705,6 @@ static UINTN acpi_mcfg_length(void)
     return __builtin_offsetof(ACPI_MCFG, Allocation) +
         acpi_mcfg_allocation_count() * sizeof(ACPI_MCFG_ALLOCATION);
 }
-
 static void acpi_use_static_tables(void)
 {
     UINTN end;
@@ -6686,6 +6723,7 @@ static void acpi_use_static_tables(void)
     mAcpiHcdp = &mHcdp;
     mAcpiDbgp = &mDbgp;
     mAcpiSpcr = &mSpcr;
+    mAcpiDmar = acpi_dmar_present() ? mDmar : NULL;
 
     end = (UINTN)&mRsdp + sizeof(mRsdp);
     if ((UINTN)&mFacs + sizeof(mFacs) > end) {
@@ -6726,6 +6764,9 @@ static void acpi_use_static_tables(void)
     }
     if ((UINTN)&mSpcr + sizeof(mSpcr) > end) {
         end = (UINTN)&mSpcr + sizeof(mSpcr);
+    }
+    if (mAcpiDmar != NULL && (UINTN)mDmar + sizeof(mDmar) > end) {
+        end = (UINTN)mDmar + sizeof(mDmar);
     }
     mAcpiTableEnd = end;
 }
@@ -6773,6 +6814,11 @@ static BOOLEAN acpi_assign_reclaim_tables(void)
     cursor = (UINTN)mAcpiDbgp + sizeof(*mAcpiDbgp);
     mAcpiSpcr = (ACPI_SPCR *)acpi_align_up(cursor, 8);
     cursor = (UINTN)mAcpiSpcr + sizeof(*mAcpiSpcr);
+    mAcpiDmar = NULL;
+    if (acpi_dmar_present()) {
+        mAcpiDmar = (unsigned char *)acpi_align_up(cursor, 8);
+        cursor = (UINTN)mAcpiDmar + FW_DMAR_SIZE;
+    }
     mAcpiTableEnd = cursor;
 
     if (mAcpiTableEnd < ACPI_RECLAIM_BASE ||
@@ -6802,6 +6848,9 @@ static void acpi_publish_reclaim_tables(void)
     fw_copy_mem(mAcpiHcdp, &mHcdp, sizeof(mHcdp));
     fw_copy_mem(mAcpiDbgp, &mDbgp, sizeof(mDbgp));
     fw_copy_mem(mAcpiSpcr, &mSpcr, sizeof(mSpcr));
+    if (mAcpiDmar != NULL) {
+        fw_copy_mem(mAcpiDmar, mDmar, FW_DMAR_SIZE);
+    }
     fw_copy_mem(mAcpiRsdp, &mRsdp, sizeof(mRsdp));
 }
 
@@ -14819,6 +14868,13 @@ static BOOLEAN efi_init_memory_map(void)
                              0x80100000, EFI_MEMORY_WB);
     }
 
+    if (acpi_dmar_present()) {
+        const IA64VtdHandoff *vtd =
+            (const IA64VtdHandoff *)(UINTN)IA64_VTD_HANDOFF_ADDR;
+        efi_add_memory_range(&index, EfiMemoryMappedIO, vtd->Vtbar,
+                             vtd->Vtbar + 0x2000, EFI_MEMORY_UC);
+    }
+
     if (!mPlatformProfile.Present) {
         UINT64 io_sapic_start = IOSAPIC_BASE &
             ~(IA64_EFI_MEMORY_ALIGN - 1U);
@@ -15999,7 +16055,8 @@ static BOOLEAN efi_init_platform_tables(void)
     BOOLEAN debug_port_present = debug_port_base != 0;
     BOOLEAN spcr_present = !vpc_profile;
     UINT32 table_count = 6U + (mcfg_present ? 1U : 0U) +
-        (debug_port_present ? 1U : 0U) + (spcr_present ? 1U : 0U);
+        (debug_port_present ? 1U : 0U) + (spcr_present ? 1U : 0U) +
+        (acpi_dmar_present() ? 1U : 0U);
     UINT32 xsdt_length = 36 + table_count * 8U;
     UINT32 rsdt_length = 36 + table_count * 4U;
     FWAcpiRootMemoryWindow root_memory_windows[IA64_PLATFORM_MAX_UARTS];
@@ -16040,6 +16097,12 @@ static BOOLEAN efi_init_platform_tables(void)
 
     if (vpc_profile) {
         dsdt_aml_length = ACPI_VPC_DSDT_AML_SIZE;
+        /* Keep the original AML byte-for-byte for the four-line profile. */
+        if (fw_handoff_pci_intx_lines() == 8 &&
+            !fw_acpi_build_vpc_dsdt(mDsdt.Aml, sizeof(mDsdt.Aml), 8,
+                                    &dsdt_aml_length)) {
+            return 0;
+        }
     } else if (i2000_profile) {
         fw_copy_mem(mDsdt.Aml, mI2000DsdtAmlTemplate,
                     sizeof(mI2000DsdtAmlTemplate));
@@ -16210,6 +16273,14 @@ static BOOLEAN efi_init_platform_tables(void)
         mSsdt.Hdr.Checksum = table_checksum8(&mSsdt, mSsdt.Hdr.Length);
     }
 
+    if (mAcpiDmar != NULL) {
+        const IA64VtdHandoff *vtd =
+            (const IA64VtdHandoff *)(UINTN)IA64_VTD_HANDOFF_ADDR;
+        if (!fw_build_dmar(mDmar, sizeof(mDmar), vtd->Vtbar)) {
+            return 0;
+        }
+    }
+
     init_sdt_header(&mXsdt.Hdr, EFI_SIGNATURE_32('X', 'S', 'D', 'T'),
                     xsdt_length);
     mXsdt.Entry[0] = (UINT64)(UINTN)mAcpiFadt;
@@ -16227,6 +16298,9 @@ static BOOLEAN efi_init_platform_tables(void)
     }
     if (spcr_present) {
         mXsdt.Entry[table_index++] = (UINT64)(UINTN)mAcpiSpcr;
+    }
+    if (mAcpiDmar != NULL) {
+        mXsdt.Entry[table_index++] = (UINT64)(UINTN)mAcpiDmar;
     }
     mXsdt.Hdr.Checksum = table_checksum8(&mXsdt, mXsdt.Hdr.Length);
 
@@ -16247,6 +16321,9 @@ static BOOLEAN efi_init_platform_tables(void)
     }
     if (spcr_present) {
         mRsdt.Entry[table_index++] = (UINT32)(UINTN)mAcpiSpcr;
+    }
+    if (mAcpiDmar != NULL) {
+        mRsdt.Entry[table_index++] = (UINT32)(UINTN)mAcpiDmar;
     }
     mRsdt.Hdr.Checksum = table_checksum8(&mRsdt, mRsdt.Hdr.Length);
 
@@ -16314,6 +16391,7 @@ static BOOLEAN efi_init_platform_tables(void)
             mMadt.Iosapic[i].Address = io_sapic->Base;
         }
     } else {
+        /* The 24-pin IOSAPIC reports its pin count in the version register. */
         mMadt.Iosapic[0].Type = 6;
         mMadt.Iosapic[0].Length = sizeof(mMadt.Iosapic[0]);
         mMadt.Iosapic[0].Id = 0;

@@ -62,6 +62,7 @@ typedef struct QDevAlias
                               QEMU_ARCH_ARM | \
                               QEMU_ARCH_HPPA | \
                               QEMU_ARCH_I386 | \
+                              QEMU_ARCH_IA64 | \
                               QEMU_ARCH_LOONGARCH | \
                               QEMU_ARCH_MIPS | \
                               QEMU_ARCH_OR1K | \

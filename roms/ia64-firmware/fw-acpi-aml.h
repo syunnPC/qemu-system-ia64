@@ -94,6 +94,10 @@ BOOLEAN fw_acpi_aml_qword_io_to_memory(FWAcpiAmlBuilder *Builder,
 BOOLEAN fw_acpi_ssdt_reparent_legacy_devices(UINT8 *Aml, UINTN Length,
                                              const CHAR8 Parent[4]);
 
+/* Opt-in VPC routing for every slot of the conventional PCI root. */
+BOOLEAN fw_acpi_build_vpc_dsdt(UINT8 *Buffer, UINTN Capacity,
+                                UINTN IntxLines, UINTN *Length);
+
 UINT32 fw_acpi_hp_root_uid(const IA64PlatformPciRoot *Root);
 
 BOOLEAN fw_acpi_build_uart_ssdt(

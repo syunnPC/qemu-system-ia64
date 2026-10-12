@@ -2449,7 +2449,11 @@ void ia64_gen_exit_to_completed(DisasContext *ctx, uint64_t ip,
     ia64_gen_exit_to(ctx, ip);
 }
 
-static void ia64_gen_lookup_or_exit(DisasContext *ctx)
+/*
+ * End the PSR.i unmasking delay through the main loop to deliver pending
+ * interrupts (SDM Vol.2 5.8.2.1).
+ */
+void ia64_gen_lookup_or_exit(DisasContext *ctx)
 {
     if (ctx->base.tb->flags & IA64_TB_FLAG_IRQ_DEFER) {
         tcg_gen_exit_tb(NULL, 0);

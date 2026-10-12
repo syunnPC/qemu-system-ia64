@@ -240,6 +240,16 @@ CPU_PROFILE_IDENTITIES = (
      0x0000010801000108),
     ("montvale-9152m", 0x0000000020010104, 5,
      0x0000010801000108),
+    ("tukwila-9310", 0x0000000020020404, 5,
+     0x0000042701000427),
+    ("tukwila-9320", 0x0000000020020404, 5,
+     0x0000042701000427),
+    ("tukwila-9330", 0x0000000020020404, 5,
+     0x0000042701000427),
+    ("tukwila-9340", 0x0000000020020404, 5,
+     0x0000042701000427),
+    ("tukwila-9350", 0x0000000020020404, 5,
+     0x0000042701000427),
 )
 
 
@@ -521,6 +531,13 @@ test_pal_vm_summary = require_registers("pal_vm_summary",
     {"ip": 0x30, "r28": PAL_VM_SUMMARY, "r8": 0,
     "r9": PAL_VM_SUMMARY_INFO_1, "r10": PAL_VM_SUMMARY_INFO_2}, entry=0x10)
 
+# 322821 table 1-1: 50 physical address bits and full 64-bit virtual space.
+test_pal_vm_summary_tukwila = require_registers("pal_vm_summary_tukwila",
+    pal_call_program(PAL_VM_SUMMARY),
+    {"ip": 0x30, "r28": PAL_VM_SUMMARY, "r8": 0,
+     "r9": (PAL_VM_SUMMARY_INFO_1 & ~0x7e) | (50 << 1),
+     "r10": (24 << 8) | 60}, entry=0x10, cpu="tukwila-9350")
+
 test_pal_vm_summary_merced = require_registers("pal_vm_summary_merced",
     pal_call_program(PAL_VM_SUMMARY),
     {"ip": 0x30, "r28": PAL_VM_SUMMARY, "r8": 0,
@@ -591,6 +608,21 @@ test_pal_cache_info_l1_instruction = require_registers(
     {"ip": 0x60, "r28": PAL_CACHE_INFO, "r8": 0,
      "r9": PAL_CACHE_INFO_L1_I_1, "r10": PAL_CACHE_INFO_L1_I_2,
      "r11": 0}, entry=0x10)
+
+test_pal_cache_info_tukwila_l2i = require_registers(
+    "pal_cache_info_tukwila_l2i",
+    pal_call_program(PAL_CACHE_INFO, [(29, 1), (30, 1), (31, 0)]),
+    {"ip": 0x60, "r8": 0, "r9": PAL_CACHE_INFO_L1_I_1,
+     "r10": (512 * 1024) | (12 << 32) | (16 << 40) | (49 << 48),
+     "r11": 0}, entry=0x10, cpu="tukwila-9350")
+
+test_pal_cache_info_tukwila_l3 = require_registers(
+    "pal_cache_info_tukwila_l3",
+    pal_call_program(PAL_CACHE_INFO, [(29, 2), (30, 2), (31, 0)]),
+    {"ip": 0x60, "r8": 0,
+     "r9": (PAL_CACHE_INFO_L2_U_1 & ~0xff00) | (6 << 8),
+     "r10": (6 * 1024 * 1024) | (12 << 32) | (20 << 40) | (49 << 48),
+     "r11": 0}, entry=0x10, cpu="tukwila-9350")
 
 test_pal_cache_info_l2_unified = require_registers(
     "pal_cache_info_l2_unified",
@@ -2193,6 +2225,8 @@ CASE_NAMES = (
     'pal_cache_info_l0_data',
     'pal_cache_info_l1_data',
     'pal_cache_info_l1_instruction',
+    'pal_cache_info_tukwila_l2i',
+    'pal_cache_info_tukwila_l3',
     'pal_cache_info_l2_unified',
     'pal_cache_info_l2_unified_bad_type',
     'pal_cache_info_l2_unified_madison_9m',
@@ -2374,6 +2408,7 @@ CASE_NAMES = (
     'pal_vm_page_size_reserved_arg',
     'pal_vm_summary',
     'pal_vm_summary_madison',
+    'pal_vm_summary_tukwila',
     'pal_vm_summary_merced',
     'pal_vm_summary_reserved_arg',
     'pal_vm_tr_read_dtr',

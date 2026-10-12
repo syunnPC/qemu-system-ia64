@@ -9,6 +9,7 @@
 #include "cpu.h"
 #include "exec/cpu-common.h"
 #include "arch/arch.h"
+#include "exec-access.h"
 #include "trace.h"
 
 /* ---- Local SAPIC helpers ---- */
@@ -264,7 +265,7 @@ void ia64_sapic_update_interrupt(CPUIA64State *env)
 
     if (special || sapic_find_irr(env) != IA64_SPURIOUS_VECTOR) {
         cpu_set_interrupt(cs, CPU_INTERRUPT_HARD);
-        qemu_cpu_kick(cs);
+        ia64_exec_recheck_interrupts(cs);
     } else {
         cpu_reset_interrupt(cs, CPU_INTERRUPT_HARD);
     }

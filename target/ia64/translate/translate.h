@@ -321,6 +321,7 @@ bool ia64_gen_completed_direct_branch(DisasContext *ctx, TCGLabel *skip,
 void ia64_gen_lookup_tcg_completed(DisasContext *ctx, TCGv_i64 ip,
                                    uint64_t completed_ip, bool record_iipa,
                                    bool track_psr_suppression);
+void ia64_gen_lookup_or_exit(DisasContext *ctx);
 bool ia64_gen_fill_st1_cloop(DisasContext *ctx,
                              const Ia64Instruction *insn,
                              uint64_t target, TCGLabel *l_nobr,

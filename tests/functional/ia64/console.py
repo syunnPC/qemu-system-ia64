@@ -24,11 +24,12 @@ class Ia64FirmwareTest(QemuSystemTest):
 
     def launch_ia64(self, *, name: str = "default", media: Path | None = None,
                     optical: bool = False, machine_options: str = "",
+                    machine_type: str = "ia64-vpc",
                     memory: str = "512M", smp: int | str = 1,
                     extra_args: tuple[str, ...] = (),
                     drive_args: tuple[str, ...] | None = None):
         vm = self.get_vm(name=name)
-        machine = "ia64-vpc"
+        machine = machine_type
         if "nvram=" not in machine_options:
             machine += ",nvram=none"
         if machine_options:

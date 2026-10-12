@@ -15,6 +15,10 @@
 #include "hw/core/boards.h"
 #include "hw/core/cpu.h"
 #include "hw/core/qdev-properties.h"
+#include "hw/core/hotplug.h"
+#include "hw/virtio/virtio-iommu.h"
+#include "qobject/qlist.h"
+#include "qapi/visitor.h"
 #include "hw/char/serial-mm.h"
 #include "hw/display/bochs-vbe.h"
 #include "hw/display/edid.h"
@@ -24,13 +28,16 @@
 #include "hw/ide/ide-dev.h"
 #include "hw/input/i8042.h"
 #include "hw/acpi/acpi.h"
+#include "hw/pci/msi.h"
 #include "hw/pci/pci.h"
+#include "hw/pci/pci_bridge.h"
 #include "hw/pci/pci_bus.h"
 #include "hw/pci/pci_host.h"
 #include "net/net.h"
 #include "hw/isa/isa.h"
 #include "hw/usb/hcd-uhci.h"
 #include "hw/usb/usb.h"
+#include "hw/ia64/intel_7500.h"
 #include "hw/ia64/ia64_common.h"
 #include "hw/ia64/ia64_pci.h"
 #include "hw/ia64/ia64_iosapic.h"
@@ -161,10 +168,11 @@
 #define IA64_BDA_CHARACTER_HEIGHT 0x00000485U
 #define IA64_BDA_VIDEO_CONTROL   0x00000487U
 #define IA64_BDA_VIDEO_SWITCHES  0x00000488U
-#define IA64_ATI_VENDOR_ID        0x1002U
 #define IA64_ATI_RAGE128_DEVICE_ID 0x5046U
-#define IA64_ATI_ES1000_DEVICE_ID 0x515eU
 #endif
+/* Board PCI setup identifies the ES1000 even without the graphics code. */
+#define IA64_ATI_VENDOR_ID        0x1002U
+#define IA64_ATI_ES1000_DEVICE_ID 0x515eU
 #define IA64_IOSAPIC_BASE       0x0000000080110000ULL
 #define IA64_IOSAPIC_SIZE       0x0000000000002000ULL
 #define IA64_ACPI_PM_IO_BASE    0x00002000U
@@ -406,6 +414,8 @@ static const uint8_t ia64_int10_rom_init[] = {
 
 #define TYPE_IA64_VPC_MACHINE MACHINE_TYPE_NAME("ia64-vpc-base")
 #define TYPE_ITANIUM_VPC_MACHINE MACHINE_TYPE_NAME("itanium-vpc")
+#define TYPE_ITANIUM2_VPC_IOMMU_MACHINE \
+    MACHINE_TYPE_NAME("itanium2-vpc-iommu")
 #define TYPE_ITANIUM2_VPC_MACHINE MACHINE_TYPE_NAME("itanium2-vpc")
 OBJECT_DECLARE_TYPE(IA64VpcMachineState, IA64VpcMachineClass,
                     IA64_VPC_MACHINE)
@@ -421,6 +431,7 @@ struct IA64VpcMachineClass {
 struct IA64VpcMachineState {
     MachineState parent_obj;
 
+    uint32_t pci_intx_lines;
     bool i8042_enabled;
     bool firmware_ide_dma;
     uint64_t firmware_console;
@@ -434,9 +445,13 @@ struct IA64VpcMachineState {
     PCIDevice *lsi_dev;
     PCIDevice *vga_dev;
     PCIDevice *nic_devs[MAX_NICS];
+    PCIBus *pci_bus;
+    PCIDevice *vtd_bridge;
+    bool vtd_coherent;
+    bool vtd_high_mmio;
     unsigned int nic_count;
 
-    MemoryRegion *ram_aliases[5];
+    MemoryRegion *ram_aliases[6];
     unsigned int ram_alias_count;
     MemoryRegion *vga_fb_alias;
     MemoryRegion *vga_mmio_alias;
@@ -2504,6 +2519,9 @@ static uint64_t ia64_vpc_map_ram_alias(IA64VpcMachineState *s,
     return size;
 }
 
+static bool ia64_vpc_has_vtd(IA64VpcMachineState *s);
+static hwaddr ia64_vpc_vtbar(IA64VpcMachineState *s);
+
 static void ia64_vpc_map_ram(IA64VpcMachineState *s)
 {
     MachineState *machine = MACHINE(s);
@@ -2545,17 +2563,39 @@ static void ia64_vpc_map_ram(IA64VpcMachineState *s)
     size = ia64_vpc_map_ram_alias(
         s, IA64_RAS_HUB_DEFAULT_BASE + IA64_RAS_HUB_SIZE,
         offset, remaining,
-        IA64_LOCAL_SAPIC_PA -
+        (ia64_vpc_has_vtd(s) && !s->vtd_high_mmio ?
+         INTEL_7500_VTBAR : IA64_LOCAL_SAPIC_PA) -
             (IA64_RAS_HUB_DEFAULT_BASE + IA64_RAS_HUB_SIZE),
         "ia64-vpc.high-ram-above-ras");
     offset += size;
     remaining -= size;
+
+    if (ia64_vpc_has_vtd(s) && !s->vtd_high_mmio) {
+        size = ia64_vpc_map_ram_alias(
+            s, INTEL_7500_VTBAR + 2 * INTEL_7500_UNIT_SIZE,
+            offset, remaining,
+            IA64_LOCAL_SAPIC_PA -
+                (INTEL_7500_VTBAR + 2 * INTEL_7500_UNIT_SIZE),
+            "ia64-vpc.high-ram-above-vtd");
+        offset += size;
+        remaining -= size;
+    }
 
     size = ia64_vpc_map_ram_alias(
         s, IA64_HIGH_RAM_AFTER_FIRMWARE_BASE, offset, remaining,
         IA64_PCI_IO_BASE - IA64_HIGH_RAM_AFTER_FIRMWARE_BASE,
         "ia64-vpc.high-ram-above-4g");
     g_assert(size == remaining);
+}
+
+static bool ia64_vpc_has_vtd(IA64VpcMachineState *s)
+{
+    return object_dynamic_cast(OBJECT(s), TYPE_ITANIUM2_VPC_IOMMU_MACHINE);
+}
+
+static hwaddr ia64_vpc_vtbar(IA64VpcMachineState *s)
+{
+    return INTEL_7500_VTBAR | (s->vtd_high_mmio ? 1ULL << 48 : 0);
 }
 
 static void ia64_vpc_write_firmware_handoff(IA64VpcMachineState *s)
@@ -2566,8 +2606,10 @@ static void ia64_vpc_write_firmware_handoff(IA64VpcMachineState *s)
     IA64VpcCompatHandoff compat = { 0 };
     bool debug_port_present = debug_port_get_chardev() != NULL;
 
-    _Static_assert(sizeof(IA64VpcHandoff) == 120,
+    _Static_assert(sizeof(IA64VpcHandoff) == 128,
                    "IA-64 firmware handoff ABI size changed");
+    _Static_assert(offsetof(IA64VpcHandoff, PciIntxLines) == 120,
+                   "IA-64 firmware handoff INTx extension offset changed");
     _Static_assert(offsetof(IA64VpcHandoff, ProcessorCount) == 64,
                    "IA-64 firmware handoff CPU count offset changed");
     _Static_assert(offsetof(IA64VpcHandoff, NvramPersistent) == 72,
@@ -2581,8 +2623,18 @@ static void ia64_vpc_write_firmware_handoff(IA64VpcMachineState *s)
     _Static_assert(sizeof(IA64VpcCompatHandoff) == 32,
                    "IA-64 firmware compatibility handoff ABI size changed");
 
+    if (ia64_vpc_has_vtd(s)) {
+        IA64VtdHandoff vtd = {
+            .Magic = cpu_to_le64(IA64_VTD_HANDOFF_MAGIC),
+            .Version = cpu_to_le64(IA64_VTD_HANDOFF_VERSION),
+            .Vtbar = cpu_to_le64(ia64_vpc_vtbar(s)),
+        };
+        cpu_physical_memory_write(IA64_VTD_HANDOFF_ADDR, &vtd, sizeof(vtd));
+    }
     handoff.Magic = cpu_to_le64(IA64_FW_HANDOFF_MAGIC);
-    handoff.Version = cpu_to_le64(IA64_FW_HANDOFF_VERSION);
+    handoff.Version = cpu_to_le64(
+        s->pci_intx_lines == IA64_PCI_INTX_LINES ?
+        IA64_FW_HANDOFF_DEFAULT_VERSION : IA64_FW_HANDOFF_VERSION);
     handoff.RamSize = cpu_to_le64(machine->ram_size);
     handoff.ConsolePolicy = cpu_to_le64(s->firmware_console);
     handoff.IdeDmaEnabled = cpu_to_le64(s->firmware_ide_dma);
@@ -2599,8 +2651,10 @@ static void ia64_vpc_write_firmware_handoff(IA64VpcMachineState *s)
     handoff.ThreadsPerCore = cpu_to_le64(machine->smp.threads);
     handoff.RasBase = cpu_to_le64(IA64_RAS_HUB_DEFAULT_BASE);
     handoff.RasSize = cpu_to_le64(IA64_RAS_HUB_SIZE);
+    handoff.PciIntxLines = cpu_to_le64(s->pci_intx_lines);
     cpu_physical_memory_write(IA64_FW_HANDOFF_ADDR, &handoff,
-                              sizeof(handoff));
+        s->pci_intx_lines == IA64_PCI_INTX_LINES ?
+        offsetof(IA64VpcHandoff, PciIntxLines) : sizeof(handoff));
 
     compat.Magic = cpu_to_le64(IA64_FW_COMPAT_HANDOFF_MAGIC);
     compat.Version = cpu_to_le64(IA64_FW_COMPAT_HANDOFF_VERSION);
@@ -2610,20 +2664,34 @@ static void ia64_vpc_write_firmware_handoff(IA64VpcMachineState *s)
                               sizeof(compat));
 }
 
-static void ia64_vpc_configure_pci_irq(PCIDevice *pci_dev)
+static void ia64_vpc_configure_pci_irq(IA64VpcMachineState *s,
+                                       PCIDevice *pci_dev)
 {
+    PCIDevice *root_dev = pci_dev;
+    PCIBus *bus;
     uint8_t pin;
+    int irq;
 
     if (pci_dev == NULL) {
         return;
     }
 
     pin = pci_dev->config[PCI_INTERRUPT_PIN];
-    if (pin >= 1 && pin <= PCI_NUM_PINS) {
-        pci_default_write_config(pci_dev, PCI_INTERRUPT_LINE,
-                                 ia64_pci_route_intx_gsi(pci_dev->devfn,
-                                                         pin - 1), 1);
+    if (pin < 1 || pin > PCI_NUM_PINS) {
+        return;
     }
+    /* Below a bridge, follow each bridge's swizzle up to the root bus. */
+    irq = pin - 1;
+    for (bus = pci_get_bus(root_dev); !pci_bus_is_root(bus);
+         bus = pci_get_bus(root_dev)) {
+        irq = bus->map_irq(root_dev, irq);
+        root_dev = bus->parent_dev;
+    }
+    pci_default_write_config(pci_dev, PCI_INTERRUPT_LINE,
+                             ia64_pci_host_route_intx_gsi(
+                                 IA64_PCI_HOST_BRIDGE(
+                                     s->pci_bus->qbus.parent),
+                                 root_dev->devfn, irq), 1);
 }
 
 static void ia64_vpc_configure_ahci(PCIDevice *pci_dev)
@@ -2727,6 +2795,209 @@ static void ia64_vpc_configure_nic(PCIDevice *pci_dev, unsigned int index)
                              PCI_COMMAND_MASTER, 2);
 }
 
+/*
+ * Assign BARs and INTx to -device endpoints from space left by fixed devices.
+ * The deterministic pass restores the same allocation on reset.
+ */
+#define IA64_VPC_ASSIGN_MMIO_BASE  (IA64_PCI_MMIO_BASE + 0x00200000ULL)
+#define IA64_VPC_ASSIGN_MMIO_LIMIT IA64_VGA_FB_PCI_BASE
+#define IA64_VPC_ASSIGN_IO_BASE    0x0000d000U
+#define IA64_VPC_ASSIGN_IO_LIMIT   0x00010000U
+
+QEMU_BUILD_BUG_ON(IA64_E1000_MMIO_PCI_BASE + MAX_NICS * IA64_E1000_MMIO_SIZE >
+                  IA64_VPC_ASSIGN_MMIO_BASE);
+QEMU_BUILD_BUG_ON(IA64_E1000_IO_BASE + MAX_NICS * IA64_E1000_IO_SIZE >
+                  IA64_VPC_ASSIGN_IO_BASE);
+
+typedef struct IA64VpcPciAllocator {
+    uint64_t mmio;
+    uint32_t io;
+    uint8_t last_bus;
+    bool in_bridge;
+    IA64VpcMachineState *machine;
+} IA64VpcPciAllocator;
+
+static bool ia64_vpc_pci_device_placed(PCIDevice *pci_dev)
+{
+    for (int i = 0; i < PCI_ROM_SLOT; i++) {
+        if (pci_dev->io_regions[i].size != 0 &&
+            (pci_get_long(pci_dev->config + PCI_BASE_ADDRESS_0 + i * 4) &
+             ~(uint32_t)0xf) != 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void ia64_vpc_assign_pci_bars(IA64VpcPciAllocator *allocator,
+                                     PCIDevice *pci_dev, int bar_count)
+{
+    uint16_t command = 0;
+
+    for (int i = 0; i < bar_count; i++) {
+        PCIIORegion *region = &pci_dev->io_regions[i];
+        uint64_t size = region->size;
+        int offset = PCI_BASE_ADDRESS_0 + i * 4;
+
+        if (size == 0) {
+            continue;
+        }
+        if (region->type & PCI_BASE_ADDRESS_SPACE_IO) {
+            uint32_t base = QEMU_ALIGN_UP(allocator->io, size);
+
+            if (base + size > IA64_VPC_ASSIGN_IO_LIMIT) {
+                continue;
+            }
+            pci_default_write_config(pci_dev, offset, base, 4);
+            allocator->io = base + size;
+            command |= PCI_COMMAND_IO;
+        } else {
+            uint64_t base = QEMU_ALIGN_UP(allocator->mmio, size);
+
+            if (base + size > IA64_VPC_ASSIGN_MMIO_LIMIT) {
+                continue;
+            }
+            pci_default_write_config(pci_dev, offset, (uint32_t)base, 4);
+            if (region->type & PCI_BASE_ADDRESS_MEM_TYPE_64) {
+                pci_default_write_config(pci_dev, offset + 4, base >> 32, 4);
+            }
+            allocator->mmio = base + size;
+            command |= PCI_COMMAND_MEMORY;
+        }
+    }
+    if (command != 0) {
+        pci_default_write_config(pci_dev, PCI_COMMAND,
+                                 pci_get_word(pci_dev->config + PCI_COMMAND) |
+                                 command, 2);
+    }
+}
+
+static void ia64_vpc_assign_pci_device(PCIBus *bus, PCIDevice *pci_dev,
+                                       void *opaque);
+
+/* Bridge registers go through the bridge's handler to update forwarding. */
+static void ia64_vpc_bridge_write(PCIDevice *bridge, uint32_t offset,
+                                  uint32_t value, int len)
+{
+    pci_host_config_write_common(bridge, offset, pci_config_size(bridge),
+                                 value, len);
+}
+
+/*
+ * Number secondary buses depth-first and allocate 4 KiB I/O and 1 MiB memory
+ * windows.  All BARs use non-prefetchable windows below 4 GiB.
+ */
+static void ia64_vpc_assign_pci_bridge(IA64VpcPciAllocator *allocator,
+                                       PCIDevice *bridge)
+{
+    PCIBus *secondary_bus = pci_bridge_get_sec_bus(PCI_BRIDGE(bridge));
+    uint64_t mmio_start, mmio_base, mmio_end;
+    uint32_t io_start, io_base, io_end;
+    uint16_t command = PCI_COMMAND_MASTER;
+    bool in_bridge = allocator->in_bridge;
+
+    /* A type 1 header has two BARs, decoded on the primary side. */
+    ia64_vpc_assign_pci_bars(allocator, bridge, 2);
+    if (allocator->last_bus == UINT8_MAX) {
+        return;
+    }
+    ia64_vpc_bridge_write(bridge, PCI_PRIMARY_BUS, pci_dev_bus_num(bridge), 1);
+    ia64_vpc_bridge_write(bridge, PCI_SECONDARY_BUS, ++allocator->last_bus, 1);
+    ia64_vpc_bridge_write(bridge, PCI_SUBORDINATE_BUS, UINT8_MAX, 1);
+
+    mmio_start = allocator->mmio;
+    io_start = allocator->io;
+    io_base = QEMU_ALIGN_UP(io_start, 4 * KiB);
+    mmio_base = QEMU_ALIGN_UP(mmio_start, 1 * MiB);
+    allocator->io = io_base;
+    allocator->mmio = mmio_base;
+    allocator->in_bridge = true;
+    pci_for_each_device_under_bus(secondary_bus, ia64_vpc_assign_pci_device,
+                                  allocator);
+    allocator->in_bridge = in_bridge;
+    ia64_vpc_bridge_write(bridge, PCI_SUBORDINATE_BUS, allocator->last_bus, 1);
+
+    io_end = QEMU_ALIGN_UP(allocator->io, 4 * KiB);
+    if (io_end > io_base) {
+        ia64_vpc_bridge_write(bridge, PCI_IO_BASE, (io_base >> 8) & 0xf0, 1);
+        ia64_vpc_bridge_write(bridge, PCI_IO_LIMIT,
+                              ((io_end - 1) >> 8) & 0xf0, 1);
+        allocator->io = io_end;
+        command |= PCI_COMMAND_IO;
+    } else {
+        ia64_vpc_bridge_write(bridge, PCI_IO_BASE, 0xf0, 1);
+        ia64_vpc_bridge_write(bridge, PCI_IO_LIMIT, 0, 1);
+        allocator->io = io_start;
+    }
+    ia64_vpc_bridge_write(bridge, PCI_IO_BASE_UPPER16, 0, 2);
+    ia64_vpc_bridge_write(bridge, PCI_IO_LIMIT_UPPER16, 0, 2);
+
+    mmio_end = QEMU_ALIGN_UP(allocator->mmio, 1 * MiB);
+    if (mmio_end > mmio_base) {
+        ia64_vpc_bridge_write(bridge, PCI_MEMORY_BASE,
+                              (mmio_base >> 16) & PCI_MEMORY_RANGE_MASK, 2);
+        ia64_vpc_bridge_write(bridge, PCI_MEMORY_LIMIT,
+                              ((mmio_end - 1) >> 16) & PCI_MEMORY_RANGE_MASK,
+                              2);
+        allocator->mmio = mmio_end;
+        command |= PCI_COMMAND_MEMORY;
+    } else {
+        ia64_vpc_bridge_write(bridge, PCI_MEMORY_BASE, 0xfff0, 2);
+        ia64_vpc_bridge_write(bridge, PCI_MEMORY_LIMIT, 0, 2);
+        allocator->mmio = mmio_start;
+    }
+    ia64_vpc_bridge_write(bridge, PCI_PREF_MEMORY_BASE, 0xfff0, 2);
+    ia64_vpc_bridge_write(bridge, PCI_PREF_MEMORY_LIMIT, 0, 2);
+    ia64_vpc_bridge_write(bridge, PCI_PREF_BASE_UPPER32, 0, 4);
+    ia64_vpc_bridge_write(bridge, PCI_PREF_LIMIT_UPPER32, 0, 4);
+    ia64_vpc_bridge_write(bridge, PCI_COMMAND,
+                          pci_get_word(bridge->config + PCI_COMMAND) | command,
+                          2);
+    ia64_vpc_configure_pci_irq(allocator->machine, bridge);
+}
+
+static void ia64_vpc_assign_pci_device(PCIBus *bus, PCIDevice *pci_dev,
+                                       void *opaque)
+{
+    IA64VpcPciAllocator *allocator = opaque;
+    uint8_t type = pci_dev->config[PCI_HEADER_TYPE] &
+                   ~PCI_HEADER_TYPE_MULTI_FUNCTION;
+
+    (void)bus;
+    /*
+     * The 7500 secondary bridge and any bridge below it are numbered and
+     * given windows; other root bridges are left to the operating system.
+     */
+    if (type == PCI_HEADER_TYPE_BRIDGE &&
+        (allocator->in_bridge || pci_dev == allocator->machine->vtd_bridge)) {
+        ia64_vpc_assign_pci_bridge(allocator, pci_dev);
+        return;
+    }
+    if (type != PCI_HEADER_TYPE_NORMAL ||
+        pci_get_word(pci_dev->config + PCI_CLASS_DEVICE) ==
+            PCI_CLASS_BRIDGE_HOST ||
+        ia64_vpc_pci_device_placed(pci_dev)) {
+        return;
+    }
+    ia64_vpc_assign_pci_bars(allocator, pci_dev, PCI_ROM_SLOT);
+    ia64_vpc_configure_pci_irq(allocator->machine, pci_dev);
+}
+
+static void ia64_vpc_assign_pci_resources(IA64VpcMachineState *s)
+{
+    IA64VpcPciAllocator allocator = {
+        .mmio = IA64_VPC_ASSIGN_MMIO_BASE,
+        .io = IA64_VPC_ASSIGN_IO_BASE,
+        .machine = s,
+    };
+
+    if (s->pci_bus != NULL) {
+        allocator.last_bus = pci_bus_num(s->pci_bus);
+        pci_for_each_device(s->pci_bus, pci_bus_num(s->pci_bus),
+                            ia64_vpc_assign_pci_device, &allocator);
+    }
+}
+
 static void ia64_vpc_configure_platform_pci(IA64VpcMachineState *s)
 {
     ia64_vpc_configure_ahci(s->ahci_dev);
@@ -2737,14 +3008,15 @@ static void ia64_vpc_configure_platform_pci(IA64VpcMachineState *s)
     for (unsigned int i = 0; i < s->nic_count; i++) {
         ia64_vpc_configure_nic(s->nic_devs[i], i);
     }
-    ia64_vpc_configure_pci_irq(s->ahci_dev);
-    ia64_vpc_configure_pci_irq(s->ohci_dev);
-    ia64_vpc_configure_pci_irq(s->uhci_dev);
-    ia64_vpc_configure_pci_irq(s->lsi_dev);
-    ia64_vpc_configure_pci_irq(s->vga_dev);
+    ia64_vpc_configure_pci_irq(s, s->ahci_dev);
+    ia64_vpc_configure_pci_irq(s, s->ohci_dev);
+    ia64_vpc_configure_pci_irq(s, s->uhci_dev);
+    ia64_vpc_configure_pci_irq(s, s->lsi_dev);
+    ia64_vpc_configure_pci_irq(s, s->vga_dev);
     for (unsigned int i = 0; i < s->nic_count; i++) {
-        ia64_vpc_configure_pci_irq(s->nic_devs[i]);
+        ia64_vpc_configure_pci_irq(s, s->nic_devs[i]);
     }
+    ia64_vpc_assign_pci_resources(s);
 }
 
 #ifdef CONFIG_IA64_VPC_NETWORK
@@ -2767,7 +3039,7 @@ static void ia64_vpc_record_nic(IA64VpcMachineState *s, PCIBus *bus,
 
     s->nic_devs[s->nic_count] = pci_dev;
     ia64_vpc_configure_nic(pci_dev, s->nic_count);
-    ia64_vpc_configure_pci_irq(pci_dev);
+    ia64_vpc_configure_pci_irq(s, pci_dev);
     s->nic_count++;
 }
 
@@ -3024,7 +3296,8 @@ static bool ia64_vpc_validate_configuration(MachineState *machine,
         error_setg(errp, "Invalid RAM size, should be at least %s", size);
         return false;
     }
-    if (machine->ram_size > IA64_VPC_MAX_RAM_SIZE) {
+    if (machine->ram_size > IA64_VPC_MAX_RAM_SIZE -
+        (ia64_vpc_has_vtd(s) && !s->vtd_high_mmio ? 0x2000 : 0)) {
         g_autofree char *size = size_to_str(IA64_VPC_MAX_RAM_SIZE);
 
         error_setg(errp, "Invalid RAM size, should be at most %s", size);
@@ -3123,6 +3396,8 @@ static bool ia64_vpc_build(MachineState *machine, Error **errp)
 
     pci_host = qdev_new(s->pcie ? TYPE_IA64_PCIE_HOST_BRIDGE :
                                   TYPE_IA64_PCI_HOST_BRIDGE);
+    qdev_prop_set_uint32(pci_host, IA64_PCI_HOST_PROP_INTX_LINES,
+                          s->pci_intx_lines);
     if (s->pcie &&
         !ia64_pcie_host_set_fault_notifier(
             IA64_PCI_HOST_BRIDGE(pci_host),
@@ -3134,6 +3409,26 @@ static bool ia64_vpc_build(MachineState *machine, Error **errp)
         return false;
     }
     pci_bus = PCI_HOST_BRIDGE(pci_host)->bus;
+    s->pci_bus = pci_bus;
+    if (ia64_vpc_has_vtd(s)) {
+        PCIDevice *bridge;
+
+        if (!intel_7500_create(OBJECT(s), pci_bus, ia64_vpc_vtbar(s),
+                               s->vtd_coherent, errp)) {
+            return false;
+        }
+        bridge = pci_new(PCI_DEVFN(INTEL_7500_SECONDARY_SLOT, 0),
+                         "pci-bridge");
+        qdev_prop_set_bit(DEVICE(bridge), "shpc", false);
+        qdev_prop_set_uint8(DEVICE(bridge), "chassis_nr", 1);
+        DEVICE(bridge)->id = g_strdup("ioh7500-secondary");
+        if (!pci_realize_and_unref(bridge, pci_bus, errp)) {
+            return false;
+        }
+        s->vtd_bridge = bridge;
+    }
+    /* MSI writes reach the processor interrupt block through PCI DMA. */
+    msi_nonbroken = true;
 
     /* Reserve the empty slot and the optional AHCI slot during device setup. */
 #ifdef CONFIG_IA64_VPC_STORAGE
@@ -3158,7 +3453,9 @@ static bool ia64_vpc_build(MachineState *machine, Error **errp)
     ia64_vpc_init_acpi_pm(s, iosapic, pci_io);
 
     /* Leave ISA/SCI lines in the legacy range and route PCI INTx above 15. */
-    for (i = 0; i < IA64_PCI_INTX_LINES; i++) {
+    QEMU_BUILD_BUG_ON(IA64_PCI_INTX_GSI_BASE + IA64_PCI_INTX_MAX_LINES >
+                      IA64_IOSAPIC_NUM_PINS);
+    for (i = 0; i < s->pci_intx_lines; i++) {
         qdev_connect_gpio_out(pci_host, i,
                               qdev_get_gpio_in(iosapic,
                                                IA64_PCI_INTX_GSI_BASE + i));
@@ -3292,6 +3589,7 @@ static void ia64_vpc_machine_instance_init(Object *obj)
 {
     IA64VpcMachineState *s = IA64_VPC_MACHINE(obj);
 
+    s->pci_intx_lines = IA64_PCI_INTX_LINES;
     s->alat_full = false;
     ia64_machine_firmware_init(obj, &s->firmware);
 
@@ -3322,13 +3620,83 @@ static void ia64_vpc_machine_instance_finalize(Object *obj)
     g_free(s->nvram_resolved_path);
 }
 
+static void ia64_vpc_get_pci_intx_lines(Object *obj, Visitor *v,
+                                         const char *name, void *opaque,
+                                         Error **errp)
+{
+    IA64VpcMachineState *s = IA64_VPC_MACHINE(obj);
+
+    visit_type_uint32(v, name, &s->pci_intx_lines, errp);
+}
+
+static void ia64_vpc_set_pci_intx_lines(Object *obj, Visitor *v,
+                                         const char *name, void *opaque,
+                                         Error **errp)
+{
+    IA64VpcMachineState *s = IA64_VPC_MACHINE(obj);
+    uint32_t lines;
+
+    if (!visit_type_uint32(v, name, &lines, errp)) {
+        return;
+    }
+    if (lines != IA64_PCI_INTX_LINES && lines != IA64_PCI_INTX_MAX_LINES) {
+        error_setg(errp, "pci-intx-lines must be 4 or 8");
+        return;
+    }
+    s->pci_intx_lines = lines;
+}
+
+static HotplugHandler *ia64_vpc_get_hotplug_handler(MachineState *machine,
+                                                   DeviceState *dev)
+{
+    if (object_dynamic_cast(OBJECT(dev), TYPE_VIRTIO_IOMMU_PCI)) {
+        return HOTPLUG_HANDLER(machine);
+    }
+    return NULL;
+}
+
+static void ia64_vpc_device_pre_plug(HotplugHandler *handler,
+                                     DeviceState *dev, Error **errp)
+{
+    IA64VpcMachineState *s = IA64_VPC_MACHINE(handler);
+    g_autofree char *region = NULL;
+    QList *reserved_regions;
+
+    if (s->pci_bus->iommu_ops) {
+        error_setg(errp, "IA-64 vpc supports only one IOMMU on its root bus");
+        return;
+    }
+    /*
+     * Reserve the processor interrupt block: an MSI-type region would bypass
+     * translation and allow every endpoint to access it.
+     */
+    region = g_strdup_printf("0xfee00000:0xfeefffff:%d",
+                             VIRTIO_IOMMU_RESV_MEM_T_RESERVED);
+    reserved_regions = qlist_new();
+    qlist_append_str(reserved_regions, region);
+    qdev_prop_set_array(dev, "reserved-regions", reserved_regions);
+}
+
+static void ia64_vpc_device_unplug(HotplugHandler *handler,
+                                   DeviceState *dev, Error **errp)
+{
+    /* Its PCI IOMMU ops and the endpoints' address spaces live until exit. */
+    error_setg(errp, "IA-64 vpc does not support unplugging virtio-iommu-pci");
+}
+
 static void ia64_vpc_machine_class_init(ObjectClass *oc, const void *data)
 {
     MachineClass *mc = MACHINE_CLASS(oc);
     IA64VpcMachineClass *ivmc = IA64_VPC_MACHINE_CLASS(oc);
+    HotplugHandlerClass *hc = HOTPLUG_HANDLER_CLASS(oc);
 
     (void)data;
 
+    /* Cold-plug needs only pre_plug; realization installs the PCI IOMMU. */
+    hc->pre_plug = ia64_vpc_device_pre_plug;
+    hc->unplug_request = ia64_vpc_device_unplug;
+    hc->unplug = ia64_vpc_device_unplug;
+    mc->get_hotplug_handler = ia64_vpc_get_hotplug_handler;
     mc->init = ia64_vpc_init;
     mc->max_cpus = IA64_VPC_MAX_CPUS;
     mc->default_cpus = 1;
@@ -3354,6 +3722,11 @@ static void ia64_vpc_machine_class_init(ObjectClass *oc, const void *data)
     mc->no_cdrom = 1;
     ivmc->default_i8042 = true;
 
+    object_class_property_add(oc, "pci-intx-lines", "uint32",
+                              ia64_vpc_get_pci_intx_lines,
+                              ia64_vpc_set_pci_intx_lines, NULL, NULL);
+    object_class_property_set_description(oc, "pci-intx-lines",
+        "Number of PCI INTx lines above GSI 15: 4 (default) or 8");
     object_class_property_add_bool(oc, "i8042",
                                    ia64_vpc_get_i8042,
                                    ia64_vpc_set_i8042);
@@ -3417,6 +3790,54 @@ static void itanium2_vpc_machine_class_init(ObjectClass *oc, const void *data)
     ia64_vpc_add_compat_defaults(mc);
 }
 
+static bool ia64_vpc_get_vtd_coherent(Object *obj, Error **errp)
+{
+    return IA64_VPC_MACHINE(obj)->vtd_coherent;
+}
+
+static void ia64_vpc_set_vtd_coherent(Object *obj, bool value, Error **errp)
+{
+    IA64_VPC_MACHINE(obj)->vtd_coherent = value;
+}
+
+static bool ia64_vpc_get_vtd_high_mmio(Object *obj, Error **errp)
+{
+    return IA64_VPC_MACHINE(obj)->vtd_high_mmio;
+}
+
+static void ia64_vpc_set_vtd_high_mmio(Object *obj, bool value, Error **errp)
+{
+    IA64_VPC_MACHINE(obj)->vtd_high_mmio = value;
+}
+
+/*
+ * The four-line ACPI _PRT stops at slot 6, so devices below the slot 7
+ * secondary bridge need the eight-line routing table for their INTx.
+ */
+static void itanium2_vpc_iommu_instance_init(Object *obj)
+{
+    IA64_VPC_MACHINE(obj)->pci_intx_lines = IA64_PCI_INTX_MAX_LINES;
+}
+
+static void itanium2_vpc_iommu_class_init(ObjectClass *oc, const void *data)
+{
+    MachineClass *mc = MACHINE_CLASS(oc);
+
+    mc->desc = "IA-64 virtual PC with Tukwila CPU and Intel 7500 VT-d";
+    mc->alias = NULL;
+    mc->default_cpu_type = IA64_CPU_TYPE_NAME("tukwila-9350");
+    object_class_property_add_bool(oc, "vtd-coherent",
+                                   ia64_vpc_get_vtd_coherent,
+                                   ia64_vpc_set_vtd_coherent);
+    object_class_property_set_description(oc, "vtd-coherent",
+        "Set ECAP.C on both 7500 remapping units (default off)");
+    object_class_property_add_bool(oc, "vtd-high-mmio",
+                                   ia64_vpc_get_vtd_high_mmio,
+                                   ia64_vpc_set_vtd_high_mmio);
+    object_class_property_set_description(oc, "vtd-high-mmio",
+        "Place VTBAR above 2^48 (default off)");
+}
+
 static const TypeInfo ia64_vpc_machine_types[] = {
     {
         .name = TYPE_IA64_VPC_MACHINE,
@@ -3427,6 +3848,10 @@ static const TypeInfo ia64_vpc_machine_types[] = {
         .instance_finalize = ia64_vpc_machine_instance_finalize,
         .class_size = sizeof(IA64VpcMachineClass),
         .class_init = ia64_vpc_machine_class_init,
+        .interfaces = (const InterfaceInfo[]) {
+            { TYPE_HOTPLUG_HANDLER },
+            { }
+        },
     }, {
         .name = TYPE_ITANIUM_VPC_MACHINE,
         .parent = TYPE_IA64_VPC_MACHINE,
@@ -3435,6 +3860,11 @@ static const TypeInfo ia64_vpc_machine_types[] = {
         .name = TYPE_ITANIUM2_VPC_MACHINE,
         .parent = TYPE_IA64_VPC_MACHINE,
         .class_init = itanium2_vpc_machine_class_init,
+    }, {
+        .name = TYPE_ITANIUM2_VPC_IOMMU_MACHINE,
+        .parent = TYPE_ITANIUM2_VPC_MACHINE,
+        .instance_init = itanium2_vpc_iommu_instance_init,
+        .class_init = itanium2_vpc_iommu_class_init,
     },
 };
 

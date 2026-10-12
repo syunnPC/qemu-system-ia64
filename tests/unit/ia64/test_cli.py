@@ -24,6 +24,8 @@ CPU_MODELS = [
     "montvale-9110n", "montvale-9120n", "montvale-9130m",
     "montvale-9140m", "montvale-9140n", "montvale-9150m",
     "montvale-9150n", "montvale-9152m",
+    "tukwila-9310", "tukwila-9320", "tukwila-9330",
+    "tukwila-9340", "tukwila-9350",
 ]
 CPU_ALIASES = {
     "merced": "merced-800",
@@ -32,15 +34,18 @@ CPU_ALIASES = {
     "madison": "madison-1600-3m",
     "montecito": "montecito-9050",
     "montvale": "montvale-9150n",
+    "tukwila": "tukwila-9350",
+    "itanium-9300": "tukwila-9350",
     "itanium": "merced-800",
     "itanium2": "montecito-9050",
 }
 
 
 def test_cpu_models(qemu: str) -> None:
+    # The list is on stdout; sanitizer builds may add warnings on stderr.
     result = subprocess.run(
         [qemu, "-cpu", "help"],
-        check=False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         text=True, timeout=8)
     lines = [line.strip() for line in result.stdout.splitlines()]
     expected = ["Available CPUs:", *CPU_MODELS, "CPU aliases:"]
@@ -48,7 +53,8 @@ def test_cpu_models(qemu: str) -> None:
                  for alias, model in CPU_ALIASES.items()]
     if result.returncode != 0 or lines != expected:
         raise RuntimeError(
-            f"unexpected CPU model list: {lines!r}\n{result.stdout}")
+            f"unexpected CPU model list: {lines!r}\n{result.stdout}"
+            f"{result.stderr}")
 
 
 def test_cpu_model_names_are_exact(qemu: str) -> None:
@@ -126,6 +132,7 @@ def test_machine_cpu_defaults(qemu: str) -> None:
     defaults = {
         "itanium-vpc": "merced-800",
         "itanium2-vpc": "montecito-9050",
+        "itanium2-vpc-iommu": "tukwila-9350",
         "hp-i2000": "merced-800",
         "hp-zx2000": "mckinley-900",
         "hp-zx6000": "madison-1500",

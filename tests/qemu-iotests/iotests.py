@@ -1453,6 +1453,19 @@ def verify_virtio_scsi_pci_or_ccw() -> None:
         notrun('Missing virtio-scsi-pci or virtio-scsi-ccw in QEMU binary')
 
 
+def verify_virtio_scsi_hotplug() -> None:
+    """Require a bus that can hotplug the controller used by the test."""
+    verify_virtio_scsi_pci_or_ccw()
+    with VM() as vm:
+        vm.launch()
+        result = vm.qmp('device_add', driver='virtio-scsi')
+        error = result.get('error')
+        if error:
+            if error['desc'].endswith('does not support hotplugging'):
+                notrun('requires virtio-scsi controller hotplug support')
+            raise RuntimeError(error['desc'])
+
+
 def _verify_imgopts(unsupported: Sequence[str] = ()) -> None:
     imgopts = os.environ.get('IMGOPTS')
     # One of usage examples for IMGOPTS is "data_file=$TEST_IMG.ext_data_file"

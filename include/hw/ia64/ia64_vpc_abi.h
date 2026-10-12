@@ -15,7 +15,8 @@
 
 #define IA64_FW_HANDOFF_ADDR          0x00000000000ff000ULL
 #define IA64_FW_HANDOFF_MAGIC         0x4d41523436414951ULL /* "QIA64RAM" */
-#define IA64_FW_HANDOFF_VERSION       11ULL
+#define IA64_FW_HANDOFF_VERSION       12ULL
+#define IA64_FW_HANDOFF_DEFAULT_VERSION 11ULL
 
 #define IA64_FW_COMPAT_HANDOFF_ADDR   (IA64_FW_HANDOFF_ADDR + 0x100ULL)
 #define IA64_FW_COMPAT_HANDOFF_MAGIC  0x504d4f4334364951ULL /* "QI64COMP" */
@@ -113,6 +114,8 @@ typedef struct __attribute__((packed)) IA64VpcHandoff {
     unsigned long long ThreadsPerCore;
     unsigned long long RasBase;
     unsigned long long RasSize;
+    /* Version 12, emitted only when opting into eight PCI INTx lines. */
+    unsigned long long PciIntxLines;
 } IA64VpcHandoff;
 
 /* A missing extension selects IA64_FW_COMPAT_ALL_MASK. */

@@ -439,6 +439,51 @@ static int test_i2000_prt_routes(void)
     return 0;
 }
 
+static int test_vpc_eight_line_prt(void)
+{
+    UINT8 aml[4096];
+    UINTN length;
+    UINTN offset;
+    UINTN encoding;
+    UINTN size;
+    UINTN outer_end;
+    UINTN inner_end;
+    UINTN slot;
+    UINTN pin;
+    UINTN field;
+    UINT64 value;
+
+    CHECK(fw_acpi_build_vpc_dsdt(aml, sizeof(aml), 8, &length));
+    offset = find_name(aml, length, "_PRT", 0);
+    CHECK(offset < length && aml[offset++] == 0x12U);
+    CHECK(pkg_length(aml, length, offset, &encoding, &size));
+    outer_end = offset + size;
+    offset += encoding;
+    CHECK(aml[offset++] == 128);
+    for (slot = 0; slot < 32; slot++) {
+        for (pin = 0; pin < 4; pin++) {
+            const UINT64 expected[4] = {
+                (slot << 16) | 0xffff, pin, 0, 16 + (slot + pin) % 8,
+            };
+
+            CHECK(offset < outer_end && aml[offset++] == 0x12U);
+            CHECK(pkg_length(aml, outer_end, offset, &encoding, &size));
+            inner_end = offset + size;
+            offset += encoding;
+            CHECK(aml[offset++] == 4);
+            for (field = 0; field < 4; field++) {
+                CHECK(aml_integer(aml, inner_end, &offset, &value) &&
+                      value == expected[field]);
+            }
+            CHECK(offset == inner_end);
+        }
+    }
+    CHECK(offset == outer_end);
+    CHECK(!fw_acpi_build_vpc_dsdt(aml, 64, 8, &length));
+    CHECK(!fw_acpi_build_vpc_dsdt(aml, sizeof(aml), 5, &length));
+    return 0;
+}
+
 static int test_named_objects(void)
 {
     static const UINT8 pnp0a03[] = { 0x0c, 0x41, 0xd0, 0x0a, 0x03 };
@@ -1420,6 +1465,7 @@ int main(void)
 {
     return test_ssdt_legacy_device_parent() || test_named_objects() ||
         test_i2000_root_resources() || test_i2000_prt_routes() ||
+        test_vpc_eight_line_prt() ||
         test_pkg_length_compaction() ||
         test_large_pkg_lengths() || test_resource_descriptors() ||
         test_zx6000_namespace(ZX6000_LEGACY_IO_BASE) ||

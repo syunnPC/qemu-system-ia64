@@ -25,6 +25,7 @@ import iotests
 from iotests import log
 
 iotests.script_initialize()
+iotests.verify_virtio_scsi_hotplug()
 
 vm = iotests.VM()
 vm.launch()

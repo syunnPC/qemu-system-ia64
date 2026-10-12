@@ -5,6 +5,7 @@
  */
 
 #include "fw-acpi-aml.h"
+#include "hw/ia64/ia64_vpc_abi.h"
 
 #define FW_AML_SCOPE_OP                 0x10U
 #define FW_AML_BUFFER_OP                0x11U
@@ -1328,6 +1329,69 @@ static BOOLEAN fw_aml_zx6000_root(
                               windows, window_count) &&
         fw_aml_root_prt(builder, root, routes, route_count) &&
         fw_acpi_aml_package_end(builder);
+}
+
+BOOLEAN fw_acpi_build_vpc_dsdt(UINT8 *buffer, UINTN capacity,
+                                UINTN intx_lines, UINTN *length)
+{
+    FWAcpiAmlBuilder builder;
+    UINTN slot;
+    UINTN pin;
+
+    if (intx_lines != 4 && intx_lines != 8) {
+        return 0;
+    }
+    fw_acpi_aml_builder_init(&builder, buffer, capacity);
+    if (!fw_acpi_aml_name(&builder, "_S5_") ||
+        !fw_acpi_aml_package_begin(&builder, 4) ||
+        !fw_acpi_aml_integer(&builder, 0) ||
+        !fw_acpi_aml_integer(&builder, 0) ||
+        !fw_acpi_aml_integer(&builder, 0) ||
+        !fw_acpi_aml_integer(&builder, 0) ||
+        !fw_acpi_aml_package_end(&builder) ||
+        !fw_acpi_aml_scope_begin(&builder, "\\_SB_") ||
+        !fw_acpi_aml_device_begin(&builder, "PCI0") ||
+        !fw_aml_name_eisa_id(&builder, "_HID", "PNP0A03") ||
+        !fw_aml_name_eisa_id(&builder, "_CID", "PNP0A03") ||
+        !fw_aml_name_integer(&builder, "_SEG", 0) ||
+        !fw_aml_name_integer(&builder, "_BBN", 0) ||
+        !fw_aml_name_integer(&builder, "_UID", 0) ||
+        !fw_aml_name_integer(&builder, "_CCA", 1) ||
+        !fw_acpi_aml_name(&builder, "_CRS") ||
+        !fw_acpi_aml_resource_template_begin(&builder) ||
+        !fw_acpi_aml_word_bus_number(&builder, 0, 0, 255, 0, 256) ||
+        !fw_acpi_aml_qword_io(&builder, 0, 0, 0xffff, 0, 0x10000) ||
+        /* Cacheable VGA RAM and read-only option-ROM window. */
+        !fw_aml_dword_address(&builder, FW_AML_RESOURCE_MEMORY, 3,
+                              0, 0xa0000, 0xbffff, 0, 0x20000) ||
+        !fw_aml_dword_address(&builder, FW_AML_RESOURCE_MEMORY, 2,
+                              0, 0xc0000, 0xc7fff, 0, 0x8000) ||
+        !fw_acpi_aml_qword_memory(&builder, 0, IA64_PCI_MMIO_BASE,
+                                  IA64_PCI_MMIO_BASE + IA64_PCI_MMIO_SIZE - 1,
+                                  0, IA64_PCI_MMIO_SIZE) ||
+        !fw_acpi_aml_qword_memory(&builder, 0, IA64_UART_BASE,
+                                  IA64_UART_BASE + 7, 0, 8) ||
+        !fw_acpi_aml_resource_template_end(&builder) ||
+        !fw_acpi_aml_name(&builder, "_PRT") ||
+        !fw_acpi_aml_package_begin(&builder, 32 * 4)) {
+        return 0;
+    }
+    for (slot = 0; slot < 32; slot++) {
+        for (pin = 0; pin < 4; pin++) {
+            if (!fw_acpi_aml_package_begin(&builder, 4) ||
+                !fw_aml_prt_integer(&builder, (slot << 16) | 0xffff) ||
+                !fw_aml_prt_integer(&builder, pin) ||
+                !fw_aml_prt_integer(&builder, 0) ||
+                !fw_aml_prt_integer(&builder, 16 + (slot + pin) % intx_lines) ||
+                !fw_acpi_aml_package_end(&builder)) {
+                return 0;
+            }
+        }
+    }
+    return fw_acpi_aml_package_end(&builder) &&
+        fw_acpi_aml_package_end(&builder) &&
+        fw_acpi_aml_package_end(&builder) &&
+        fw_acpi_aml_builder_finish(&builder, length);
 }
 
 BOOLEAN fw_acpi_build_zx6000_dsdt(

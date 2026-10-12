@@ -146,6 +146,10 @@ qtests_alpha = ['boot-serial-test'] + \
 qtests_avr = [ 'boot-serial-test' ]
 
 qtests_ia64 = ['ia64-vpc-test'] + \
+  (config_all_devices.has_key('CONFIG_IOMMU_TESTDEV') and \
+   config_all_devices.has_key('CONFIG_EDU') and \
+   config_all_devices.has_key('CONFIG_PCI_TESTDEV') ? \
+   ['ia64-vtd-test'] : []) + \
   (config_all_devices.has_key('CONFIG_IA64_VPC_USB') ? \
    ['default-input-test'] : []) + \
   (config_all_devices.has_key('CONFIG_IA64_VPC_STORAGE') ? \

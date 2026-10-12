@@ -126,7 +126,10 @@ void qemu_irq_intercept_in(qemu_irq *gpio_in, qemu_irq_handler handler, int n)
     int i;
     qemu_irq *old_irqs = qemu_allocate_irqs(NULL, NULL, n);
     for (i = 0; i < n; i++) {
-        *old_irqs[i] = *gpio_in[i];
+        /* Preserve the new IRQ's QOM state; copy only delivery fields. */
+        old_irqs[i]->handler = gpio_in[i]->handler;
+        old_irqs[i]->opaque = gpio_in[i]->opaque;
+        old_irqs[i]->n = gpio_in[i]->n;
         gpio_in[i]->handler = handler;
         gpio_in[i]->opaque = &old_irqs[i];
     }

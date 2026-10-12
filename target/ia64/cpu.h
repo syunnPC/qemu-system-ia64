@@ -1579,6 +1579,7 @@ struct IA64CPUClass {
     const char *pal_brand;
     uint32_t frequency_base_hz;
     uint32_t itc_frequency_hz;
+    uint32_t pal_l2i_cache_size;
     uint32_t pal_l3_cache_size;
     uint32_t pal_package_cache_size;
     uint64_t pal_processor_frequency_hz;

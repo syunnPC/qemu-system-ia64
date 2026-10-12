@@ -36,7 +36,8 @@ struct IA64PCIState {
     MemoryRegion pci_io_sparse;
     MemoryRegion ecam_window;
     AddressSpace pci_io_as;
-    qemu_irq irq[IA64_PCI_INTX_LINES];
+    qemu_irq irq[IA64_PCI_INTX_MAX_LINES];
+    uint32_t intx_lines;
     IA64PCIHostConfig config;
     char root_bus_name[24];
     char root_bus_path[16];
@@ -127,33 +128,38 @@ static const MemoryRegionOps ia64_pci_sparse_io_ops = {
     },
 };
 
-static int ia64_pci_route_intx_output(uint8_t devfn, int irq_num)
+static int ia64_pci_route_intx_output(uint8_t devfn, int irq_num,
+                                      unsigned int lines)
 {
-    return (PCI_SLOT(devfn) + irq_num) % IA64_PCI_INTX_LINES;
+    return (PCI_SLOT(devfn) + irq_num) % lines;
 }
 
 int ia64_pci_route_intx_gsi(uint8_t devfn, int irq_num)
 {
-    return IA64_PCI_INTX_GSI_BASE + ia64_pci_route_intx_output(devfn, irq_num);
+    return IA64_PCI_INTX_GSI_BASE +
+        ia64_pci_route_intx_output(devfn, irq_num, IA64_PCI_INTX_LINES);
 }
 
 int ia64_pci_host_route_intx_gsi(const IA64PCIState *host,
                                  uint8_t devfn, int irq_num)
 {
     return host->config.gsi_base +
-        ia64_pci_route_intx_output(devfn, irq_num);
+        ia64_pci_route_intx_output(devfn, irq_num, host->intx_lines);
 }
 
 static int ia64_pci_map_irq(PCIDevice *d, int irq_num)
 {
-    return ia64_pci_route_intx_output(d->devfn, irq_num);
+    PCIBus *bus = pci_get_bus(d);
+    IA64PCIState *s = IA64_PCI_HOST_BRIDGE(bus->qbus.parent);
+
+    return ia64_pci_route_intx_output(d->devfn, irq_num, s->intx_lines);
 }
 
 static void ia64_pci_set_irq(void *opaque, int irq_num, int level)
 {
     IA64PCIState *s = opaque;
 
-    if (irq_num < IA64_PCI_INTX_LINES) {
+    if (irq_num >= 0 && irq_num < s->intx_lines) {
         qemu_set_irq(s->irq[irq_num], level);
     }
 }
@@ -357,6 +363,15 @@ static void ia64_pci_realize(DeviceState *dev, Error **errp)
     if (!ia64_pci_host_config_valid(&s->config, errp)) {
         return;
     }
+    if (s->intx_lines != IA64_PCI_INTX_LINES &&
+        s->intx_lines != IA64_PCI_INTX_MAX_LINES) {
+        error_setg(errp, "IA-64 PCI host intx-lines must be 4 or 8");
+        return;
+    }
+    if (s->config.gsi_base > UINT32_MAX - s->intx_lines) {
+        error_setg(errp, "IA-64 PCI host GSI range is invalid");
+        return;
+    }
 
     /*
      * PCI BAR values on this platform are identity-mapped CPU physical
@@ -382,7 +397,7 @@ static void ia64_pci_realize(DeviceState *dev, Error **errp)
      * permits that nested transaction to reach the independent port bus.
      */
     s->pci_io_sparse.disable_reentrancy_guard = true;
-    qdev_init_gpio_out(dev, s->irq, IA64_PCI_INTX_LINES);
+    qdev_init_gpio_out(dev, s->irq, s->intx_lines);
 
     if (s->config.segment == 0 && s->config.first_bus == 0) {
         snprintf(s->root_bus_name, sizeof(s->root_bus_name), "pci");
@@ -395,7 +410,7 @@ static void ia64_pci_realize(DeviceState *dev, Error **errp)
     phb->bus = pci_register_root_bus(dev, s->root_bus_name,
                                      ia64_pci_set_irq, ia64_pci_map_irq, s,
                                      &s->pci_mmio, &s->pci_io,
-                                     PCI_DEVFN(0, 0), 4,
+                                     PCI_DEVFN(0, 0), s->intx_lines,
                                      s->pcie ? TYPE_IA64_PCIE_ROOT_BUS :
                                                TYPE_IA64_PCI_ROOT_BUS);
     ((IA64PCIRootBus *)phb->bus)->first_bus = s->config.first_bus;
@@ -449,6 +464,8 @@ static const char *ia64_pci_root_bus_path(PCIHostState *host,
 }
 
 static const Property ia64_pci_properties[] = {
+    DEFINE_PROP_UINT32(IA64_PCI_HOST_PROP_INTX_LINES, IA64PCIState,
+                       intx_lines, IA64_PCI_INTX_LINES),
     DEFINE_PROP_UINT16(IA64_PCI_HOST_PROP_SEGMENT, IA64PCIState,
                        config.segment, 0),
     DEFINE_PROP_UINT8(IA64_PCI_HOST_PROP_FIRST_BUS, IA64PCIState,

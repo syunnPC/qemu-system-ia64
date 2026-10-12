@@ -474,6 +474,14 @@ if 'ia64-softmmu' in target_dirs
        timeout: 30,
        suite: ['unit', 'ia64'])
 
+  ia64_firmware_dmar_test = executable(
+    'test-ia64-firmware-dmar', 'test-ia64-firmware-dmar.c',
+    dependencies: [glib],
+    include_directories: include_directories(
+      '../..', '../../roms/ia64-firmware'))
+  test('test-ia64-firmware-dmar', ia64_firmware_dmar_test,
+       timeout: 30, suite: ['unit', 'ia64'])
+
   ia64_firmware_acpi_aml_test = executable(
     'test-ia64-firmware-acpi-aml',
     [

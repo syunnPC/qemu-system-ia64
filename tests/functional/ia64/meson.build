@@ -15,7 +15,7 @@ ia64_functional_test_apps = []
 foreach app : [
   'smoke', 'services', 'tables', 'exitbs', 'storage', 'input', 'graphics',
   'smp', 'smp-merced', 'pci-bridge', 'i2000-pci-root', 'i2000-runtime',
-  'i2000-loader', 'ras', 'scsi-pass-thru', 'smoke-fixed',
+  'i2000-loader', 'ras', 'scsi-pass-thru', 'smoke-fixed', 'vtd',
 ]
   app_source = files('apps/' + (app == 'smoke-fixed' ? 'smoke' : app) + '-app.c')
   app_linker_script = ia64_app_linker_script
@@ -86,8 +86,12 @@ alias_target('ia64-functional-apps', ia64_functional_test_apps)
 # IA-64 functional test starts.
 test_ia64_system_deps = ia64_functional_test_apps + [ia64_firmware_bin]
 
-tests_ia64_system_quick = [
-  'host',
+# The VPC boot helpers restore ATI VGA, and guest applications boot from
+# the board's storage controllers. Neither is available in the minimal profile.
+ia64_vpc_firmware_tests = config_all_devices.has_key('CONFIG_IA64_VPC_GRAPHICS') and \
+                          config_all_devices.has_key('CONFIG_IA64_VPC_STORAGE')
+
+tests_ia64_system_quick = ['host'] + (ia64_vpc_firmware_tests ? [
   'smoke',
   'shell',
   'services',
@@ -95,7 +99,9 @@ tests_ia64_system_quick = [
   'smp',
   'smp_merced',
   'ras',
-] + (config_all_devices.has_key('CONFIG_IA64_ZX6000_EFI_TEST') ?
+] : []) + (ia64_vpc_firmware_tests and \
+           config_all_devices.has_key('CONFIG_EDU') ? ['vtd'] : []) + \
+    (config_all_devices.has_key('CONFIG_IA64_ZX6000_EFI_TEST') ?
      ['zx6000_efi'] : []) + \
     (config_all_devices.has_key('CONFIG_HP_I2000') ?
      ['hp_i2000'] : []) + \
@@ -106,11 +112,10 @@ tests_ia64_system_quick = [
     (config_all_devices.has_key('CONFIG_HP_RX2660') ?
      ['hp_rx2660'] : [])
 
-tests_ia64_system_thorough = [
-  'storage',
-  'scsi_pass_thru',
-  'input',
-]
+tests_ia64_system_thorough = (ia64_vpc_firmware_tests ?
+                             ['storage', 'input'] : []) + \
+    (config_all_devices.has_key('CONFIG_HP_ZX6000') and \
+     config_all_devices.has_key('CONFIG_HP_RX2660') ? ['scsi_pass_thru'] : [])
 
 test_ia64_timeouts = {
   'host': 30,
@@ -121,6 +126,7 @@ test_ia64_timeouts = {
   'smp': 120,
   'smp_merced': 900,
   'ras': 120,
+  'vtd': 120,
   'zx6000_efi': 90,
   'hp_i2000': 900,
   'hp_zx2000': 120,
