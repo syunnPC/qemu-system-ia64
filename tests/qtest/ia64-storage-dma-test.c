@@ -299,6 +299,106 @@ static void test_storage_dma(gconstpointer opaque)
     g_unlink(path);
 }
 
+static void atapi_get_configuration(StorageDMA *s, uint8_t rt,
+                                    uint16_t feature, uint16_t allocation,
+                                    bool dma)
+{
+    uint8_t table[128 + 16] = { 0 };
+    uint8_t header[32] = { 0 };
+
+    qtest_writel(s->qts, PORT + 0x10, AHCI_PORT_IRQ_MASK);
+    qtest_writel(s->qts, ABAR + 8, 1);
+    table[0] = 0x27; /* Register H2D FIS */
+    table[1] = 0x80;
+    table[2] = 0xa0; /* PACKET */
+    table[3] = dma; /* PACKET DMA feature */
+    table[6] = 8; /* Byte Count Limit: 2048 */
+    table[64] = 0x46; /* GET CONFIGURATION */
+    table[65] = rt;
+    stw_be_p(table + 66, feature);
+    stw_be_p(table + 71, allocation);
+    if (allocation) {
+        stq_le_p(table + 128, s->buffer[0]);
+        stl_le_p(table + 140, allocation - 1);
+    }
+    stl_le_p(header, (allocation ? 1U << 16 : 0) | 0x20 | 5);
+    stq_le_p(header + 8, s->table);
+    qtest_memwrite(s->qts, s->table, table, sizeof(table));
+    qtest_memwrite(s->qts, s->clb, header, sizeof(header));
+    qtest_writel(s->qts, PORT + 0x38, 1);
+}
+
+static void test_atapi_get_configuration(void)
+{
+    static const struct {
+        uint8_t rt;
+        uint16_t feature;
+        uint16_t allocation;
+    } queries[] = {
+        { 0, 0, 20 }, { 1, 0, 20 }, { 2, 0, 20 },
+        { 0, 0x2a, 16 }, { 1, 0x2a, 16 }, { 2, 0x2a, 8 },
+        { 2, 0x2b, 8 }, { 2, 0xffff, 8 },
+        { 2, 0x2a, 4 }, { 2, 0, 4 }, { 2, 0x2a, 0 },
+    };
+    static const uint8_t profiles[] = {
+        0, 0, 0, 16, 0, 0, 0, 16, /* Header: DVD-ROM current profile */
+        0, 0, 3, 8,               /* Persistent, current Profile List */
+        0, 16, 1, 0,             /* DVD-ROM, current */
+        0, 8, 0, 0,              /* CD-ROM */
+    };
+    static const uint8_t header_only[] = { 0, 0, 0, 4, 0, 0, 0, 16 };
+    g_autofree char *path = NULL;
+    StorageDMA s = { 0 };
+    uint64_t config = IA64_PCI_CONFIG_BASE + (1 << 15);
+    int fd = g_file_open_tmp("ia64-atapi-XXXXXX", &path, NULL);
+
+    g_assert_cmpint(fd, >=, 0);
+    /* A medium large enough for the emulated drive to report DVD-ROM. */
+    g_assert_cmpint(ftruncate(fd, 1024 * 1024 * 1024), ==, 0);
+    s.qts = qtest_initf("-machine itanium2-vpc,nvram=none "
+                        "-m 4G -smp 1 -S -nodefaults -display none "
+                        "-drive if=none,id=cd,file=%s,format=raw,readonly=on "
+                        "-device ide-cd,drive=cd,bus=ide.0", path);
+    qtest_writew(s.qts, config + PCI_COMMAND,
+                 PCI_COMMAND_IO | PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
+    setup_ahci(&s, config);
+
+    for (size_t i = 0; i < G_N_ELEMENTS(queries); i++) {
+        const uint8_t *expected = queries[i].feature ? header_only : profiles;
+        size_t length = queries[i].feature ? sizeof(header_only) :
+                                            sizeof(profiles);
+        uint8_t data[sizeof(profiles) + GUARD_SIZE];
+
+        g_test_message("GET CONFIGURATION: RT=%u, feature=0x%04x, length=%u",
+                       queries[i].rt, queries[i].feature,
+                       queries[i].allocation);
+        length = MIN(length, queries[i].allocation);
+        qtest_memset(s.qts, s.buffer[0], 0xa5, sizeof(data));
+        atapi_get_configuration(&s, queries[i].rt, queries[i].feature,
+                                queries[i].allocation, true);
+        wait_dma(&s);
+        g_assert_cmphex(qtest_readl(s.qts, PORT + 0x10) & 0xff800000, ==, 0);
+        g_assert_cmphex(qtest_readl(s.qts, PORT + 0x20) & 1, ==, 0);
+        g_assert_cmpuint(qtest_readl(s.qts, s.clb + 4), ==, length);
+        qtest_memread(s.qts, s.buffer[0], data, sizeof(data));
+        g_assert_cmpmem(data, length, expected, length);
+        for (size_t j = length; j < sizeof(data); j++) {
+            g_assert_cmphex(data[j], ==, 0xa5);
+        }
+    }
+
+    /* RT=3 is reserved and must still fail with ILLEGAL REQUEST. */
+    g_test_message("GET CONFIGURATION: reserved RT=3");
+    atapi_get_configuration(&s, 3, 0, 8, false);
+    ahci_wait_port(&s, 0x10, 1U << 30, 1U << 30); /* IS.TFES */
+    g_assert_cmphex(qtest_readl(s.qts, PORT + 0x20) & 0xf001, ==, 0x5001);
+    g_assert_cmpuint(qtest_readl(s.qts, s.clb + 4), ==, 0);
+
+    qtest_quit(s.qts);
+    close(fd);
+    g_unlink(path);
+}
+
 int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
@@ -313,6 +413,8 @@ int main(int argc, char **argv)
     if (qtest_has_device("ich9-ahci")) {
         qtest_add_data_func("/storage-dma/ahci-high-memory", "ich9-ahci",
                             test_storage_dma);
+        qtest_add_func("/storage-dma/atapi-get-configuration",
+                       test_atapi_get_configuration);
     }
     return g_test_run();
 }

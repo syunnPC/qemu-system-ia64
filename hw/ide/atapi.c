@@ -842,10 +842,11 @@ static void cmd_get_configuration(IDEState *s, uint8_t *buf)
 {
     uint32_t len;
     uint8_t index = 0;
+    uint8_t request_type = buf[1] & 3;
+    uint16_t starting_feature = lduw_be_p(buf + 2);
     int max_len;
 
-    /* only feature 0 is supported */
-    if (buf[2] != 0 || buf[3] != 0) {
+    if (request_type == 3) {
         ide_atapi_cmd_error(s, ILLEGAL_REQUEST,
                             ASC_INV_FIELD_IN_CMD_PACKET);
         return;
@@ -866,7 +867,8 @@ static void cmd_get_configuration(IDEState *s, uint8_t *buf)
         max_len = BDRV_SECTOR_SIZE;
     }
 
-    memset(buf, 0, max_len);
+    /* A query for an unsupported feature still returns the header. */
+    memset(buf, 0, 20);
     /*
      * the number of sectors from the media tells us which profile
      * to use as current.  0 means there is no media
@@ -877,10 +879,14 @@ static void cmd_get_configuration(IDEState *s, uint8_t *buf)
         stw_be_p(buf + 6, MMC_PROFILE_CD_ROM);
     }
 
-    buf[10] = 0x02 | 0x01; /* persistent and current */
-    len = 12; /* headers: 8 + 4 */
-    len += ide_atapi_set_profile(buf, &index, MMC_PROFILE_DVD_ROM);
-    len += ide_atapi_set_profile(buf, &index, MMC_PROFILE_CD_ROM);
+    len = 8;
+    if (starting_feature == 0) {
+        /* Feature 0 (Profile List) is persistent and always current. */
+        buf[10] = 0x02 | 0x01;
+        len += 4;
+        len += ide_atapi_set_profile(buf, &index, MMC_PROFILE_DVD_ROM);
+        len += ide_atapi_set_profile(buf, &index, MMC_PROFILE_CD_ROM);
+    }
     stl_be_p(buf, len - 4); /* data length */
 
     ide_atapi_cmd_reply(s, len, max_len);
