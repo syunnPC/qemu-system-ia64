@@ -1320,8 +1320,11 @@ static uint64_t ia64_probe_address(CPUIA64State *env, uint64_t va,
 
 typedef struct IA64DataReferenceResult {
     uint64_t pa;
+    uint64_t pte;
+    uint32_t key;
     IA64MemorySpeculation speculation;
     uint8_t memory_attribute;
+    uint8_t perm;
     bool valid;
 } IA64DataReferenceResult;
 
@@ -1542,6 +1545,11 @@ ia64_data_reference_exception(CPUIA64State *env, uint64_t va,
 
         ia64_set_data_reference_result(
             result, pa, ia64_pte_memory_speculation(resolved_pte), ma);
+        if (result) {
+            result->pte = resolved_pte;
+            result->key = entry ? entry->key : key;
+            result->perm = perm;
+        }
 
         if (entry) {
             return ia64_tlb_exception_for_access(env, entry, perm, needed,
@@ -2294,6 +2302,8 @@ static uint64_t ia64_mmu_speculative_probe_cold(
     bool alignment_fault = false;
     bool debug_fault = false;
     bool itlb_ed = false;
+    bool deferred_fault = false;
+    uint64_t deferred = 0;
     IA64Exception excp;
     IA64DataReferenceResult translation = { 0 };
 
@@ -2335,10 +2345,22 @@ qualify:
     if (excp != IA64_EXCP_NONE || debug_fault || alignment_fault) {
         itlb_ed = ia64_current_code_tlb_ed(env);
     }
-    if (excp != IA64_EXCP_NONE &&
-        !ia64_speculative_exception_deferrable(env, excp, itlb_ed)) {
-        ia64_raise_data_reference_exception(
-            env, va, is_write, false, false, 0, excp, true, itlb_ed);
+    /* Each qualified condition defers independently (Vol. 2 Tables 5-3/5-4). */
+    while (excp != IA64_EXCP_NONE) {
+        if (!ia64_speculative_exception_deferrable(env, excp, itlb_ed)) {
+            ia64_raise_data_reference_exception(
+                env, va, is_write, false, false, 0, excp, true, itlb_ed);
+        }
+        deferred_fault = true;
+        /* A missing translation or absent page precludes lower PTE faults. */
+        if (!translation.valid || excp == IA64_EXCP_PAGE_NOT_PRESENT) {
+            break;
+        }
+        deferred |= 1ULL << excp;
+        excp = ia64_translation_exception_for_access_masked(
+            env, translation.pte, translation.key, translation.perm,
+            is_write ? IA64_TLB_W : IA64_TLB_R, false, is_write, false,
+            deferred);
     }
     if (debug_fault &&
         !ia64_speculative_exception_deferrable(
@@ -2355,7 +2377,7 @@ qualify:
             env, va, is_write, false, false, 0, IA64_EXCP_UNALIGNED, true,
             itlb_ed);
     }
-    if (excp != IA64_EXCP_NONE || debug_fault || alignment_fault) {
+    if (deferred_fault || debug_fault || alignment_fault) {
         return 0;
     }
 

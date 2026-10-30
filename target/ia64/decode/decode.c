@@ -1103,17 +1103,6 @@ Ia64Instruction ia64_decode_insn(IA64SlotUnit unit, uint64_t raw,
 
         if (ia64_b_op(raw) == 1 &&
             ia64_bits(raw, 33, 3) == 0 &&
-            ia64_bits(raw, 27, 6) == 0x20) {
-            Ia64Instruction insn =
-                ia64_base_insn(IA64_OP_MOV_DAHRGR_INDEXED, unit, raw,
-                               address, slot);
-            insn.operands.decoder.r1 = ia64_bits(raw, 6, 7);
-            insn.operands.decoder.r3 = ia64_bits(raw, 20, 7);
-            return insn;
-        }
-
-        if (ia64_b_op(raw) == 1 &&
-            ia64_bits(raw, 33, 3) == 0 &&
             ia64_bits(raw, 27, 6) == 0x16) {
             Ia64Instruction insn =
                 ia64_base_insn(IA64_OP_MOV_MSRGR, unit, raw, address, slot);
