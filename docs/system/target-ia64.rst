@@ -472,11 +472,13 @@ DMAR revision 1 is present in XSDT and RSDT on this machine only.  It has
 51-bit host-address width, flags 0, and two DRHDs in segment 0: the secondary
 bridge scope for unit 1, then INCLUDE_PCI_ALL for unit 0.  There are no RMRRs.
 
-ECAP.IR is reported for chipset identification, but interrupt remapping is
-not implemented: enabling IRE is rejected, GSTS.IRES stays clear, and DMAR's
-interrupt-remapping flag is clear.  Compatible Itanium MSI writes bypass
-translation; DMA mappings into the processor interrupt block are rejected.
-Fault and completion events use compatible MSI delivery.
+Interrupt remapping is not implemented: ECAP.IR and DMAR's interrupt-remapping
+flag are clear.  The interrupt-remapping table and command fields are reserved,
+and interrupt-entry cache invalidation descriptors raise a queue error.
+Pass-through contexts must specify AW=2, the largest supported address width.
+Compatible Itanium MSI writes bypass translation; DMA mappings into the
+processor interrupt block are rejected.  Fault and completion events use
+compatible MSI delivery.
 
 Table reads are coherent even with ECAP.C clear; guests must still follow
 the hardware cache-flush rules.  There is no translation cache, so

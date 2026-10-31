@@ -107,7 +107,8 @@ static void test_registers(void)
         g_assert_cmphex((cap >> 40) & 255, ==, 7);
         g_assert_cmphex((cap >> 48) & 63, ==, 9);
         g_assert_cmphex(cap & ((1 << 7) | (1 << 4) | (15ULL << 34)), ==, 0);
-        g_assert_cmphex(ecap & 15, ==, 10); /* C=0, QI=1, DT=0, IR=1 */
+        g_assert_cmphex(ecap & 15, ==, 2); /* C=0, QI=1, DT=0, IR=0 */
+        g_assert_cmphex((ecap >> 20) & 15, ==, 0);
         g_assert_cmphex((ecap >> 8) & 1023, ==, 32);
         g_assert_cmphex((ecap >> 7) & 1, ==, unit == 0);
         g_assert_cmphex(qtest_readl(qts, base + DMAR_GSTS_REG), ==, 0);
@@ -121,6 +122,72 @@ static void test_registers(void)
     qts = start(",vtd-coherent=on,vtd-high-mmio=on");
     g_assert_cmphex(qtest_readq(qts, (1ULL << 48) + INTEL_7500_VTBAR + 16) & 1,
                     ==, 1);
+    qtest_quit(qts);
+}
+
+static void test_interrupt_remapping_unavailable(void)
+{
+    QTestState *qts = start("");
+    const uint64_t queue = 0x1800000;
+
+    for (unsigned unit = 0; unit < 2; unit++) {
+        uint64_t base = INTEL_7500_VTBAR + unit * INTEL_7500_UNIT_SIZE;
+
+        /* VT-d 1.3, 10.4.4 and 10.4.29: IR=0 reserves these controls. */
+        qtest_writeq(qts, base + DMAR_IRTA_REG, queue | 7);
+        g_assert_cmphex(qtest_readq(qts, base + DMAR_IRTA_REG), ==, 0);
+        qtest_writel(qts, base + DMAR_GCMD_REG,
+                     VTD_GCMD_SIRTP | VTD_GCMD_IRE);
+        g_assert_cmphex(qtest_readl(qts, base + DMAR_GSTS_REG) &
+                        (VTD_GCMD_SIRTP | VTD_GCMD_IRE), ==, 0);
+
+        /* An unsupported invalidation descriptor must stop at IQH. */
+        qtest_writeq(qts, queue, VTD_INV_DESC_IEC);
+        qtest_writeq(qts, base + DMAR_IQA_REG, queue);
+        qtest_writel(qts, base + DMAR_GCMD_REG, VTD_GCMD_QIE);
+        qtest_writeq(qts, base + DMAR_IQT_REG, 16);
+        g_assert_cmphex(qtest_readq(qts, base + DMAR_IQH_REG), ==, 0);
+        g_assert_cmphex(qtest_readl(qts, base + DMAR_FSTS_REG) & 16, ==, 16);
+    }
+    qtest_quit(qts);
+}
+
+static void test_passthrough_address_width(const void *opaque)
+{
+    unsigned aw = GPOINTER_TO_UINT(opaque);
+    QTestState *qts = start("");
+    const uint64_t base = INTEL_7500_VTBAR;
+
+    pci_setup(qts);
+    qtest_writeq(qts, ROOT, CTX | 1);
+    qtest_writeq(qts, CTX + DEVFN * 16, (2 << 2) | 1);
+    qtest_writeq(qts, CTX + DEVFN * 16 + 8, (1 << 8) | aw);
+    enable(qts, base);
+    qtest_writel(qts, TARGET, 0xa5a5a5a5);
+    /* Section 9.2 requires the largest supported AGAW even for TT=2. */
+    if (aw == 2) {
+        g_assert_cmphex(dma(qts, TARGET, TARGET), ==, 0);
+        g_assert_cmphex(qtest_readl(qts, TARGET), ==, ITD_DMA_WRITE_VAL);
+        g_assert_cmphex(qtest_readl(qts, base + DMAR_FSTS_REG), ==, 0);
+    } else {
+        uint64_t fault;
+
+        g_assert_cmphex(dma(qts, TARGET, TARGET), ==, ITD_DMA_ERR_TX_FAIL);
+        g_assert_cmphex(qtest_readl(qts, TARGET), ==, 0xa5a5a5a5);
+        fault = qtest_readq(qts, base + 0x108);
+        g_assert_cmphex(fault >> 63, ==, 1);
+        g_assert_cmphex((fault >> 32) & 255, ==, VTD_FR_CONTEXT_ENTRY_INV);
+        g_assert_cmphex(fault & 0xffff, ==, DEVFN);
+
+        /* FPD suppresses reporting, but cannot allow the invalid access. */
+        qtest_writeq(qts, base + 0x108, 1ULL << 63);
+        qtest_writeq(qts, CTX + DEVFN * 16, (2 << 2) | 3);
+        qtest_writeq(qts, base + DMAR_CCMD_REG, (1ULL << 63) | (1ULL << 61));
+        qtest_writeq(qts, base + 0x208, (1ULL << 63) | (1ULL << 60));
+        g_assert_cmphex(dma(qts, TARGET, TARGET), ==, ITD_DMA_ERR_TX_FAIL);
+        g_assert_cmphex(qtest_readl(qts, TARGET), ==, 0xa5a5a5a5);
+        g_assert_cmphex(qtest_readl(qts, base + DMAR_FSTS_REG) & 2, ==, 0);
+    }
     qtest_quit(qts);
 }
 
@@ -560,6 +627,7 @@ static void test_second_unit(void)
     qtest_writeq(qts, ROOT, CTX | 1);
     /* Pass-through context for the bridge's requester ID. */
     qtest_writeq(qts, CTX + PCI_DEVFN(7, 0) * 16, 1 | (2 << 2));
+    qtest_writeq(qts, CTX + PCI_DEVFN(7, 0) * 16 + 8, 2);
     enable(qts, INTEL_7500_VTBAR + 4096);
     g_assert_cmphex(dma_at(qts, bar, TARGET, TARGET), ==, 0);
     qtest_writeq(qts, CTX + PCI_DEVFN(7, 0) * 16, 0);
@@ -842,6 +910,14 @@ int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
     qtest_add_func("/vtd/registers", test_registers);
+    qtest_add_func("/vtd/interrupt-remapping-unavailable",
+                   test_interrupt_remapping_unavailable);
+    for (unsigned aw = 0; aw < 8; aw++) {
+        g_autofree char *path = g_strdup_printf("/vtd/passthrough/aw-%u", aw);
+
+        qtest_add_data_func(path, GUINT_TO_POINTER(aw),
+                            test_passthrough_address_width);
+    }
     qtest_add_func("/vtd/translation-faults", test_translation_faults);
     qtest_add_func("/vtd/invalidation", test_invalidation);
     qtest_add_func("/vtd/fault-overflow", test_fault_overflow);

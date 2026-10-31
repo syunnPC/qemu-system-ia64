@@ -12,7 +12,6 @@
 #include "hw/core/qdev-properties.h"
 #include "migration/vmstate.h"
 #include "qapi/error.h"
-#include "qemu/error-report.h"
 #include "system/address-spaces.h"
 
 #define TYPE_7500_IOMMU_MEMORY "intel-7500-iommu-memory"
@@ -257,6 +256,11 @@ static IOMMUTLBEntry translate(IOMMUMemoryRegion *mr, hwaddr addr,
     if (tt == 1 || tt == 3) {
         goto fault;
     }
+    reason = VTD_FR_CONTEXT_ENTRY_INV;
+    /* VT-d 1.3, 9.2: pass-through also requires the largest supported AGAW. */
+    if ((hi & 7) != 2) { /* AGAW=48, four levels only. */
+        goto fault;
+    }
     if (tt == 2) {
         if (addr > HPA_MASK) {
             reason = VTD_FR_ADDR_BEYOND_MGAW;
@@ -265,10 +269,6 @@ static IOMMUTLBEntry translate(IOMMUMemoryRegion *mr, hwaddr addr,
         e.translated_addr = e.iova;
         e.perm = IOMMU_RW;
         return e;
-    }
-    reason = VTD_FR_CONTEXT_ENTRY_INV;
-    if ((hi & 7) != 2) { /* AGAW=48, four levels only. */
-        goto fault;
     }
     reason = VTD_FR_ADDR_BEYOND_MGAW;
     if (addr > IOVA_MASK) {
@@ -372,12 +372,6 @@ static void process_queue(Intel7500Unit *u)
             }
             invalidate(u);
             break;
-        case 4: /* Interrupt-entry cache; IRE is unavailable. */
-            if (hi || (lo & VTD_INV_DESC_IEC_RSVD)) {
-                queue_fault(u);
-                return;
-            }
-            break;
         case 5: /* Invalidation wait */
             if ((lo & VTD_INV_DESC_WAIT_RSVD_LO(0)) ||
                 (hi & VTD_INV_DESC_WAIT_RSVD_HI)) {
@@ -449,10 +443,6 @@ static void mmio_write(void *opaque, hwaddr addr, uint64_t val, unsigned size)
         /* VT-d 1.3, 10.4.22: IQH reads zero whenever QIES is Clear. */
         if (!(status & VTD_GCMD_QIE)) {
             put64(u, DMAR_IQH_REG, 0);
-        }
-        if (val & VTD_GCMD_IRE) {
-            error_report_once("Intel 7500: Itanium interrupt remapping is "
-                              "not implemented; IRE remains clear");
         }
         put32(u, DMAR_GSTS_REG, status);
         invalidate(u);
@@ -544,9 +534,6 @@ static void mmio_write(void *opaque, hwaddr addr, uint64_t val, unsigned size)
         return;
     case DMAR_IEADDR_REG:
         mask = 0xfffffffffffffffcULL;
-        break;
-    case DMAR_IRTA_REG:
-        mask = PAGE_MASK | 15;
         break;
     case IVA:
         mask = PAGE_MASK | 0x7f;
@@ -640,9 +627,9 @@ static void reset(DeviceState *dev)
         put64(u, DMAR_CAP_REG, (3ULL << 54) | (9ULL << 48) |
               ((FAULT_NR - 1ULL) << 40) | (1ULL << 39) |
               (0x10ULL << 24) | (47ULL << 16) | (4ULL << 8) | 0x62);
-        /* ATS disabled; EIM is for IA-32, not the Itanium interrupt format. */
-        put64(u, DMAR_ECAP_REG, (15ULL << 20) | (0x20ULL << 8) |
-              (i == 0 ? 1ULL << 7 : 0) | 0x6a | s->coherent);
+        /* ATS and interrupt remapping are unavailable. */
+        put64(u, DMAR_ECAP_REG, (0x20ULL << 8) |
+              (i == 0 ? 1ULL << 7 : 0) | 0x62 | s->coherent);
         put32(u, DMAR_FECTL_REG, EVENT_IM);
         put32(u, DMAR_IECTL_REG, EVENT_IM);
         invalidate(u);

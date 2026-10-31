@@ -88,6 +88,15 @@ enum {
     ITD_REG_DMA_GPA_HI      = 0x20,
     /* Raw MemTxResult returned by dma_memory_write(), read-only. */
     ITD_REG_DMA_MEMTX_RESULT = 0x24,
+    ITD_REG_NOTIFIER_CONTROL = 0x28,
+    ITD_REG_NOTIFIER_MAP0    = 0x2c,
+    ITD_REG_NOTIFIER_UNMAP0  = 0x30,
+    ITD_REG_NOTIFIER_BAD0    = 0x34,
+    ITD_REG_NOTIFIER_MAP1    = 0x38,
+    ITD_REG_NOTIFIER_UNMAP1  = 0x3c,
+    ITD_REG_NOTIFIER_BAD1    = 0x40,
+    ITD_REG_NOTIFIER_PERM0   = 0x44,
+    ITD_REG_NOTIFIER_PERM1   = 0x48,
     BAR0_SIZE               = 0x1000,
 };
 

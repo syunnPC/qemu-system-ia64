@@ -10,6 +10,7 @@
  */
 
 #include "qemu/osdep.h"
+#include "qapi/error.h"
 #include "system/address-spaces.h"
 #include "system/memory.h"
 #include "trace.h"
@@ -19,6 +20,16 @@
 #include "hw/misc/iommu-testdev.h"
 
 OBJECT_DECLARE_SIMPLE_TYPE(IOMMUTestDevState, IOMMU_TESTDEV)
+
+typedef struct IOMMUTestNotifier {
+    IOMMUNotifier n;
+    IOMMUTestDevState *dev;
+    uint32_t maps;
+    uint32_t unmaps;
+    uint32_t bad_maps;
+    uint32_t watch_perm;
+    bool registered;
+} IOMMUTestNotifier;
 
 struct IOMMUTestDevState {
     PCIDevice parent_obj;
@@ -32,7 +43,74 @@ struct IOMMUTestDevState {
 
     AddressSpace *dma_as;   /* IOMMU-mediated DMA AS for this device */
     uint32_t dma_attrs_cfg; /* bit0 secure, bits[2:1] space, bit3 valid */
+    MemoryRegion *notifier_mr;
+    IOMMUTestNotifier notifiers[2];
 };
+
+static void iommu_testdev_notify(IOMMUNotifier *n, IOMMUTLBEntry *entry)
+{
+    IOMMUTestNotifier *tn = container_of(n, IOMMUTestNotifier, n);
+    hwaddr watch = tn->dev->dma_vaddr;
+
+    if (entry->perm) {
+        Error *err = NULL;
+        hwaddr xlat;
+
+        tn->maps++;
+        RCU_READ_LOCK_GUARD();
+        if (!memory_translate_iotlb(entry, &xlat, &err)) {
+            tn->bad_maps++;
+            error_free(err);
+        }
+    } else {
+        tn->unmaps++;
+    }
+    if (watch >= entry->iova && watch - entry->iova <= entry->addr_mask) {
+        tn->watch_perm = entry->perm;
+    }
+}
+
+static void iommu_testdev_notifiers(IOMMUTestDevState *s, unsigned mask)
+{
+    MemoryRegionSection section;
+    unsigned i;
+
+    if (!s->notifier_mr && mask) {
+        section = memory_region_find(s->dma_as->root, 0, 1);
+        if (!section.mr || !memory_region_is_iommu(section.mr)) {
+            memory_region_unref(section.mr);
+            return;
+        }
+        s->notifier_mr = section.mr;
+    }
+    for (i = 0; i < G_N_ELEMENTS(s->notifiers); i++) {
+        IOMMUTestNotifier *tn = &s->notifiers[i];
+
+        if (tn->registered) {
+            memory_region_unregister_iommu_notifier(s->notifier_mr, &tn->n);
+            tn->registered = false;
+        }
+        if (mask & (1U << i)) {
+            *tn = (IOMMUTestNotifier) { .dev = s };
+            iommu_notifier_init(&tn->n, iommu_testdev_notify,
+                                IOMMU_NOTIFIER_IOTLB_EVENTS,
+                                0, s->dma_len - 1, 0);
+            memory_region_register_iommu_notifier(s->notifier_mr, &tn->n,
+                                                  &error_abort);
+            tn->registered = true;
+        }
+    }
+    for (i = 0; i < G_N_ELEMENTS(s->notifiers); i++) {
+        if (s->notifiers[i].registered) {
+            memory_region_iommu_replay(IOMMU_MEMORY_REGION(s->notifier_mr),
+                                       &s->notifiers[i].n);
+        }
+    }
+    if (!mask && s->notifier_mr) {
+        memory_region_unref(s->notifier_mr);
+        s->notifier_mr = NULL;
+    }
+}
 
 static bool iommu_testdev_attrs_inconsistent(uint32_t cfg)
 {
@@ -190,6 +268,22 @@ static uint64_t iommu_testdev_mmio_read(void *opaque, hwaddr addr,
     case ITD_REG_DMA_MEMTX_RESULT:
         value = s->dma_memtx_result;
         break;
+    case ITD_REG_NOTIFIER_MAP0:
+    case ITD_REG_NOTIFIER_MAP1:
+        value = s->notifiers[(addr - ITD_REG_NOTIFIER_MAP0) / 12].maps;
+        break;
+    case ITD_REG_NOTIFIER_UNMAP0:
+    case ITD_REG_NOTIFIER_UNMAP1:
+        value = s->notifiers[(addr - ITD_REG_NOTIFIER_UNMAP0) / 12].unmaps;
+        break;
+    case ITD_REG_NOTIFIER_BAD0:
+    case ITD_REG_NOTIFIER_BAD1:
+        value = s->notifiers[(addr - ITD_REG_NOTIFIER_BAD0) / 12].bad_maps;
+        break;
+    case ITD_REG_NOTIFIER_PERM0:
+    case ITD_REG_NOTIFIER_PERM1:
+        value = s->notifiers[(addr - ITD_REG_NOTIFIER_PERM0) / 4].watch_perm;
+        break;
     default:
         value = 0;
         break;
@@ -245,6 +339,9 @@ static void iommu_testdev_mmio_write(void *opaque, hwaddr addr, uint64_t val,
     case ITD_REG_DMA_ATTRS:
         s->dma_attrs_cfg = data;
         break;
+    case ITD_REG_NOTIFIER_CONTROL:
+        iommu_testdev_notifiers(s, data & 3);
+        break;
     default:
         break;
     }
@@ -282,6 +379,7 @@ static void iommu_testdev_reset(DeviceState *dev)
 {
     IOMMUTestDevState *s = IOMMU_TESTDEV(dev);
 
+    iommu_testdev_notifiers(s, 0);
     s->dma_vaddr = 0;
     s->dma_paddr = 0;
     s->dma_len = 0;
@@ -291,12 +389,18 @@ static void iommu_testdev_reset(DeviceState *dev)
     s->dma_attrs_cfg = ITD_ATTRS_SET_SPACE(0, ITD_ATTRS_SPACE_NONSECURE);
 }
 
+static void iommu_testdev_exit(PCIDevice *pdev)
+{
+    iommu_testdev_notifiers(IOMMU_TESTDEV(pdev), 0);
+}
+
 static void iommu_testdev_class_init(ObjectClass *klass, const void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
     PCIDeviceClass *pc = PCI_DEVICE_CLASS(klass);
 
     pc->realize = iommu_testdev_realize;
+    pc->exit = iommu_testdev_exit;
     pc->vendor_id = IOMMU_TESTDEV_VENDOR_ID;
     pc->device_id = IOMMU_TESTDEV_DEVICE_ID;
     pc->revision = 0;
