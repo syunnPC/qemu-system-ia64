@@ -2025,6 +2025,102 @@ test_fnorm_wre1_precision_and_range = require_registers(
         "exception": IA64_EXCP_NONE,
     }, entry=0x10)
 
+# SDM Vol. 1 Figure 5-11 resolves NaNs before D; Figure 5-12 delivers
+# precomputed infinities before finite-result rounding and range checks.
+test_fp_special_infinity_minus_wide_finite = require_registers(
+    "fp_special_infinity_minus_wide_finite", [
+        (0x10, *movl_mlx(2, 0x37e82)),
+        (0x20, *movl_mlx(3, 0xfff0000000000000)),
+        (0x30, 0x09, setf_exp(6, 2), setf_d(7, 3), nop_i()),
+        (0x40, 0x0d, nop_m(),
+         fsub_s0(8, 7, 6) | bitfield(3, 34, 2), nop_i()),
+        (0x50, 0x10, nop_m(), nop_i(), br_cond(0x50, 0x50)),
+    ], {
+        "ip": 0x50,
+        "f6": ExpectedFP(0x8000000000000000, 0x37e82),
+        "f8": ExpectedFP(*binary64_to_spill(0xfff0000000000000)),
+        "ar_fpsr": DEFAULT_FPSR,
+        "exception": IA64_EXCP_NONE,
+    }, entry=0x10)
+
+test_fp_special_infinity_times_tiny_finite = require_registers(
+    "fp_special_infinity_times_tiny_finite", [
+        (0x10, *movl_mlx(2, 1)),
+        (0x20, *movl_mlx(3, 0x7ff0000000000000)),
+        (0x30, 0x09, setf_exp(6, 2), setf_d(7, 3), nop_i()),
+        (0x40, 0x0d, nop_m(),
+         fma_d_s0(8, 7, 6, 7) | bitfield(1, 34, 2), nop_i()),
+        (0x50, 0x10, nop_m(), nop_i(), br_cond(0x50, 0x50)),
+    ], {
+        "ip": 0x50,
+        "f6": ExpectedFP(0x8000000000000000, 1),
+        "f8": ExpectedFP(*binary64_to_spill(0x7ff0000000000000)),
+        "ar_fpsr": DEFAULT_FPSR,
+        "exception": IA64_EXCP_NONE,
+    }, entry=0x10)
+
+test_fp_special_invalid_suppresses_range_flags = require_registers(
+    "fp_special_invalid_suppresses_range_flags", [
+        (0x10, *movl_mlx(2, 1)),
+        (0x20, *movl_mlx(3, 0x7ff0000000000000)),
+        (0x30, 0x09, setf_exp(6, 2), setf_d(7, 3), nop_i()),
+        (0x40, 0x0d, nop_m(), fms_s0(8, 7, 6, 7), nop_i()),
+        (0x50, 0x10, nop_m(), nop_i(), br_cond(0x50, 0x50)),
+    ], {
+        "ip": 0x50,
+        "f8": ExpectedFP(0xc000000000000000, 0x3ffff),
+        "ar_fpsr": (DEFAULT_FPSR |
+                    (1 << (FPSR_SF0_SHIFT + FPSR_SF_FLAGS_SHIFT))),
+        "exception": IA64_EXCP_NONE,
+    }, entry=0x10)
+
+test_fp_special_binary_qnan_suppresses_wide_operand_flags = require_registers(
+    "fp_special_binary_qnan_suppresses_wide_operand_flags", [
+        (0x10, *movl_mlx(2, 0x18000)),
+        (0x20, *movl_mlx(3, 0xfff8123456789abc)),
+        (0x30, 0x09, setf_exp(6, 2), setf_d(7, 3), nop_i()),
+        (0x40, 0x0d, nop_m(), fma_s0(8, 6, 1, 7), nop_i()),
+        (0x50, 0x0d, nop_m(), fsub_s0(9, 6, 7), nop_i()),
+        (0x60, 0x0d, nop_m(), fmpy_s0(10, 6, 7), nop_i()),
+        (0x70, 0x10, nop_m(), nop_i(), br_cond(0x70, 0x70)),
+    ], {
+        "ip": 0x70,
+        "f8": ExpectedFP(*binary64_to_spill(0xfff8123456789abc)),
+        "f9": ExpectedFP(*binary64_to_spill(0xfff8123456789abc)),
+        "f10": ExpectedFP(*binary64_to_spill(0xfff8123456789abc)),
+        "ar_fpsr": DEFAULT_FPSR,
+        "exception": IA64_EXCP_NONE,
+    }, entry=0x10)
+
+test_fp_special_zero_product_plus_infinity_is_exact = require_registers(
+    "fp_special_zero_product_plus_infinity_is_exact", [
+        (0x10, *movl_mlx(2, 0x28d8c5fca3d6aa22)),
+        (0x20, *movl_mlx(3, 0x7f800000)),
+        (0x30, 0x09, setf_d(6, 2), setf_s(7, 3), nop_i()),
+        (0x40, 0x0d, nop_m(), fma_s_s0(8, 0, 6, 7), nop_i()),
+        (0x50, 0x10, nop_m(), nop_i(), br_cond(0x50, 0x50)),
+    ], {
+        "ip": 0x50,
+        "f8": ExpectedFP(*binary64_to_spill(0x7ff0000000000000)),
+        "ar_fpsr": DEFAULT_FPSR,
+        "exception": IA64_EXCP_NONE,
+    }, entry=0x10)
+
+test_fp_special_qnan_suppresses_tiny_operand_flags = require_registers(
+    "fp_special_qnan_suppresses_tiny_operand_flags", [
+        (0x10, *movl_mlx(2, 1)),
+        (0x20, *movl_mlx(3, 0xfff8123456789abc)),
+        (0x30, 0x09, setf_exp(6, 2), setf_d(7, 3), nop_i()),
+        (0x40, 0x0d, nop_m(),
+         fms_s0(8, 6, 0, 7) | bitfield(1, 34, 2), nop_i()),
+        (0x50, 0x10, nop_m(), nop_i(), br_cond(0x50, 0x50)),
+    ], {
+        "ip": 0x50,
+        "f8": ExpectedFP(*binary64_to_spill(0xfff8123456789abc)),
+        "ar_fpsr": DEFAULT_FPSR,
+        "exception": IA64_EXCP_NONE,
+    }, entry=0x10)
+
 test_fp_binary_wre1_transports_17bit_range = require_registers(
     "fp_binary_wre1_transports_17bit_range", [
         (0x10, *movl_mlx(
@@ -6271,6 +6367,12 @@ test_fp_tracking_predicates_check_load_and_user_mask = require_registers(
 
 GROUP = 'fp'
 CASE_NAMES = (
+    'fp_special_binary_qnan_suppresses_wide_operand_flags',
+    'fp_special_invalid_suppresses_range_flags',
+    'fp_special_infinity_minus_wide_finite',
+    'fp_special_infinity_times_tiny_finite',
+    'fp_special_zero_product_plus_infinity_is_exact',
+    'fp_special_qnan_suppresses_tiny_operand_flags',
     'fp_tracking_predicates_check_load_and_user_mask',
 
     'br_ctop_rotates_floating_registers',

@@ -42,6 +42,7 @@ ia64_ss.add(when: 'CONFIG_IA64_460GX_DMA_TEST',
             if_true: files('intel_460gx_dma_test.c'))
 ia64_ss.add(when: 'CONFIG_IA64_VPC', if_true: files(
   'ia64_vpc.c',
+  'intel_7500.c',
   'ia64_pci.c',
   'ia64_iosapic.c',
 ))

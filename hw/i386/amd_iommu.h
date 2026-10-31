@@ -44,6 +44,8 @@
 #define AMDVI_CAPAB_FLAG_HTTUNNEL     (1 << 25)
 #define AMDVI_CAPAB_FLAG_IOTLBSUP     (1 << 24)
 #define AMDVI_CAPAB_INIT_TYPE         (3 << 16)
+#define AMDVI_CAPAB_REV               (1 << 19)
+#define AMDVI_CAPAB_ENABLE            (1 << 0)
 
 /* No. of used MMIO registers */
 #define AMDVI_MMIO_REGS_HIGH  7
@@ -150,6 +152,9 @@
 #define AMDVI_EVENT_ILLEGAL_DEVTAB_ENTRY  (0x1U << 12)
 #define AMDVI_EVENT_IOPF                  (0x2U << 12)
 #define   AMDVI_EVENT_IOPF_I              (1U << 3)
+#define   AMDVI_EVENT_IOPF_PR             (1U << 4)
+#define   AMDVI_EVENT_IOPF_RW             (1U << 5)
+#define   AMDVI_EVENT_IOPF_PE             (1U << 6)
 #define AMDVI_EVENT_DEV_TAB_HW_ERROR      (0x3U << 12)
 #define AMDVI_EVENT_PAGE_TAB_HW_ERROR     (0x4U << 12)
 #define AMDVI_EVENT_ILLEGAL_COMMAND_ERROR (0x5U << 12)
@@ -233,7 +238,7 @@
 #define AMDVI_CAPAB_FEATURES (AMDVI_CAPAB_FLAT_EXT | \
         AMDVI_CAPAB_FLAG_NPCACHE | AMDVI_CAPAB_FLAG_IOTLBSUP \
         | AMDVI_CAPAB_ID_SEC | AMDVI_CAPAB_INIT_TYPE | \
-        AMDVI_CAPAB_FLAG_HTTUNNEL |  AMDVI_CAPAB_EFR_SUP)
+        AMDVI_CAPAB_FLAG_HTTUNNEL | AMDVI_CAPAB_EFR_SUP | AMDVI_CAPAB_REV)
 
 /* AMDVI default address */
 #define AMDVI_BASE_ADDR 0xfed80000ULL
@@ -356,6 +361,7 @@ typedef struct AMDVIAddressSpace AMDVIAddressSpace;
 struct AMDVIPCIState {
     PCIDevice dev;               /* The PCI device itself        */
     uint32_t capab_offset;       /* capability offset pointer    */
+    AMDVIState *iommu_state;
 };
 
 struct AMDVIState {

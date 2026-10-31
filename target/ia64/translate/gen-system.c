@@ -934,7 +934,7 @@ IA64GenResult ia64_gen_system(DisasContext *ctx,
         ia64_gen_check_virtualization(insn);
         gen_helper_rfi(tcg_env, tcg_constant_i64(insn->address),
                        tcg_constant_i32(insn->slot));
-        tcg_gen_lookup_and_goto_ptr();
+        ia64_gen_lookup_or_exit(ctx);
         if (skip == NULL) {
             return IA64_GEN_NORETURN;
         }

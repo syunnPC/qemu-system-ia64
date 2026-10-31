@@ -26,6 +26,15 @@ The device exposes a single PCI BAR0 with 32-bit MMIO registers:
   (0=success, 0xffffffff=idle, 0xfffffffe=armed)
 * ``ITD_REG_DMA_MEMTX_RESULT`` (0x24): Raw ``MemTxResult`` from the last DMA
   write; 0xffffffff means no write was attempted.
+* ``ITD_REG_NOTIFIER_CONTROL`` (0x28): Bits [1:0] select two optional IOMMU
+  observers. Writing registers and replays the selected observers over
+  ``[0, DMA_LEN)``; zero unregisters them. The DMA address selects a watched
+  IOVA. Configure these observers only while an IOMMU region covers IOVA zero.
+* ``ITD_REG_NOTIFIER_MAP0``, ``UNMAP0``, ``BAD0`` (0x2c, 0x30, 0x34):
+  Observer zero's MAP count, UNMAP count, and count of MAPs rejected by
+  ``memory_translate_iotlb()``. Observer one's counters occupy 0x38–0x40.
+* ``ITD_REG_NOTIFIER_PERM0``, ``PERM1`` (0x44, 0x48): Last permissions
+  reported for the watched IOVA (bit 0 read, bit 1 write).
 * ``ITD_REG_DMA_DBELL`` (0x14): Write 1 to arm DMA, write 0 to disarm.
   Arming marks the request and sets BUSY without latching or validating the
   other register values.

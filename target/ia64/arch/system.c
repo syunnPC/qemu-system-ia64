@@ -372,21 +372,7 @@ static bool ia64_reserved_fpsr_field(uint64_t value)
 
 static bool ia64_reserved_pfs_field(uint64_t value)
 {
-    uint32_t sof = value & 0x7f;
-    uint32_t sol = (value >> 7) & 0x7f;
-    uint32_t sor = (value >> 14) & 0xf;
-    uint32_t sor_regs = sor << 3;
-    uint32_t rrb_gr = (value >> 18) & 0x7f;
-    uint32_t rrb_fr = (value >> 25) & 0x7f;
-    uint32_t rrb_pr = (value >> 32) & 0x3f;
-
-    if ((value & (0xfULL << 58)) ||
-        (value & (0x3fffULL << 38))) {
-        return true;
-    }
-    return !ia64_cfm_frame_fields_valid(sof, sol, sor) ||
-           (sor_regs ? rrb_gr >= sor_regs : rrb_gr != 0) ||
-           rrb_fr >= 96 || rrb_pr >= 48;
+    return (value & (0xfULL << 58)) || (value & (0x3fffULL << 38));
 }
 
 static void ia64_system_check_virtualization(CPUIA64State *env,
@@ -428,6 +414,7 @@ void ia64_system_validate_ar_access(CPUIA64State *env, uint64_t value,
 
     if ((ar_num == 16 && ia64_reserved_rsc_field(value)) ||
         (ar_num == 40 && ia64_reserved_fpsr_field(value)) ||
+        (ar_num == IA64_AR_CFLG && (value >> 43)) ||
         (ar_num == 64 && ia64_reserved_pfs_field(value))) {
         qemu_log_mask(CPU_LOG_INT,
                       "ia64 reserved AR field ip=%016" PRIx64
@@ -438,7 +425,8 @@ void ia64_system_validate_ar_access(CPUIA64State *env, uint64_t value,
         ia64_raise_exception(env, IA64_EXCP_RESERVED_REG_FIELD,
                                fault_ip, raw, slot);
     }
-    if ((ar_num <= IA64_AR_KR7 || ar_num == IA64_AR_ITC ||
+    if ((ar_num <= IA64_AR_KR7 || ar_num == IA64_AR_CFLG ||
+         ar_num == IA64_AR_ITC ||
          ar_num == IA64_AR_RUC) && ia64_psr_cpl(env->psr) != 0) {
         env->cr_isr = 0x20;
         ia64_raise_exception(env, IA64_EXCP_PRIVILEGED_REG,
@@ -490,6 +478,14 @@ void ia64_system_write_ar(CPUIA64State *env, uint32_t ar_num, uint64_t value)
         value &= ~7ULL;
     } else if (ar_num == 66) {
         value &= 0x3f;
+    } else if (ar_num == IA64_AR_EFLAG) {
+        uint8_t cpl = ia64_psr_cpl(env->psr);
+        uint64_t preserve = cpl ? (3ULL << 12) | (1ULL << 17) : 0;
+
+        if (cpl > ((env->ar_eflag >> 12) & 3)) {
+            preserve |= 1ULL << 9;
+        }
+        value = (value & ~preserve) | (env->ar_eflag & preserve);
     }
     old_value = env->ar[ar_num];
     env->ar[ar_num] = value;

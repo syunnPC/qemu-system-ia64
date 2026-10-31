@@ -5,6 +5,10 @@ config IA64_VPC
     select SERIAL_MM
     select PCI
     select PCI_EXPRESS
+    select VIRTIO_PCI
+    select VIRTIO_IOMMU
+    select E1000E_PCI_EXPRESS
+    select USB_XHCI_PCI
     select MSI_NONBROKEN
     select PCI_BRIDGE
     select PCIE_PORT

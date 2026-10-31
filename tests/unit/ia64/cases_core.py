@@ -129,8 +129,6 @@ from .encoding import (
     mov_b_gr,
     mov_br_gr,
     mov_cpuid,
-    mov_dahr_read,
-    mov_dahr_write,
     mov_dbr_indexed_read,
     mov_dbr_indexed_write,
     mov_gr_b,
@@ -1357,56 +1355,6 @@ test_mov_cpuid_itanium2_alias = require_registers(
         "r28": 0x5,
         "r29": 0x0000000020000704,
     }, entry=0x10, cpu="itanium2")
-
-test_mov_dahr_indexed_decode = require_registers("mov_dahr_indexed_decode", [
-    (0x10, 0x00, addl(18, 2, 0), addl(29, 0x55, 0),
-     nop_i()),
-    (0x20, 0x00, mov_dahr_read(29, 18, bit36=1, ignored=0x7b),
-     nop_i(), nop_i()),
-    (0x30, *movl_mlx(19, IA64_PSR_IC | IA64_PSR_CPL3)),
-    (0x40, 0x00, nop_m(), adds(31, 0x80, 0), nop_i()),
-    *rfi_to_gr(0x50, 19, 31),
-    (0x80, 0x00, srlz_d(), nop_i(), nop_i()),
-    (0x90, 0x00, mov_dahr_write(2, 0xffff), nop_i(), nop_i()),
-    (0xa0, 0x00, mov_dahr_write(2, 0x123, qp=1), nop_i(), nop_i()),
-    (0xb0, 0x00, mov_dahr_read(29, 18, bit36=1, ignored=0x7b),
-     nop_i(), nop_i()),
-    (0xc0, 0x10, nop_m(), nop_i(),
-     br_cond(0xc0, 0xc0)),
-], {
-    "ip": 0xc0,
-    "exception": IA64_EXCP_NONE,
-    "r29": 0x7ff,
-}, entry=0x10)
-
-test_dahr_resets_on_br_call = require_registers("dahr_resets_on_br_call", [
-    (0x10, 0x00, mov_dahr_write(2, 0x345), addl(18, 2, 0), nop_i()),
-    (0x20, 0x00, mov_dahr_read(29, 18), nop_i(), nop_i()),
-    (0x30, 0x10, nop_m(), nop_i(), br_call(6, 0x30, 0x80)),
-    (0x40, 0x00, mov_dahr_read(30, 18), nop_i(), nop_i()),
-    (0x50, 0x10, nop_m(), nop_i(), br_cond(0x50, 0x50)),
-    (0x80, 0x00, mov_dahr_read(31, 18), nop_i(), nop_i()),
-    (0x90, 0x10, nop_m(), nop_i(), br_ret(6)),
-], {
-    "ip": 0x50,
-    "exception": IA64_EXCP_NONE,
-    "r29": 0x345,
-    "r30": 0,
-    "r31": 0,
-}, entry=0x10)
-
-test_dahr_resets_on_mov_bspstore = require_registers(
-    "dahr_resets_on_mov_bspstore", [
-        (0x10, 0x00, mov_dahr_write(4, 0x456), addl(18, 4, 0), nop_i()),
-        (0x20, 0x00, nop_m(), addl(3, 0x8000, 0), nop_i()),
-        (0x30, 0x00, mov_ar(3, 18), nop_i(), nop_i()),
-        (0x40, 0x00, mov_dahr_read(29, 18), nop_i(), nop_i()),
-        (0x50, 0x10, nop_m(), nop_i(), br_cond(0x50, 0x50)),
-    ], {
-        "ip": 0x50,
-        "exception": IA64_EXCP_NONE,
-        "r29": 0,
-    }, entry=0x10)
 
 test_mov_msr_indexed_decode = require_registers("mov_msr_indexed_decode", [
     (0x10, 0x00, addl(2, 66, 0), addl(3, 0x1234, 0),
@@ -3725,8 +3673,6 @@ CASE_NAMES = (
     'dep_source_alias_decode',
     'depz_decode',
     'depz_len64_decode',
-    'dahr_resets_on_br_call',
-    'dahr_resets_on_mov_bspstore',
     'epc_b_ignored_fields_decode',
     'extr_signed_truncates_overlong_field',
     'extr_u_ignored_bit36_decode',
@@ -3751,7 +3697,6 @@ CASE_NAMES = (
     'mov_cpuid_mckinley_model',
     'mov_cpuid_merced_model',
     'mov_cpuid_montvale_model',
-    'mov_dahr_indexed_decode',
     'mov_dbr_ibr_indexed_decode',
     'mov_dbr_index8_reserved_register_field',
     'mov_ibr_index8_reserved_register_field',

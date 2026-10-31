@@ -96,6 +96,11 @@ qtests_i386 = \
   (config_all_devices.has_key('CONFIG_SDHCI_PCI') ? ['fuzz-sdcard-test'] : []) +            \
   (config_all_devices.has_key('CONFIG_ESP_PCI') ? ['am53c974-test'] : []) +                 \
   (config_all_devices.has_key('CONFIG_VTD') ? ['intel-iommu-test'] : []) +                 \
+  (config_all_devices.has_key('CONFIG_AMD_IOMMU') and                                    \
+   config_all_devices.has_key('CONFIG_Q35') and                                          \
+   config_all_devices.has_key('CONFIG_EDU') and                                          \
+   config_all_devices.has_key('CONFIG_IOMMU_TESTDEV') and                               \
+   config_all_devices.has_key('CONFIG_PCIE_PORT') ? ['amd-iommu-test'] : []) +            \
   (config_all_devices.has_key('CONFIG_VTD') and
    config_all_devices.has_key('CONFIG_IOMMU_TESTDEV') ? ['iommu-intel-test'] : []) +      \
   (host_os != 'windows' and                                                                \
@@ -146,6 +151,10 @@ qtests_alpha = ['boot-serial-test'] + \
 qtests_avr = [ 'boot-serial-test' ]
 
 qtests_ia64 = ['ia64-vpc-test'] + \
+  (config_all_devices.has_key('CONFIG_IOMMU_TESTDEV') and \
+   config_all_devices.has_key('CONFIG_EDU') and \
+   config_all_devices.has_key('CONFIG_PCI_TESTDEV') ? \
+   ['ia64-vtd-test'] : []) + \
   (config_all_devices.has_key('CONFIG_IA64_VPC_USB') ? \
    ['default-input-test'] : []) + \
   (config_all_devices.has_key('CONFIG_IA64_VPC_STORAGE') ? \

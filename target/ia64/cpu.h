@@ -240,7 +240,7 @@ static inline uint8_t ia64_rsc_pl(uint64_t rsc)
 
 /*
  * CFM.sor is encoded in groups of eight general registers.  These are the
- * frame-size constraints shared by alloc, AR.PFS and CR.IFS validation.
+ * frame-size constraints shared by alloc and CR.IFS validation.
  */
 static inline bool ia64_cfm_frame_fields_valid(uint32_t sof, uint32_t sol,
                                                uint32_t sor)
@@ -639,15 +639,21 @@ typedef enum IA64Exception {
 extern const uint16_t ia64_ivt_vectors[IA64_EXCP_MAX];
 
 static inline IA64Exception
-ia64_pte_exception_for_access(uint64_t pte, uint8_t perm, uint8_t needed,
-                              bool is_ifetch, bool is_write, uint64_t psr)
+ia64_pte_exception_for_access_masked(uint64_t pte, uint8_t perm, uint8_t needed,
+                                    bool is_ifetch, bool is_write,
+                                    uint64_t psr, uint64_t deferred)
 {
+    IA64Exception access = is_ifetch ? IA64_EXCP_INST_ACCESS :
+                                      IA64_EXCP_DATA_ACCESS;
+    IA64Exception accessed = is_ifetch ? IA64_EXCP_INST_ACCESS_BIT :
+                                        IA64_EXCP_DATA_ACCESS_BIT;
+
     if (!(pte & IA64_PTE_PRESENT)) {
         return IA64_EXCP_PAGE_NOT_PRESENT;
     }
 
-    if ((perm & needed) != needed) {
-        return is_ifetch ? IA64_EXCP_INST_ACCESS : IA64_EXCP_DATA_ACCESS;
+    if ((perm & needed) != needed && !(deferred & (1ULL << access))) {
+        return access;
     }
 
     /*
@@ -655,20 +661,31 @@ ia64_pte_exception_for_access(uint64_t pte, uint8_t perm, uint8_t needed,
      * store to a page with both bits clear reports the dirty-bit vector.
      */
     if (is_ifetch) {
-        if (!(pte & IA64_PTE_ACCESSED) && !(psr & IA64_PSR_IA)) {
+        if (!(pte & IA64_PTE_ACCESSED) && !(psr & IA64_PSR_IA) &&
+            !(deferred & (1ULL << accessed))) {
             return IA64_EXCP_INST_ACCESS_BIT;
         }
     } else {
         if (is_write && !(pte & IA64_PTE_DIRTY) &&
-            !(psr & IA64_PSR_DA)) {
+            !(psr & IA64_PSR_DA) &&
+            !(deferred & (1ULL << IA64_EXCP_DATA_DIRTY))) {
             return IA64_EXCP_DATA_DIRTY;
         }
-        if (!(pte & IA64_PTE_ACCESSED) && !(psr & IA64_PSR_DA)) {
+        if (!(pte & IA64_PTE_ACCESSED) && !(psr & IA64_PSR_DA) &&
+            !(deferred & (1ULL << accessed))) {
             return IA64_EXCP_DATA_ACCESS_BIT;
         }
     }
 
     return IA64_EXCP_NONE;
+}
+
+static inline IA64Exception
+ia64_pte_exception_for_access(uint64_t pte, uint8_t perm, uint8_t needed,
+                              bool is_ifetch, bool is_write, uint64_t psr)
+{
+    return ia64_pte_exception_for_access_masked(pte, perm, needed, is_ifetch,
+                                               is_write, psr, 0);
 }
 
 /* ---- TLB entry ---- */
@@ -1098,10 +1115,11 @@ ia64_key_exception_for_access(CPUIA64State *env, uint32_t key,
 }
 
 static inline IA64Exception
-ia64_translation_exception_for_access(CPUIA64State *env, uint64_t pte,
-                                      uint32_t key, uint8_t perm,
-                                      uint8_t needed, bool is_ifetch,
-                                      bool is_write, bool is_rse)
+ia64_translation_exception_for_access_masked(CPUIA64State *env, uint64_t pte,
+                                            uint32_t key, uint8_t perm,
+                                            uint8_t needed, bool is_ifetch,
+                                            bool is_write, bool is_rse,
+                                            uint64_t deferred)
 {
     IA64Exception excp;
 
@@ -1117,20 +1135,31 @@ ia64_translation_exception_for_access(CPUIA64State *env, uint64_t pte,
     /*
      * A NaTPage translation prevents every non-speculative reference:
      * instruction fetches, loads, stores and semaphores all raise NaT Page
-     * Consumption.  Control-speculative loads instead defer the fault, which
-     * the speculative probe helper decides before the access is attempted.
+     * Consumption.  A deferred NaTPage condition does not preclude key,
+     * access-rights or access-bit conditions (Vol. 2 Table 5-3).
      */
-    if (ia64_pte_ma(pte) == IA64_PTE_MA_NATPAGE) {
+    if (ia64_pte_ma(pte) == IA64_PTE_MA_NATPAGE &&
+        !(deferred & (1ULL << IA64_EXCP_NAT_CONSUMPTION))) {
         return IA64_EXCP_NAT_CONSUMPTION;
     }
 
     excp = ia64_key_exception_for_access(env, key, needed, is_ifetch, is_rse);
-    if (excp != IA64_EXCP_NONE) {
+    if (excp != IA64_EXCP_NONE && !(deferred & (1ULL << excp))) {
         return excp;
     }
 
-    return ia64_pte_exception_for_access(pte, perm, needed, is_ifetch,
-                                         is_write, env->psr);
+    return ia64_pte_exception_for_access_masked(pte, perm, needed, is_ifetch,
+                                               is_write, env->psr, deferred);
+}
+
+static inline IA64Exception
+ia64_translation_exception_for_access(CPUIA64State *env, uint64_t pte,
+                                      uint32_t key, uint8_t perm,
+                                      uint8_t needed, bool is_ifetch,
+                                      bool is_write, bool is_rse)
+{
+    return ia64_translation_exception_for_access_masked(
+        env, pte, key, perm, needed, is_ifetch, is_write, is_rse, 0);
 }
 
 static inline IA64Exception
@@ -1579,6 +1608,7 @@ struct IA64CPUClass {
     const char *pal_brand;
     uint32_t frequency_base_hz;
     uint32_t itc_frequency_hz;
+    uint32_t pal_l2i_cache_size;
     uint32_t pal_l3_cache_size;
     uint32_t pal_package_cache_size;
     uint64_t pal_processor_frequency_hz;

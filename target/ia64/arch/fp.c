@@ -555,10 +555,10 @@ typedef enum IA64FPMulAddOperation {
     IA64_FP_NEG_MULADD,
 } IA64FPMulAddOperation;
 
-static bool ia64_fp_handle_binary_unnormal(CPUIA64State *env, uint32_t sf,
-                                            uint32_t r1, uint32_t r2,
-                                            uint32_t r3,
-                                            IA64FPBinaryOperation op);
+static bool ia64_fp_handle_binary_special(CPUIA64State *env, uint32_t sf,
+                                         uint32_t r1, uint32_t r2,
+                                         uint32_t r3,
+                                         IA64FPBinaryOperation op);
 static bool ia64_fp_try_raw_binary(CPUIA64State *env, uint32_t r1,
                                     uint32_t r2, uint32_t r3, uint32_t sf,
                                     uint32_t precision,
@@ -725,7 +725,7 @@ static void ia64_do_fadd(CPUIA64State *env, uint32_t r1, uint32_t r2,
     if (ia64_fr_write_nat_if_any2(env, r1, r2, r3)) {
         return;
     }
-    if (ia64_fp_handle_binary_unnormal(
+    if (ia64_fp_handle_binary_special(
             env, sf, r1, r2, r3, IA64_FP_BINARY_ADD)) {
         return;
     }
@@ -747,7 +747,7 @@ static void ia64_do_fsub(CPUIA64State *env, uint32_t r1, uint32_t r2,
     if (ia64_fr_write_nat_if_any2(env, r1, r2, r3)) {
         return;
     }
-    if (ia64_fp_handle_binary_unnormal(
+    if (ia64_fp_handle_binary_special(
             env, sf, r1, r2, r3, IA64_FP_BINARY_SUB)) {
         return;
     }
@@ -774,7 +774,7 @@ static void ia64_do_fmpy_common(CPUIA64State *env, uint32_t r1, uint32_t r2,
     if (ia64_fr_write_nat_if_any2(env, r1, r2, r3)) {
         return;
     }
-    if (ia64_fp_handle_binary_unnormal(
+    if (ia64_fp_handle_binary_special(
             env, sf, r1, r2, r3,
             negate ? IA64_FP_BINARY_NEG_MUL : IA64_FP_BINARY_MUL)) {
         return;
@@ -1131,6 +1131,45 @@ static bool ia64_fp_register_format_is_snan(
            !(fmt->mant & (UINT64_C(1) << 62));
 }
 
+static bool ia64_fp_handle_nan(CPUIA64State *env, uint32_t r1,
+                               const IA64FPRegisterFormat *first,
+                               const IA64FPRegisterFormat *second,
+                               const IA64FPRegisterFormat *third)
+{
+    const IA64FPRegisterFormat *operands[] = { first, second, third };
+    const IA64FPRegisterFormat *nan = NULL;
+    bool unsupported = false;
+    bool signaling = false;
+    unsigned i;
+
+    for (i = 0; i < ARRAY_SIZE(operands); i++) {
+        const IA64FPRegisterFormat *value = operands[i];
+
+        if (value == NULL) {
+            continue;
+        }
+        unsupported |= ia64_fp_register_format_is_unsupported(value);
+        signaling |= ia64_fp_register_format_is_snan(value);
+        if (nan == NULL && ia64_fp_register_format_is_supported_nan(value)) {
+            nan = value;
+        }
+    }
+    if (unsupported || signaling) {
+        float_raise(float_flag_invalid, &env->fp.fp_status);
+    }
+    if (unsupported) {
+        ia64_fr_write_floatx80(
+            env, r1, floatx80_default_nan(&env->fp.fp_status));
+        return true;
+    }
+    if (nan != NULL) {
+        ia64_fr_write_ext(env, r1, nan->sign, IA64_FP_REG_SPECIAL_EXP,
+                          nan->mant | (UINT64_C(1) << 62));
+        return true;
+    }
+    return false;
+}
+
 static int ia64_fp_register_magnitude_compare(
     const IA64FPRegisterFormat *left,
     const IA64FPRegisterFormat *right)
@@ -1233,10 +1272,10 @@ static void ia64_fp_compare_exception_check(CPUIA64State *env, uint32_t sf,
                  ia64_fp_register_format_is_unnormal(&right));
 }
 
-static bool ia64_fp_handle_binary_unnormal(CPUIA64State *env, uint32_t sf,
-                                            uint32_t r1, uint32_t r2,
-                                            uint32_t r3,
-                                            IA64FPBinaryOperation op)
+static bool ia64_fp_handle_binary_special(CPUIA64State *env, uint32_t sf,
+                                         uint32_t r1, uint32_t r2,
+                                         uint32_t r3,
+                                         IA64FPBinaryOperation op)
 {
     IA64FPRegisterFormat left = ia64_fr_raw_register_format(env, r2);
     IA64FPRegisterFormat right = ia64_fr_raw_register_format(env, r3);
@@ -1245,19 +1284,13 @@ static bool ia64_fp_handle_binary_unnormal(CPUIA64State *env, uint32_t sf,
     bool other_invalid = false;
     bool pseudozero_multiply = false;
     bool uses_unnormal;
+    bool sign;
 
-    uses_unnormal = ia64_fp_register_format_is_unnormal(&left) ||
-                    ia64_fp_register_format_is_unnormal(&right);
-    if (!uses_unnormal) {
-        return false;
-    }
-
-    /* Unsupported operands and all NaN responses precede D. */
-    if (ia64_fp_register_format_is_unsupported(&left) ||
-        ia64_fp_register_format_is_unsupported(&right) ||
-        ia64_fp_register_format_is_supported_nan(&left) ||
-        ia64_fp_register_format_is_supported_nan(&right)) {
-        return false;
+    /* fadd puts architectural f2 first; fsub/fmpy put f2/f4 second. */
+    if (ia64_fp_handle_nan(env, r1,
+                           op == IA64_FP_BINARY_ADD ? &left : &right,
+                           op == IA64_FP_BINARY_ADD ? &right : &left, NULL)) {
+        return true;
     }
 
     left_inf = ia64_fp_register_format_is_infinity(&left);
@@ -1284,12 +1317,23 @@ static bool ia64_fp_handle_binary_unnormal(CPUIA64State *env, uint32_t sf,
         g_assert_not_reached();
     }
 
-    ia64_fp_note_unnormal_operand(env, sf, !other_invalid);
-    if (pseudozero_multiply) {
-        /* IA-64's one pseudo-zero exception: pseudo-zero * infinity. */
-        ia64_fr_write_ext(env, r1,
-                          left.sign ^ right.sign ^
-                          (op == IA64_FP_BINARY_NEG_MUL),
+    if (other_invalid) {
+        float_raise(float_flag_invalid, &env->fp.fp_status);
+        ia64_fr_write_floatx80(
+            env, r1, floatx80_default_nan(&env->fp.fp_status));
+        return true;
+    }
+    uses_unnormal = ia64_fp_register_format_is_unnormal(&left) ||
+                    ia64_fp_register_format_is_unnormal(&right);
+    ia64_fp_note_unnormal_operand(env, sf, uses_unnormal);
+    if (left_inf || right_inf) {
+        if (op == IA64_FP_BINARY_ADD || op == IA64_FP_BINARY_SUB) {
+            sign = left_inf ? left.sign :
+                   right.sign ^ (op == IA64_FP_BINARY_SUB);
+        } else {
+            sign = left.sign ^ right.sign ^ (op == IA64_FP_BINARY_NEG_MUL);
+        }
+        ia64_fr_write_ext(env, r1, sign,
                           IA64_FP_REG_SPECIAL_EXP,
                           IA64_FP_SIGNIFICAND_INTEGER_BIT);
         return true;
@@ -1314,28 +1358,14 @@ static bool ia64_fp_handle_muladd_special(
     bool addend_sign;
     bool other_invalid;
 
-    if (ia64_fp_register_format_is_unsupported(addend) ||
-        ia64_fp_register_format_is_unsupported(left) ||
-        ia64_fp_register_format_is_unsupported(right)) {
-        float_raise(float_flag_invalid, &env->fp.fp_status);
-        ia64_fr_write_floatx80(
-            env, r1, floatx80_default_nan(&env->fp.fp_status));
+    /* Architectural NaN priority is f4, f2, f3, before all other responses. */
+    if (ia64_fp_handle_nan(env, r1, right, addend, left)) {
         return true;
     }
 
     uses_unnormal = ia64_fp_register_format_is_unnormal(addend) ||
                     ia64_fp_register_format_is_unnormal(left) ||
                     ia64_fp_register_format_is_unnormal(right);
-    if (!uses_unnormal) {
-        return false;
-    }
-
-    /* Register-prioritized NaN propagation precedes D. */
-    if (ia64_fp_register_format_is_supported_nan(addend) ||
-        ia64_fp_register_format_is_supported_nan(left) ||
-        ia64_fp_register_format_is_supported_nan(right)) {
-        return false;
-    }
 
     left_inf = ia64_fp_register_format_is_infinity(left);
     right_inf = ia64_fp_register_format_is_infinity(right);
@@ -1354,12 +1384,15 @@ static bool ia64_fp_handle_muladd_special(
                     (r2 != IA64_FR_ZERO_INDEX && product_inf &&
                      addend_inf && product_sign != addend_sign);
     if (other_invalid) {
-        return false;
+        float_raise(float_flag_invalid, &env->fp.fp_status);
+        ia64_fr_write_floatx80(
+            env, r1, floatx80_default_nan(&env->fp.fp_status));
+        return true;
     }
 
-    ia64_fp_note_unnormal_operand(env, sf, true);
-    if (pseudozero_multiply) {
-        ia64_fr_write_ext(env, r1, product_sign,
+    ia64_fp_note_unnormal_operand(env, sf, uses_unnormal);
+    if (product_inf || addend_inf) {
+        ia64_fr_write_ext(env, r1, product_inf ? product_sign : addend_sign,
                           IA64_FP_REG_SPECIAL_EXP,
                           IA64_FP_SIGNIFICAND_INTEGER_BIT);
         return true;

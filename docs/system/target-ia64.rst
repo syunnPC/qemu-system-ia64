@@ -27,6 +27,9 @@ The machine models are grouped by processor generation:
   Provides an HP Integrity rx2660 server model.  It defaults to the
   ``montecito-9010`` CPU model, 8 GiB of RAM, and a USB keyboard and tablet.
 
+``itanium2-vpc-iommu`` (Tukwila generation)
+  Defaults to ``tukwila-9350`` and adds a 7500-class VT-d hub.
+
 ``ia64-vpc`` aliases ``itanium2-vpc``.  The virtual PC models support 64 CPUs,
 ``hp-zx2000`` one, ``hp-i2000`` and ``hp-zx6000`` two, and ``hp-rx2660``
 eight.  Use ``-accel tcg,thread=multi`` for more than one CPU.
@@ -34,6 +37,34 @@ eight.  Use ``-accel tcg,thread=multi`` for more than one CPU.
 ``-machine ...,usb1=on`` limits USB ports to low/full speed (1.5/12 Mb/s),
 including ports on hubs and hotplugged controllers.  Both the port and the
 device must support one of these speeds.  The default is ``usb1=off``.
+
+Virtual PC DMA and PCI interrupts
+---------------------------------
+
+``itanium-vpc`` and ``itanium2-vpc`` optionally support
+``-device virtio-iommu-pci,granule=4k`` on their PCI root bus; neither creates
+an IOMMU by default.  The processor interrupt block at
+``0xfee00000-0xfeefffff`` is reserved (type 0), so device accesses there fault.
+Boot bypass defaults to on for firmware storage DMA.  The guest enables
+translation through ``BYPASS_CONFIG`` after boot DMA ends.
+The device cannot be hotplugged or unplugged.
+
+There is no ACPI VIOT table; discover PCI vendor/device ``1af4:1057`` on
+segment 0, bus 0.  Use ``addr`` to fix its slot.
+Endpoint IDs are PCI requester IDs: ``(bus << 8) | (slot << 3) | function``.
+Keep the IOMMU's own virtqueue DMA untranslated (the default
+``iommu_platform=off``), never attach its endpoint, and disable its INTx if
+using a polling driver.
+
+``-machine itanium2-vpc,pci-intx-lines=8`` opts into eight PCI INTx lines at
+GSI 16-23; the default is four lines at GSI 16-19.  For zero-based pins
+(INTA=0 through INTD=3), routing is ``16 + (slot + pin) % pci-intx-lines``.
+The Interrupt Line config byte and firmware ACPI ``_PRT`` use that routing.
+The eight-line ``_PRT`` covers all 32 root-bus slots; four-line routing retains
+the original firmware handoff and ACPI AML.  Both use the 24-pin IOSAPIC.
+
+``-device e1000e`` and ``-device qemu-xhci`` add controllers alongside the
+default devices.
 
 CPU model names
 ---------------
@@ -73,6 +104,10 @@ within a generation share that clock: ``madison-1500``, but
        ``montvale-9140m``, ``montvale-9140n``, ``montvale-9150m``,
        ``montvale-9150n``, ``montvale-9152m``
      - ``montvale-9150n``
+   * - ``tukwila``
+     - ``tukwila-9310``, ``tukwila-9320``, ``tukwila-9330``,
+       ``tukwila-9340``, ``tukwila-9350``
+     - ``tukwila-9350``
 
 ``itanium`` aliases ``merced`` and ``itanium2`` aliases ``montecito``.
 ``-cpu help`` displays both canonical names and alias targets.
@@ -383,6 +418,73 @@ each virtual machine.
 New backing files are 512 KiB.  Existing 64 KiB files remain 64 KiB when
 updated.  The HP models expose a 512 KiB variable store, while the virtual PC
 models use the first 64 KiB and preserve the rest of a larger backing file.
+
+Tukwila and the 7500 VT-d test machine
+--------------------------------------
+
+For example::
+
+  build/qemu-system-ia64 \
+    -machine itanium2-vpc-iommu,firmware-console=serial,nvram=none \
+    -m 2G -display none -serial stdio \
+    -drive file=esp.img,format=raw
+
+``vtd-coherent=on`` sets ECAP.C on both units.  ``vtd-high-mmio=on`` moves
+VTBAR from ``0xfed90000`` to ``0x10000fed90000``.  Both default to off; DMAR
+and EFI MMIO descriptors follow VTBAR.  With the low aperture and more than
+about 3.75 GiB of RAM, its 8 KiB of displaced RAM are mapped above 4 GiB.
+The EFI memory map and SRAT exclude the aperture from RAM.
+
+Slot 7 holds the secondary bridge, bus ``ioh7500-secondary``.  Its descendants
+use unit 1; all other devices use unit 0.  At startup and reset, the machine
+numbers that hierarchy from bus 1 and assigns BARs and forwarding windows.
+Other root bridges require operating-system configuration.  INTx follows
+bridge swizzling, with ``pci-intx-lines=8`` by default because the four-line
+ACPI ``_PRT`` stops at slot 6.  Four-line routing remains selectable.
+A virtio IOMMU cannot be added to this machine's root bus.
+
+``tukwila`` and ``itanium-9300`` alias ``tukwila-9350``.  The 9310 through
+9350 models report nominal clocks of 1600, 1333, 1466, 1600, and 1733 MHz;
+per-core L3 sizes are 5, 4, 5, 5, and 6 MiB, with package totals of 10, 16,
+20, 20, and 24 MiB.  All report 512 KiB instruction L2, 256 KiB data L2,
+E0 CPUID[3] ``0x20020404``, and 50 physical address bits.  See Intel's
+`9300/9500/9700 datasheet, table 1-1
+<https://www.intel.com/content/dam/www/public/us/en/documents/datasheets/9300-9500-9700-series-datasheet.pdf>`_
+and `specification update, table 3
+<https://www.intel.com/content/dam/www/public/us/en/documents/specification-updates/9300-9500-9700-series-spec-update.pdf>`_.
+Execution, PAL controls, cache timing, and TLB organization retain Montecito
+behavior.  ITC remains a virtual 400 MHz clock; QPI is a fixed 2.4 GHz without
+link timing.  Turbo, VT-i, and PAL-based IA-32 translation are not implemented.
+
+Intel's `7500 datasheet, sections 1.2.1.1, 18 and 21.14
+<https://www.intel.com/content/dam/doc/datasheet/7500-chipset-datasheet.pdf>`_
+defines the modeled VT-d 1.0 units at VTBAR and VTBAR+0x1000.  They support
+four-level walks, 4 KiB pages, 48-bit IOVAs, 51-bit table and output addresses,
+pass-through contexts, protected ranges, eight fault records,
+and register and queued invalidation.  Translation starts disabled; only
+unit 0 supports the leaf SNP bit.  The model uses the
+`VT-d revision 1.3 specification
+<https://kib.kiev.ua/x86docs/Intel/VT-d/D51397-005.pdf>`_ encodings for SAGAW
+(``0x4``, four levels) and NFR (``7``, eight records), correcting the
+datasheet's ``0x2`` and ``8`` defaults.
+
+DMAR revision 1 is present in XSDT and RSDT on this machine only.  It has
+51-bit host-address width, flags 0, and two DRHDs in segment 0: the secondary
+bridge scope for unit 1, then INCLUDE_PCI_ALL for unit 0.  There are no RMRRs.
+
+Interrupt remapping is not implemented: ECAP.IR and DMAR's interrupt-remapping
+flag are clear.  The interrupt-remapping table and command fields are reserved,
+and interrupt-entry cache invalidation descriptors raise a queue error.
+Pass-through contexts must specify AW=2, the largest supported address width.
+Compatible Itanium MSI writes bypass translation; DMA mappings into the
+processor interrupt block are rejected.  Fault and completion events use
+compatible MSI delivery.
+
+Table reads are coherent even with ECAP.C clear; guests must still follow
+the hardware cache-flush rules.  There is no translation cache, so
+invalidations complete globally.  Timing, ATS, superpages, device assignment,
+and external mapping notifiers are not supported.  Migration and snapshots
+are blocked because the hub has no stable migration format.
 
 Status
 ------

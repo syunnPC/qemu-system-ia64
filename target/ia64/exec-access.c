@@ -458,3 +458,17 @@ void ia64_exec_invalidate_phys_range(CPUIA64State *env, uint64_t addr,
         remaining -= len;
     }
 }
+
+void ia64_exec_recheck_interrupts(CPUState *cs)
+{
+    if (qemu_cpu_is_self(cs)) {
+        /*
+         * Break the TB chain to recheck interrupts at the next boundary.
+         * A kick would set exit_request and end this vCPU's round-robin TCG
+         * slice on each PSR.ic toggle, delaying vectors held pending by PSR.i.
+         */
+        qatomic_set(&cs->neg.icount_decr.u16.high, -1);
+    } else {
+        qemu_cpu_kick(cs);
+    }
+}

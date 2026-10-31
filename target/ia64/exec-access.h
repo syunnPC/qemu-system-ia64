@@ -80,4 +80,7 @@ bool ia64_exec_physical_rw(uint64_t addr, void *buffer, size_t size,
 void ia64_exec_invalidate_phys_range(CPUIA64State *env, uint64_t addr,
                                      uint64_t length);
 
+/* Recheck interrupts at the next TB boundary, kicking a remote vCPU. */
+void ia64_exec_recheck_interrupts(CPUState *cs);
+
 #endif /* TARGET_IA64_EXEC_ACCESS_H */

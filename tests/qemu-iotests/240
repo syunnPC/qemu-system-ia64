@@ -101,5 +101,6 @@ class TestCase(iotests.QMPTestCase):
         self.vm.qmp_log('device_add', id='scsi-hd0', driver='scsi-hd', drive='hd0')
 
 if __name__ == '__main__':
+    iotests.verify_virtio_scsi_hotplug()
     iotests.activate_logging()
     iotests.main()

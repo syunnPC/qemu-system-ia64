@@ -559,8 +559,9 @@ static bool pal_cache_info_for_model(CPUIA64State *env, uint64_t level,
         info->stride_shift = 7;
         info->store_latency = type == 1 ? 0xff : 1;
         info->load_latency = type == 1 ? 7 : 5;
-        info->tag_lsb = type == 1 ? 17 : 15;
-        info->size = type == 1 ? 1 * MiB : 256 * KiB;
+        info->tag_lsb = type == 1 ?
+            ctz32(icc->pal_l2i_cache_size / info->associativity) : 15;
+        info->size = type == 1 ? icc->pal_l2i_cache_size : 256 * KiB;
         return true;
     case 2:
         if (type != 2) {

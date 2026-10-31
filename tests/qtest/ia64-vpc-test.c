@@ -209,6 +209,23 @@ static const ExpectedPCIDevice expected_e1000 = {
 static uint32_t iosapic_read(QTestState *qts, uint32_t reg);
 static void iosapic_write(QTestState *qts, uint32_t reg, uint32_t value);
 
+/* Probe optional CONFIG_IA64_VPC_* features through their selected devices. */
+static bool has_graphics;
+static bool has_network;
+static bool has_ps2;
+static bool has_storage;
+static bool has_usb;
+static bool has_edu;
+
+/*
+ * Without a VGA adapter the firmware console defaults to the serial port;
+ * firmware IDE DMA defaults on only with the storage controllers.
+ */
+static uint64_t default_console_policy(void)
+{
+    return has_graphics ? IA64_FW_CONSOLE_VGA : IA64_FW_CONSOLE_SERIAL;
+}
+
 static QTestState *ia64_vpc_start(const char *extra_args)
 {
     return qtest_initf("-machine ia64-vpc,nvram=none -m 256M -S %s",
@@ -1179,15 +1196,15 @@ static void assert_firmware_handoff(QTestState *qts, uint64_t i8042,
     IA64VpcHandoff handoff;
     IA64VpcCompatHandoff compat;
 
-    g_assert_cmpuint(sizeof(handoff), ==, 120);
+    g_assert_cmpuint(sizeof(handoff), ==, 128);
     qtest_memread(qts, IA64_FW_HANDOFF_ADDR, &handoff, sizeof(handoff));
     g_assert_cmphex(le64_to_cpu(handoff.Magic), ==, IA64_FW_HANDOFF_MAGIC);
     g_assert_cmphex(le64_to_cpu(handoff.Version), ==,
-                    IA64_FW_HANDOFF_VERSION);
+                    IA64_FW_HANDOFF_DEFAULT_VERSION);
     g_assert_cmphex(le64_to_cpu(handoff.RamSize), ==, IA64_TEST_RAM_SIZE);
     g_assert_cmphex(le64_to_cpu(handoff.ConsolePolicy), ==,
-                    IA64_FW_CONSOLE_VGA);
-    g_assert_cmphex(le64_to_cpu(handoff.IdeDmaEnabled), ==, 1);
+                    default_console_policy());
+    g_assert_cmphex(le64_to_cpu(handoff.IdeDmaEnabled), ==, has_storage);
     g_assert_cmphex(le64_to_cpu(handoff.DebugPortFlags), ==, 0);
     g_assert_cmphex(le64_to_cpu(handoff.DebugPortBase), ==, 0);
     g_assert_cmphex(le64_to_cpu(handoff.I8042Enabled), ==, i8042);
@@ -1310,13 +1327,17 @@ static void test_firmware_handoff_defaults(void)
         0x00, 0x00, 0x80, 0xfe, 0x00, 0x00, 0x00, 0x00, /* RasBase */
         0x00, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, /* RasSize */
     };
+    uint8_t expected[sizeof(IA64VpcHandoff)];
     uint8_t actual[sizeof(IA64VpcHandoff)];
     QTestState *qts = ia64_vpc_handoff_start("ia64-vpc", NULL);
 
+    memcpy(expected, expected_v11, sizeof(expected));
+    expected[offsetof(IA64VpcHandoff, ConsolePolicy)] =
+        default_console_policy();
+    expected[offsetof(IA64VpcHandoff, IdeDmaEnabled)] = has_storage;
     assert_firmware_handoff(qts, 0, 1, 1, 1, 1, 1, 0);
     qtest_memread(qts, IA64_FW_HANDOFF_ADDR, actual, sizeof(actual));
-    g_assert_cmpmem(actual, sizeof(actual),
-                    expected_v11, sizeof(expected_v11));
+    g_assert_cmpmem(actual, sizeof(actual), expected, sizeof(expected));
     qtest_quit(qts);
 }
 
@@ -1394,8 +1415,9 @@ static void test_machine_firmware_profiles(void)
     assert_firmware_handoff(qts, 0, 1, 1, 1, 1, 1, 0);
     qtest_quit(qts);
 
+    /* itanium-vpc enables its i8042 by default when PS/2 is built. */
     qts = ia64_vpc_handoff_start("itanium-vpc", "-cpu montecito");
-    assert_firmware_handoff(qts, 1, 1, 1, 1, 1, 1,
+    assert_firmware_handoff(qts, has_ps2, 1, 1, 1, 1, 1,
                             IA64_FW_COMPAT_ALL_MASK);
     qtest_quit(qts);
 }
@@ -2506,6 +2528,51 @@ static char *find_unattached_child(QTestState *qts, const char *qom_type)
 
     g_error("QOM child of type %s was not found", qom_type);
     return NULL;
+}
+
+static void test_pci_eight_line_iommu(void)
+{
+    const uint8_t vector = 0x56;
+    const uint32_t rte = IA64_IOSAPIC_RTE_BASE + 22 * 2;
+    QTestState *qts = qtest_init(
+        "-machine itanium2-vpc,nvram=none,pci-intx-lines=8 -m 256M -S "
+        "-device virtio-iommu-pci,id=iommu,granule=4k,addr=7");
+    g_autofree char *host = find_unattached_child(qts, "ia64-pcihost");
+    g_autoptr(QDict) response = NULL;
+    QGenericPCIBus gbus;
+    QPCIDevice *nic;
+    QPCIDevice *iommu;
+    IA64VpcHandoff handoff;
+
+    qtest_memread(qts, IA64_FW_HANDOFF_ADDR, &handoff, sizeof(handoff));
+    g_assert_cmpuint(le64_to_cpu(handoff.Version), ==, 12);
+    g_assert_cmpuint(le64_to_cpu(handoff.PciIntxLines), ==, 8);
+    response = qtest_qmp(qts,
+        "{'execute':'qom-get','arguments':"
+        "{'path':%s,'property':'iommu-attached'}}", host);
+    g_assert_true(qdict_get_bool(response, "return"));
+    ia64_qpci_init(&gbus, qts);
+    nic = qpci_device_find(&gbus.bus, QPCI_DEVFN(6, 0));
+    iommu = qpci_device_find(&gbus.bus, QPCI_DEVFN(7, 0));
+    g_assert_nonnull(nic);
+    g_assert_nonnull(iommu);
+    g_assert_cmphex(qpci_config_readw(iommu, PCI_VENDOR_ID), ==, 0x1af4);
+    g_assert_cmphex(qpci_config_readw(iommu, PCI_DEVICE_ID), ==, 0x1057);
+    g_assert_cmpuint(qpci_config_readb(nic, PCI_INTERRUPT_LINE), ==, 22);
+    g_assert_cmpuint(qpci_config_readb(iommu, PCI_INTERRUPT_LINE), ==, 23);
+    /* Raise the built-in NIC's INTx and observe delivery on the new GSI. */
+    iosapic_write(qts, rte, vector | IA64_IOSAPIC_RTE_LEVEL);
+    qtest_writel(qts, IA64_E1000_MMIO_BASE + E1000_IMS, E1000_IMS_TXDW);
+    qtest_writel(qts, IA64_E1000_MMIO_BASE + E1000_ICS, E1000_ICS_TXDW);
+    g_assert_cmphex(iosapic_read(qts, rte) &
+                    IA64_IOSAPIC_RTE_REMOTE_IRR, !=, 0);
+    (void)qtest_readl(qts, IA64_E1000_MMIO_BASE + E1000_ICR);
+    qtest_writel(qts, IA64_IOSAPIC_BASE + IA64_IOSAPIC_EOI, vector);
+    g_assert_cmphex(iosapic_read(qts, rte) &
+                    IA64_IOSAPIC_RTE_REMOTE_IRR, ==, 0);
+    g_free(nic);
+    g_free(iommu);
+    qtest_quit(qts);
 }
 
 static unsigned count_unattached_children(QTestState *qts,
@@ -4034,6 +4101,12 @@ int main(int argc, char **argv)
     mismatch.compatible = false;
 
     g_test_init(&argc, &argv, NULL);
+    has_graphics = qtest_has_device("ati-vga");
+    has_network = qtest_has_device("e1000");
+    has_ps2 = qtest_has_device("i8042");
+    has_storage = qtest_has_device("lsi53c895a");
+    has_usb = qtest_has_device("pci-ohci");
+    has_edu = qtest_has_device("edu");
     qtest_add_func("/ia64-vpc/firmware/invalid-placement",
                    test_firmware_invalid_placement);
     qtest_add_func("/ia64-vpc/firmware/relocated-reset",
@@ -4044,31 +4117,35 @@ int main(int argc, char **argv)
                         test_cpu_profile_migration);
     qtest_add_func("/ia64-vpc/acpi-reset-register",
                    test_acpi_reset_register);
-    qtest_add_func("/ia64-vpc/vga/int10-rom", test_int10_rom);
-    qtest_add_func("/ia64-vpc/vga/int10-rom-rv100",
-                   test_int10_rv100_rom);
-    qtest_add_func("/ia64-vpc/vga/int10-rom-es1000",
-                   test_int10_es1000_rom);
-    qtest_add_func("/ia64-vpc/vga/int10-vbe", test_int10_vbe);
-    qtest_add_func("/ia64-vpc/vga/int10-vbe-std", test_int10_vbe_std);
-    qtest_add_func("/ia64-vpc/vga/int10-vbe-4k", test_int10_vbe_4k);
-    qtest_add_func("/ia64-vpc/vga/int10-vbe-4k-std",
-                   test_int10_vbe_4k_std);
-    qtest_add_func("/ia64-vpc/vga/int10-vbe-native",
-                   test_int10_vbe_native_mode);
-    qtest_add_func("/ia64-vpc/vga/int10-vbe-maximum",
-                   test_int10_vbe_maximum);
-    qtest_add_func("/ia64-vpc/vga/int10-vbe-5k-edid",
-                   test_int10_vbe_5k_edid);
-    qtest_add_func("/ia64-vpc/vga/int10-vbe-invalid-properties",
-                   test_int10_vbe_invalid_properties);
-    qtest_add_func("/ia64-vpc/vga/int10-legacy", test_int10_legacy);
-    qtest_add_func("/ia64-vpc/vga/int10-legacy-std",
-                   test_int10_legacy_std);
+    if (has_graphics) {
+        qtest_add_func("/ia64-vpc/vga/int10-rom", test_int10_rom);
+        qtest_add_func("/ia64-vpc/vga/int10-rom-rv100",
+                       test_int10_rv100_rom);
+        qtest_add_func("/ia64-vpc/vga/int10-rom-es1000",
+                       test_int10_es1000_rom);
+        qtest_add_func("/ia64-vpc/vga/int10-vbe", test_int10_vbe);
+        qtest_add_func("/ia64-vpc/vga/int10-vbe-std", test_int10_vbe_std);
+        qtest_add_func("/ia64-vpc/vga/int10-vbe-4k", test_int10_vbe_4k);
+        qtest_add_func("/ia64-vpc/vga/int10-vbe-4k-std",
+                       test_int10_vbe_4k_std);
+        qtest_add_func("/ia64-vpc/vga/int10-vbe-native",
+                       test_int10_vbe_native_mode);
+        qtest_add_func("/ia64-vpc/vga/int10-vbe-maximum",
+                       test_int10_vbe_maximum);
+        qtest_add_func("/ia64-vpc/vga/int10-vbe-5k-edid",
+                       test_int10_vbe_5k_edid);
+        qtest_add_func("/ia64-vpc/vga/int10-vbe-invalid-properties",
+                       test_int10_vbe_invalid_properties);
+        qtest_add_func("/ia64-vpc/vga/int10-legacy", test_int10_legacy);
+        qtest_add_func("/ia64-vpc/vga/int10-legacy-std",
+                       test_int10_legacy_std);
+    }
     qtest_add_func("/ia64-vpc/firmware-handoff/defaults",
                    test_firmware_handoff_defaults);
-    qtest_add_func("/ia64-vpc/firmware-handoff/i8042-on",
-                   test_firmware_handoff_i8042_on);
+    if (has_ps2) {
+        qtest_add_func("/ia64-vpc/firmware-handoff/i8042-on",
+                       test_firmware_handoff_i8042_on);
+    }
     qtest_add_func("/ia64-vpc/firmware-handoff/machine-profiles",
                    test_machine_firmware_profiles);
     qtest_add_func("/ia64-vpc/firmware-handoff/default-ram",
@@ -4123,8 +4200,10 @@ int main(int argc, char **argv)
     qtest_add_data_func("/ia64-vpc/migration/itanium2-alias",
                         &cpu_profile_migrations[8],
                         test_cpu_profile_migration);
-    qtest_add_func("/ia64-vpc/input/profile-defaults",
-                   test_profile_default_input);
+    if (has_usb && has_ps2) {
+        qtest_add_func("/ia64-vpc/input/profile-defaults",
+                       test_profile_default_input);
+    }
     qtest_add_func("/ia64-vpc/ras/rendezvous",
                    test_ras_hub_rendezvous);
     qtest_add_func("/ia64-vpc/ras/cpu-online-mask",
@@ -4144,39 +4223,61 @@ int main(int argc, char **argv)
                    test_nvram_legacy_file);
     qtest_add_func("/ia64-vpc/nvram/extended-file",
                    test_nvram_extended_file);
-    qtest_add_func("/ia64-vpc/pci/default-layout", test_pci_default_layout);
-    qtest_add_data_func("/ia64-vpc/usb/companion-contiguous",
-                        &usb_companion_layouts[0], test_usb_companion_routing);
-    qtest_add_data_func("/ia64-vpc/usb/companion-uneven",
-                        &usb_companion_layouts[1], test_usb_companion_routing);
-    qtest_add_data_func("/ia64-vpc/usb/companion-strided",
-                        &usb_companion_layouts[2], test_usb_companion_routing);
-    qtest_add_func("/ia64-vpc/pcie/ecam-aer-hotplug-msix",
-                   test_pcie_ecam_aer_hotplug_msix);
-    qtest_add_func("/ia64-vpc/pcie/intx-and-msi",
-                   test_pcie_intx_and_msi);
+    if (has_graphics && has_network && has_storage && has_usb) {
+        qtest_add_func("/ia64-vpc/pci/default-layout",
+                       test_pci_default_layout);
+    }
+    if (has_network) {
+        qtest_add_func("/ia64-vpc/pci/eight-line-iommu",
+                       test_pci_eight_line_iommu);
+    }
+    if (has_usb) {
+        qtest_add_data_func("/ia64-vpc/usb/companion-contiguous",
+                            &usb_companion_layouts[0],
+                            test_usb_companion_routing);
+        qtest_add_data_func("/ia64-vpc/usb/companion-uneven",
+                            &usb_companion_layouts[1],
+                            test_usb_companion_routing);
+        qtest_add_data_func("/ia64-vpc/usb/companion-strided",
+                            &usb_companion_layouts[2],
+                            test_usb_companion_routing);
+    }
+    if (has_edu) {
+        qtest_add_func("/ia64-vpc/pcie/ecam-aer-hotplug-msix",
+                       test_pcie_ecam_aer_hotplug_msix);
+        qtest_add_func("/ia64-vpc/pcie/intx-and-msi",
+                       test_pcie_intx_and_msi);
+    }
     qtest_add_func("/ia64-vpc/pcie/aer-delivery",
                    test_pcie_aer_delivery);
     qtest_add_func("/ia64-vpc/pcie/aer-notification-controls",
                    test_pcie_aer_notification_controls);
     qtest_add_func("/ia64-vpc/pcie/zx2-iommu",
                    test_pcie_zx2_iommu);
-    qtest_add_func("/ia64-vpc/pci/es1000-model", test_pci_es1000_model);
-    qtest_add_func("/ia64-vpc/pci/rv100-model", test_pci_rv100_model);
+    if (has_graphics) {
+        qtest_add_func("/ia64-vpc/pci/es1000-model", test_pci_es1000_model);
+        qtest_add_func("/ia64-vpc/pci/rv100-model", test_pci_rv100_model);
+    }
     qtest_add_func("/ia64-vpc/pci/itanium-no-default-ahci",
                    test_pci_itanium_no_default_ahci);
-    qtest_add_func("/ia64-vpc/pci/explicit-cmd646-slot0",
-                   test_pci_explicit_cmd646_slot0);
-    qtest_add_func("/ia64-vpc/network/resources-survive-reset",
-                   test_e1000_resources_survive_reset);
-    qtest_add_func("/ia64-vpc/network/intx-route",
-                   test_e1000_intx_route);
-    qtest_add_data_func("/ia64-vpc/network/packet-transfer/82540em",
-                        "e1000", test_e1000_packet_transfer);
-    qtest_add_data_func("/ia64-vpc/network/packet-transfer/82543gc",
-                        "e1000-82543gc", test_e1000_packet_transfer);
-    qtest_add_func("/ia64-vpc/lsi/async-nodata-command",
-                   test_lsi_async_nodata_command);
+    if (has_storage) {
+        qtest_add_func("/ia64-vpc/pci/explicit-cmd646-slot0",
+                       test_pci_explicit_cmd646_slot0);
+    }
+    if (has_network) {
+        qtest_add_func("/ia64-vpc/network/resources-survive-reset",
+                       test_e1000_resources_survive_reset);
+        qtest_add_func("/ia64-vpc/network/intx-route",
+                       test_e1000_intx_route);
+        qtest_add_data_func("/ia64-vpc/network/packet-transfer/82540em",
+                            "e1000", test_e1000_packet_transfer);
+        qtest_add_data_func("/ia64-vpc/network/packet-transfer/82543gc",
+                            "e1000-82543gc", test_e1000_packet_transfer);
+    }
+    if (has_storage) {
+        qtest_add_func("/ia64-vpc/lsi/async-nodata-command",
+                       test_lsi_async_nodata_command);
+    }
     qtest_add_func("/ia64-vpc/iosapic/level-remote-irr",
                    test_iosapic_level_remote_irr);
     qtest_add_func("/ia64-vpc/iosapic/shared-vector-eoi",
@@ -4189,27 +4290,32 @@ int main(int argc, char **argv)
                    test_iosapic_lowest_priority);
     qtest_add_func("/ia64-vpc/sparse-io/pm-register",
                    test_sparse_io_pm_register);
-    qtest_add_data_func("/ia64-vpc/savevm/itanium-platform-state",
-                        "itanium-vpc",
-                        test_savevm_restores_platform_state);
-    qtest_add_data_func("/ia64-vpc/savevm/itanium2-platform-state",
-                        "itanium2-vpc",
-                        test_savevm_restores_platform_state);
+    /* The snapshot disk is on SCSI and the saved state includes VGA. */
+    if (has_graphics && has_storage) {
+        qtest_add_data_func("/ia64-vpc/savevm/itanium-platform-state",
+                            "itanium-vpc",
+                            test_savevm_restores_platform_state);
+        qtest_add_data_func("/ia64-vpc/savevm/itanium2-platform-state",
+                            "itanium2-vpc",
+                            test_savevm_restores_platform_state);
+    }
     qtest_add_func("/ia64-vpc/mmu/stale-victim-speculative-load",
                    test_stale_victim_speculative_load);
 
-    qtest_add_data_func("/ia64-vpc/lsi/task-ordering", GUINT_TO_POINTER(0),
-                        test_lsi_task_ordering);
-    qtest_add_data_func("/ia64-vpc/lsi/abort-completed-tag",
-                        GUINT_TO_POINTER(0x0d), test_lsi_task_ordering);
-    qtest_add_data_func("/ia64-vpc/lsi/abort-completed-queue",
-                        GUINT_TO_POINTER(0x06), test_lsi_task_ordering);
-    qtest_add_data_func("/ia64-vpc/lsi/clear-completed-queue",
-                        GUINT_TO_POINTER(0x0e), test_lsi_task_ordering);
-    qtest_add_data_func("/ia64-vpc/lsi/reset-completed-device",
-                        GUINT_TO_POINTER(0x0c), test_lsi_task_ordering);
-    qtest_add_data_func("/ia64-vpc/lsi/reset-completed-bus",
-                        GUINT_TO_POINTER(LSI_TEST_RESET_BUS),
-                        test_lsi_task_ordering);
+    if (has_storage) {
+        qtest_add_data_func("/ia64-vpc/lsi/task-ordering",
+                            GUINT_TO_POINTER(0), test_lsi_task_ordering);
+        qtest_add_data_func("/ia64-vpc/lsi/abort-completed-tag",
+                            GUINT_TO_POINTER(0x0d), test_lsi_task_ordering);
+        qtest_add_data_func("/ia64-vpc/lsi/abort-completed-queue",
+                            GUINT_TO_POINTER(0x06), test_lsi_task_ordering);
+        qtest_add_data_func("/ia64-vpc/lsi/clear-completed-queue",
+                            GUINT_TO_POINTER(0x0e), test_lsi_task_ordering);
+        qtest_add_data_func("/ia64-vpc/lsi/reset-completed-device",
+                            GUINT_TO_POINTER(0x0c), test_lsi_task_ordering);
+        qtest_add_data_func("/ia64-vpc/lsi/reset-completed-bus",
+                            GUINT_TO_POINTER(LSI_TEST_RESET_BUS),
+                            test_lsi_task_ordering);
+    }
     return g_test_run();
 }

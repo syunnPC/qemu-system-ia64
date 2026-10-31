@@ -6,6 +6,7 @@ from .case import bind_cases
 from .encoding import (
     DTR_PTE_UC,
     DTR_PTE_WB,
+    ExpectedBits,
     ExpectedFP,
     HIGH_TR_BASE,
     IA32_TEST_CSD,
@@ -28,11 +29,13 @@ from .encoding import (
     IA64_DISABLED_FP_VECTOR,
     IA64_EXCP_BREAK,
     IA64_EXCP_DEBUG,
+    IA64_EXCP_DISABLED_FP,
     IA64_EXCP_DISABLED_ISA_TRANSITION,
     IA64_EXCP_ILLEGAL,
     IA64_EXCP_LOWER_PRIVILEGE,
     IA64_EXCP_NONE,
     IA64_EXCP_PRIVILEGED_REG,
+    IA64_EXCP_RESERVED_REG_FIELD,
     IA64_EXCP_RESERVED_TEMPLATE,
     IA64_EXCP_SINGLE_STEP,
     IA64_EXCP_TAKEN_BRANCH,
@@ -44,6 +47,7 @@ from .encoding import (
     IA64_IMPL_PA_BITS,
     IA64_IA32_EXCEPTION_VECTOR,
     IA64_IA32_INTERCEPT_VECTOR,
+    IA64_INST_ACCESS_BIT_VECTOR,
     IA64_ISR_EI_SHIFT,
     IA64_ISR_CODE_LP,
     IA64_ISR_CODE_SS,
@@ -90,6 +94,7 @@ from .encoding import (
     IA64_SINGLE_STEP_VECTOR,
     IA64_UNALIGNED_VECTOR,
     IA64_VECTOR_MASKED,
+    LOW_VECTOR_ITIR,
     LOW_VECTOR_TR_PTE,
     add,
     addl,
@@ -103,6 +108,7 @@ from .encoding import (
     break_f,
     break_m,
     break_x_mlx,
+    brl_cond_mlx,
     bsw0,
     bsw1,
     chk_s_m,
@@ -117,6 +123,8 @@ from .encoding import (
     depz_reg,
     dtr_setup_bundles,
     extr_u,
+    fclass_m,
+    fcmp,
     flushrs_enc,
     getf_sig,
     illegal_m,
@@ -139,8 +147,11 @@ from .encoding import (
     mov_ar,
     mov_ar_lc,
     mov_br_gr,
+    mov_dahr_read,
     mov_gr_b,
     mov_gr_psr_full,
+    mov_gr_pr,
+    mov_i_ar_gr,
     mov_lc_gr,
     mov_m_ar_gr,
     mov_m_cr_gr,
@@ -152,6 +163,7 @@ from .encoding import (
     mov_ibr_indexed_write,
     mov_pkr_indexed,
     mov_pkr_indexed_read,
+    mov_rr_write,
     movl_mlx,
     nop_b,
     nop_i,
@@ -5967,7 +5979,220 @@ test_native_psr_dd_clears_after_successful_load = require_registers(
     }, entry=0x10)
 
 GROUP = 'interrupt'
+def _restart_fault_case(name, template, restart_slot, exception):
+    # SDM Vol.3 rfi: an MLX X slot is not an instruction entry point.
+    target = 0x100
+    if template in (4, 5):
+        body = (target, *break_x_mlx(0x42))
+    else:
+        body = (target, template, nop_m(), nop_i(), nop_i())
+    return require_registers(name, [
+        (0x10, *movl_mlx(19, IA64_PSR_IC | (restart_slot << 41))),
+        (0x20, *movl_mlx(20, target)),
+        *rfi_to_gr(0x30, 19, 20),
+        body,
+        *_native_completion_trap_handler(IA64_GENERAL_VECTOR),
+    ], {
+        "ip": IA64_GENERAL_VECTOR + 0x50,
+        "fault_code": exception,
+        "r8": target,
+        "r10": ExpectedBits(3 << 41, restart_slot << 41),
+        "r12": restart_slot,
+    })
+
+
+test_rfi_mlx_slot2_is_illegal = _restart_fault_case(
+    "rfi_mlx_slot2_is_illegal", 5, 2, IA64_EXCP_ILLEGAL)
+test_reserved_template_preserves_restart_slot1 = _restart_fault_case(
+    "reserved_template_preserves_restart_slot1", 6, 1,
+    IA64_EXCP_RESERVED_TEMPLATE)
+test_reserved_template_preserves_restart_slot2 = _restart_fault_case(
+    "reserved_template_preserves_restart_slot2", 6, 2,
+    IA64_EXCP_RESERVED_TEMPLATE)
+
+
+test_single_step_mlx_reports_completed_slot2 = require_registers(
+    "single_step_mlx_reports_completed_slot2", [
+        (0x10, *movl_mlx(19, IA64_PSR_IC | IA64_PSR_SS | (1 << 41))),
+        (0x20, *movl_mlx(20, 0x100)),
+        *rfi_to_gr(0x30, 19, 20),
+        (0x100, *movl_mlx(21, 0x123456789abcdef)),
+        *_native_completion_trap_handler(IA64_SINGLE_STEP_VECTOR),
+    ], {
+        "ip": IA64_SINGLE_STEP_VECTOR + 0x50,
+        "r8": 0x110,
+        "r9": 0x100,
+        "r10": IA64_ISR_CODE_SS | (2 << 41),
+        "r12": 0,
+        "r21": 0x123456789abcdef,
+    })
+
+test_single_step_long_branch_reports_completed_slot2 = require_registers(
+    "single_step_long_branch_reports_completed_slot2", [
+        (0x10, *movl_mlx(19, IA64_PSR_IC | IA64_PSR_SS | (1 << 41))),
+        (0x20, *movl_mlx(20, 0x100)),
+        *rfi_to_gr(0x30, 19, 20),
+        (0x100, *brl_cond_mlx(0x100, 0x200)),
+        (0x200, 0x11, nop_m(), nop_i(), br_cond(0x200, 0x200)),
+        *_native_completion_trap_handler(IA64_SINGLE_STEP_VECTOR),
+    ], {
+        "ip": IA64_SINGLE_STEP_VECTOR + 0x50,
+        "r8": 0x200,
+        "r9": 0x100,
+        "r10": IA64_ISR_CODE_SS | (2 << 41),
+        "r12": 0,
+    }, cpu="montecito")
+
+
+def _unc_disabled_fp_case(name, instruction):
+    # SDM Vol.3 fcmp/fclass: disabled-register checks precede PR writes.
+    return require_registers(name, [
+        (0x10, *movl_mlx(19, IA64_PSR_IC | IA64_PSR_DFL)),
+        (0x20, *movl_mlx(20, 0x100)),
+        (0x30, 0x01, adds(21, (1 << 6) | (1 << 7), 0), nop_i(), nop_i()),
+        (0x40, 0x01, nop_m(), mov_gr_pr(21, (1 << 6) | (1 << 7)), nop_i()),
+        *rfi_to_gr(0x50, 19, 20),
+        (0x100, 0x0d, nop_m(), instruction, nop_i()),
+        *_native_completion_trap_handler(IA64_DISABLED_FP_VECTOR),
+    ], {
+        "ip": IA64_DISABLED_FP_VECTOR + 0x50,
+        "fault_code": IA64_EXCP_DISABLED_FP,
+        "r8": 0x100,
+        "p6": 1,
+        "p7": 1,
+    })
+
+
+test_fcmp_unc_disabled_fp_preserves_predicates = _unc_disabled_fp_case(
+    "fcmp_unc_disabled_fp_preserves_predicates", fcmp(6, 7, 2, 3, unc=True))
+test_fclass_unc_disabled_fp_preserves_predicates = _unc_disabled_fp_case(
+    "fclass_unc_disabled_fp_preserves_predicates",
+    fclass_m(6, 7, 2, 0x1ff, unc=True))
+test_fcmp_unc_qualified_disabled_fp_preserves_predicates = _unc_disabled_fp_case(
+    "fcmp_unc_qualified_disabled_fp_preserves_predicates",
+    fcmp(6, 7, 2, 3, unc=True, qp=6))
+test_fclass_unc_qualified_disabled_fp_preserves_predicates = \
+    _unc_disabled_fp_case(
+        "fclass_unc_qualified_disabled_fp_preserves_predicates",
+        fclass_m(6, 7, 2, 0x1ff, unc=True, qp=6))
+
+
+test_cflg_reserved_high_field_faults = require_exception(
+    "cflg_reserved_high_field_faults", [
+        (0x10, *movl_mlx(3, 1 << 43)),
+        (0x20, 0x01, mov_m_gr_ar(3, 27), nop_i(), nop_i()),
+    ], IA64_EXCP_RESERVED_REG_FIELD, fault_ip=0x20)
+
+test_mov_from_dahr_reserved_madison = require_exception(
+    "mov_from_dahr_reserved_madison", [
+        (0x10, 0x01, mov_dahr_read(21, 0), nop_i(), nop_i()),
+    ], IA64_EXCP_ILLEGAL, fault_ip=0x10, cpu="madison")
+test_mov_from_dahr_reserved_montecito = require_exception(
+    "mov_from_dahr_reserved_montecito", [
+        (0x10, 0x01, mov_dahr_read(21, 0), nop_i(), nop_i()),
+    ], IA64_EXCP_ILLEGAL, fault_ip=0x10, cpu="montecito")
+test_mov_from_dahr_reserved_merced = require_exception(
+    "mov_from_dahr_reserved_merced", [
+        (0x10, 0x01, mov_dahr_read(21, 0), nop_i(), nop_i()),
+    ], IA64_EXCP_ILLEGAL, fault_ip=0x10, cpu="merced")
+test_mov_from_dahr_reserved_tukwila = require_exception(
+    "mov_from_dahr_reserved_tukwila", [
+        (0x10, 0x01, mov_dahr_read(21, 0), nop_i(), nop_i()),
+    ], IA64_EXCP_ILLEGAL, fault_ip=0x10, cpu="tukwila")
+
+test_cflg_write_requires_privilege = require_registers(
+    "cflg_write_requires_privilege", [
+        (0x10, *movl_mlx(19, IA64_PSR_IC | IA64_PSR_CPL3)),
+        (0x20, *movl_mlx(20, 0x100)),
+        *rfi_to_gr(0x30, 19, 20),
+        (0x100, 0x01, mov_m_gr_ar(0, 27), nop_i(), nop_i()),
+        *_native_completion_trap_handler(IA64_GENERAL_VECTOR),
+    ], {
+        "ip": IA64_GENERAL_VECTOR + 0x50,
+        "fault_code": IA64_EXCP_PRIVILEGED_REG,
+        "r8": 0x100,
+        "r10": 0x20,
+    })
+
+test_eflag_pl3_preserves_privileged_fields = require_registers(
+    "eflag_pl3_preserves_privileged_fields", [
+        (0x10, *movl_mlx(19, IA64_PSR_IC | IA64_PSR_CPL3)),
+        (0x20, *movl_mlx(20, 0x100)),
+        (0x30, 0x01, mov_m_gr_ar(0, 24), nop_i(), nop_i()),
+        *rfi_to_gr(0x40, 19, 20),
+        (0x100, *movl_mlx(21, (1 << 17) | (3 << 12) | (1 << 9) | 1)),
+        (0x110, 0x01, mov_m_gr_ar(21, 24), nop_i(), nop_i()),
+        (0x120, 0x01, mov_m_ar_gr(22, 24), nop_i(), nop_i()),
+        (0x130, 0x11, nop_m(), nop_i(), br_cond(0x130, 0x130)),
+    ], {"ip": 0x130, "r22": 1})
+
+test_pfs_bad_output_area_checked_on_return = require_registers(
+    "pfs_bad_output_area_checked_on_return", [
+        # SDM Vol.2 6.5.5: an oversized output area zeroes CFM on br.ret.
+        (0x10, 0x01, adds(21, 97, 0), adds(22, 0x100, 0), nop_i()),
+        (0x20, 0x01, nop_m(), mov_lc_gr(21) ^ (1 << 20), mov_br_gr(6, 22)),
+        (0x30, 0x11, nop_m(), nop_i(), br_ret(6)),
+        (0x100, 0x11, nop_m(), nop_i(), br_cond(0x100, 0x100)),
+    ], {"ip": 0x100, "ar_pfs": 97, "cfm_sof": 0, "cfm_sol": 0})
+
+test_pfs_frame_fields_are_not_reserved_bits = require_registers(
+    "pfs_frame_fields_are_not_reserved_bits", [
+        (0x10, *movl_mlx(21, (127 << 25) | (63 << 32) | (16 << 7) | 8)),
+        (0x20, 0x01, nop_m(), mov_lc_gr(21) ^ (1 << 20), nop_i()),
+        (0x30, 0x01, nop_m(), mov_i_ar_gr(22, 64), nop_i()),
+        (0x40, 0x11, nop_m(), nop_i(), br_cond(0x40, 0x40)),
+    ], {"ip": 0x40, "r22": (127 << 25) | (63 << 32) | (16 << 7) | 8})
+
+
+test_ia_suppression_ends_before_same_bundle_next_slot = require_registers(
+    "ia_suppression_ends_before_same_bundle_next_slot", [
+        (0x10, *movl_mlx(18, LOW_VECTOR_TR_PTE)),
+        (0x20, *movl_mlx(23, LOW_VECTOR_TR_PTE & ~(1 << 5))),
+        (0x30, *movl_mlx(2, 0xa000000000000430)),
+        (0x40, *movl_mlx(24, (5 << 8) | LOW_VECTOR_ITIR | 1)),
+        (0x50, *movl_mlx(19, IA64_PSR_IC | IA64_PSR_IT | (1 << 45))),
+        (0x60, 0x01, mov_rr_write(24, 2), nop_i(), nop_i()),
+        (0x70, 0x01, adds(7, LOW_VECTOR_ITIR, 0), adds(5, 5, 0), nop_i()),
+        (0x80, 0x01, mov_m_gr_cr(7, 21), nop_i(), nop_i()),
+        (0x90, 0x01, mov_m_gr_cr(0, 20), nop_i(), nop_i()),
+        (0xa0, 0x01, itr_i(5, 18), nop_i(), nop_i()),
+        (0xb0, 0x01, mov_m_gr_cr(2, 20), adds(5, 6, 0), nop_i()),
+        (0xc0, 0x01, itr_i(5, 23), nop_i(), nop_i()),
+        *rfi_to_gr(0xd0, 19, 2),
+        (0x4000430, 0x01, adds(25, 0x11, 0), adds(26, 0x22, 0), nop_i()),
+        (0x4000440, 0x11, nop_m(), nop_i(), br_cond(0x4000440, 0x4000440)),
+        *[(address + 0x4000000, *bundle) for address, *bundle in
+          _native_completion_trap_handler(IA64_INST_ACCESS_BIT_VECTOR)],
+    ], {
+        "ip": IA64_INST_ACCESS_BIT_VECTOR + 0x50,
+        "r8": 0xa000000000000430,
+        "r10": IA64_ISR_X | (1 << 41),
+        "r12": 1,
+        "r25": 0x11,
+        "r26": 0,
+    })
+
+
 CASE_NAMES = (
+    'rfi_mlx_slot2_is_illegal',
+    'reserved_template_preserves_restart_slot1',
+    'reserved_template_preserves_restart_slot2',
+    'single_step_mlx_reports_completed_slot2',
+    'single_step_long_branch_reports_completed_slot2',
+    'fcmp_unc_disabled_fp_preserves_predicates',
+    'fclass_unc_disabled_fp_preserves_predicates',
+    'fcmp_unc_qualified_disabled_fp_preserves_predicates',
+    'fclass_unc_qualified_disabled_fp_preserves_predicates',
+    'cflg_reserved_high_field_faults',
+    'mov_from_dahr_reserved_madison',
+    'mov_from_dahr_reserved_montecito',
+    'mov_from_dahr_reserved_merced',
+    'mov_from_dahr_reserved_tukwila',
+    'cflg_write_requires_privilege',
+    'eflag_pl3_preserves_privileged_fields',
+    'pfs_bad_output_area_checked_on_return',
+    'pfs_frame_fields_are_not_reserved_bits',
+    'ia_suppression_ends_before_same_bundle_next_slot',
 
     'ar_itc_advances_in_guest_loop',
     'ar_itc_cpl3_si_clear_read_allowed',

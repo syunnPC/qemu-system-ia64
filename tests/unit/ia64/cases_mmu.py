@@ -23,12 +23,15 @@ from .encoding import (
     IA64_DCR_DD,
     IA64_DCR_DK,
     IA64_DCR_DM,
+    IA64_DCR_DX,
     IA64_DTLB_VECTOR,
     IA64_EXCP_ALT_DTLB,
     IA64_EXCP_DATA_ACCESS,
+    IA64_EXCP_DATA_ACCESS_BIT,
     IA64_EXCP_DATA_KEY_MISS,
     IA64_EXCP_DEBUG,
     IA64_EXCP_ILLEGAL,
+    IA64_EXCP_KEY_PERMISSION,
     IA64_EXCP_NAT_CONSUMPTION,
     IA64_EXCP_NONE,
     IA64_EXCP_PAGE_NOT_PRESENT,
@@ -433,6 +436,125 @@ test_speculative_recovery_dcr_dk_defers_key_miss = require_registers(
         "exception": IA64_EXCP_NONE,
         "r31_nat": 1,
     }, entry=0x10)
+
+
+def speculative_translation_fault_case(name, pte, pkr, dcr, fault, vector,
+                                       *, recovery=True, collect=True,
+                                       load=ld8_s):
+    psr = IA64_PSR_DT | IA64_PSR_IT | IA64_PSR_PK | IA64_PSR_CPL3
+    if collect:
+        psr |= IA64_PSR_IC
+    code_pte = (LOW_VECTOR_TR_PTE & ~PTE_ED) | (3 << 7)
+    if recovery:
+        code_pte |= PTE_ED
+    bundles = [
+        (0x10, *movl_mlx(18, code_pte)),
+        (0x20, *movl_mlx(23, pte)),
+        (0x30, *movl_mlx(19, psr)),
+        (0x40, *movl_mlx(20, dcr)),
+        (0x50, *movl_mlx(2, 0x20000)),
+        (0x60, *movl_mlx(4, IA64_PKR_VALID)),
+        (0x70, 0x00, adds(7, 16 << 2, 0), adds(5, 5, 0), nop_i()),
+        (0x80, 0x08, mov_m_gr_cr(7, 21), mov_m_gr_cr(0, 20), nop_i()),
+        (0x90, 0x00, itr_i(5, 18), nop_i(), nop_i()),
+        (0xa0, 0x00, mov_m_gr_cr(20, 0), adds(3, 0, 0), nop_i()),
+        (0xb0, 0x00, mov_pkr_indexed(3, 4, bit36=1), nop_i(), nop_i()),
+        (0xc0, *movl_mlx(4, pkr)),
+        (0xd0, 0x00, nop_m(), adds(3, 1, 0), nop_i()),
+        (0xe0, 0x00, mov_pkr_indexed(3, 4, bit36=1), nop_i(), nop_i()),
+        (0xf0, *movl_mlx(7, KEY_TEST_ITIR)),
+        (0x100, 0x00, mov_m_gr_cr(7, 21), adds(6, 6, 0), nop_i()),
+        (0x110, 0x00, mov_m_gr_cr(2, 20), nop_i(), nop_i()),
+        (0x120, 0x00, itr_d(6, 23), nop_i(), nop_i()),
+        (0x130, 0x00, srlz_i(), nop_i(), nop_i()),
+        (0x140, 0x00, srlz_d(), adds(31, 0x430, 0), nop_i()),
+        *rfi_to_gr(0x150, 19, 31),
+        (0x4000430, 0x00, load(31, 2), nop_i(), nop_i()),
+        (0x4000440, 0x10, nop_m(), nop_i(), br_cond(0x440, 0x440)),
+    ]
+    if fault is None:
+        expected = {"ip": 0x440, "exception": IA64_EXCP_NONE, "r31_nat": 1}
+    else:
+        bundles += [
+            (0x4000000 + vector, 0x00,
+             mov_m_cr_gr(8, 19), nop_i(), nop_i()),
+            (0x4000000 + vector + 0x10, 0x00,
+             mov_m_cr_gr(9, 20), nop_i(), nop_i()),
+            (0x4000000 + vector + 0x20, 0x00,
+             mov_m_cr_gr(10, 17), nop_i(), nop_i()),
+            (0x4000000 + vector + 0x30, 0x10, nop_m(), nop_i(),
+             br_cond(vector + 0x30, vector + 0x30)),
+        ]
+        isr = IA64_ISR_R
+        if load is ld8_s:
+            isr |= IA64_ISR_SP
+        if recovery:
+            isr |= IA64_ISR_ED
+        expected = {
+            "ip": vector + 0x30, "exception": IA64_EXCP_NONE,
+            "fault_code": fault, "r8": 0x430, "r9": 0x20000,
+            "r10": isr,
+        }
+    return require_registers(name, bundles, expected, entry=0x10)
+
+
+def test_speculative_translation_fault_deferral_priority(qemu):
+    # SDM Rev. 2.3 Vol. 2 Tables 5-3/5-4: qualification precedes
+    # independent deferral, then the highest-priority remaining fault wins.
+    readable = LOW_VECTOR_TR_PTE | (3 << 7)
+    no_rights = LOW_VECTOR_TR_PTE
+    dcr_dr = 1 << 12
+    dcr_dp = 1 << 9
+    scenarios = [
+        ("key_miss_then_rights", no_rights, 0, IA64_DCR_DK,
+         IA64_EXCP_DATA_ACCESS, IA64_DATA_ACCESS_VECTOR),
+        ("key_miss_then_access_bit", readable & ~PTE_ACCESSED, 0,
+         IA64_DCR_DK, IA64_EXCP_DATA_ACCESS_BIT, IA64_DATA_ACCESS_BIT_VECTOR),
+        ("key_permission_then_rights", no_rights,
+         KEY_TEST_PKR | IA64_PKR_RD, IA64_DCR_DX,
+         IA64_EXCP_DATA_ACCESS, IA64_DATA_ACCESS_VECTOR),
+        ("key_permission_then_access_bit", readable & ~PTE_ACCESSED,
+         KEY_TEST_PKR | IA64_PKR_RD, IA64_DCR_DX,
+         IA64_EXCP_DATA_ACCESS_BIT, IA64_DATA_ACCESS_BIT_VECTOR),
+        ("rights_then_access_bit", no_rights & ~PTE_ACCESSED,
+         KEY_TEST_PKR, dcr_dr,
+         IA64_EXCP_DATA_ACCESS_BIT, IA64_DATA_ACCESS_BIT_VECTOR),
+        ("natpage_then_key_miss", readable | (7 << 2), 0, 0,
+         IA64_EXCP_DATA_KEY_MISS, IA64_DATA_KEY_MISS_VECTOR),
+        ("natpage_then_key_permission", readable | (7 << 2),
+         KEY_TEST_PKR | IA64_PKR_RD, 0,
+         IA64_EXCP_KEY_PERMISSION, IA64_KEY_PERMISSION_VECTOR),
+        ("natpage_then_rights", no_rights | (7 << 2), KEY_TEST_PKR, 0,
+         IA64_EXCP_DATA_ACCESS, IA64_DATA_ACCESS_VECTOR),
+        ("natpage_then_access_bit", (readable | (7 << 2)) & ~PTE_ACCESSED,
+         KEY_TEST_PKR, 0,
+         IA64_EXCP_DATA_ACCESS_BIT, IA64_DATA_ACCESS_BIT_VECTOR),
+        ("natpage_key_miss_rights_then_access_bit",
+         (no_rights | (7 << 2)) & ~PTE_ACCESSED,
+         0, IA64_DCR_DK | dcr_dr,
+         IA64_EXCP_DATA_ACCESS_BIT, IA64_DATA_ACCESS_BIT_VECTOR),
+        ("not_present_precludes_lower_faults",
+         (no_rights | (7 << 2)) & ~(1 | PTE_ACCESSED), 0, dcr_dp,
+         None, None),
+        ("all_conditions_defer", (no_rights | (7 << 2)) & ~PTE_ACCESSED,
+         0, IA64_DCR_DK | dcr_dr | IA64_DCR_DA, None, None),
+    ]
+    for name, pte, pkr, dcr, fault, vector in scenarios:
+        speculative_translation_fault_case(
+            "speculative_deferral_" + name, pte, pkr, dcr,
+            fault, vector)(qemu)
+    for name, kwargs in [
+            ("no_recovery", {"recovery": False}),
+            ("non_speculative", {"load": ld8})]:
+        speculative_translation_fault_case(
+            "speculative_deferral_" + name, no_rights & ~PTE_ACCESSED, 0,
+            IA64_DCR_DK | dcr_dr | IA64_DCR_DA,
+            IA64_EXCP_DATA_KEY_MISS, IA64_DATA_KEY_MISS_VECTOR,
+            **kwargs)(qemu)
+    speculative_translation_fault_case(
+        "speculative_deferral_no_collection",
+        (no_rights | (7 << 2)) & ~PTE_ACCESSED, 0, 0,
+        None, None, collect=False)(qemu)
 
 test_cmpxchg4_region7_store = require_registers("cmpxchg4_region7_store", [
     *dtr_setup_bundles(0x10, REGION7_SCRATCH_VA, REGION7_SCRATCH_PA),
@@ -8316,6 +8438,7 @@ CASE_NAMES = (
     'short_vhpt_walker_reads_table_at_pl0',
     'short_vhpt_walker_rejects_pending_table_purge',
     'speculative_deferred_access_bit_yields_to_data_debug',
+    'speculative_translation_fault_deferral_priority',
     'speculative_load_defers_region6_vhpt_not_present',
     'speculative_load_refills_after_region_rid_switch',
     'speculative_load_walks_short_vhpt_with_ic_clear',

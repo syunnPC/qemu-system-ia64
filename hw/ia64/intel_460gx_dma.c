@@ -14,6 +14,7 @@
 #include "hw/pci/pci_bus.h"
 #include "qapi/error.h"
 #include "qemu/module.h"
+#include "qemu/rcu.h"
 #include "qom/object.h"
 #include "system/memory.h"
 
@@ -53,6 +54,30 @@ struct Intel460GXDMA {
     bool initialized;
     bool sealed;
 };
+
+/*
+ * Keep AddressSpace and MemoryRegion storage alive through RCU teardown.
+ * do_address_space_destroy() queues the final flatview release, so reclamation
+ * needs a second RCU callback to run after it.
+ */
+typedef struct Intel460GXDMAReclaim {
+    struct rcu_head rcu;
+    GPtrArray *allocations;
+    Object *object;
+    bool requeued;
+} Intel460GXDMAReclaim;
+
+static void dma_reclaim(Intel460GXDMAReclaim *reclaim)
+{
+    if (!reclaim->requeued) {
+        reclaim->requeued = true;
+        call_rcu(reclaim, dma_reclaim, rcu);
+        return;
+    }
+    g_ptr_array_free(reclaim->allocations, true);
+    object_unref(reclaim->object);
+    g_free(reclaim);
+}
 
 typedef struct Intel460GXDMAClass {
     ObjectClass parent_class;
@@ -350,6 +375,7 @@ static Intel460GXDMARequester *dma_requester_new(Intel460GXDMA *dma,
     name = g_strdup_printf("intel-460gx-dma-%02x-container", devfn);
     memory_region_init(&requester->container, OBJECT(dma), name,
                        INTEL_460GX_DMA_ADDRESS_LIMIT);
+    g_free(name);
     name = g_strdup_printf("intel-460gx-dma-%02x-fault", devfn);
     memory_region_init_io(&requester->fault, OBJECT(dma), &dma_fault_ops,
                           requester, name, INTEL_460GX_DMA_ADDRESS_LIMIT);
@@ -361,6 +387,7 @@ static Intel460GXDMARequester *dma_requester_new(Intel460GXDMA *dma,
         Intel460GXDMARequesterAlias *alias =
             g_new0(Intel460GXDMARequesterAlias, 1);
 
+        g_free(name);
         name = g_strdup_printf("intel-460gx-dma-%02x-alias-%zu", devfn, i);
         memory_region_init_alias(&alias->mr, OBJECT(dma), name,
                                  &source->mr, 0, source->size);
@@ -369,13 +396,15 @@ static Intel460GXDMARequester *dma_requester_new(Intel460GXDMA *dma,
         g_ptr_array_add(requester->aliases, alias);
     }
 
+    g_free(name);
     name = g_strdup_printf("intel-460gx-dma-%02x", devfn);
     address_space_init(&requester->address_space, &requester->container,
                        name);
     return requester;
 }
 
-static void dma_requester_destroy(Intel460GXDMARequester *requester)
+static void dma_requester_destroy(Intel460GXDMARequester *requester,
+                                  Intel460GXDMAReclaim *reclaim)
 {
     size_t i;
 
@@ -387,13 +416,13 @@ static void dma_requester_destroy(Intel460GXDMARequester *requester)
 
         memory_region_del_subregion(&requester->container, &alias->mr);
         object_unparent(OBJECT(&alias->mr));
-        g_free(alias);
+        g_ptr_array_add(reclaim->allocations, alias);
     }
     g_ptr_array_free(requester->aliases, true);
     memory_region_del_subregion(&requester->container, &requester->fault);
     object_unparent(OBJECT(&requester->fault));
     object_unparent(OBJECT(&requester->container));
-    g_free(requester);
+    g_ptr_array_add(reclaim->allocations, requester);
 }
 
 static AddressSpace *dma_get_address_space(PCIBus *bus, void *opaque,
@@ -494,6 +523,7 @@ bool intel_460gx_dma_is_sealed(const Intel460GXDMA *dma)
 
 bool intel_460gx_dma_destroy(Intel460GXDMA *dma, Error **errp)
 {
+    Intel460GXDMAReclaim *reclaim;
     size_t i;
 
     if (!dma) {
@@ -522,9 +552,11 @@ bool intel_460gx_dma_destroy(Intel460GXDMA *dma, Error **errp)
         dma->bus = NULL;
     }
 
+    reclaim = g_new0(Intel460GXDMAReclaim, 1);
+    reclaim->allocations = g_ptr_array_new_with_free_func(g_free);
     for (i = 0; i < ARRAY_SIZE(dma->requesters); i++) {
         if (dma->requesters[i]) {
-            dma_requester_destroy(dma->requesters[i]);
+            dma_requester_destroy(dma->requesters[i], reclaim);
             dma->requesters[i] = NULL;
         }
     }
@@ -534,7 +566,7 @@ bool intel_460gx_dma_destroy(Intel460GXDMA *dma, Error **errp)
 
         memory_region_del_subregion(&dma->container, &alias->mr);
         object_unparent(OBJECT(&alias->mr));
-        g_free(alias);
+        g_ptr_array_add(reclaim->allocations, alias);
     }
     g_ptr_array_set_size(dma->aliases, 0);
 
@@ -542,7 +574,9 @@ bool intel_460gx_dma_destroy(Intel460GXDMA *dma, Error **errp)
     address_space_destroy(&dma->address_space);
     object_unparent(OBJECT(&dma->container));
     dma->initialized = false;
-    object_unref(OBJECT(dma));
+    /* The caller's reference is dropped once RCU teardown has finished. */
+    reclaim->object = OBJECT(dma);
+    call_rcu(reclaim, dma_reclaim, rcu);
     return true;
 }
 

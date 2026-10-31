@@ -1697,20 +1697,30 @@ static IA64KnownPredicate ia64_predicate_merge(IA64KnownPredicate a,
 }
 
 static void ia64_gen_clear_unc_compare_targets(
-    DisasContext *ctx, const Ia64Instruction *insn)
+    DisasContext *ctx, const Ia64Instruction *insn, TCGv_i64 qp_value,
+    IA64KnownPredicate qp_known)
 {
-    if (insn->compare_unc) {
-        if (insn->operands.common.auxiliary1 != 0) {
-            tcg_gen_movi_i64(cpu_pr[insn->operands.common.auxiliary1], 0);
-            ia64_predicate_set_known(
-                ctx, insn->operands.common.auxiliary1,
-                IA64_PREDICATE_ZERO);
-        }
-        if (insn->operands.common.auxiliary2 != 0) {
-            tcg_gen_movi_i64(cpu_pr[insn->operands.common.auxiliary2], 0);
-            ia64_predicate_set_known(
-                ctx, insn->operands.common.auxiliary2,
-                IA64_PREDICATE_ZERO);
+    uint32_t targets[] = {insn->operands.common.auxiliary1,
+                          insn->operands.common.auxiliary2};
+
+    if (!insn->compare_unc || qp_known == IA64_PREDICATE_ONE) {
+        return;
+    }
+    /* A true qualifier leaves both destinations intact until fault checks. */
+    for (int i = 0; i < ARRAY_SIZE(targets); i++) {
+        uint32_t p = targets[i];
+
+        if (p != 0) {
+            if (qp_known == IA64_PREDICATE_ZERO) {
+                tcg_gen_movi_i64(cpu_pr[p], 0);
+            } else {
+                tcg_gen_movcond_i64(TCG_COND_EQ, cpu_pr[p], qp_value,
+                                    tcg_constant_i64(0),
+                                    tcg_constant_i64(0), cpu_pr[p]);
+            }
+            ia64_predicate_set_known(ctx, p, qp_known == IA64_PREDICATE_ZERO ?
+                                      IA64_PREDICATE_ZERO :
+                                      IA64_PREDICATE_UNKNOWN);
         }
     }
 }
@@ -2443,13 +2453,17 @@ void ia64_gen_exit_to_completed(DisasContext *ctx, uint64_t ip,
     ia64_gen_note_successful_bundle(ctx, completed_ip, record_iipa,
                                     track_psr_suppression);
     ia64_gen_check_static_native_traps(
-        ctx, ip, 0, completed_ip, ctx->restart.current_ri, 0, 0);
+        ctx, ip, 0, completed_ip, ctx->restart.completion_slot, 0, 0);
     ia64_gen_store_instruction_group_start(
         ctx->restart.next_instruction_group_start);
     ia64_gen_exit_to(ctx, ip);
 }
 
-static void ia64_gen_lookup_or_exit(DisasContext *ctx)
+/*
+ * End the PSR.i unmasking delay through the main loop to deliver pending
+ * interrupts (SDM Vol.2 5.8.2.1).
+ */
+void ia64_gen_lookup_or_exit(DisasContext *ctx)
 {
     if (ctx->base.tb->flags & IA64_TB_FLAG_IRQ_DEFER) {
         tcg_gen_exit_tb(NULL, 0);
@@ -2466,7 +2480,7 @@ void ia64_gen_lookup_tcg_completed(DisasContext *ctx, TCGv_i64 ip,
     ia64_gen_note_successful_bundle(ctx, completed_ip, record_iipa,
                                     track_psr_suppression);
     ia64_gen_check_native_traps(
-        ip, 0, completed_ip, ctx->restart.current_ri,
+        ip, 0, completed_ip, ctx->restart.completion_slot,
         tcg_constant_i32(IA64_NATIVE_TRAP_TAKEN), 0,
         ia64_gen_native_trap_psr(ctx));
     ia64_gen_store_instruction_group_start(true);
@@ -2490,7 +2504,7 @@ void ia64_gen_lookup_current_completed(DisasContext *ctx,
             trap_conditions = tcg_constant_i32(IA64_NATIVE_TRAP_TAKEN);
         }
         ia64_gen_check_native_traps(cpu_ip, 0, completed_ip,
-                                    ctx->restart.current_ri,
+                                    ctx->restart.completion_slot,
                                     trap_conditions, 0,
                                     ia64_gen_native_trap_psr(ctx));
     }
@@ -2526,7 +2540,7 @@ void ia64_gen_exit_to_slot_completed(DisasContext *ctx, uint64_t ip,
                                     track_psr_suppression);
     ia64_gen_check_static_native_traps(
         ctx, target_ip, target_slot, completed_ip,
-        ctx->restart.current_ri, 0, 0);
+        ctx->restart.completion_slot, 0, 0);
     ia64_gen_store_instruction_group_start(
         ctx->restart.next_instruction_group_start);
     ia64_gen_exit_to_slot(ctx, ip, slot);
@@ -2540,7 +2554,7 @@ void ia64_gen_goto_completed(DisasContext *ctx, uint64_t ip,
     ia64_gen_note_successful_bundle(ctx, completed_ip, record_iipa,
                                     track_psr_suppression);
     ia64_gen_check_static_native_traps(
-        ctx, ip, 0, completed_ip, ctx->restart.current_ri,
+        ctx, ip, 0, completed_ip, ctx->restart.completion_slot,
         IA64_NATIVE_TRAP_TAKEN, 0);
     ia64_gen_goto_tb_group(ctx, ip, true);
 }
@@ -3448,7 +3462,8 @@ void ia64_gen_validate_ar_access(const Ia64Instruction *insn,
     /*
      * Only AR.BSPSTORE/AR.RNAT depend on RSC.mode on reads; AR.ITC/RUC can
      * also fault under PSR.si or PSR.vm.  Writes additionally validate the
-     * reserved fields of RSC/FPSR/PFS and the privilege of KR0-KR7/ITC/RUC.
+     * reserved fields of RSC/FPSR/PFS/CFLG and the privilege of
+     * KR0-KR7/ITC/RUC/CFLG.
      * Every other application-register access is unconditional, so avoid a
      * helper call for it.
      */
@@ -3464,6 +3479,7 @@ void ia64_gen_validate_ar_access(const Ia64Instruction *insn,
         case IA64_AR_RNAT: /* RSC.mode */
         case IA64_AR_FPSR: /* reserved fields */
         case IA64_AR_PFS: /* reserved fields */
+        case IA64_AR_CFLG: /* reserved fields and privileged */
             break;
         case IA64_AR_KR0 ... IA64_AR_KR7: /* privileged */
         case IA64_AR_ITC: /* privileged and virtualizable */
@@ -4168,7 +4184,7 @@ static IA64PrepareResult ia64_gen_prepare_insn(
                                   insn->raw, insn->slot);
         return IA64_PREPARE_NORETURN;
     }
-    ia64_gen_clear_unc_compare_targets(ctx, insn);
+    ia64_gen_clear_unc_compare_targets(ctx, insn, qp_value, qp_known);
     if (insn->clear_p2_before_predicate &&
         insn->operands.common.auxiliary2 != 0) {
         uint32_t p2 = insn->operands.common.auxiliary2;
@@ -4575,7 +4591,8 @@ static void ia64_gen_check_sequential_native_traps(
         target_slot = 0;
     }
     ia64_gen_check_static_native_traps(
-        insn->ctx, target_ip, target_slot, insn->address, insn->slot, 0, 0);
+        insn->ctx, target_ip, target_slot, insn->address,
+        mlx_long && insn->slot == 1 ? 2 : insn->slot, 0, 0);
 }
 
 static void ia64_tr_translate_insn(DisasContextBase *db, CPUState *cs)
@@ -4612,7 +4629,7 @@ static void ia64_tr_translate_insn(DisasContextBase *db, CPUState *cs)
         ia64_gen_check_instruction_debug(ctx, bundle_ip,
                                          ctx->restart.start_slot);
         ia64_gen_raise_exception(IA64_EXCP_RESERVED_TEMPLATE, bundle_ip,
-                                  template_code, 0);
+                                  template_code, ctx->restart.start_slot);
         db->is_jmp = DISAS_NORETURN;
         return;
     }
@@ -4620,6 +4637,13 @@ static void ia64_tr_translate_insn(DisasContextBase *db, CPUState *cs)
     slots[0] = ia64_bundle_slot(low, high, 0);
     slots[1] = ia64_bundle_slot(low, high, 1);
     slots[2] = ia64_bundle_slot(low, high, 2);
+    if ((template_code == 4 || template_code == 5) &&
+        ctx->restart.start_slot == 2) {
+        ia64_gen_check_instruction_debug(ctx, bundle_ip, 2);
+        ia64_gen_raise_exception(IA64_EXCP_ILLEGAL, bundle_ip, slots[2], 2);
+        db->is_jmp = DISAS_NORETURN;
+        return;
+    }
     skip_x_slot = false;
     for (slot = ctx->restart.start_slot; slot < 3; slot++) {
         if (skip_x_slot && slot == 2) {
@@ -4646,6 +4670,7 @@ static void ia64_tr_translate_insn(DisasContextBase *db, CPUState *cs)
         bool track_iipa_for_insn;
 
         insn.ctx = ctx;
+        ctx->restart.completion_slot = skip_x_slot && slot == 1 ? 2 : slot;
         stop_after = template_info->stop_after[
             skip_x_slot && slot == 1 ? 2 : slot];
         insn.placement_illegal =
@@ -4717,6 +4742,15 @@ static void ia64_tr_translate_insn(DisasContextBase *db, CPUState *cs)
             ctx->restart.next_instruction_group_start;
         if (track_iipa_for_insn && !psr_ic_modified) {
             record_iipa = false;
+        }
+        if (ctx->restart.track_psr_suppression) {
+            /* PSR.ia suppresses only this instruction, even within a bundle. */
+            ia64_gen_store_instruction_group_start(
+                ctx->restart.instruction_group_start);
+            ia64_gen_save_fault_slot_for_exit(ctx);
+            ia64_gen_lookup_or_exit(ctx);
+            db->is_jmp = DISAS_NORETURN;
+            return;
         }
         ctx->restart.track_psr_suppression =
             !ia64_current_insn_cannot_execute(ctx, &insn) &&
