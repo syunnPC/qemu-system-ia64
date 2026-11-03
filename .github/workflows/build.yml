@@ -464,6 +464,53 @@ jobs:
           if-no-files-found: error
           archive: false
 
+  linux-user:
+    name: Linux user mode (IA-64 programs)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out the source tree
+        uses: actions/checkout@v6
+
+      - name: Install build dependencies
+        run: |
+          set -euo pipefail
+
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            curl \
+            git \
+            libglib2.0-dev \
+            ninja-build \
+            pkg-config \
+            python3 \
+            python3-venv \
+            xz-utils
+
+      - name: Restore the IA-64 toolchain downloads
+        uses: actions/cache@v4
+        with:
+          path: ia64-toolchain/downloads
+          key: ia64-user-toolchain-${{ hashFiles('scripts/ia64-user-toolchain.sh') }}
+
+      - name: Install the IA-64 toolchain
+        run: scripts/ia64-user-toolchain.sh "$GITHUB_WORKSPACE/ia64-toolchain"
+
+      - name: Build qemu-ia64 and run the IA-64 programs
+        run: |
+          set -euo pipefail
+
+          mkdir -p build-user
+          cd build-user
+          ../configure \
+            --target-list=ia64-linux-user \
+            --cross-cc-ia64="$GITHUB_WORKSPACE/ia64-toolchain/bin/ia64-linux-glibc-gcc" \
+            --disable-docs
+          # check-tcg runs what the build made; it does not build QEMU.
+          make -j"$(nproc)"
+          make -j"$(nproc)" check-tcg
+
   windows:
     name: ${{ matrix.job_name }}
     runs-on: windows-2022
