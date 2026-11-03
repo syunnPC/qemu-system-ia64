@@ -49,11 +49,6 @@ tests = {
   'test-qapi-util': [],
   'test-interval-tree': [],
   'test-fifo': [],
-  'test-hid-keyboard': [
-    meson.project_source_root() / 'hw/input/hid.c',
-    migration,
-    pixman,
-  ],
   'test-usb-desc-msos': [
     meson.project_source_root() / 'hw/usb/desc-msos.c',
   ],
@@ -165,6 +160,12 @@ endif
 
 if have_system
   tests += {
+    # hw/input/hid.c uses the system emulator's trace events.
+    'test-hid-keyboard': [
+      meson.project_source_root() / 'hw/input/hid.c',
+      migration,
+      pixman,
+    ],
     'ptimer-test': ['ptimer-test-stubs.c', meson.project_source_root() / 'hw/core/ptimer.c'],
     'test-iov': [],
     'test-opts-visitor': [testqapi],
