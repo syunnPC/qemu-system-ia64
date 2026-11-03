@@ -699,34 +699,37 @@ static abi_ulong create_elf_tables(abi_ulong p, int argc, int envc,
     /* There must be exactly DLINFO_ITEMS entries here, or the assert
      * on info->auxv_len will trigger.
      */
-    NEW_AUX_ENT(AT_PHDR, (abi_ulong)(info->load_addr + exec->e_phoff));
+    NEW_AUX_ENT(AT_PHDR,
+                target_guest_to_vaddr(info->load_addr + exec->e_phoff));
     NEW_AUX_ENT(AT_PHENT, (abi_ulong)(sizeof (struct elf_phdr)));
     NEW_AUX_ENT(AT_PHNUM, (abi_ulong)(exec->e_phnum));
     NEW_AUX_ENT(AT_PAGESZ, (abi_ulong)(TARGET_PAGE_SIZE));
-    NEW_AUX_ENT(AT_BASE, (abi_ulong)(interp_info ? interp_info->load_addr : 0));
+    NEW_AUX_ENT(AT_BASE, interp_info ?
+                target_guest_to_vaddr(interp_info->load_addr) : 0);
     NEW_AUX_ENT(AT_FLAGS, (abi_ulong)0);
-    NEW_AUX_ENT(AT_ENTRY, info->entry);
+    NEW_AUX_ENT(AT_ENTRY, target_guest_to_vaddr(info->entry));
     NEW_AUX_ENT(AT_UID, (abi_ulong) getuid());
     NEW_AUX_ENT(AT_EUID, (abi_ulong) geteuid());
     NEW_AUX_ENT(AT_GID, (abi_ulong) getgid());
     NEW_AUX_ENT(AT_EGID, (abi_ulong) getegid());
     NEW_AUX_ENT(AT_HWCAP, get_elf_hwcap(thread_cpu));
     NEW_AUX_ENT(AT_CLKTCK, (abi_ulong) sysconf(_SC_CLK_TCK));
-    NEW_AUX_ENT(AT_RANDOM, (abi_ulong) u_rand_bytes);
+    NEW_AUX_ENT(AT_RANDOM, target_guest_to_vaddr(u_rand_bytes));
     NEW_AUX_ENT(AT_SECURE, (abi_ulong) qemu_getauxval(AT_SECURE));
-    NEW_AUX_ENT(AT_EXECFN, info->file_string);
+    NEW_AUX_ENT(AT_EXECFN, target_guest_to_vaddr(info->file_string));
 
     if (HAVE_ELF_HWCAP2) {
         NEW_AUX_ENT(AT_HWCAP2, get_elf_hwcap2(thread_cpu));
     }
     if (u_base_platform) {
-        NEW_AUX_ENT(AT_BASE_PLATFORM, u_base_platform);
+        NEW_AUX_ENT(AT_BASE_PLATFORM, target_guest_to_vaddr(u_base_platform));
     }
     if (u_platform) {
-        NEW_AUX_ENT(AT_PLATFORM, u_platform);
+        NEW_AUX_ENT(AT_PLATFORM, target_guest_to_vaddr(u_platform));
     }
     if (vdso_info) {
-        NEW_AUX_ENT(AT_SYSINFO_EHDR, vdso_info->load_addr);
+        NEW_AUX_ENT(AT_SYSINFO_EHDR,
+                    target_guest_to_vaddr(vdso_info->load_addr));
     }
     NEW_AUX_ENT (AT_NULL, 0);
 #undef NEW_AUX_ENT
@@ -740,7 +743,7 @@ static abi_ulong create_elf_tables(abi_ulong p, int argc, int envc,
 
     p = info->arg_strings;
     for (i = 0; i < argc; ++i) {
-        put_user_ual(p, u_argv);
+        put_user_ual(target_guest_to_vaddr(p), u_argv);
         u_argv += n;
         p += target_strlen(p) + 1;
     }
@@ -748,7 +751,7 @@ static abi_ulong create_elf_tables(abi_ulong p, int argc, int envc,
 
     p = info->env_strings;
     for (i = 0; i < envc; ++i) {
-        put_user_ual(p, u_envp);
+        put_user_ual(target_guest_to_vaddr(p), u_envp);
         u_envp += n;
         p += target_strlen(p) + 1;
     }
@@ -1308,6 +1311,13 @@ static void load_elf_image(const char *image_name, const ImageSource *src,
         goto exit_errmsg;
     }
     bswap_phdr(phdr, ehdr->e_phnum);
+
+    for (i = 0; i < ehdr->e_phnum; ++i) {
+        if (phdr[i].p_type == PT_LOAD) {
+            phdr[i].p_vaddr = target_vaddr_to_guest(phdr[i].p_vaddr);
+        }
+    }
+    ehdr->e_entry = target_vaddr_to_guest(ehdr->e_entry);
 
     info->nsegs = 0;
     info->pt_dynamic_addr = 0;

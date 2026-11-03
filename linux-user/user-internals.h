@@ -199,6 +199,19 @@ static inline void begin_parallel_context(CPUState *cs)
  * above, so include them last.
  */
 #include "target_cpu.h"
+
+/*
+ * A target whose guest address space is a folded view of its virtual
+ * addresses (IA-64) defines these in its target_cpu.h: ELF segments load at
+ * target_vaddr_to_guest() addresses, and what the program is told (auxv,
+ * argv, fault addresses, /proc/self/maps) goes through
+ * target_guest_to_vaddr().
+ */
+#ifndef target_vaddr_to_guest
+#define target_vaddr_to_guest(va)       (va)
+#define target_guest_to_vaddr(addr)     (addr)
+#endif
+
 #include "target_structs.h"
 
 #endif

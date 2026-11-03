@@ -763,7 +763,7 @@ void cpu_loop_exit_sigsegv(CPUState *cpu, vaddr addr,
 
     force_sig_fault(TARGET_SIGSEGV,
                     maperr ? TARGET_SEGV_MAPERR : TARGET_SEGV_ACCERR,
-                    addr);
+                    target_guest_to_vaddr(addr));
     cpu->exception_index = EXCP_INTERRUPT;
     cpu_loop_exit_restore(cpu, ra);
 }
@@ -777,7 +777,8 @@ void cpu_loop_exit_sigbus(CPUState *cpu, vaddr addr,
         tcg_ops->record_sigbus(cpu, addr, access_type, ra);
     }
 
-    force_sig_fault(TARGET_SIGBUS, TARGET_BUS_ADRALN, addr);
+    force_sig_fault(TARGET_SIGBUS, TARGET_BUS_ADRALN,
+                    target_guest_to_vaddr(addr));
     cpu->exception_index = EXCP_INTERRUPT;
     cpu_loop_exit_restore(cpu, ra);
 }

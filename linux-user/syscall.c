@@ -8417,7 +8417,8 @@ static void open_self_maps_4(const struct open_self_maps_data *d,
 
     count = dprintf(fd, TARGET_ABI_FMT_ptr "-" TARGET_ABI_FMT_ptr
                     " %c%c%c%c %08" PRIx64 " %02x:%02x %"PRId64,
-                    start, end,
+                    (abi_ptr)target_guest_to_vaddr(start),
+                    (abi_ptr)target_guest_to_vaddr(end - 1) + 1,
                     (flags & PAGE_READ) ? 'r' : '-',
                     (flags & PAGE_WRITE_ORG) ? 'w' : '-',
                     (flags & PAGE_EXEC) ? 'x' : '-',
@@ -8593,7 +8594,9 @@ static int open_self_stat(CPUArchState *cpu_env, int fd)
             g_string_printf(buf, "%" PRIu64 " ", ts->start_boottime);
         } else if (i == 27) {
             /* stack bottom */
-            g_string_printf(buf, TARGET_ABI_FMT_ld " ", ts->info->start_stack);
+            g_string_printf(buf, TARGET_ABI_FMT_ld " ",
+                            (abi_long)target_guest_to_vaddr(
+                                ts->info->start_stack));
         } else {
             /* for the rest, there is MasterCard */
             g_string_printf(buf, "0%c", i == 43 ? '\n' : ' ');

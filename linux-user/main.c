@@ -97,6 +97,14 @@ static int last_log_mask;
 static const char *last_log_filename;
 
 /*
+ * A target whose guest addresses must stay inside one reserved host range
+ * defines TARGET_DEFAULT_RESERVED_VA in its target_cpu.h.
+ */
+#ifndef TARGET_DEFAULT_RESERVED_VA
+# define TARGET_DEFAULT_RESERVED_VA  (TARGET_VIRT_ADDR_SPACE_BITS <= 32)
+#endif
+
+/*
  * When running 32-on-64 we should make sure we can fit all of the possible
  * guest address space into a contiguous chunk of virtual host memory.
  *
@@ -840,7 +848,7 @@ int main(int argc, char **argv, char **envp)
             fprintf(stderr, "Reserved virtual address too big\n");
             exit(EXIT_FAILURE);
         }
-    } else if (HOST_LONG_BITS == 64 && TARGET_VIRT_ADDR_SPACE_BITS <= 32) {
+    } else if (HOST_LONG_BITS == 64 && TARGET_DEFAULT_RESERVED_VA) {
         /* MAX_RESERVED_VA + 1 is a large power of 2, so is aligned. */
         reserved_va = max_reserved_va;
     }

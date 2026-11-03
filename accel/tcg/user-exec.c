@@ -819,6 +819,11 @@ tb_page_addr_t get_page_addr_code_hostp(CPUArchState *env, vaddr addr,
 {
     int flags;
 
+    /*
+     * The guest page that holds the code.  This differs from the pc only for
+     * a target whose untagged_addr hook folds addresses (IA-64).
+     */
+    addr = cpu_untagged_addr_vaddr(env_cpu(env), addr);
     flags = probe_access_internal(env, addr, 1, MMU_INST_FETCH, false, 0);
     g_assert(flags == 0);
 
@@ -957,8 +962,11 @@ int cpu_memory_rw_debug(CPUState *cpu, vaddr addr,
     mmap_lock();
 
     while (len > 0) {
-        page = addr & TARGET_PAGE_MASK;
-        l = (page + TARGET_PAGE_SIZE) - addr;
+        /* The guest page, for a target whose untagged_addr folds addresses. */
+        vaddr guest = cpu_untagged_addr_vaddr(cpu, addr);
+
+        page = guest & TARGET_PAGE_MASK;
+        l = (page + TARGET_PAGE_SIZE) - guest;
         if (l > len) {
             l = len;
         }
@@ -968,7 +976,7 @@ int cpu_memory_rw_debug(CPUState *cpu, vaddr addr,
         }
         if (is_write) {
             if (flags & PAGE_WRITE) {
-                memcpy(g2h_vaddr(cpu, addr), buf, l);
+                memcpy(g2h_untagged_vaddr(guest), buf, l);
             } else {
                 /* Bypass the host page protection using ptrace. */
                 if (fd == -1) {
@@ -985,15 +993,15 @@ int cpu_memory_rw_debug(CPUState *cpu, vaddr addr,
                  * be under mmap_lock() in order to prevent the creation of
                  * another TranslationBlock in between.
                  */
-                tb_invalidate_phys_range(NULL, addr, addr + l - 1);
+                tb_invalidate_phys_range(NULL, guest, guest + l - 1);
                 written = pwrite(fd, buf, l,
-                                 (off_t)(uintptr_t)g2h_untagged_vaddr(addr));
+                                 (off_t)(uintptr_t)g2h_untagged_vaddr(guest));
                 if (written != l) {
                     goto out_close;
                 }
             }
         } else if (flags & PAGE_READ) {
-            memcpy(buf, g2h_vaddr(cpu, addr), l);
+            memcpy(buf, g2h_untagged_vaddr(guest), l);
         } else {
             /* Bypass the host page protection using ptrace. */
             if (fd == -1) {
@@ -1003,7 +1011,7 @@ int cpu_memory_rw_debug(CPUState *cpu, vaddr addr,
                 }
             }
             if (pread(fd, buf, l,
-                      (off_t)(uintptr_t)g2h_untagged_vaddr(addr)) != l) {
+                      (off_t)(uintptr_t)g2h_untagged_vaddr(guest)) != l) {
                 goto out_close;
             }
         }
