@@ -48,6 +48,13 @@ Test layers
   the pre-boot shell through QMP and the serial console, then reuses its NVRAM
   file to verify persistent variables, clock state, and one-shot ``BootNext``.
 
+``tests/tcg/ia64/``
+  IA-64 Linux programs that ``qemu-ia64`` runs with ``make check-tcg``: process
+  start-up, the register stack, signals, threads, ``fork``, mappings, the
+  floating-point software assist, unaligned references, speculation and a
+  spread of system calls.  ``make check-tcg`` also runs the architecture
+  independent ``tests/tcg/multiarch`` programs.
+
 Running the tests
 -----------------
 
@@ -87,6 +94,19 @@ Run only the pre-boot shell scenarios::
 The EFI applications require ``ia64-linux-gnu-gcc``, ``ld``, and ``objcopy``.
 Meson builds each application once; functional tests consume those outputs and
 do not invoke a compiler for each scenario.
+
+Run the Linux user-mode tests with the toolchain that
+``scripts/ia64-user-toolchain.sh`` installs (kernel.org's GCC 13.2.0 and the
+EPIC Slackware IA-64 C library)::
+
+  scripts/ia64-user-toolchain.sh ~/ia64-toolchain
+  ./configure --target-list=ia64-linux-user \
+      --cross-cc-ia64=$HOME/ia64-toolchain/bin/ia64-linux-glibc-gcc
+  make -C build
+  make -C build check-tcg
+
+The same directory provides ``ia64-linux-gnu-gcc`` and the other plain tools
+for the firmware build when ``~/ia64-toolchain/bin`` is on ``PATH``.
 
 Adding a TCG case
 -----------------

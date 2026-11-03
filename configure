@@ -1337,6 +1337,7 @@ fi
 : ${cross_prefix_loongarch64="loongarch64-unknown-linux-gnu-"}
 : ${cross_prefix_hppa="hppa-linux-gnu-"}
 : ${cross_prefix_i386="i686-linux-gnu-"}
+: ${cross_prefix_ia64="ia64-linux-gnu-"}
 : ${cross_prefix_m68k="m68k-linux-gnu-"}
 : ${cross_prefix_microblaze="microblaze-linux-musl-"}
 : ${cross_prefix_mips64el="mips64el-linux-gnuabi64-"}

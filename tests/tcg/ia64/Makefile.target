@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# -*- Mode: makefile -*-
+#
+# IA-64 linux-user tests.  scripts/ia64-user-toolchain.sh installs a
+# compiler for them, ia64-linux-glibc-gcc, which configure takes with
+# --cross-cc-ia64.
+
+IA64_SRC = $(SRC_PATH)/tests/tcg/ia64
+VPATH += $(IA64_SRC)
+
+IA64_TESTS = process-start register-stack signal-frame threads fork-wait \
+             mappings fp-assist unaligned speculation syscalls
+TESTS += $(IA64_TESTS)
+
+$(IA64_TESTS): $(IA64_SRC)/ia64-test.h
+
+threads: CFLAGS += -pthread
+threads: LDFLAGS += -pthread
+fp-assist: LDFLAGS += -lm
+
+run-process-start: process-start
+	$(call run-test, $<, env IA64_TEST_VAR=value $(QEMU) $(QEMU_OPTS) \
+		$< first "second argument")
+
+# A plugin sees the guest address QEMU accesses, in which the IA-64 regions
+# are folded into windows (target/ia64/user-vaddr.h); the memory-callback
+# case compares it with the address the program holds.
+run-plugin-test-plugin-set-pc-with-libsetpc.so: test-plugin-set-pc
+	$(call skip-test, $<, "plugins see folded IA-64 addresses")

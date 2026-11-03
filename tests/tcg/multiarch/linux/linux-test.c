@@ -45,6 +45,17 @@
 
 #define STACK_SIZE 16384
 
+#ifdef __ia64__
+/*
+ * IA-64 has no clone(): __clone2 takes the base and the size of the
+ * child's stack, which also holds its register backing store.
+ */
+extern int __clone2(int (*fn)(void *), void *stack_base, size_t stack_size,
+                    int flags, void *arg, ...);
+#define clone(fn, stack_top, flags, arg) \
+    __clone2(fn, (uint8_t *)(stack_top) - STACK_SIZE, STACK_SIZE, flags, arg)
+#endif
+
 static void error1(const char *filename, int line, const char *fmt, ...)
 {
     va_list ap;
