@@ -112,6 +112,21 @@ from the other values. Use `-accel tcg,thread=multi` for more than one vCPU.
 | AHCI HDD | `-drive ...,if=none,id=<id> -device ide-hd,drive=<id>,bus=ide.<number>` |
 | AHCI CD | `-drive ...,media=cdrom,readonly=on,if=none,id=<id> -device ide-cd,drive=<id>,bus=ide.<number>` |
 
+## Linux user mode
+
+`qemu-ia64` runs IA-64 Linux programs on the host:
+
+```sh
+./configure --target-list=ia64-linux-user
+ninja -C build qemu-ia64
+./build/qemu-ia64 ./program
+./build/qemu-ia64 -L /path/to/ia64-sysroot ./dynamically-linked-program
+```
+
+`scripts/ia64-user-toolchain.sh DIR` installs a cross compiler and an IA-64
+glibc sysroot to build such programs with; see
+[IA-64 testing](docs/devel/testing/ia64.rst) for the test suite.
+
 ## Status
 
 Instruction emulation, privileged behavior, floating-point handling,

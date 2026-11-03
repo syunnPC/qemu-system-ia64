@@ -106,6 +106,51 @@ firmware modules should keep their platform dependencies injectable: the EFI
 decompressor, for example, is compiled natively with a memory-primitive stub
 by ``test-ia64-firmware-decompress``.
 
+Linux user mode
+---------------
+
+``qemu-ia64`` runs IA-64 Linux programs with the same decoder, translator and
+architectural modules.  The machine, the firmware, PAL, the SAPIC and the
+IA-32 execution engine are not built: a process has no physical memory, and
+Linux keeps ``PSR.di`` set, so ``br.ia`` and ``jmpe`` fault before the IA-32
+engine would run.  ``linux-user/ia64`` follows ``arch/ia64`` of Linux 6.6,
+the last kernel with IA-64.
+
+Region windows
+  A process uses several IA-64 regions at once: shared objects and anonymous
+  mappings in region 1, program text in region 2, data in region 3.
+  linux-user keeps one contiguous guest address space, so
+  ``target/ia64/user-vaddr.h`` gives each region a window of 2^40 bytes at
+  ``region << 40``.  Registers, memory contents and system-call results hold
+  the IA-64 address; the fold happens only where QEMU touches memory: the
+  translator's loads and stores, instruction fetch and the pointers system
+  calls pass to the host, through the CPU's ``untagged_addr`` hook.  An
+  offset beyond its window folds into region 7's window, which never holds a
+  user mapping.  Region 0 maps to itself, so a folded address folds to
+  itself; region 0 addresses at or above 2^40 therefore alias the other
+  windows.  TCG plugins see the folded address of a memory access.
+
+Translations
+  A process has no TLB.  ``ia64_tlb_find_cached()`` builds the entry for a
+  page from its linux-user page flags, with the access rights, ``A``, ``D``
+  and ``ED`` bits Linux puts in a user page table entry.  Speculation,
+  ``probe``, alignment and fault checks then run the system-mode code
+  unchanged; ``CR.DCR`` defers the speculative faults Linux would defer.
+
+Interruptions
+  Faults reach ``cpu_loop()`` instead of the IVT and become the signals
+  ``ia64_fault()`` and ``ia64_bad_break()`` send.  ``break 0x100000`` is a
+  system call: the number in ``r15``, the arguments in the caller's output
+  registers, the result in ``r8`` and ``r10``.  Software-assist floating-point
+  faults are completed as the kernel's FPSWA call would, and unaligned integer
+  references through the same assist as the firmware's.
+
+Signals
+  The signal frame and ``struct sigcontext`` follow the Linux ABI.  Delivery
+  covers the interrupted register frame, and ``rt_sigreturn`` restores it as
+  ``rfi`` would.  The trampoline sits at ``0xa000000000000100`` in a gate
+  page, where libgcc's unwinder recognises a signal frame.
+
 Tests and adding instructions
 -----------------------------
 

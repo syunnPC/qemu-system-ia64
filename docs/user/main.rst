@@ -165,6 +165,11 @@ Other binaries
    * ``qemu-i386`` TODO.
    * ``qemu-x86_64`` TODO.
 
+-  user mode (IA-64)
+
+   * ``qemu-ia64`` executes 64-bit IA-64 Linux binaries.  Each region the
+     program uses is limited to its first 2^40 bytes.
+
 -  user mode (Microblaze)
 
    * ``qemu-microblaze`` TODO.
