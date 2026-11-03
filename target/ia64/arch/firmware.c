@@ -789,9 +789,12 @@ static bool ia64_firmware_unaligned_spans_translation(CPUIA64State *env,
     return pa_last != pa_first + (size - 1);
 }
 
-bool ia64_try_emulate_firmware_unaligned(CPUState *cs,
-                                         uint64_t fault_addr,
-                                         uint8_t fault_slot)
+/*
+ * Complete an unaligned integer load or store on the interrupted context.
+ * Page-spanning and semaphore references are left to the fault.
+ */
+static bool ia64_unaligned_assist(CPUState *cs, uint64_t fault_addr,
+                                  uint8_t fault_slot)
 {
     IA64CPU *cpu = ia64_cpu_from_cpu_state(cs);
     CPUIA64State *env = &cpu->env;
@@ -806,14 +809,7 @@ bool ia64_try_emulate_firmware_unaligned(CPUState *cs,
     MemOp memop;
     uint32_t size;
 
-    /*
-     * Model the SAL/firmware IVT's unaligned assist only before the guest has
-     * installed its own IVA.  Page-spanning and semaphore references remain
-     * architectural faults.
-     */
-    if (env->cr_iva != IA64_FIRMWARE_IVT_BASE ||
-        !(env->psr & IA64_PSR_IC) ||
-        fault_slot > 2) {
+    if (fault_slot > 2) {
         return false;
     }
 
@@ -987,3 +983,33 @@ bool ia64_try_emulate_firmware_unaligned(CPUState *cs,
 
     return false;
 }
+
+bool ia64_try_emulate_firmware_unaligned(CPUState *cs,
+                                         uint64_t fault_addr,
+                                         uint8_t fault_slot)
+{
+    CPUIA64State *env = &ia64_cpu_from_cpu_state(cs)->env;
+
+    /*
+     * Model the SAL/firmware IVT's unaligned assist only before the guest has
+     * installed its own IVA.
+     */
+    if (env->cr_iva != IA64_FIRMWARE_IVT_BASE ||
+        !(env->psr & IA64_PSR_IC)) {
+        return false;
+    }
+    return ia64_unaligned_assist(cs, fault_addr, fault_slot);
+}
+
+#ifdef CONFIG_USER_ONLY
+/*
+ * Linux emulates an unaligned user reference by default
+ * (ia64_handle_unaligned() in arch/ia64/kernel/unaligned.c).
+ */
+bool ia64_user_unaligned_assist(CPUIA64State *env)
+{
+    return ia64_unaligned_assist(env_cpu(env),
+                                 env->exception_state.fault_addr,
+                                 env->exception_state.fault_slot);
+}
+#endif

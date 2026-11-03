@@ -193,6 +193,16 @@ static void pal_vm_summary(CPUIA64State *env)
     env->gr[IA64_PAL_GR_RESULT3] = 0;
 }
 
+static void ia64_pal_request_halt(CPUState *cs)
+{
+#ifdef CONFIG_USER_ONLY
+    /* linux-user maps no PAL, so no break reaches the PAL dispatcher. */
+    cpu_abort(cs, "PAL_HALT called in a Linux user-mode process\n");
+#else
+    cpu_set_interrupt(cs, CPU_INTERRUPT_HALT);
+#endif
+}
+
 static bool pal_halt_light(CPUIA64State *env)
 {
     CPUState *cs = env_cpu(env);
@@ -223,7 +233,7 @@ static bool pal_halt_light(CPUIA64State *env)
      * merely ended the current translation block; cpu_exec could then run on
      * with a stale halted flag and stop later at an unrelated instruction.
      */
-    cpu_set_interrupt(cs, CPU_INTERRUPT_HALT);
+    ia64_pal_request_halt(cs);
     return true;
 }
 
@@ -326,7 +336,7 @@ static bool pal_halt(CPUIA64State *env)
     env->gr[IA64_PAL_GR_RESULT3] = 0;
     env->interrupt.pal_halt_wake = true;
     ia64_itc_enter_halt(env);
-    cpu_set_interrupt(cs, CPU_INTERRUPT_HALT);
+    ia64_pal_request_halt(cs);
     return true;
 }
 

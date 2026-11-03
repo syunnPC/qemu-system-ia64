@@ -254,6 +254,8 @@ static int sapic_find_isr(CPUIA64State *env)
 
 void ia64_sapic_update_interrupt(CPUIA64State *env)
 {
+    /* A Linux process has no SAPIC: only signals interrupt it. */
+#ifndef CONFIG_USER_ONLY
     CPUState *cs = env_cpu(env);
     bool special = (env->pal.pal_mca_pending &&
                     !(env->psr & IA64_PSR_MC)) ||
@@ -269,6 +271,7 @@ void ia64_sapic_update_interrupt(CPUIA64State *env)
     } else {
         cpu_reset_interrupt(cs, CPU_INTERRUPT_HARD);
     }
+#endif
 }
 
 bool ia64_sapic_has_pending(CPUIA64State *env)
@@ -371,6 +374,7 @@ static uint64_t ia64_itc_ticks_for_ns(uint64_t elapsed_ns,
     return ticks;
 }
 
+#ifndef CONFIG_USER_ONLY
 static uint64_t ia64_itc_delay_ns(CPUIA64State *env, uint64_t delta_ticks)
 {
     IA64CPUClass *icc = ia64_env_cpu_class(env);
@@ -405,6 +409,7 @@ static uint64_t ia64_itc_delay_ns(CPUIA64State *env, uint64_t delta_ticks)
     }
     return delay_ns;
 }
+#endif
 
 void ia64_itc_advance_pending_itm(CPUIA64State *env)
 {
@@ -611,6 +616,10 @@ void ia64_itm_timer_cb(void *opaque)
 
 void ia64_itm_update(CPUIA64State *env, uint64_t itm_value)
 {
+#ifdef CONFIG_USER_ONLY
+    /* CR.ITM is privileged, and a Linux process has no timer interrupt. */
+    env->interrupt.itm_armed = false;
+#else
     IA64CPU *cpu = container_of(env, IA64CPU, env);
     uint64_t itc;
     int64_t delta_ticks;
@@ -642,6 +651,7 @@ void ia64_itm_update(CPUIA64State *env, uint64_t itm_value)
     trace_ia64_itm(CPU(cpu)->cpu_index, "arm", itc, itm_value,
                    ia64_itv_vector(env));
     timer_mod(cpu->itm_timer, deadline_ns);
+#endif
 }
 
 void ia64_itc_sync(CPUIA64State *env)

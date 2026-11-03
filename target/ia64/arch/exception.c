@@ -275,6 +275,16 @@ G_NORETURN void ia64_cpu_do_unaligned_access(CPUState *cs, vaddr addr,
 }
 #endif
 
+#ifdef CONFIG_USER_ONLY
+/*
+ * A Linux process takes its faults in linux-user's cpu_loop, which turns
+ * them into signals; nothing is delivered through the IVT, and the process
+ * has no external interrupts.
+ */
+void ia64_rse_interrupt_window(CPUIA64State *env)
+{
+}
+#else
 static bool ia64_exception_writes_ifa(IA64Exception excp)
 {
     switch (excp) {
@@ -856,3 +866,4 @@ bool ia64_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
     }
     return false;
 }
+#endif /* !CONFIG_USER_ONLY */

@@ -8,10 +8,6 @@
 #include "hw/ia64/ia64_vpc_abi.h"
 #include "qemu/timer.h"
 
-#ifdef CONFIG_USER_ONLY
-#error "IA-64 target supports system mode only"
-#endif
-
 #define CPU_RESOLVING_TYPE TYPE_IA64_CPU
 
 #undef NB_MMU_MODES
@@ -328,6 +324,11 @@ static inline bool ia64_cfm_frame_fields_valid(uint32_t sof, uint32_t sol,
 #define IA64_PTE_MA_UCE     5
 #define IA64_PTE_MA_WC      6
 #define IA64_PTE_MA_NATPAGE 7
+#define IA64_PTE_PPN_MASK 0x0003fffffffff000ULL
+#define IA64_PTE_PL_SHIFT 7
+#define IA64_PTE_PL_MASK  (3ULL << IA64_PTE_PL_SHIFT)
+#define IA64_PTE_AR_SHIFT 9
+#define IA64_PTE_AR_MASK  (7ULL << IA64_PTE_AR_SHIFT)
 
 static inline uint8_t ia64_pte_ma(uint64_t pte)
 {
@@ -367,6 +368,7 @@ typedef enum IA64GeneralRegisterIndex {
     IA64_GR_RETURN3 = 11,
     IA64_GR_STACK_POINTER = 12,
     IA64_GR_THREAD_POINTER = 13,
+    IA64_GR_SYSCALL_NUMBER = 15,
 } IA64GeneralRegisterIndex;
 
 typedef enum IA64IA32GeneralRegisterIndex {
@@ -1013,6 +1015,10 @@ typedef struct CPUArchState {
      */
     uint64_t tcg_vec_scratch;
 
+#ifdef CONFIG_USER_ONLY
+    /* Backing-store base that a clone or clone2 call gives its child. */
+    uint64_t user_clone_rbs;
+#endif
 } CPUIA64State;
 
 static inline uint64_t ia64_pkr_key_mask(const CPUIA64State *env);
@@ -1238,10 +1244,22 @@ ia64_micro_tlb_index(uint64_t va, uint32_t rid)
            (IA64_MICRO_TLB_SIZE - 1);
 }
 
+#ifdef CONFIG_USER_ONLY
+/*
+ * A Linux process has no TLB: each lookup describes the page as the
+ * process's mappings hold it (exec-access.c).
+ */
+const IA64TlbEntry *ia64_exec_user_tlb_entry(CPUIA64State *env, uint64_t va,
+                                             uint32_t rid, bool is_ifetch);
+#endif
+
 static inline QEMU_ALWAYS_INLINE const IA64TlbEntry *
 ia64_tlb_find_cached(CPUIA64State *env, uint64_t va, uint32_t rid,
                      bool is_ifetch)
 {
+#ifdef CONFIG_USER_ONLY
+    return ia64_exec_user_tlb_entry(env, va, rid, is_ifetch);
+#else
     IA64TlbEntry *tlb = is_ifetch ? env->mmu.tlb_inst : env->mmu.tlb_data;
     IA64MicroTlbEntry *micro = is_ifetch ? env->mmu.tlb_inst_micro :
                                            env->mmu.tlb_data_micro;
@@ -1280,6 +1298,7 @@ ia64_tlb_find_cached(CPUIA64State *env, uint64_t va, uint32_t rid,
     }
 
     return ia64_tlb_find_slow(env, va, rid, is_ifetch);
+#endif
 }
 
 static inline uint32_t ia64_region_rid(const CPUIA64State *env, uint64_t va)
@@ -1287,6 +1306,13 @@ static inline uint32_t ia64_region_rid(const CPUIA64State *env, uint64_t va)
     return ia64_rr_rid(env->rr[ia64_rr_index(va)]);
 }
 
+#ifdef CONFIG_USER_ONLY
+static inline bool ia64_current_code_tlb_ed(CPUIA64State *env)
+{
+    /* Linux sets ED in every user page table entry. */
+    return (env->psr & IA64_PSR_IT) != 0;
+}
+#else
 static inline bool ia64_current_code_tlb_ed(CPUIA64State *env)
 {
     IA64CodeTlbEdCache *cached = &env->mmu.code_tlb_ed;
@@ -1344,6 +1370,7 @@ static inline bool ia64_current_code_tlb_ed(CPUIA64State *env)
     };
     return cached->ed;
 }
+#endif
 
 static inline uint64_t ia64_region_itir(const CPUIA64State *env, uint64_t va)
 {
@@ -1510,7 +1537,12 @@ static inline bool ia64_external_interrupt_vector_valid(uint8_t vector)
 
 static inline int64_t ia64_itc_clock_ns(void)
 {
+#ifdef CONFIG_USER_ONLY
+    /* A Linux process's ITC runs on the host's monotonic clock. */
+    return get_clock();
+#else
     return qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
+#endif
 }
 
 static inline uint64_t ia64_itc_read(CPUIA64State *env)
@@ -1780,5 +1812,43 @@ static inline uint64_t ia64_va_canonicalize(const CPUIA64State *env,
 
     return region | payload;
 }
+
+#ifdef CONFIG_USER_ONLY
+#include "user-vaddr.h"
+
+/* linux-user entry points into the CPU model (target/ia64/user.c). */
+void ia64_user_set_gr(CPUIA64State *env, uint32_t reg, uint64_t value);
+bool ia64_user_gr_nat(const CPUIA64State *env, uint32_t reg);
+void ia64_user_set_gr_nat(CPUIA64State *env, uint32_t reg, bool nat);
+void ia64_user_start(CPUIA64State *env, uint64_t entry, uint64_t sp,
+                     uint64_t rbs);
+void ia64_user_clone_child(CPUIA64State *env, uint64_t newsp);
+uint64_t ia64_user_syscall_arg(CPUIA64State *env, uint32_t n);
+void ia64_user_syscall_return(CPUIA64State *env, uint64_t value, bool error);
+void ia64_user_next_insn(CPUIA64State *env);
+/* IP with the slot number in bits 1:0, as sc_ip and siginfo report it. */
+uint64_t ia64_user_get_ip(const CPUIA64State *env);
+void ia64_user_set_ip(CPUIA64State *env, uint64_t ip);
+uint64_t ia64_user_read_pr(CPUIA64State *env);
+void ia64_user_write_pr(CPUIA64State *env, uint64_t value);
+uint64_t ia64_user_read_ar(CPUIA64State *env, uint32_t ar);
+void ia64_user_write_ar(CPUIA64State *env, uint32_t ar, uint64_t value);
+bool ia64_user_frame_complete(const CPUIA64State *env);
+uint64_t ia64_user_cover(CPUIA64State *env);
+uint64_t ia64_user_uncovered_bsp(const CPUIA64State *env, uint64_t cfm);
+void ia64_user_uncover(CPUIA64State *env, uint64_t cfm);
+void ia64_user_get_fr(const CPUIA64State *env, uint32_t reg,
+                      uint64_t spill[2]);
+void ia64_user_set_fr(CPUIA64State *env, uint32_t reg,
+                      const uint64_t spill[2]);
+/* What ia64_user_fp_assist() did with a software-assist fault. */
+enum {
+    IA64_USER_FP_COMPLETED,     /* resume after the instruction */
+    IA64_USER_FP_FAULT,         /* SIGFPE at the instruction */
+    IA64_USER_FP_TRAP,          /* SIGFPE after it completed */
+};
+int ia64_user_fp_assist(CPUIA64State *env, uint64_t *isr);
+bool ia64_user_unaligned_assist(CPUIA64State *env);
+#endif
 
 #endif

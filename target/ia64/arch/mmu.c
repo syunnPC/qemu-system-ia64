@@ -17,11 +17,6 @@
 #include "exec/tlb-flags.h"
 #include "trace.h"
 
-#define IA64_PTE_PPN_MASK 0x0003fffffffff000ULL
-#define IA64_PTE_PL_SHIFT 7
-#define IA64_PTE_PL_MASK  (3ULL << IA64_PTE_PL_SHIFT)
-#define IA64_PTE_AR_SHIFT 9
-#define IA64_PTE_AR_MASK  (7ULL << IA64_PTE_AR_SHIFT)
 #define IA64_PTE_RESERVED_MASK ((1ULL << 1) | (3ULL << 50))
 #define IA64_ITIR_RESERVED_MASK (3ULL | (0xffffffffULL << 32))
 

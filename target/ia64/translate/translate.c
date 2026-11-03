@@ -113,11 +113,41 @@ static void ia64_gen_alat_write_end(DisasContext *ctx, TCGv_i64 addr,
     }
 }
 
+/*
+ * The guest address of an IA-64 virtual address.  Linux user mode keeps
+ * each region in a window of the guest address space (user-vaddr.h); a
+ * region 1-7 offset beyond its window becomes a guard-window address that
+ * faults like an unmapped page.  The architectural address stays in the
+ * registers, the ALAT and the fault records.
+ */
+static TCGv_i64 ia64_gen_guest_addr(TCGv_i64 addr)
+{
+#ifdef CONFIG_USER_ONLY
+    TCGv_i64 offset = tcg_temp_new_i64();
+    TCGv_i64 folded = tcg_temp_new_i64();
+    TCGv_i64 guard = tcg_temp_new_i64();
+
+    tcg_gen_extract_i64(offset, addr, 0, IA64_REGION_SHIFT);
+    tcg_gen_shri_i64(folded, addr, IA64_REGION_SHIFT);
+    tcg_gen_deposit_i64(folded, offset, folded, IA64_USER_WINDOW_BITS,
+                        IA64_REGION_BITS);
+    tcg_gen_andi_i64(guard, addr, IA64_USER_WINDOW_MASK);
+    tcg_gen_ori_i64(guard, guard,
+                    IA64_USER_REGION_BASE(IA64_USER_GUARD_REGION));
+    tcg_gen_shri_i64(offset, offset, IA64_USER_WINDOW_BITS);
+    tcg_gen_movcond_i64(TCG_COND_NE, folded, offset, tcg_constant_i64(0),
+                        guard, folded);
+    return folded;
+#else
+    return addr;
+#endif
+}
+
 void ia64_gen_qemu_ld_i64(DisasContext *ctx, TCGv_i64 value, TCGv_i64 addr,
                           int mmu_idx, MemOp memop)
 {
     ia64_gen_merced_dtlb1_touch(ctx, addr, mmu_idx, memop);
-    tcg_gen_qemu_ld_i64(value, addr, mmu_idx, memop);
+    tcg_gen_qemu_ld_i64(value, ia64_gen_guest_addr(addr), mmu_idx, memop);
 }
 
 void ia64_gen_qemu_st_i64(DisasContext *ctx, TCGv_i64 value, TCGv_i64 addr,
@@ -125,7 +155,7 @@ void ia64_gen_qemu_st_i64(DisasContext *ctx, TCGv_i64 value, TCGv_i64 addr,
 {
     ia64_gen_merced_dtlb1_touch(ctx, addr, mmu_idx, memop);
     ia64_gen_alat_write_begin(ctx);
-    tcg_gen_qemu_st_i64(value, addr, mmu_idx, memop);
+    tcg_gen_qemu_st_i64(value, ia64_gen_guest_addr(addr), mmu_idx, memop);
     ia64_gen_alat_write_end(ctx, addr, ia64_memop_size(memop));
 }
 
@@ -133,7 +163,7 @@ void ia64_gen_qemu_ld_i128(DisasContext *ctx, TCGv_i128 value, TCGv_i64 addr,
                            int mmu_idx, MemOp memop)
 {
     ia64_gen_merced_dtlb1_touch(ctx, addr, mmu_idx, memop);
-    tcg_gen_qemu_ld_i128(value, addr, mmu_idx, memop);
+    tcg_gen_qemu_ld_i128(value, ia64_gen_guest_addr(addr), mmu_idx, memop);
 }
 
 void ia64_gen_qemu_st_i128(DisasContext *ctx, TCGv_i128 value, TCGv_i64 addr,
@@ -141,7 +171,7 @@ void ia64_gen_qemu_st_i128(DisasContext *ctx, TCGv_i128 value, TCGv_i64 addr,
 {
     ia64_gen_merced_dtlb1_touch(ctx, addr, mmu_idx, memop);
     ia64_gen_alat_write_begin(ctx);
-    tcg_gen_qemu_st_i128(value, addr, mmu_idx, memop);
+    tcg_gen_qemu_st_i128(value, ia64_gen_guest_addr(addr), mmu_idx, memop);
     ia64_gen_alat_write_end(ctx, addr, 16);
 }
 
@@ -151,7 +181,8 @@ void ia64_gen_atomic_xchg_i64(DisasContext *ctx, TCGv_i64 result,
 {
     ia64_gen_merced_dtlb1_touch(ctx, addr, mmu_idx, memop);
     ia64_gen_alat_write_begin(ctx);
-    tcg_gen_atomic_xchg_i64(result, addr, value, mmu_idx, memop);
+    tcg_gen_atomic_xchg_i64(result, ia64_gen_guest_addr(addr), value,
+                            mmu_idx, memop);
     ia64_gen_alat_write_end(ctx, addr, ia64_memop_size(memop));
 }
 
@@ -176,7 +207,8 @@ void ia64_gen_atomic_cmpxchg_i64(DisasContext *ctx, TCGv_i64 result,
                             (1ULL << (size * 8)) - 1, load_only);
     }
     ia64_gen_alat_write_begin(ctx);
-    tcg_gen_atomic_cmpxchg_i64(result, addr, cmp, value, mmu_idx, memop);
+    tcg_gen_atomic_cmpxchg_i64(result, ia64_gen_guest_addr(addr), cmp, value,
+                               mmu_idx, memop);
     if (ctx->memory.full_alat) {
         TCGLabel *failed = gen_new_label();
 
@@ -189,7 +221,8 @@ void ia64_gen_atomic_cmpxchg_i64(DisasContext *ctx, TCGv_i64 result,
     if (load_only) {
         tcg_gen_br(done);
         gen_set_label(load_only);
-        tcg_gen_qemu_ld_i64(result, addr, mmu_idx, memop);
+        tcg_gen_qemu_ld_i64(result, ia64_gen_guest_addr(addr), mmu_idx,
+                            memop);
     }
     gen_set_label(done);
 }
@@ -200,7 +233,8 @@ void ia64_gen_atomic_fetch_add_i64(DisasContext *ctx, TCGv_i64 result,
 {
     ia64_gen_merced_dtlb1_touch(ctx, addr, mmu_idx, memop);
     ia64_gen_alat_write_begin(ctx);
-    tcg_gen_atomic_fetch_add_i64(result, addr, value, mmu_idx, memop);
+    tcg_gen_atomic_fetch_add_i64(result, ia64_gen_guest_addr(addr), value,
+                                 mmu_idx, memop);
     ia64_gen_alat_write_end(ctx, addr, ia64_memop_size(memop));
 }
 
@@ -5005,7 +5039,9 @@ void ia64_translate_init(void)
             "rse_gr_dirty");
     }
 
+#ifndef CONFIG_USER_ONLY
     ia64_ia32_translate_init();
+#endif
 }
 
 void ia64_translate_code(CPUState *cs, TranslationBlock *tb,
@@ -5021,10 +5057,12 @@ void ia64_translate_code(CPUState *cs, TranslationBlock *tb,
         .disas_log = ia64_tr_disas_log,
     };
 
+#ifndef CONFIG_USER_ONLY
     if (tb->flags & IA64_TB_FLAG_PSR_IS) {
         ia64_ia32_translate_code(cs, tb, max_insns, pc, host_pc);
-    } else {
-        translator_loop(cs, tb, max_insns, pc, host_pc, &ia64_tr_ops,
-                        &ctx.base, TCG_TYPE_VA);
+        return;
     }
+#endif
+    translator_loop(cs, tb, max_insns, pc, host_pc, &ia64_tr_ops,
+                    &ctx.base, TCG_TYPE_VA);
 }

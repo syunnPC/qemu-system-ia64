@@ -59,8 +59,12 @@ static vaddr ia64_cpu_get_pc(CPUState *cs)
 {
     IA64CPU *cpu = ia64_cpu_from_cpu_state(cs);
 
-    return cpu->env.psr & IA64_PSR_IS ?
-           ia64_ia32_virtual_ip(&cpu->env) : cpu->env.ip;
+#ifndef CONFIG_USER_ONLY
+    if (cpu->env.psr & IA64_PSR_IS) {
+        return ia64_ia32_virtual_ip(&cpu->env);
+    }
+#endif
+    return cpu->env.ip;
 }
 
 
@@ -285,6 +289,13 @@ static int ia64_cpu_mmu_index(CPUState *cs, bool ifetch)
     return MMU_PHYS_IDX;
 }
 
+#ifdef CONFIG_USER_ONLY
+/* Every host access of a Linux process goes through its region window. */
+static vaddr ia64_user_untagged_addr(CPUState *cs, vaddr addr)
+{
+    return ia64_user_fold(addr);
+}
+#else
 static vaddr ia64_pointer_wrap(CPUState *cs, int mmu_idx,
                                vaddr result, vaddr base)
 {
@@ -292,8 +303,10 @@ static vaddr ia64_pointer_wrap(CPUState *cs, int mmu_idx,
 
     return cpu->env.psr & IA64_PSR_IS ? (uint32_t)result : result;
 }
+#endif
 
 
+#ifndef CONFIG_USER_ONLY
 static int ia64_tlb_perm_to_prot(uint8_t perm)
 {
     int prot = 0;
@@ -386,6 +399,7 @@ static void ia64_record_suppressed_tlb_fill_if_needed(
         ia64_record_suppressed_tlb_fill(env, addr, mmu_idx);
     }
 }
+#endif
 
 void ia64_flush_suppressed_tlb(CPUIA64State *env)
 {
@@ -406,6 +420,7 @@ void ia64_flush_suppressed_tlb(CPUIA64State *env)
     env->exception_state.suppressed_tlb_overflow = false;
 }
 
+#ifndef CONFIG_USER_ONLY
 static void ia64_tlb_set_entry_page(CPUState *cs, vaddr addr, hwaddr pa,
                                     uint64_t page_size, int prot, int mmu_idx,
                                     IA64MemorySpeculation speculation,
@@ -786,8 +801,16 @@ raise_exception:
     }
     cpu_loop_exit_restore(cs, retaddr);
 }
+#endif /* !CONFIG_USER_ONLY */
 
 
+#ifdef CONFIG_USER_ONLY
+bool ia64_firmware_contains(CPUIA64State *env, uint64_t address)
+{
+    /* A Linux process runs without the emulator's firmware. */
+    return false;
+}
+#else
 bool ia64_firmware_contains(CPUIA64State *env, uint64_t address)
 {
     IA64CPU *cpu = env_archcpu(env);
@@ -798,6 +821,7 @@ bool ia64_firmware_contains(CPUIA64State *env, uint64_t address)
 
     return address >= base && address - base < size;
 }
+#endif
 
 bool ia64_firmware_identity_pa(CPUIA64State *env, uint64_t va, uint64_t *pa)
 {
@@ -924,9 +948,11 @@ static void ia64_cpu_reset_hold(Object *obj, ResetType type)
         icc->parent_phases.hold(obj, type);
     }
 
+#ifndef CONFIG_USER_ONLY
     if (cpu->itm_timer != NULL) {
         timer_del(cpu->itm_timer);
     }
+#endif
     g_assert(!cpu->env.alat_state.write_active);
     memset(&cpu->env, 0, sizeof(cpu->env));
     cpu->mca_rse_valid = false;
@@ -1021,6 +1047,7 @@ static void ia64_cpu_list(void)
     }
 }
 
+#ifndef CONFIG_USER_ONLY
 typedef struct IA64QTestStaleVictimWork {
     uint64_t va;
     uint64_t old_pa;
@@ -1964,6 +1991,7 @@ static void ia64_register_qtest_command(void)
         qtest_add_command_cb(ia64_qtest_command);
     }
 }
+#endif /* !CONFIG_USER_ONLY */
 
 static void ia64_cpu_realize(DeviceState *dev, Error **errp)
 {
@@ -1981,27 +2009,33 @@ static void ia64_cpu_realize(DeviceState *dev, Error **errp)
         error_propagate(errp, local_err);
         return;
     }
+#ifndef CONFIG_USER_ONLY
     if (cpu->alat_full) {
         physical_memory_write_observer_enable();
     }
 
     cpu->itm_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, ia64_itm_timer_cb, cpu);
+#endif
 
     qemu_init_vcpu(cs);
     cpu_reset(cs);
+#ifndef CONFIG_USER_ONLY
     ia64_register_qtest_command();
+#endif
 
     icc->parent_realize(dev, errp);
 }
 
 static void ia64_cpu_finalize(Object *obj)
 {
+#ifndef CONFIG_USER_ONLY
     IA64CPU *cpu = IA64_CPU(obj);
 
     if (cpu->itm_timer != NULL) {
         timer_free(cpu->itm_timer);
         cpu->itm_timer = NULL;
     }
+#endif
 }
 
 static void ia64_cpu_unrealize(DeviceState *dev)
@@ -2009,17 +2043,23 @@ static void ia64_cpu_unrealize(DeviceState *dev)
     IA64CPU *cpu = IA64_CPU(dev);
     IA64CPUClass *icc = IA64_CPU_GET_CLASS(dev);
 
+#ifndef CONFIG_USER_ONLY
     if (cpu->itm_timer != NULL) {
         timer_free(cpu->itm_timer);
         cpu->itm_timer = NULL;
     }
+#else
+    (void)cpu;
+#endif
     icc->parent_unrealize(dev);
 }
 
+#ifndef CONFIG_USER_ONLY
 static const struct SysemuCPUOps ia64_sysemu_ops = {
     .has_work = ia64_cpu_has_work,
     .get_phys_page_debug = ia64_cpu_get_phys_page_debug,
 };
+#endif
 
 static bool ia64_precise_smc_enabled(CPUState *cs)
 {
@@ -2058,15 +2098,17 @@ static const TCGCPUOps ia64_tcg_ops = {
     .restore_state_to_opc = ia64_restore_state_to_opc,
     .cpu_exec_longjmp_cleanup = ia64_cpu_exec_longjmp_cleanup,
     .mmu_index = ia64_cpu_mmu_index,
+#ifdef CONFIG_USER_ONLY
+    .untagged_addr = ia64_user_untagged_addr,
+#else
     .tlb_fill = ia64_cpu_tlb_fill,
     .pointer_wrap = ia64_pointer_wrap,
-#ifndef CONFIG_USER_ONLY
     .do_unaligned_access = ia64_cpu_do_unaligned_access,
-#endif
     .cpu_exec_interrupt = ia64_cpu_exec_interrupt,
     .cpu_exec_halt = ia64_cpu_has_work,
     .cpu_exec_reset = cpu_reset,
     .do_interrupt = ia64_cpu_do_interrupt,
+#endif
 };
 
 #define IA64_ITANIUM2_MEMORY_ATTRIBUTE_MASK \
@@ -2095,12 +2137,16 @@ static void ia64_cpu_class_init(ObjectClass *oc, const void *data)
     cc->dump_state = ia64_cpu_dump_state;
     cc->set_pc = ia64_cpu_set_pc;
     cc->get_pc = ia64_cpu_get_pc;
+#ifndef CONFIG_USER_ONLY
     cc->sysemu_ops = &ia64_sysemu_ops;
+#endif
     cc->gdb_read_register = ia64_cpu_gdb_read_register;
     cc->gdb_write_register = ia64_cpu_gdb_write_register;
     cc->gdb_num_core_regs = IA64_GDB_NUM_CORE_REGS;
     cc->tcg_ops = &ia64_tcg_ops;
+#ifndef CONFIG_USER_ONLY
     dc->vmsd = &vmstate_ia64_cpu;
+#endif
 
     icc->semantic_profile_abi = 1;
     icc->model = IA64_CPU_MODEL_MONTECITO;

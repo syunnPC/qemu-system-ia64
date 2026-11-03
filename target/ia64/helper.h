@@ -7,6 +7,8 @@ DEF_HELPER_FLAGS_7(check_native_traps, TCG_CALL_NO_WG,
                    void, env, i64, i64, i32, i32, i64, i64)
 DEF_HELPER_3(raise_nat_consumption, noreturn, env, i64, i64)
 DEF_HELPER_1(ia32_unsupported, noreturn, env)
+#ifndef CONFIG_USER_ONLY
+/* The IA-32 execution engine, which a Linux process never enters. */
 DEF_HELPER_1(ia32_jmpe_check, void, env)
 DEF_HELPER_3(ia32_jmpe, noreturn, env, tl, tl)
 DEF_HELPER_4(ia32_system_flag, void, env, tl, i32, tl)
@@ -26,6 +28,7 @@ DEF_HELPER_1(ia32_rep_iteration, void, env)
 DEF_HELPER_2(ia32_check_disabled_fp, void, env, i32)
 DEF_HELPER_1(ia32_sse_exception_begin, void, env)
 DEF_HELPER_1(ia32_sse_exception_end, void, env)
+#endif
 DEF_HELPER_5(cmpxchg, i64, env, i64, i64, i64, i32)
 DEF_HELPER_5(cmp8xchg16, i64, env, i64, i64, i64, i64)
 DEF_HELPER_FLAGS_1(alat_load_begin, TCG_CALL_NO_RWG, i64, env)
@@ -215,9 +218,11 @@ DEF_HELPER_FLAGS_3(simd_pack, TCG_CALL_NO_RWG_SE, i64, i32, i64, i64)
 DEF_HELPER_FLAGS_2(simd_czx, TCG_CALL_NO_RWG_SE, i64, i32, i64)
 DEF_HELPER_FLAGS_2(simd_sum, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 
+#ifndef CONFIG_USER_ONLY
 /* QEMU x86 TCG helpers used by Madison's IA-32 execution engine. */
 #define raise_exception ia32_raise_exception
 #define rsm ia32_rsm
 #include "target/i386/helper.h"
 #undef rsm
 #undef raise_exception
+#endif

@@ -1,7 +1,15 @@
 /*
  * SPDX-License-Identifier: GPL-2.0-or-later
  *
- * TCG softmmu implementation of the IA-64 execution access boundary.
+ * TCG implementation of the IA-64 execution access boundary.
+ *
+ * System mode resolves every access through the softmmu TLB.  Linux user
+ * mode has no physical address space: guest memory is the process address
+ * space, every page is ordinary write-back memory, and an access to an
+ * unmapped page raises SIGSEGV from the host fault.  User-mode addresses
+ * arrive as IA-64 virtual addresses; the probes below fold them into the
+ * guest address space (user-vaddr.h), and loads and stores fold through the
+ * CPU's untagged_addr hook.
  */
 
 #include "qemu/osdep.h"
@@ -16,8 +24,14 @@
 #include "exec/cpu-common.h"
 #include "exec/tlb-flags.h"
 #include "exec/translation-block.h"
+#ifdef CONFIG_USER_ONLY
+#include "exec/page-protection.h"
+#include "user/guest-host.h"
+#include "user/page-protection.h"
+#else
 #include "system/address-spaces.h"
 #include "system/memory.h"
+#endif
 
 bool ia64_exec_is_parallel(CPUIA64State *env)
 {
@@ -160,6 +174,34 @@ void ia64_exec_store_mmuidx(CPUIA64State *env, uint64_t addr, uint64_t value,
  * write watchpoint, dirty-page and plugin semantics.  A fully defined
  * collection takes the ordinary single-store path without probing.
  */
+#ifdef CONFIG_USER_ONLY
+uint64_t ia64_exec_rse_store_collection(CPUIA64State *env, uint64_t addr,
+                                        uint64_t value, uint64_t defined,
+                                        bool big_endian, int mmu_idx,
+                                        uint64_t *previous, uintptr_t ra)
+{
+    void *host;
+    uint64_t old;
+
+    g_assert((addr & 7) == 0);
+    defined &= INT64_MAX;
+    value &= defined;
+
+    if (defined == INT64_MAX) {
+        *previous = 0;
+        ia64_exec_store_mmuidx(env, addr, value, 8, big_endian, mmu_idx, ra);
+        return value;
+    }
+
+    /* The write probe faults like the store; then read the old word. */
+    host = probe_write(env, ia64_user_fold(addr), 8, mmu_idx, ra);
+    old = big_endian ? ldq_be_p(host) : ldq_le_p(host);
+    *previous = old;
+    value = ((old & ~defined) | value) & INT64_MAX;
+    ia64_exec_store_mmuidx(env, addr, value, 8, big_endian, mmu_idx, ra);
+    return value;
+}
+#else
 uint64_t ia64_exec_rse_store_collection(CPUIA64State *env, uint64_t addr,
                                         uint64_t value, uint64_t defined,
                                         bool big_endian, int mmu_idx,
@@ -217,6 +259,7 @@ uint64_t ia64_exec_rse_store_collection(CPUIA64State *env, uint64_t addr,
     ia64_exec_store_mmuidx(env, addr, value, 8, big_endian, mmu_idx, ra);
     return value;
 }
+#endif
 
 Int128 ia64_exec_load_16(CPUIA64State *env, uint64_t addr, MemOpIdx oi,
                          uintptr_t ra)
@@ -313,6 +356,164 @@ Int128 ia64_exec_cmpxchg_16(CPUIA64State *env, uint64_t addr, Int128 cmp,
 #endif
 }
 
+#ifdef CONFIG_USER_ONLY
+void ia64_exec_probe_write(CPUIA64State *env, uint64_t addr, int size,
+                           int mmu_idx, uintptr_t ra)
+{
+    probe_write(env, ia64_user_fold(addr), size, mmu_idx, ra);
+}
+
+bool ia64_exec_probe_host(CPUIA64State *env, uint64_t addr, int size,
+                          MMUAccessType access_type, int mmu_idx,
+                          void **host, uintptr_t ra)
+{
+    int flags = probe_access_flags(env, ia64_user_fold(addr), size,
+                                   access_type, mmu_idx, false, host, ra);
+
+    return flags == 0 && *host != NULL;
+}
+
+bool ia64_exec_probe_writeback_ram(CPUIA64State *env, uint64_t addr,
+                                   int size, MMUAccessType access_type,
+                                   bool *direct, uintptr_t ra)
+{
+    probe_access(env, ia64_user_fold(addr), size, access_type,
+                 cpu_mmu_index(env_cpu(env), false), ra);
+    *direct = true;
+    return true;
+}
+
+bool ia64_exec_probe_writeback(CPUIA64State *env, uint64_t addr,
+                               int size, MMUAccessType access_type,
+                               uintptr_t ra)
+{
+    int mmu_idx = cpu_mmu_index(env_cpu(env), false);
+
+    while (size > 0) {
+        int page_offset = addr & ((1u << TARGET_PAGE_BITS) - 1);
+        int chunk = MIN(size, (1 << TARGET_PAGE_BITS) - page_offset);
+
+        probe_access(env, ia64_user_fold(addr), chunk, access_type, mmu_idx,
+                     ra);
+        addr += chunk;
+        size -= chunk;
+    }
+    return true;
+}
+
+bool ia64_exec_advanced_load_allowed(CPUIA64State *env, uint64_t addr,
+                                     int mmu_idx)
+{
+    return true;
+}
+
+bool ia64_exec_cached_load_translation(
+    CPUIA64State *env, uint64_t addr, int mmu_idx,
+    IA64CachedLoadTranslation *translation)
+{
+    return false;
+}
+
+bool ia64_exec_debug_read(CPUState *cs, uint64_t addr, void *buffer,
+                          size_t size)
+{
+    return cpu_memory_rw_debug(cs, ia64_user_fold(addr), buffer, size,
+                               false) == 0;
+}
+
+/*
+ * A Linux process has no physical address space.  The physical address of a
+ * page is its folded guest address (ia64_exec_user_tlb_entry), so a
+ * "physical" access is an access to the process's own mapping.
+ */
+bool ia64_exec_physical_rw(uint64_t addr, void *buffer, size_t size,
+                           bool is_write)
+{
+    if (size == 0) {
+        return true;
+    }
+    if (!page_check_range(addr, size, is_write ? PAGE_WRITE : PAGE_READ)) {
+        return false;
+    }
+    if (is_write) {
+        memcpy(g2h_untagged(addr), buffer, size);
+    } else {
+        memcpy(buffer, g2h_untagged(addr), size);
+    }
+    return true;
+}
+
+void ia64_exec_invalidate_phys_range(CPUIA64State *env, uint64_t addr,
+                                     uint64_t length)
+{
+    /* linux-user write-protects translated pages to catch code changes. */
+}
+
+void ia64_exec_recheck_interrupts(CPUState *cs)
+{
+    /* A Linux process sees signals, never the external interrupt model. */
+}
+
+const IA64TlbEntry *ia64_exec_user_tlb_entry(CPUIA64State *env, uint64_t va,
+                                             uint32_t rid, bool is_ifetch)
+{
+    int flags = page_get_flags(ia64_user_fold(va));
+    IA64TlbEntry *entry = is_ifetch ? &env->mmu.tlb_inst[0] :
+                                      &env->mmu.tlb_data[0];
+    uint64_t ps = TARGET_PAGE_SIZE;
+    uint8_t ar;
+    uint8_t pl = 3;
+    uint64_t pte;
+
+    if (!(flags & PAGE_VALID)) {
+        return NULL;
+    }
+    switch (flags & PAGE_RWX) {
+    case PAGE_READ:
+        ar = 0;
+        break;
+    case PAGE_READ | PAGE_EXEC:
+        ar = 1;
+        break;
+    case PAGE_READ | PAGE_WRITE:
+    case PAGE_WRITE:
+        ar = 2;
+        break;
+    case PAGE_RWX:
+    case PAGE_WRITE | PAGE_EXEC:
+        ar = 3;
+        break;
+    case PAGE_EXEC:
+        ar = 7;
+        break;
+    default:
+        /* PROT_NONE: privilege level 0 grants nothing to CPL 3. */
+        ar = 0;
+        pl = 0;
+        break;
+    }
+
+    /* Linux maps every user page with A, D and ED set (pgtable.h). */
+    pte = IA64_PTE_PRESENT | IA64_PTE_ACCESSED | IA64_PTE_DIRTY |
+          IA64_PTE_ED | ((uint64_t)IA64_PTE_MA_WB << IA64_PTE_MA_SHIFT) |
+          ((uint64_t)pl << IA64_PTE_PL_SHIFT) |
+          ((uint64_t)ar << IA64_PTE_AR_SHIFT) |
+          (ia64_user_fold(va) & IA64_PTE_PPN_MASK & ~(ps - 1));
+    *entry = (IA64TlbEntry) {
+        .va = va & ~(ps - 1),
+        .pa = ia64_user_fold(va) & ~(ps - 1),
+        .ps = ps,
+        .page_mask = ia64_va_vpn_mask(ps),
+        .pte = pte,
+        .perm = ia64_tlb_effective_perm(ar, pl, 0),
+        .ar = ar,
+        .pl = pl,
+        .valid = 1,
+        .rid = rid,
+    };
+    return entry;
+}
+#else
 void ia64_exec_probe_write(CPUIA64State *env, uint64_t addr, int size,
                            int mmu_idx, uintptr_t ra)
 {
@@ -472,3 +673,4 @@ void ia64_exec_recheck_interrupts(CPUState *cs)
         qemu_cpu_kick(cs);
     }
 }
+#endif

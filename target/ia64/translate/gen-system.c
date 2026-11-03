@@ -872,6 +872,8 @@ IA64GenResult ia64_gen_system(DisasContext *ctx,
         break;
     }
     case IA64_OP_BREAK:
+#ifndef CONFIG_USER_ONLY
+        /* A Linux process has no firmware: every break goes to the kernel. */
         if (op->auxiliary1 == 0 &&
             ia64_is_firmware_debug_break(ctx->env, insn->address,
                                         op->immediate)) {
@@ -922,7 +924,9 @@ IA64GenResult ia64_gen_system(DisasContext *ctx,
             gen_set_label(resumed_exit);
             tcg_gen_exit_tb(NULL, 0);
             gen_set_label(no_exit);
-        } else {
+        } else
+#endif
+        {
             ia64_gen_raise_exception(IA64_EXCP_BREAK, insn->address,
                                       op->immediate, insn->slot);
             if (skip == NULL) {

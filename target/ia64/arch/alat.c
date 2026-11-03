@@ -5,8 +5,32 @@
 #include "qemu/osdep.h"
 #include "cpu.h"
 #include "exec/cpu-common.h"
+#ifndef CONFIG_USER_ONLY
 #include "system/physmem.h"
+#endif
 #include "arch/arch.h"
+
+#ifdef CONFIG_USER_ONLY
+/*
+ * A Linux process has no physical-memory writers such as DMA.  linux-user
+ * runs the zero-entry ALAT (no machine option sets alat_full), so these only
+ * keep the full model's generation arithmetic well defined.
+ */
+static inline uint64_t physical_memory_write_generation(void)
+{
+    return 0;
+}
+
+static inline bool physical_memory_write_generation_changed(uint64_t gen)
+{
+    return gen != 0;
+}
+
+static inline uint64_t physical_memory_write_generation_advance(void)
+{
+    return 0;
+}
+#endif
 
 #define IA64_ROTATING_FR_BASE 32
 

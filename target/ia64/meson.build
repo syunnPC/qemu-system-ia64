@@ -17,20 +17,6 @@ ia64_ss.add(files(
   'arch/simd-ops.c',
   'arch/system.c',
   'decode/decode.c',
-  '../i386/tcg/translate.c',
-  '../i386/tcg/access.c',
-  '../i386/tcg/cc_helper.c',
-  '../i386/tcg/int_helper.c',
-  '../i386/tcg/fpu_helper.c',
-  '../i386/tcg/mem_helper.c',
-  '../i386/tcg/misc_helper.c',
-  '../i386/tcg/seg_helper.c',
-  'ia32/state.c',
-  'ia32/excp_helper.c',
-  'ia32/system_helper.c',
-  'ia32/transition_helper.c',
-  'machine.c',
-  'rse-migration.c',
   'translate/gen-branch.c',
   'translate/gen-fp.c',
   'translate/gen-integer.c',
@@ -52,4 +38,32 @@ ia64_ss.add(files(
   'helper/helper-simd.c',
   'helper/helper-system.c',
 ))
+
+# The IA-32 execution engine reuses the x86 TCG front end.  A Linux user
+# process never reaches it: Linux sets PSR.di, so br.ia and jmpe fault.
+ia64_system_ss = ss.source_set()
+ia64_system_ss.add(files(
+  '../i386/tcg/translate.c',
+  '../i386/tcg/access.c',
+  '../i386/tcg/cc_helper.c',
+  '../i386/tcg/int_helper.c',
+  '../i386/tcg/fpu_helper.c',
+  '../i386/tcg/mem_helper.c',
+  '../i386/tcg/misc_helper.c',
+  '../i386/tcg/seg_helper.c',
+  'ia32/state.c',
+  'ia32/excp_helper.c',
+  'ia32/system_helper.c',
+  'ia32/transition_helper.c',
+  'machine.c',
+  'rse-migration.c',
+))
+
+ia64_user_ss = ss.source_set()
+ia64_user_ss.add(files(
+  'user.c',
+))
+
 target_arch += {'ia64': ia64_ss}
+target_system_arch += {'ia64': ia64_system_ss}
+target_user_arch += {'ia64': ia64_user_ss}

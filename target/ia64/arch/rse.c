@@ -766,6 +766,12 @@ static inline uint32_t ia64_rse_nat_words_shrink(uint64_t addr, uint32_t nregs)
     return ia64_rse_nat_word_count(total);
 }
 
+/* The backing-store address nregs registers below bsp. */
+uint64_t ia64_rse_bsp_below(uint64_t bsp, uint32_t nregs)
+{
+    return bsp - (uint64_t)(nregs + ia64_rse_nat_words_shrink(bsp, nregs)) * 8;
+}
+
 /* Register-value words in [addr - words * 8, addr) in the backing store. */
 static uint32_t ia64_rse_register_words_below(uint64_t addr, uint32_t words)
 {
@@ -1771,6 +1777,22 @@ static void ia64_rse_invalidate_non_current(CPUIA64State *env)
      * AR.RNAT collecting for a group it no longer addresses.
      */
     ia64_rse_rnat_move_bspstore(env, env->ar_bsp);
+}
+
+/*
+ * Start an empty backing store at bsp with only the current frame in the
+ * physical registers: loadrs with RSC.loadrs = 0 followed by
+ * mov ar.bspstore = bsp, as Linux sets up a new process or a clone child
+ * that runs on its own stack.
+ */
+void ia64_rse_restart_backing_store(CPUIA64State *env, uint64_t bsp)
+{
+    env->ar_bsp = bsp;
+    ia64_rse_invalidate_non_current(env);
+    env->rse.rse_cfle = false;
+    env->rse.rse_completion_pending = false;
+    ia64_rse_rnat_undefined(env, "backing store restart");
+    ia64_rse_check(env, "restart");
 }
 
 /*

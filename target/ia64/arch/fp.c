@@ -4683,6 +4683,75 @@ void ia64_fp_fpswa_dispatch(CPUIA64State *env, uintptr_t ra)
     }
 }
 
+#ifdef CONFIG_USER_ONLY
+static uint32_t ia64_fpswa_current_pr(const CPUIA64State *env,
+                                      uint32_t physical)
+{
+    uint32_t rrb = env->cfm_rrb_pr % 48;
+
+    if (physical < 16) {
+        return physical;
+    }
+    return 16 + ((physical - 16 + 48 - rrb) % 48);
+}
+
+/*
+ * Linux completes a software-assist fault by calling the EFI FPSWA driver
+ * from handle_fpu_swa() (arch/ia64/kernel/traps.c), then resumes after the
+ * instruction.  Do what ia64_fp_fpswa_dispatch() does for the firmware
+ * call, on the faulting context itself.  Returns
+ * IA64_USER_FP_COMPLETED, or the SIGFPE case with *isr holding its cause.
+ */
+int ia64_user_fp_assist(CPUIA64State *env, uint64_t *isr)
+{
+    uint64_t flags;
+    uint64_t enabled = 0;
+    uint32_t reg;
+
+    ia64_sync_rotating_fr(env);
+    if (!env->fp.fpswa_pending || !(*isr & IA64_FP_ISR_SWA)) {
+        /* An unmasked IEEE fault: FPSWA hands it back unchanged. */
+        return IA64_USER_FP_FAULT;
+    }
+    if ((env->fp.fpswa_flags & (1U << 1)) &&
+        !ia64_fpswa_exception_masked(env->ar_fpsr, env->fp.fpswa_sf,
+                                     1U << 1)) {
+        *isr = (*isr & ~0xffffULL) | (1U << 1);
+        env->fp.fpswa_pending = false;
+        return IA64_USER_FP_FAULT;
+    }
+
+    reg = env->fp.fpswa_dest_fr;
+    ia64_fpreg_from_spill(env, ia64_fpswa_current_fr(env, reg),
+                          env->fp.fpswa_result_low,
+                          env->fp.fpswa_result_high);
+    ia64_pr_write(env, ia64_fpswa_current_pr(env, env->fp.fpswa_dest_pr),
+                  false);
+    env->psr |= reg < 32 ? IA64_PSR_MFL : IA64_PSR_MFH;
+
+    flags = env->fp.fpswa_flags & IA64_FPSR_SF_FLAGS_MASK;
+    env->ar_fpsr |= flags << (ia64_fpsr_sf_shift(env->fp.fpswa_sf) +
+                              IA64_FPSR_SF_FLAGS_SHIFT);
+    for (unsigned bit = 3; bit <= 5; bit++) {
+        uint64_t flag = 1ULL << bit;
+
+        if ((flags & flag) &&
+            !ia64_fpswa_exception_masked(env->ar_fpsr, env->fp.fpswa_sf,
+                                         flag)) {
+            enabled |= flag;
+        }
+    }
+    env->fp.fpswa_pending = false;
+    if (enabled != 0) {
+        *isr = (*isr & ~0xffffULL) | 1 | (enabled << 8);
+        if (env->fp.fpswa_fpa) {
+            *isr |= 1U << 14;
+        }
+        return IA64_USER_FP_TRAP;
+    }
+    return IA64_USER_FP_COMPLETED;
+}
+#endif
 
 /* ---- FP pack ---- */
 
