@@ -51,8 +51,17 @@ static void ia64_cpu_set_pc(CPUState *cs, vaddr value)
     if (cpu->env.psr & IA64_PSR_IS) {
         cpu->env.ia32.eip =
             (uint32_t)(value - cpu->env.ia32.segs[R_CS].base);
+        cpu->env.ip = value;
+        return;
     }
-    cpu->env.ip = value;
+    /*
+     * A branch to value: its bundle, the slot in bits 1:0 as gdb and
+     * sc_ip write it, and a new instruction group.
+     */
+    cpu->env.ip = ia64_ip_bundle_addr(value);
+    cpu->env.psr = (cpu->env.psr & ~IA64_PSR_RI_MASK) |
+                   ((value & 3) << IA64_PSR_RI_SHIFT);
+    cpu->env.instruction_group_start = true;
 }
 
 static vaddr ia64_cpu_get_pc(CPUState *cs)
