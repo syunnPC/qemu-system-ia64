@@ -21,8 +21,7 @@
 #define TYPE_TEST_ISA_DEVICE "test-isa-device"
 
 typedef struct TestISADevice TestISADevice;
-DECLARE_INSTANCE_CHECKER(TestISADevice, TEST_ISA_DEVICE,
-                         TYPE_TEST_ISA_DEVICE)
+DECLARE_INSTANCE_CHECKER(TestISADevice, TEST_ISA_DEVICE, TYPE_TEST_ISA_DEVICE)
 
 struct TestISADevice {
     ISADevice parent_obj;
@@ -70,8 +69,8 @@ void memory_region_add_subregion(MemoryRegion *mr, hwaddr offset,
 }
 
 void portio_list_init(PortioList *piolist, Object *owner,
-                      const MemoryRegionPortio *callbacks,
-                      void *opaque, const char *name)
+                      const MemoryRegionPortio *callbacks, void *opaque,
+                      const char *name)
 {
     piolist->ports = callbacks;
     piolist->owner = owner;
@@ -107,8 +106,8 @@ static void test_isa_device_realize(DeviceState *dev, Error **errp)
     int ret;
 
     s->resolved_irq = isa_get_irq(isadev, 5);
-    ret = isa_register_portio_list(isadev, &s->portio, 0x300,
-                                   test_portio, s, "test-isa-portio");
+    ret = isa_register_portio_list(isadev, &s->portio, 0x300, test_portio, s,
+                                   "test-isa-portio");
     if (ret < 0) {
         error_setg_errno(errp, -ret, "could not register test ISA ports");
     }
@@ -142,7 +141,7 @@ static void test_isa_types_register(void)
 
 type_init(test_isa_types_register)
 
-static void test_init_machine(void)
+    static void test_init_machine(void)
 {
     Object *machine;
 
@@ -221,8 +220,8 @@ static void test_multiple_isa_and_i8259_instances(void)
     g_assert_true(extra_bus->address_space == &extra_mem);
     g_assert_true(extra_bus->address_space_io == &extra_io);
 
-    extra_parent_irq = qemu_allocate_irq(parent_irq_set,
-                                         &extra_parent_level, 0);
+    extra_parent_irq =
+        qemu_allocate_irq(parent_irq_set, &extra_parent_level, 0);
     extra_irqs = i8259_init_pair(extra_bus, extra_parent_irq, &extra_master);
     g_assert_null(isa_pic);
     isa_bus_register_input_irqs(extra_bus, extra_irqs);
@@ -234,16 +233,16 @@ static void test_multiple_isa_and_i8259_instances(void)
     g_assert_true(isa_address_space(ISA_DEVICE(extra_dev)) == &extra_mem);
     g_assert_true(isa_address_space_io(ISA_DEVICE(extra_dev)) == &extra_io);
 
-    default_bus = isa_bus_new(default_owner, &default_mem, &default_io,
-                              &error_abort);
+    default_bus =
+        isa_bus_new(default_owner, &default_mem, &default_io, &error_abort);
     g_assert_true(default_bus->address_space == &default_mem);
     g_assert_true(default_bus->address_space_io == &default_io);
     g_assert_null(isa_bus_new(extra_owner, &extra_mem, &extra_io, &err));
     g_assert_nonnull(err);
     error_free(err);
 
-    default_parent_irq = qemu_allocate_irq(parent_irq_set,
-                                           &default_parent_level, 0);
+    default_parent_irq =
+        qemu_allocate_irq(parent_irq_set, &default_parent_level, 0);
     default_irqs = i8259_init(default_bus, default_parent_irq);
     default_master = isa_pic;
 
@@ -251,21 +250,19 @@ static void test_multiple_isa_and_i8259_instances(void)
     g_assert_nonnull(extra_master);
     g_assert_true(default_master != extra_master);
     g_assert_true(isa_pic == default_master);
-    g_assert_true(default_master->cascade_slave !=
-                  extra_master->cascade_slave);
+    g_assert_true(default_master->cascade_slave != extra_master->cascade_slave);
 
     g_assert_true(default_master->base_io.container == &default_io);
     g_assert_true(default_master->cascade_slave->base_io.container ==
                   &default_io);
     g_assert_true(extra_master->base_io.container == &extra_io);
-    g_assert_true(extra_master->cascade_slave->base_io.container ==
-                  &extra_io);
+    g_assert_true(extra_master->cascade_slave->base_io.container == &extra_io);
 
     isa_bus_register_input_irqs(default_bus, default_irqs);
     g_assert_true(isa_get_irq(NULL, 5) == default_irqs[5]);
     g_assert_cmpint(isa_register_portio_list(NULL, &default_portio, 0x310,
-                                            test_portio, NULL,
-                                            "default-test-portio"),
+                                             test_portio, NULL,
+                                             "default-test-portio"),
                     ==, 0);
     g_assert_true(default_portio.address_space == &default_io);
 

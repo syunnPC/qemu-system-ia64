@@ -176,12 +176,9 @@ struct _EFI_UGA_IO_PROTOCOL {
     EFI_STATUS (*CreateDevice)(EFI_UGA_IO_PROTOCOL *This,
                                UGA_DEVICE *ParentDevice,
                                UGA_DEVICE_DATA *DeviceData,
-                               VOID *RunTimeContext,
-                               UGA_DEVICE **Device);
-    EFI_STATUS (*DeleteDevice)(EFI_UGA_IO_PROTOCOL *This,
-                               UGA_DEVICE *Device);
-    UGA_STATUS (*DispatchService)(UGA_DEVICE *Device,
-                                  UGA_IO_REQUEST *Request);
+                               VOID *RunTimeContext, UGA_DEVICE **Device);
+    EFI_STATUS (*DeleteDevice)(EFI_UGA_IO_PROTOCOL *This, UGA_DEVICE *Device);
+    UGA_STATUS (*DispatchService)(UGA_DEVICE *Device, UGA_IO_REQUEST *Request);
 };
 
 #define UGA_STATUS_SUCCESS             0x00000000U
@@ -223,8 +220,7 @@ static FW_UGA_DEVICE_RECORD *uga_io_record(UGA_DEVICE *Device)
     UINTN i;
 
     for (i = 0; i < FW_ARRAY_SIZE(mUgaIoDevices); i++) {
-        if (mUgaIoDevices[i].in_use &&
-            mUgaIoDevices[i].device == Device) {
+        if (mUgaIoDevices[i].in_use && mUgaIoDevices[i].device == Device) {
             return &mUgaIoDevices[i];
         }
     }
@@ -336,8 +332,8 @@ static EFI_STATUS uga_io_delete_device(EFI_UGA_IO_PROTOCOL *This,
     return EFI_SUCCESS;
 }
 
-static UGA_STATUS uga_io_output(UGA_IO_REQUEST *Request,
-                                const VOID *Data, UINTN Size)
+static UGA_STATUS uga_io_output(UGA_IO_REQUEST *Request, const VOID *Data,
+                                UINTN Size)
 {
     Request->ui64BytesReturned = Size;
     if (Request->pvOutBuffer == NULL || Request->ui64OutBufferSize < Size) {
@@ -397,11 +393,10 @@ static UGA_STATUS uga_io_copy_rectangle(const UGA_MEMORY_TRANSFER *Transfer)
     }
     width = (UINTN)Transfer->i32Width;
     height = (UINTN)Transfer->i32Height;
-    if (height > 1 &&
-        ((Transfer->i32SourceDelta >= 0 &&
-          (UINT32)Transfer->i32SourceDelta < width) ||
-         (Transfer->i32DestinationDelta >= 0 &&
-          (UINT32)Transfer->i32DestinationDelta < width))) {
+    if (height > 1 && ((Transfer->i32SourceDelta >= 0 &&
+                        (UINT32)Transfer->i32SourceDelta < width) ||
+                       (Transfer->i32DestinationDelta >= 0 &&
+                        (UINT32)Transfer->i32DestinationDelta < width))) {
         return UGA_STATUS_INVALID_PARAMETER;
     }
 
@@ -419,30 +414,29 @@ static UGA_STATUS uga_io_copy_rectangle(const UGA_MEMORY_TRANSFER *Transfer)
         for (row = 0; row < height; row++) {
             UINT64 source;
 
-            if (!uga_io_video_row(
-                    Transfer->memory.videoToVideo.ui64Source,
-                    Transfer->i32SourceDelta, row, width, video_size,
-                    &source)) {
+            if (!uga_io_video_row(Transfer->memory.videoToVideo.ui64Source,
+                                  Transfer->i32SourceDelta, row, width,
+                                  video_size, &source)) {
                 (void)bs_free_pool(temporary);
                 return UGA_STATUS_INVALID_PARAMETER;
             }
-            fw_copy_mem((UINT8 *)temporary + row * width,
-                        (VOID *)(UINTN)(fw_graphics_framebuffer_base() + source),
-                        width);
+            fw_copy_mem(
+                (UINT8 *)temporary + row * width,
+                (VOID *)(UINTN)(fw_graphics_framebuffer_base() + source),
+                width);
         }
         for (row = 0; row < height; row++) {
             UINT64 destination;
 
-            if (!uga_io_video_row(
-                    Transfer->memory.videoToVideo.ui64Destination,
-                    Transfer->i32DestinationDelta, row, width, video_size,
-                    &destination)) {
+            if (!uga_io_video_row(Transfer->memory.videoToVideo.ui64Destination,
+                                  Transfer->i32DestinationDelta, row, width,
+                                  video_size, &destination)) {
                 (void)bs_free_pool(temporary);
                 return UGA_STATUS_INVALID_PARAMETER;
             }
-            fw_copy_mem((VOID *)(UINTN)(fw_graphics_framebuffer_base() +
-                                        destination),
-                        (UINT8 *)temporary + row * width, width);
+            fw_copy_mem(
+                (VOID *)(UINTN)(fw_graphics_framebuffer_base() + destination),
+                (UINT8 *)temporary + row * width, width);
         }
         (void)bs_free_pool(temporary);
     } else if (Transfer->transferType == UgaMtSystemToVideo) {
@@ -456,17 +450,17 @@ static UGA_STATUS uga_io_copy_rectangle(const UGA_MEMORY_TRANSFER *Transfer)
             UINT64 source;
             UINT64 destination;
 
-            if (!uga_io_video_row(source_base, Transfer->i32SourceDelta,
-                                  row, width, ~0ULL, &source) ||
+            if (!uga_io_video_row(source_base, Transfer->i32SourceDelta, row,
+                                  width, ~0ULL, &source) ||
                 !uga_io_video_row(
                     Transfer->memory.systemToVideo.ui64Destination,
                     Transfer->i32DestinationDelta, row, width, video_size,
                     &destination)) {
                 return UGA_STATUS_INVALID_PARAMETER;
             }
-            fw_copy_mem((VOID *)(UINTN)(fw_graphics_framebuffer_base() +
-                                        destination),
-                        (VOID *)(UINTN)source, width);
+            fw_copy_mem(
+                (VOID *)(UINTN)(fw_graphics_framebuffer_base() + destination),
+                (VOID *)(UINTN)source, width);
         }
     } else {
         UINT64 destination_base =
@@ -479,22 +473,22 @@ static UGA_STATUS uga_io_copy_rectangle(const UGA_MEMORY_TRANSFER *Transfer)
             UINT64 source;
             UINT64 destination;
 
-            if (!uga_io_video_row(
-                    Transfer->memory.videoToSystem.ui64Source,
-                    Transfer->i32SourceDelta, row, width, video_size,
-                    &source) ||
+            if (!uga_io_video_row(Transfer->memory.videoToSystem.ui64Source,
+                                  Transfer->i32SourceDelta, row, width,
+                                  video_size, &source) ||
                 !uga_io_video_row(destination_base,
-                                  Transfer->i32DestinationDelta, row,
-                                  width, ~0ULL, &destination)) {
+                                  Transfer->i32DestinationDelta, row, width,
+                                  ~0ULL, &destination)) {
                 return UGA_STATUS_INVALID_PARAMETER;
             }
-            fw_copy_mem((VOID *)(UINTN)destination,
-                        (VOID *)(UINTN)(fw_graphics_framebuffer_base() + source),
-                        width);
+            fw_copy_mem(
+                (VOID *)(UINTN)destination,
+                (VOID *)(UINTN)(fw_graphics_framebuffer_base() + source),
+                width);
         }
     }
     if (Transfer->bEndOfTransfer) {
-        __asm__ volatile ("mf;;" ::: "memory");
+        __asm__ volatile("mf;;" ::: "memory");
     }
     return UGA_STATUS_SUCCESS;
 }
@@ -508,8 +502,9 @@ static const CHAR8 *uga_io_property_text(const UGA_DEVICE *Device,
     if (Property != UgaDpDescription) {
         return NULL;
     }
-    return Device->deviceData.deviceType == UgaDtGraphicsController ?
-        "Graphics controller" : "Display controller";
+    return Device->deviceData.deviceType == UgaDtGraphicsController
+               ? "Graphics controller"
+               : "Display controller";
 }
 
 static UINTN uga_io_ascii_size(const CHAR8 *Text)
@@ -522,8 +517,7 @@ static UINTN uga_io_ascii_size(const CHAR8 *Text)
     return size;
 }
 
-static UGA_STATUS uga_io_property(UGA_DEVICE *Device,
-                                  UGA_IO_REQUEST *Request,
+static UGA_STATUS uga_io_property(UGA_DEVICE *Device, UGA_IO_REQUEST *Request,
                                   BOOLEAN SizeOnly)
 {
     UGA_DEVICE_PROPERTY property;
@@ -561,11 +555,10 @@ static UGA_STATUS uga_io_property(UGA_DEVICE *Device,
     return uga_io_output(Request, data, size);
 }
 
-static UGA_STATUS uga_io_dispatch(UGA_DEVICE *Device,
-                                  UGA_IO_REQUEST *Request)
+static UGA_STATUS uga_io_dispatch(UGA_DEVICE *Device, UGA_IO_REQUEST *Request)
 {
-    FW_UGA_DEVICE_RECORD *record = Device != NULL ?
-        uga_io_record(Device) : NULL;
+    FW_UGA_DEVICE_RECORD *record =
+        Device != NULL ? uga_io_record(Device) : NULL;
 
     if (Request == NULL || Request->ioRequestCode < UgaIoGetVersion ||
         Request->ioRequestCode > UgaIoBtPrivateInterface ||
@@ -575,8 +568,10 @@ static UGA_STATUS uga_io_dispatch(UGA_DEVICE *Device,
     Request->ui64BytesReturned = 0;
     if (Request->ioRequestCode == UgaIoGetVersion) {
         UGA_VERSION version = {
-            FW_UGA_SPEC_VERSION, FW_UGA_SPEC_VERSION,
-            FW_UGA_SPEC_VERSION, FW_UGA_SPEC_VERSION,
+            FW_UGA_SPEC_VERSION,
+            FW_UGA_SPEC_VERSION,
+            FW_UGA_SPEC_VERSION,
+            FW_UGA_SPEC_VERSION,
         };
 
         return uga_io_output(Request, &version, sizeof(version));
@@ -628,28 +623,26 @@ static UGA_STATUS uga_io_dispatch(UGA_DEVICE *Device,
         if (!uga_io_no_buffers(Request)) {
             return UGA_STATUS_INVALID_PARAMETER;
         }
-        __asm__ volatile ("mf;;" ::: "memory");
+        __asm__ volatile("mf;;" ::: "memory");
         return UGA_STATUS_SUCCESS;
     case UgaIoResetDevice:
         if (!uga_io_no_buffers(Request)) {
             return UGA_STATUS_INVALID_PARAMETER;
         }
-        return fw_graphics_reset_current_mode(1) == EFI_SUCCESS ?
-            UGA_STATUS_SUCCESS : UGA_STATUS_OPERATION_FAILED;
+        return fw_graphics_reset_current_mode(1) == EFI_SUCCESS
+                   ? UGA_STATUS_SUCCESS
+                   : UGA_STATUS_OPERATION_FAILED;
     case UgaIoGetDeviceState:
-        return uga_io_output(Request, &record->state,
-                             sizeof(record->state));
+        return uga_io_output(Request, &record->state, sizeof(record->state));
     case UgaIoSetDeviceState:
         if (Request->pvInBuffer == NULL ||
             Request->ui64InBufferSize != sizeof(UGA_DEVICE_STATE) ||
-            Request->pvOutBuffer != NULL ||
-            Request->ui64OutBufferSize != 0) {
+            Request->pvOutBuffer != NULL || Request->ui64OutBufferSize != 0) {
             return UGA_STATUS_INVALID_PARAMETER;
         }
         if (*(UGA_DEVICE_STATE *)Request->pvInBuffer == UgaDsEnable) {
             record->state = UgaDsActive;
-        } else if (*(UGA_DEVICE_STATE *)Request->pvInBuffer ==
-                   UgaDsDisable) {
+        } else if (*(UGA_DEVICE_STATE *)Request->pvInBuffer == UgaDsDisable) {
             record->state = UgaDsDisabled;
         } else {
             return UGA_STATUS_INVALID_PARAMETER;
@@ -658,12 +651,10 @@ static UGA_STATUS uga_io_dispatch(UGA_DEVICE *Device,
     case UgaIoSetPowerState:
         if (Request->pvInBuffer == NULL ||
             Request->ui64InBufferSize != sizeof(UGA_POWER_REQUEST) ||
-            Request->pvOutBuffer != NULL ||
-            Request->ui64OutBufferSize != 0) {
+            Request->pvOutBuffer != NULL || Request->ui64OutBufferSize != 0) {
             return UGA_STATUS_INVALID_PARAMETER;
         } else {
-            UGA_POWER_REQUEST *power =
-                (UGA_POWER_REQUEST *)Request->pvInBuffer;
+            UGA_POWER_REQUEST *power = (UGA_POWER_REQUEST *)Request->pvInBuffer;
 
             if (power->powerStateDevice < UgaPsD0 ||
                 power->powerStateDevice > UgaPsD3 ||
@@ -675,8 +666,8 @@ static UGA_STATUS uga_io_dispatch(UGA_DEVICE *Device,
                 record->power_probe = 1;
                 record->probed_power = power->powerStateDevice;
             } else if (power->powerRequestType == UgaPrCommit) {
-                record->power = record->power_probe ?
-                    record->probed_power : power->powerStateDevice;
+                record->power = record->power_probe ? record->probed_power
+                                                    : power->powerStateDevice;
                 record->power_probe = 0;
             } else if (power->powerRequestType == UgaPrCancel) {
                 record->power_probe = 0;
@@ -707,26 +698,23 @@ static UGA_STATUS uga_io_dispatch(UGA_DEVICE *Device,
         if (Device->deviceData.deviceType != UgaDtOutputController ||
             Request->pvInBuffer == NULL ||
             Request->ui64InBufferSize != sizeof(UGA_VIDEO_MODE) ||
-            Request->pvOutBuffer != NULL ||
-            Request->ui64OutBufferSize != 0) {
+            Request->pvOutBuffer != NULL || Request->ui64OutBufferSize != 0) {
             return UGA_STATUS_INVALID_PARAMETER;
         } else {
             UGA_VIDEO_MODE *mode = (UGA_VIDEO_MODE *)Request->pvInBuffer;
             EFI_STATUS status = fw_graphics_set_uga_mode(
-                mode->ui32HorizontalResolution,
-                mode->ui32VerticalResolution, mode->ui32ColorDepth,
-                mode->ui32RefreshRate);
+                mode->ui32HorizontalResolution, mode->ui32VerticalResolution,
+                mode->ui32ColorDepth, mode->ui32RefreshRate);
 
-            return status == EFI_SUCCESS ? UGA_STATUS_SUCCESS :
-                   status == EFI_UNSUPPORTED ? UGA_STATUS_INVALID_MODE :
-                                               UGA_STATUS_OPERATION_FAILED;
+            return status == EFI_SUCCESS       ? UGA_STATUS_SUCCESS
+                   : status == EFI_UNSUPPORTED ? UGA_STATUS_INVALID_MODE
+                                               : UGA_STATUS_OPERATION_FAILED;
         }
     case UgaIoCopyRectangle:
         if (Device->deviceData.deviceType != UgaDtOutputController ||
             Request->pvInBuffer == NULL ||
             Request->ui64InBufferSize != sizeof(UGA_MEMORY_TRANSFER) ||
-            Request->pvOutBuffer != NULL ||
-            Request->ui64OutBufferSize != 0) {
+            Request->pvOutBuffer != NULL || Request->ui64OutBufferSize != 0) {
             return UGA_STATUS_INVALID_PARAMETER;
         }
         return uga_io_copy_rectangle(
@@ -775,21 +763,16 @@ static UGA_STATUS uga_io_dispatch(UGA_DEVICE *Device,
 static void uga_io_init_edid(VOID)
 {
     static const UINT8 body[127] = {
-        0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00,
-        0x04, 0x21, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x01, 0x20, 0x01, 0x03, 0x80, 0x20, 0x18, 0x78,
-        0x0a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x21, 0x08, 0x00, 0x00, 0x31, 0x40, 0x45, 0x40,
-        0x61, 0x40, 0x81, 0x80, 0x01, 0x01, 0x01, 0x01,
-        0x01, 0x01, 0x01, 0x01, 0xa0, 0x0f, 0x20, 0x00,
-        0x31, 0x58, 0x1c, 0x20, 0x28, 0x80, 0x14, 0x00,
-        0x40, 0xf0, 0x11, 0x00, 0x00, 0x1e, 0x00, 0x00,
-        0x00, 0xfc, 0x00, 0x56, 0x69, 0x72, 0x74, 0x75,
-        0x61, 0x6c, 0x20, 0x44, 0x69, 0x73, 0x70, 0x0a,
-        0x00, 0x00, 0x00, 0xfd, 0x00, 0x3c, 0x3c, 0x1e,
-        0x50, 0x0d, 0x00, 0x0a, 0x20, 0x20, 0x20, 0x20,
-        0x20, 0x20, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x04, 0x21, 0x01, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x01, 0x20, 0x01, 0x03, 0x80, 0x20, 0x18, 0x78,
+        0x0a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x21, 0x08, 0x00, 0x00,
+        0x31, 0x40, 0x45, 0x40, 0x61, 0x40, 0x81, 0x80, 0x01, 0x01, 0x01, 0x01,
+        0x01, 0x01, 0x01, 0x01, 0xa0, 0x0f, 0x20, 0x00, 0x31, 0x58, 0x1c, 0x20,
+        0x28, 0x80, 0x14, 0x00, 0x40, 0xf0, 0x11, 0x00, 0x00, 0x1e, 0x00, 0x00,
+        0x00, 0xfc, 0x00, 0x56, 0x69, 0x72, 0x74, 0x75, 0x61, 0x6c, 0x20, 0x44,
+        0x69, 0x73, 0x70, 0x0a, 0x00, 0x00, 0x00, 0xfd, 0x00, 0x3c, 0x3c, 0x1e,
+        0x50, 0x0d, 0x00, 0x0a, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x00, 0x00,
+        0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     };
     UINT8 sum = 0;

@@ -17,12 +17,12 @@ static UINT8 unicode_collation_guid[16] = IA64_GUID_UNICODE_COLLATION;
 static UINT8 device_path_guid[16] = IA64_GUID_DEVICE_PATH;
 static UINT8 driver_binding_guid[16] = IA64_GUID_DRIVER_BINDING;
 static CHAR16 boot_app_path[] = {
-    '\\', 'E', 'F', 'I', '\\', 'B', 'O', 'O', 'T', '\\',
-    'B', 'O', 'O', 'T', 'I', 'A', '6', '4', '.', 'E', 'F', 'I', 0,
+    '\\', 'E', 'F', 'I', '\\', 'B', 'O', 'O', 'T', '\\', 'B', 'O',
+    'O',  'T', 'I', 'A', '6',  '4', '.', 'E', 'F', 'I',  0,
 };
 static CHAR16 short_form_app_path[] = {
     '\\', 'E', 'F', 'I', '\\', 'B', 'O', 'O', 'T', '\\',
-    'S', 'T', 'A', 'R', 'T', '.', 'E', 'F', 'I', 0,
+    'S',  'T', 'A', 'R', 'T',  '.', 'E', 'F', 'I', 0,
 };
 
 static UINT8 pattern_byte(UINTN Index)
@@ -69,10 +69,9 @@ static BOOLEAN fat_boot_sector_valid(const UINT8 *Sector, UINTN SectorSize,
     UINT32 blocks;
 
     if (SectorSize < 512U || Sector[0] != 0xebU || Sector[2] != 0x90U ||
-        !bytes_equal(Sector + 3,
-                                          (const UINT8 *)"QEMUIA64", 8) ||
-        get_u16(Sector + 11) != 512U || Sector[13] == 0 ||
-        Sector[16] == 0 || Sector[510] != 0x55U || Sector[511] != 0xaaU) {
+        !bytes_equal(Sector + 3, (const UINT8 *)"QEMUIA64", 8) ||
+        get_u16(Sector + 11) != 512U || Sector[13] == 0 || Sector[16] == 0 ||
+        Sector[510] != 0x55U || Sector[511] != 0xaaU) {
         return 0;
     }
     blocks = get_u16(Sector + 19);
@@ -99,8 +98,8 @@ static BOOLEAN find_fat_test_region(EFI_BLOCK_IO_PROTOCOL *Block,
     EFI_STATUS status;
     UINTN index;
 
-    status = Block->ReadBlocks(Block, Media->MediaId, 0, Media->BlockSize,
-                               Sector);
+    status =
+        Block->ReadBlocks(Block, Media->MediaId, 0, Media->BlockSize, Sector);
     if (status != EFI_SUCCESS) {
         return 0;
     }
@@ -173,8 +172,7 @@ static BOOLEAN find_fat_test_region(EFI_BLOCK_IO_PROTOCOL *Block,
         {
             UINT64 fat_blocks;
 
-            if (!fat_boot_sector_valid(Sector, Media->BlockSize,
-                                       &fat_blocks) ||
+            if (!fat_boot_sector_valid(Sector, Media->BlockSize, &fat_blocks) ||
                 fat_blocks != volume_blocks) {
                 return 0;
             }
@@ -185,8 +183,8 @@ static BOOLEAN find_fat_test_region(EFI_BLOCK_IO_PROTOCOL *Block,
         volume_blocks - 1U > Media->LastBlock - volume_start) {
         return 0;
     }
-    *BlockCount = volume_blocks > MAX_TEST_BLOCKS ?
-        MAX_TEST_BLOCKS : volume_blocks;
+    *BlockCount =
+        volume_blocks > MAX_TEST_BLOCKS ? MAX_TEST_BLOCKS : volume_blocks;
     *StartLba = volume_start + volume_blocks - *BlockCount;
     return 1;
 }
@@ -232,8 +230,8 @@ static BOOLEAN probe_unicode_collation(EFI_BOOT_SERVICES *bs)
     char short_name[10];
     char long_name[5];
 
-    if (bs->LocateProtocol(unicode_collation_guid, NULL,
-                           (VOID **)&collation) != EFI_SUCCESS ||
+    if (bs->LocateProtocol(unicode_collation_guid, NULL, (VOID **)&collation) !=
+            EFI_SUCCESS ||
         collation == NULL || collation->SupportedLanguages == NULL ||
         collation->SupportedLanguages[0] != 'e' ||
         collation->SupportedLanguages[1] != 'n' ||
@@ -256,28 +254,25 @@ static BOOLEAN probe_unicode_collation(EFI_BOOT_SERVICES *bs)
         return 0;
     }
 
-    collation->FatToStr(collation, sizeof(fat_source), fat_source,
-                        fat_string);
-    if (fat_string[0] != 'A' || fat_string[1] != 'B' ||
-        fat_string[2] != 0 || fat_string[3] != 0xffff) {
+    collation->FatToStr(collation, sizeof(fat_source), fat_source, fat_string);
+    if (fat_string[0] != 'A' || fat_string[1] != 'B' || fat_string[2] != 0 ||
+        fat_string[3] != 0xffff) {
         return 0;
     }
     bs->SetMem(short_name, sizeof(short_name), 0x5a);
     if (collation->StrToFat(collation, short_source, sizeof(short_name),
                             short_name) ||
-        short_name[0] != 'R' || short_name[1] != 'E' ||
-        short_name[2] != 'A' || short_name[3] != 'D' ||
-        short_name[4] != 'M' || short_name[5] != 'E' ||
-        short_name[6] != 'T' || short_name[7] != 'X' ||
-        short_name[8] != 'T' || short_name[9] != 0x5a) {
+        short_name[0] != 'R' || short_name[1] != 'E' || short_name[2] != 'A' ||
+        short_name[3] != 'D' || short_name[4] != 'M' || short_name[5] != 'E' ||
+        short_name[6] != 'T' || short_name[7] != 'X' || short_name[8] != 'T' ||
+        short_name[9] != 0x5a) {
         return 0;
     }
     bs->SetMem(long_name, sizeof(long_name), 0x5a);
     if (!collation->StrToFat(collation, long_source, sizeof(long_name),
                              long_name) ||
-        long_name[0] != 'A' || long_name[1] != '_' ||
-        long_name[2] != '_' || long_name[3] != 'B' ||
-        long_name[4] != 0x5a) {
+        long_name[0] != 'A' || long_name[1] != '_' || long_name[2] != '_' ||
+        long_name[3] != 'B' || long_name[4] != 0x5a) {
         return 0;
     }
     return 1;
@@ -317,19 +312,19 @@ static BOOLEAN probe_empty_removable_media(EFI_BOOT_SERVICES *bs,
         }
         *Found = 1;
         reset_status = block->Reset(block, 0);
-        read_status = block->ReadBlocks(
-            block, block->Media->MediaId, 0, block->Media->BlockSize, buffer);
-        write_status = block->WriteBlocks(
-            block, block->Media->MediaId, 0, block->Media->BlockSize, buffer);
+        read_status = block->ReadBlocks(block, block->Media->MediaId, 0,
+                                        block->Media->BlockSize, buffer);
+        write_status = block->WriteBlocks(block, block->Media->MediaId, 0,
+                                          block->Media->BlockSize, buffer);
         flush_status = block->FlushBlocks(block);
-        valid = reset_status == EFI_SUCCESS &&
-            !block->Media->MediaPresent &&
-            block->Media->BlockSize > 0 &&
-            block->Media->BlockSize <= sizeof(buffer) &&
-            read_status == EFI_NO_MEDIA && write_status == EFI_NO_MEDIA &&
-            flush_status == EFI_NO_MEDIA &&
-            bs->HandleProtocol(handles[index], disk_io_guid,
-                               (VOID **)&disk) == EFI_SUCCESS && disk != NULL;
+        valid = reset_status == EFI_SUCCESS && !block->Media->MediaPresent &&
+                block->Media->BlockSize > 0 &&
+                block->Media->BlockSize <= sizeof(buffer) &&
+                read_status == EFI_NO_MEDIA && write_status == EFI_NO_MEDIA &&
+                flush_status == EFI_NO_MEDIA &&
+                bs->HandleProtocol(handles[index], disk_io_guid,
+                                   (VOID **)&disk) == EFI_SUCCESS &&
+                disk != NULL;
         break;
     }
     (void)bs->FreePool(handles);
@@ -352,14 +347,15 @@ typedef struct {
     UINT8 SignatureType;
 } __attribute__((packed)) TEST_HARD_DRIVE_DEVICE_PATH_NODE;
 
-static TEST_HARD_DRIVE_DEVICE_PATH_NODE *find_hard_drive_path_node(
-    EFI_BOOT_SERVICES *bs, EFI_HANDLE handle)
+static TEST_HARD_DRIVE_DEVICE_PATH_NODE *
+find_hard_drive_path_node(EFI_BOOT_SERVICES *bs, EFI_HANDLE handle)
 {
     TEST_DEVICE_PATH_NODE *node = NULL;
     UINTN index;
 
-    if (bs->HandleProtocol(handle, device_path_guid,
-                           (VOID **)&node) != EFI_SUCCESS || node == NULL) {
+    if (bs->HandleProtocol(handle, device_path_guid, (VOID **)&node) !=
+            EFI_SUCCESS ||
+        node == NULL) {
         return NULL;
     }
     for (index = 0; index < 64U; index++) {
@@ -378,16 +374,18 @@ static TEST_HARD_DRIVE_DEVICE_PATH_NODE *find_hard_drive_path_node(
     return NULL;
 }
 
-static BOOLEAN probe_short_form_hard_drive_path(
-    EFI_BOOT_SERVICES *bs, EFI_HANDLE image_handle,
-    EFI_HANDLE loaded_handle, UINT32 block_size)
+static BOOLEAN probe_short_form_hard_drive_path(EFI_BOOT_SERVICES *bs,
+                                                EFI_HANDLE image_handle,
+                                                EFI_HANDLE loaded_handle,
+                                                UINT32 block_size)
 {
     static const UINT16 hard_drive_lengths[] = {
-        sizeof(TEST_HARD_DRIVE_DEVICE_PATH_NODE), 48U,
+        sizeof(TEST_HARD_DRIVE_DEVICE_PATH_NODE),
+        48U,
     };
-    UINT8 short_path[
-        48U + sizeof(TEST_DEVICE_PATH_NODE) + sizeof(short_form_app_path) +
-        sizeof(TEST_DEVICE_PATH_NODE)] __attribute__((aligned(8)));
+    UINT8 short_path[48U + sizeof(TEST_DEVICE_PATH_NODE) +
+                     sizeof(short_form_app_path) +
+                     sizeof(TEST_DEVICE_PATH_NODE)] __attribute__((aligned(8)));
     TEST_HARD_DRIVE_DEVICE_PATH_NODE *source;
     UINTN variant;
 
@@ -398,8 +396,8 @@ static BOOLEAN probe_short_form_hard_drive_path(
         return 0;
     }
 
-    for (variant = 0; variant < sizeof(hard_drive_lengths) /
-                                     sizeof(hard_drive_lengths[0]);
+    for (variant = 0;
+         variant < sizeof(hard_drive_lengths) / sizeof(hard_drive_lengths[0]);
          variant++) {
         TEST_HARD_DRIVE_DEVICE_PATH_NODE *hard_drive =
             (TEST_HARD_DRIVE_DEVICE_PATH_NODE *)short_path;
@@ -422,12 +420,12 @@ static BOOLEAN probe_short_form_hard_drive_path(
          */
         hard_drive->PartitionStart *= block_size;
         hard_drive->PartitionSize *= block_size;
-        file_header = (TEST_DEVICE_PATH_NODE *)(short_path +
-                                                hard_drive->Header.Length);
+        file_header =
+            (TEST_DEVICE_PATH_NODE *)(short_path + hard_drive->Header.Length);
         file_header->Type = 0x04U;
         file_header->SubType = 0x04U;
-        file_header->Length = sizeof(*file_header) +
-                              sizeof(short_form_app_path);
+        file_header->Length =
+            sizeof(*file_header) + sizeof(short_form_app_path);
         path_name = (CHAR16 *)((UINT8 *)file_header + sizeof(*file_header));
         bs->CopyMem(path_name, short_form_app_path,
                     sizeof(short_form_app_path));
@@ -438,12 +436,12 @@ static BOOLEAN probe_short_form_hard_drive_path(
         end->Length = sizeof(*end);
 
         remaining = hard_drive;
-        status = bs->LocateDevicePath(simple_fs_guid, &remaining,
-                                      &located_handle);
+        status =
+            bs->LocateDevicePath(simple_fs_guid, &remaining, &located_handle);
         if (status != EFI_SUCCESS || located_handle != loaded_handle ||
             remaining != file_header ||
-            bs->LoadImage(1, image_handle, hard_drive,
-                          NULL, 0, &child_image) != EFI_SUCCESS ||
+            bs->LoadImage(1, image_handle, hard_drive, NULL, 0, &child_image) !=
+                EFI_SUCCESS ||
             child_image == NULL ||
             bs->HandleProtocol(child_image, loaded_image_guid,
                                (VOID **)&child_loaded) != EFI_SUCCESS ||
@@ -460,8 +458,8 @@ static BOOLEAN probe_short_form_hard_drive_path(
     return 1;
 }
 
-static BOOLEAN probe_partition_driver_contracts(
-    EFI_BOOT_SERVICES *bs, EFI_HANDLE loaded_handle)
+static BOOLEAN probe_partition_driver_contracts(EFI_BOOT_SERVICES *bs,
+                                                EFI_HANDLE loaded_handle)
 {
     struct {
         TEST_DEVICE_PATH_NODE Unsupported;
@@ -471,7 +469,9 @@ static BOOLEAN probe_partition_driver_contracts(
         { 0x7f, 0xff, sizeof(TEST_DEVICE_PATH_NODE) },
     };
     TEST_DEVICE_PATH_NODE end_path __attribute__((aligned(8))) = {
-        0x7f, 0xff, sizeof(TEST_DEVICE_PATH_NODE),
+        0x7f,
+        0xff,
+        sizeof(TEST_DEVICE_PATH_NODE),
     };
     EFI_DRIVER_BINDING_PROTOCOL *binding = NULL;
     EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *fs = NULL;
@@ -488,10 +488,11 @@ static BOOLEAN probe_partition_driver_contracts(
                            (VOID **)&child_block) != EFI_SUCCESS ||
         child_block == NULL || child_block->Media == NULL ||
         !child_block->Media->LogicalPartition ||
-        bs->HandleProtocol(loaded_handle, simple_fs_guid,
-                           (VOID **)&fs) != EFI_SUCCESS || fs == NULL ||
-        bs->LocateProtocol(driver_binding_guid, NULL,
-                           (VOID **)&binding) != EFI_SUCCESS ||
+        bs->HandleProtocol(loaded_handle, simple_fs_guid, (VOID **)&fs) !=
+            EFI_SUCCESS ||
+        fs == NULL ||
+        bs->LocateProtocol(driver_binding_guid, NULL, (VOID **)&binding) !=
+            EFI_SUCCESS ||
         binding == NULL || binding->Supported == NULL ||
         binding->Start == NULL || binding->Stop == NULL ||
         bs->LocateHandleBuffer(EFI_LOCATE_BY_PROTOCOL, block_io_guid, NULL,
@@ -530,13 +531,13 @@ static BOOLEAN probe_partition_driver_contracts(
     }
 
     status = bs->DisconnectController(parent_handle, NULL, loaded_handle);
-    if (!EFI_ERROR(status) ||
-        root->SetPosition(root, 0) != EFI_SUCCESS ||
+    if (!EFI_ERROR(status) || root->SetPosition(root, 0) != EFI_SUCCESS ||
         bs->HandleProtocol(loaded_handle, block_io_guid,
                            (VOID **)&child_block) != EFI_SUCCESS ||
         child_block == NULL ||
-        bs->HandleProtocol(loaded_handle, simple_fs_guid,
-                           (VOID **)&fs) != EFI_SUCCESS || fs == NULL) {
+        bs->HandleProtocol(loaded_handle, simple_fs_guid, (VOID **)&fs) !=
+            EFI_SUCCESS ||
+        fs == NULL) {
         goto out;
     }
     valid = 1;
@@ -558,7 +559,7 @@ out:
  * directory tree, not merely the El Torito FAT image, was parsed correctly.
  */
 static BOOLEAN probe_native_optical_filesystem(EFI_BOOT_SERVICES *bs,
-                                                EFI_HANDLE loaded_handle)
+                                               EFI_HANDLE loaded_handle)
 {
     EFI_HANDLE *handles = NULL;
     UINTN handle_count = 0;
@@ -584,18 +585,16 @@ static BOOLEAN probe_native_optical_filesystem(EFI_BOOT_SERVICES *bs,
                                (VOID **)&raw_block) != EFI_SUCCESS ||
             raw_block == NULL || raw_block->Media == NULL ||
             !raw_block->Media->MediaPresent ||
-            !raw_block->Media->RemovableMedia ||
-            !raw_block->Media->ReadOnly ||
+            !raw_block->Media->RemovableMedia || !raw_block->Media->ReadOnly ||
             raw_block->Media->LogicalPartition ||
             raw_block->Media->BlockSize != 2048U ||
-            bs->HandleProtocol(handles[index], simple_fs_guid,
-                               (VOID **)&fs) != EFI_SUCCESS ||
+            bs->HandleProtocol(handles[index], simple_fs_guid, (VOID **)&fs) !=
+                EFI_SUCCESS ||
             fs == NULL || fs->OpenVolume(fs, &root) != EFI_SUCCESS ||
             root == NULL) {
             continue;
         }
-        status = root->Open(root, &file, boot_app_path,
-                            EFI_FILE_MODE_READ, 0);
+        status = root->Open(root, &file, boot_app_path, EFI_FILE_MODE_READ, 0);
         if (status == EFI_SUCCESS && file != NULL &&
             file->Read(file, &size, signature) == EFI_SUCCESS && size == 2 &&
             signature[0] == 'M' && signature[1] == 'Z' &&
@@ -625,16 +624,15 @@ static BOOLEAN probe_loaded_filesystem(EFI_BOOT_SERVICES *bs,
     EFI_STATUS status;
     BOOLEAN valid;
 
-    status = bs->HandleProtocol(loaded_handle, simple_fs_guid,
-                                (VOID **)&fs);
+    status = bs->HandleProtocol(loaded_handle, simple_fs_guid, (VOID **)&fs);
     if (status != EFI_SUCCESS || fs == NULL ||
         fs->OpenVolume(fs, &root) != EFI_SUCCESS || root == NULL) {
         return 0;
     }
     status = root->Open(root, &file, boot_app_path, EFI_FILE_MODE_READ, 0);
     valid = status == EFI_SUCCESS && file != NULL &&
-        file->Read(file, &size, signature) == EFI_SUCCESS && size == 2 &&
-        signature[0] == 'M' && signature[1] == 'Z';
+            file->Read(file, &size, signature) == EFI_SUCCESS && size == 2 &&
+            signature[0] == 'M' && signature[1] == 'Z';
     if (file != NULL) {
         (void)file->Close(file);
     }
@@ -643,17 +641,17 @@ static BOOLEAN probe_loaded_filesystem(EFI_BOOT_SERVICES *bs,
 }
 
 static BOOLEAN loaded_file_exists(EFI_BOOT_SERVICES *bs,
-                                  EFI_HANDLE loaded_handle,
-                                  CHAR16 *path)
+                                  EFI_HANDLE loaded_handle, CHAR16 *path)
 {
     EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *fs = NULL;
     EFI_FILE_PROTOCOL *root = NULL;
     EFI_FILE_PROTOCOL *file = NULL;
     BOOLEAN found = 0;
 
-    if (bs->HandleProtocol(loaded_handle, simple_fs_guid,
-                           (VOID **)&fs) == EFI_SUCCESS && fs != NULL &&
-        fs->OpenVolume(fs, &root) == EFI_SUCCESS && root != NULL &&
+    if (bs->HandleProtocol(loaded_handle, simple_fs_guid, (VOID **)&fs) ==
+            EFI_SUCCESS &&
+        fs != NULL && fs->OpenVolume(fs, &root) == EFI_SUCCESS &&
+        root != NULL &&
         root->Open(root, &file, path, EFI_FILE_MODE_READ, 0) == EFI_SUCCESS &&
         file != NULL) {
         found = 1;
@@ -678,12 +676,12 @@ static BOOLEAN probe_file_protocol_contracts(EFI_BOOT_SERVICES *bs,
         '\\', 'E', 'F', 'I', '\\', 'B', 'O', 'O', 'T', 0,
     };
     static CHAR16 relative_path[] = {
-        '.', '\\', 'B', 'O', 'O', 'T', 'I', 'A', '6', '4', '.',
-        'E', 'F', 'I', 0,
+        '.', '\\', 'B', 'O', 'O', 'T', 'I', 'A',
+        '6', '4',  '.', 'E', 'F', 'I', 0,
     };
     static CHAR16 parent_path[] = {
-        '.', '.', '\\', 'B', 'O', 'O', 'T', '\\', 'B', 'O', 'O', 'T',
-        'I', 'A', '6', '4', '.', 'E', 'F', 'I', 0,
+        '.', '.', '\\', 'B', 'O', 'O', 'T', '\\', 'B', 'O', 'O',
+        'T', 'I', 'A',  '6', '4', '.', 'E', 'F',  'I', 0,
     };
     static CHAR16 root_path[] = { '\\', 0 };
     static CHAR16 root_parent[] = { '.', '.', 0 };
@@ -704,10 +702,10 @@ static BOOLEAN probe_file_protocol_contracts(EFI_BOOT_SERVICES *bs,
     EFI_STATUS status;
     BOOLEAN valid = 0;
 
-    if (bs->HandleProtocol(loaded_handle, simple_fs_guid,
-                           (VOID **)&fs) != EFI_SUCCESS || fs == NULL ||
-        fs->OpenVolume(fs, &root) != EFI_SUCCESS || root == NULL ||
-        fs->OpenVolume(fs, &second_root) != EFI_SUCCESS ||
+    if (bs->HandleProtocol(loaded_handle, simple_fs_guid, (VOID **)&fs) !=
+            EFI_SUCCESS ||
+        fs == NULL || fs->OpenVolume(fs, &root) != EFI_SUCCESS ||
+        root == NULL || fs->OpenVolume(fs, &second_root) != EFI_SUCCESS ||
         second_root == NULL || second_root == root ||
         second_root->Close(second_root) != EFI_SUCCESS ||
         root->SetPosition(root, 0) != EFI_SUCCESS ||
@@ -717,27 +715,27 @@ static BOOLEAN probe_file_protocol_contracts(EFI_BOOT_SERVICES *bs,
         goto out;
     }
     second_root = NULL;
-    if (root->Open(root, &directory, directory_path,
-                   EFI_FILE_MODE_READ, 0) != EFI_SUCCESS ||
+    if (root->Open(root, &directory, directory_path, EFI_FILE_MODE_READ, 0) !=
+            EFI_SUCCESS ||
         directory == NULL ||
-        directory->Open(directory, &relative, relative_path,
-                        EFI_FILE_MODE_READ, 0) != EFI_SUCCESS ||
+        directory->Open(directory, &relative, relative_path, EFI_FILE_MODE_READ,
+                        0) != EFI_SUCCESS ||
         relative == NULL || relative->Close(relative) != EFI_SUCCESS) {
         goto out;
     }
     relative = NULL;
-    if (directory->Open(directory, &relative, parent_path,
-                        EFI_FILE_MODE_READ, 0) != EFI_SUCCESS ||
+    if (directory->Open(directory, &relative, parent_path, EFI_FILE_MODE_READ,
+                        0) != EFI_SUCCESS ||
         relative == NULL || relative->Close(relative) != EFI_SUCCESS ||
-        root->Open(root, &root_copy, root_path,
-                   EFI_FILE_MODE_READ, 0) != EFI_SUCCESS ||
+        root->Open(root, &root_copy, root_path, EFI_FILE_MODE_READ, 0) !=
+            EFI_SUCCESS ||
         root_copy == NULL ||
         root_copy->GetPosition(root_copy, &position) != EFI_UNSUPPORTED) {
         goto out;
     }
     relative = (EFI_FILE_PROTOCOL *)(UINTN)1;
-    if (root->Open(root, &relative, root_parent,
-                   EFI_FILE_MODE_READ, 0) != EFI_NOT_FOUND ||
+    if (root->Open(root, &relative, root_parent, EFI_FILE_MODE_READ, 0) !=
+            EFI_NOT_FOUND ||
         relative != NULL) {
         goto out;
     }
@@ -745,10 +743,10 @@ static BOOLEAN probe_file_protocol_contracts(EFI_BOOT_SERVICES *bs,
     size = 0;
     status = root->GetInfo(root, file_system_info_guid, &size, NULL);
     if (status != EFI_BUFFER_TOO_SMALL || size < sizeof(*system_info) - 6U ||
-        bs->AllocatePool(EfiLoaderData, size,
-                         (VOID **)&system_info) != EFI_SUCCESS ||
-        root->GetInfo(root, file_system_info_guid, &size,
-                      system_info) != EFI_SUCCESS ||
+        bs->AllocatePool(EfiLoaderData, size, (VOID **)&system_info) !=
+            EFI_SUCCESS ||
+        root->GetInfo(root, file_system_info_guid, &size, system_info) !=
+            EFI_SUCCESS ||
         system_info->Size != size || !system_info->ReadOnly ||
         system_info->FreeSpace != 0 || system_info->BlockSize == 0) {
         goto out;
@@ -773,18 +771,18 @@ static BOOLEAN probe_file_protocol_contracts(EFI_BOOT_SERVICES *bs,
     status = root->Open(root, &write_file, boot_app_path,
                         EFI_FILE_MODE_READ | EFI_FILE_MODE_WRITE, 0);
     if (status != EFI_WRITE_PROTECTED || write_file != NULL ||
-        root->Open(root, &file, boot_app_path,
-                   EFI_FILE_MODE_READ, EFI_FILE_ARCHIVE) != EFI_SUCCESS ||
-        file == NULL ||
-        file->GetPosition(file, &position) != EFI_SUCCESS || position != 0) {
+        root->Open(root, &file, boot_app_path, EFI_FILE_MODE_READ,
+                   EFI_FILE_ARCHIVE) != EFI_SUCCESS ||
+        file == NULL || file->GetPosition(file, &position) != EFI_SUCCESS ||
+        position != 0) {
         goto out;
     }
 
     size = 0;
     status = file->GetInfo(file, file_info_guid, &size, NULL);
     if (status != EFI_BUFFER_TOO_SMALL ||
-        bs->AllocatePool(EfiLoaderData, size,
-                         (VOID **)&file_info) != EFI_SUCCESS ||
+        bs->AllocatePool(EfiLoaderData, size, (VOID **)&file_info) !=
+            EFI_SUCCESS ||
         file->GetInfo(file, file_info_guid, &size, file_info) != EFI_SUCCESS ||
         file_info->Size != size || file_info->FileSize == 0 ||
         file_info->PhysicalSize < file_info->FileSize ||
@@ -874,8 +872,8 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
     BOOLEAN empty_removable_found;
     const char *write_detail = "write-blocks";
 
-    status = bs->HandleProtocol(ImageHandle, loaded_image_guid,
-                                (VOID **)&loaded);
+    status =
+        bs->HandleProtocol(ImageHandle, loaded_image_guid, (VOID **)&loaded);
     if (status == EFI_SUCCESS && loaded != NULL &&
         loaded->DeviceHandle != NULL) {
         status = bs->HandleProtocol(loaded->DeviceHandle, block_io_guid,
@@ -888,9 +886,8 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
     ia64_test_check(&context, "loaded-protocols",
                     status == EFI_SUCCESS && block != NULL && disk != NULL,
                     status, "loaded-device-protocols");
-    ia64_test_check(&context, "unicode-collation",
-                    probe_unicode_collation(bs), EFI_DEVICE_ERROR,
-                    "unicode-collation-contracts");
+    ia64_test_check(&context, "unicode-collation", probe_unicode_collation(bs),
+                    EFI_DEVICE_ERROR, "unicode-collation-contracts");
     {
         BOOLEAN empty_removable_valid = probe_empty_removable_media(
             bs, loaded != NULL ? loaded->DeviceHandle : NULL,
@@ -913,11 +910,10 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 
     media = block->Media;
     block_count = media->LastBlock + 1U;
-    ia64_test_check(
-        &context, "block-media",
-        media->MediaPresent && media->BlockSize >= 512U &&
-            media->BlockSize <= 4096U && block_count != 0,
-        EFI_DEVICE_ERROR, "invalid-media");
+    ia64_test_check(&context, "block-media",
+                    media->MediaPresent && media->BlockSize >= 512U &&
+                        media->BlockSize <= 4096U && block_count != 0,
+                    EFI_DEVICE_ERROR, "invalid-media");
     if (!media->MediaPresent || media->BlockSize < 512U ||
         media->BlockSize > 4096U || block_count == 0) {
         ia64_test_done(&context);
@@ -927,26 +923,23 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
                     probe_loaded_filesystem(bs, loaded->DeviceHandle),
                     EFI_DEVICE_ERROR, "loaded-device-simple-fs");
     ia64_test_check(&context, "file-protocol-contracts",
-                    probe_file_protocol_contracts(bs,
-                                                   loaded->DeviceHandle),
+                    probe_file_protocol_contracts(bs, loaded->DeviceHandle),
                     EFI_DEVICE_ERROR, "file-protocol-contracts");
     if (media->LogicalPartition) {
         ia64_test_pass(&context, "logical-partition-handle");
         if (!media->RemovableMedia &&
-            loaded_file_exists(bs, loaded->DeviceHandle,
-                               short_form_app_path)) {
-            ia64_test_check(&context, "short-form-hard-drive-path",
-                            probe_short_form_hard_drive_path(
-                                bs, ImageHandle, loaded->DeviceHandle,
-                                media->BlockSize),
-                            EFI_DEVICE_ERROR,
-                            "short-form-hard-drive-path");
+            loaded_file_exists(bs, loaded->DeviceHandle, short_form_app_path)) {
+            ia64_test_check(
+                &context, "short-form-hard-drive-path",
+                probe_short_form_hard_drive_path(
+                    bs, ImageHandle, loaded->DeviceHandle, media->BlockSize),
+                EFI_DEVICE_ERROR, "short-form-hard-drive-path");
         }
         if (!media->RemovableMedia) {
-            ia64_test_check(&context, "partition-driver-contracts",
-                            probe_partition_driver_contracts(
-                                bs, loaded->DeviceHandle),
-                            EFI_DEVICE_ERROR, "partition-driver-contracts");
+            ia64_test_check(
+                &context, "partition-driver-contracts",
+                probe_partition_driver_contracts(bs, loaded->DeviceHandle),
+                EFI_DEVICE_ERROR, "partition-driver-contracts");
         }
     }
 
@@ -963,65 +956,67 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
         goto out;
     }
 
-    status = block->ReadBlocks(block, media->MediaId, 0, media->BlockSize,
-                               buffer);
+    status =
+        block->ReadBlocks(block, media->MediaId, 0, media->BlockSize, buffer);
     if (status == EFI_SUCCESS && media->BlockSize >= 512U &&
         get_u16(buffer + 11) == 512U && get_u16(buffer + 17) == 0 &&
         get_u16(buffer + 22) == 0 && get_u32(buffer + 36) != 0) {
         ia64_test_pass(&context, "fat32-filesystem");
     }
 
-    layout_valid = find_fat_test_region(block, media, buffer, &start_lba,
-                                        &block_count);
-    ia64_test_check(&context, "media-layout", layout_valid,
-                    EFI_DEVICE_ERROR, "fat-test-region");
+    layout_valid =
+        find_fat_test_region(block, media, buffer, &start_lba, &block_count);
+    ia64_test_check(&context, "media-layout", layout_valid, EFI_DEVICE_ERROR,
+                    "fat-test-region");
     if (!layout_valid) {
         goto out;
     }
     size = (UINTN)block_count * media->BlockSize;
-    status = block->ReadBlocks(block, media->MediaId, start_lba, size,
-                               original);
-    bulk_content_valid = status == EFI_SUCCESS &&
+    status =
+        block->ReadBlocks(block, media->MediaId, start_lba, size, original);
+    bulk_content_valid =
+        status == EFI_SUCCESS &&
         (media->ReadOnly || original_fixture_data_valid(original, size));
-    ia64_test_check(&context, "bulk-read", bulk_content_valid,
-                    status, "read-blocks");
+    ia64_test_check(&context, "bulk-read", bulk_content_valid, status,
+                    "read-blocks");
     if (status != EFI_SUCCESS) {
         goto out;
     }
 
     invalid_media_id = media->MediaId ^ 1U;
     error_contracts_valid =
-        block->ReadBlocks(block, invalid_media_id, start_lba,
-                          media->BlockSize, buffer) == EFI_MEDIA_CHANGED &&
+        block->ReadBlocks(block, invalid_media_id, start_lba, media->BlockSize,
+                          buffer) == EFI_MEDIA_CHANGED &&
         block->ReadBlocks(block, media->MediaId, media->LastBlock + 1U,
                           media->BlockSize, buffer) == EFI_INVALID_PARAMETER &&
         block->ReadBlocks(block, media->MediaId, start_lba,
                           media->BlockSize - 1U,
                           buffer) == EFI_BAD_BUFFER_SIZE &&
-        block->ReadBlocks(block, media->MediaId, start_lba,
-                          media->BlockSize, NULL) == EFI_INVALID_PARAMETER;
+        block->ReadBlocks(block, media->MediaId, start_lba, media->BlockSize,
+                          NULL) == EFI_INVALID_PARAMETER;
     if (error_contracts_valid && media->IoAlign > 1U) {
         error_contracts_valid =
             block->ReadBlocks(block, media->MediaId, start_lba,
-                              media->BlockSize, buffer + 1) ==
-                EFI_INVALID_PARAMETER;
+                              media->BlockSize,
+                              buffer + 1) == EFI_INVALID_PARAMETER;
     }
     media_bytes = (media->LastBlock + 1U) * (UINT64)media->BlockSize;
     error_contracts_valid = error_contracts_valid &&
-        disk->ReadDisk(disk, invalid_media_id, 0, 1,
-                       disk_probe) == EFI_MEDIA_CHANGED &&
-        disk->ReadDisk(disk, media->MediaId, media_bytes, 1,
-                       disk_probe) == EFI_INVALID_PARAMETER;
+                            disk->ReadDisk(disk, invalid_media_id, 0, 1,
+                                           disk_probe) == EFI_MEDIA_CHANGED &&
+                            disk->ReadDisk(disk, media->MediaId, media_bytes, 1,
+                                           disk_probe) == EFI_INVALID_PARAMETER;
     ia64_test_check(&context, "block-error-contracts", error_contracts_valid,
                     EFI_DEVICE_ERROR, "media-id-range-size-alignment");
 
     disk_offset = start_lba * (UINT64)media->BlockSize + 3U;
     status = disk->ReadDisk(disk, media->MediaId, disk_offset,
                             sizeof(disk_probe), disk_probe);
-    disk_content_valid = status == EFI_SUCCESS &&
+    disk_content_valid =
+        status == EFI_SUCCESS &&
         bytes_equal(disk_probe, original + 3U, sizeof(disk_probe));
-    ia64_test_check(&context, "disk-read", disk_content_valid,
-                    status, "read-disk-content");
+    ia64_test_check(&context, "disk-read", disk_content_valid, status,
+                    "read-disk-content");
 
     if (media->ReadOnly) {
         status = block->WriteBlocks(block, media->MediaId, start_lba, size,
@@ -1037,8 +1032,7 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
     }
     /* A failing transfer is not required to be atomic; always restore it. */
     wrote = 1;
-    status = block->WriteBlocks(block, media->MediaId, start_lba, size,
-                                buffer);
+    status = block->WriteBlocks(block, media->MediaId, start_lba, size, buffer);
     if (status != EFI_SUCCESS) {
         goto write_done;
     }
@@ -1046,8 +1040,7 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
     for (index = 0; index < size; index++) {
         buffer[index] = 0;
     }
-    status = block->ReadBlocks(block, media->MediaId, start_lba, size,
-                               buffer);
+    status = block->ReadBlocks(block, media->MediaId, start_lba, size, buffer);
     if (status != EFI_SUCCESS) {
         goto write_done;
     }
@@ -1057,8 +1050,8 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
             goto write_done;
         }
     }
-    status = block->WriteBlocks(block, media->MediaId, start_lba, size,
-                                original);
+    status =
+        block->WriteBlocks(block, media->MediaId, start_lba, size, original);
     write_detail = "restore-blocks";
     if (status == EFI_SUCCESS) {
         write_detail = "flush-restored-blocks";
@@ -1066,11 +1059,11 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
     }
     if (status == EFI_SUCCESS) {
         write_detail = "verify-restored-blocks";
-        status = block->ReadBlocks(block, media->MediaId, start_lba, size,
-                                   buffer);
+        status =
+            block->ReadBlocks(block, media->MediaId, start_lba, size, buffer);
     }
-    restore_verified = status == EFI_SUCCESS &&
-        bytes_equal(buffer, original, size);
+    restore_verified =
+        status == EFI_SUCCESS && bytes_equal(buffer, original, size);
     if (restore_verified) {
         wrote = 0;
         write_ok = 1;
@@ -1084,8 +1077,8 @@ write_done:
             restore_status = block->FlushBlocks(block);
         }
         if (restore_status == EFI_SUCCESS) {
-            restore_status = block->ReadBlocks(block, media->MediaId,
-                                               start_lba, size, buffer);
+            restore_status = block->ReadBlocks(block, media->MediaId, start_lba,
+                                               size, buffer);
         }
         if (restore_status == EFI_SUCCESS &&
             bytes_equal(buffer, original, size)) {
@@ -1094,8 +1087,8 @@ write_done:
             status = restore_status;
         }
     }
-    ia64_test_check(&context, "write-read-restore",
-                    write_ok && !wrote, status, write_detail);
+    ia64_test_check(&context, "write-read-restore", write_ok && !wrote, status,
+                    write_detail);
 
 out:
     if (buffer != NULL) {

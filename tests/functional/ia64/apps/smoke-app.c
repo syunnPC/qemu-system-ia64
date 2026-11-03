@@ -15,8 +15,7 @@ static VOID print_device_path(IA64_TEST_CONTEXT *Context, const UINT8 *Path)
     UINTN i;
 
     while (offset + 4U <= sizeof(text) / 2U) {
-        UINTN length = Path[offset + 2U] |
-            ((UINTN)Path[offset + 3U] << 8);
+        UINTN length = Path[offset + 2U] | ((UINTN)Path[offset + 3U] << 8);
         BOOLEAN end = Path[offset] == 0x7f && Path[offset + 1U] == 0xff;
 
         if (length < 4U || length > sizeof(text) / 2U - offset) {
@@ -60,24 +59,24 @@ static BOOLEAN storage_node_valid(EFI_SYSTEM_TABLE *SystemTable,
         return 0;
     }
     if (id == 0x12161077U && Node[0] == 1 && Node[1] == 5) {
-        if (Node[2] != 8 || Node[3] != 0 || Node[4] != 1 ||
-            Node[5] != 0 || Node[6] != 0 || Node[7] != 0) {
+        if (Node[2] != 8 || Node[3] != 0 || Node[4] != 1 || Node[5] != 0 ||
+            Node[6] != 0 || Node[7] != 0) {
             return 0;
         }
         Node += 8;
     }
     if (id == 0x12161077U && Node[0] == 1 && Node[1] == 4) {
         return Node[2] == 24 && Node[3] == 0 &&
-            ia64_bytes_equal(Node + 4, edd_guid, sizeof(edd_guid)) &&
-            Node[20] >= 0x80 &&
-            Node[21] == 0 && Node[22] == 0 && Node[23] == 0;
+               ia64_bytes_equal(Node + 4, edd_guid, sizeof(edd_guid)) &&
+               Node[20] >= 0x80 && Node[21] == 0 && Node[22] == 0 &&
+               Node[23] == 0;
     }
     if (Node[0] != 3) {
         return 0;
     }
     if (id == 0x76018086U || id == 0x71118086U) {
-        if (Node[1] != 1 || Node[2] != 8 || Node[3] != 0 ||
-            Node[4] > 1 || Node[5] > 1 || Node[6] != 0 || Node[7] != 0) {
+        if (Node[1] != 1 || Node[2] != 8 || Node[3] != 0 || Node[4] > 1 ||
+            Node[5] > 1 || Node[6] != 0 || Node[7] != 0) {
             return 0;
         }
         return 1;
@@ -102,8 +101,8 @@ static BOOLEAN storage_node_valid(EFI_SYSTEM_TABLE *SystemTable,
     return address != 0;
 }
 
-static VOID check_i2000_ide_dma(IA64_TEST_CONTEXT *Context,
-                                EFI_HANDLE Root, const UINT8 *Path)
+static VOID check_i2000_ide_dma(IA64_TEST_CONTEXT *Context, EFI_HANDLE Root,
+                                const UINT8 *Path)
 {
     EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL *pci = NULL;
     const UINT8 *atapi;
@@ -118,8 +117,8 @@ static VOID check_i2000_ide_dma(IA64_TEST_CONTEXT *Context,
         return;
     }
     atapi = Path + 6;
-    if (atapi[0] != 3 || atapi[1] != 1 || atapi[2] != 8 ||
-        atapi[3] != 0 || atapi[4] > 1 || atapi[5] > 1 ||
+    if (atapi[0] != 3 || atapi[1] != 1 || atapi[2] != 8 || atapi[3] != 0 ||
+        atapi[4] > 1 || atapi[5] > 1 ||
         Context->SystemTable->BootServices->HandleProtocol(
             Root, pci_root_guid, (VOID **)&pci) != EFI_SUCCESS) {
         return;
@@ -131,25 +130,24 @@ static VOID check_i2000_ide_dma(IA64_TEST_CONTEXT *Context,
     }
     drive = atapi[4] * 2U + atapi[5];
     ia64_test_check(Context, "ide-dma-config",
-        pci->Pci.Read(pci, EfiPciWidthUint8, address + 0x48, 1, &control) ==
-            EFI_SUCCESS &&
-        pci->Pci.Read(pci, EfiPciWidthUint16, address + 0x4a, 1, &timing) ==
-            EFI_SUCCESS &&
-        (control & (1U << drive)) != 0 &&
-        ((timing >> (4U * drive)) & 3U) == 2U,
-        EFI_DEVICE_ERROR, "udma-mode-2");
+                    pci->Pci.Read(pci, EfiPciWidthUint8, address + 0x48, 1,
+                                  &control) == EFI_SUCCESS &&
+                        pci->Pci.Read(pci, EfiPciWidthUint16, address + 0x4a, 1,
+                                      &timing) == EFI_SUCCESS &&
+                        (control & (1U << drive)) != 0 &&
+                        ((timing >> (4U * drive)) & 3U) == 2U,
+                    EFI_DEVICE_ERROR, "udma-mode-2");
 }
 
 static VOID check_optical_whole_media_path(IA64_TEST_CONTEXT *Context,
-                                          EFI_HANDLE ImageHandle,
-                                          EFI_HANDLE Device,
-                                          const UINT8 *Path)
+                                           EFI_HANDLE ImageHandle,
+                                           EFI_HANDLE Device, const UINT8 *Path)
 {
     static UINT8 block_guid[16] = IA64_GUID_BLOCK_IO;
     static UINT8 fs_guid[16] = IA64_GUID_SIMPLE_FILE_SYSTEM;
     static const CHAR16 child_name[] = {
         '\\', 'E', 'F', 'I', '\\', 'B', 'O', 'O', 'T', '\\',
-        'S', 'T', 'A', 'R', 'T', '.', 'E', 'F', 'I', 0,
+        'S',  'T', 'A', 'R', 'T',  '.', 'E', 'F', 'I', 0,
     };
     EFI_BOOT_SERVICES *bs = Context->SystemTable->BootServices;
     EFI_BLOCK_IO_PROTOCOL *block = NULL;
@@ -191,15 +189,16 @@ static VOID check_optical_whole_media_path(IA64_TEST_CONTEXT *Context,
     ia64_copy(alias + offset + sizeof(cdrom), Path + offset, 4);
     remaining = alias;
     status = bs->LocateDevicePath(fs_guid, &remaining, &found);
-    valid = status == EFI_SUCCESS && found == Device &&
-        remaining == alias + offset;
+    valid =
+        status == EFI_SUCCESS && found == Device && remaining == alias + offset;
     blocks++;
     ia64_copy(alias + offset + 16, &blocks, sizeof(blocks));
     remaining = alias;
     status = bs->LocateDevicePath(fs_guid, &remaining, &found);
     ia64_test_check(Context, "optical-whole-media-path",
-        valid && status == EFI_SUCCESS && found == Device &&
-        remaining == alias + offset, status, "unmatched-cdrom-node");
+                    valid && status == EFI_SUCCESS && found == Device &&
+                        remaining == alias + offset,
+                    status, "unmatched-cdrom-node");
 
     valid = file_length <= sizeof(alias) - offset - sizeof(cdrom) - 4U;
     status = EFI_INVALID_PARAMETER;
@@ -218,11 +217,12 @@ static VOID check_optical_whole_media_path(IA64_TEST_CONTEXT *Context,
         }
         valid = status == EFI_SUCCESS && image != NULL;
         if (valid) {
-            status = bs->HandleProtocol(image, loaded_image_guid,
-                                        (VOID **)&loaded);
+            status =
+                bs->HandleProtocol(image, loaded_image_guid, (VOID **)&loaded);
             valid = status == EFI_SUCCESS && loaded != NULL &&
-                loaded->DeviceHandle == Device && loaded->FilePath != NULL &&
-                ia64_bytes_equal(loaded->FilePath, file_path, file_length);
+                    loaded->DeviceHandle == Device &&
+                    loaded->FilePath != NULL &&
+                    ia64_bytes_equal(loaded->FilePath, file_path, file_length);
         }
         if (image != NULL) {
             EFI_STATUS unload_status = bs->UnloadImage(image);
@@ -272,8 +272,7 @@ static BOOLEAN low_memory_allocation_valid(EFI_SYSTEM_TABLE *SystemTable)
 
     for (i = 0; i < sizeof(reserved) / sizeof(reserved[0]); i++) {
         address = reserved[i];
-        status = bs->AllocatePages(AllocateAddress, EfiLoaderData, 1,
-                                    &address);
+        status = bs->AllocatePages(AllocateAddress, EfiLoaderData, 1, &address);
         if (status == EFI_SUCCESS) {
             (void)bs->FreePages(address, 1);
             return 0;
@@ -301,8 +300,7 @@ static BOOLEAN low_memory_allocation_valid(EFI_SYSTEM_TABLE *SystemTable)
     }
 
     address = 2U * EFI_PAGE_SIZE - 1U;
-    status = bs->AllocatePages(AllocateMaxAddress, EfiLoaderData, 1,
-                                &address);
+    status = bs->AllocatePages(AllocateMaxAddress, EfiLoaderData, 1, &address);
     if (status != EFI_SUCCESS) {
         return 0;
     }
@@ -321,9 +319,8 @@ static UINT16 console_get_u16(const UINT8 *Data)
     return Data[0] | ((UINT16)Data[1] << 8);
 }
 
-static BOOLEAN console_selection_add(CONSOLE_SELECTION *Selection,
-                                      UINT16 Index, BOOLEAN Serial,
-                                      BOOLEAN Primary)
+static BOOLEAN console_selection_add(CONSOLE_SELECTION *Selection, UINT16 Index,
+                                     BOOLEAN Serial, BOOLEAN Primary)
 {
     UINT32 bit;
 
@@ -384,8 +381,8 @@ static BOOLEAN hcdp_console_selection(EFI_SYSTEM_TABLE *SystemTable,
         const UINT8 *uart = hcdp + 40U + i * 48U;
 
         if (uart[0] == 0 &&
-            !console_selection_add(Selection, console_get_u16(uart + 42U),
-                                   1, (uart[41U] & 4U) != 0)) {
+            !console_selection_add(Selection, console_get_u16(uart + 42U), 1,
+                                   (uart[41U] & 4U) != 0)) {
             return 0;
         }
     }
@@ -402,17 +399,18 @@ static BOOLEAN hcdp_console_selection(EFI_SYSTEM_TABLE *SystemTable,
             return 0;
         }
         if (device[0] == 0x0aU &&
-            !console_selection_add(Selection, console_get_u16(device + 4U),
-                                   0, (device[1] & 1U) != 0)) {
+            !console_selection_add(Selection, console_get_u16(device + 4U), 0,
+                                   (device[1] & 1U) != 0)) {
             return 0;
         }
         offset += size;
     }
     selected = Selection->Serial | Selection->Graphics;
     return Selection->Primary != 0 &&
-        (Selection->Primary & (Selection->Primary - 1U)) == 0 &&
-        (selected & (selected + 1U)) == 0 &&
-        (!(Selection->Primary & Selection->Graphics) || Selection->Serial != 0);
+           (Selection->Primary & (Selection->Primary - 1U)) == 0 &&
+           (selected & (selected + 1U)) == 0 &&
+           (!(Selection->Primary & Selection->Graphics) ||
+            Selection->Serial != 0);
 }
 
 static BOOLEAN console_graphics_path(EFI_SYSTEM_TABLE *SystemTable, VOID *Path)
@@ -424,11 +422,12 @@ static BOOLEAN console_graphics_path(EFI_SYSTEM_TABLE *SystemTable, VOID *Path)
 
     return SystemTable->BootServices->LocateDevicePath(
                pci_io_guid, &remaining, &handle) == EFI_SUCCESS &&
-        SystemTable->BootServices->HandleProtocol(
-            handle, pci_io_guid, (VOID **)&pci) == EFI_SUCCESS &&
-        pci != NULL && ((const UINT8 *)remaining)[0] == 0x7f &&
-        pci->Pci.Read(pci, EfiPciWidthUint32, 8, 1, &class_revision) ==
-            EFI_SUCCESS && (class_revision >> 24) == 3;
+           SystemTable->BootServices->HandleProtocol(
+               handle, pci_io_guid, (VOID **)&pci) == EFI_SUCCESS &&
+           pci != NULL && ((const UINT8 *)remaining)[0] == 0x7f &&
+           pci->Pci.Read(pci, EfiPciWidthUint32, 8, 1, &class_revision) ==
+               EFI_SUCCESS &&
+           (class_revision >> 24) == 3;
 }
 
 static BOOLEAN console_variables_valid(EFI_SYSTEM_TABLE *SystemTable)
@@ -458,15 +457,16 @@ static BOOLEAN console_variables_valid(EFI_SYSTEM_TABLE *SystemTable)
         UINT32 serial_paths = 0, graphics_paths = 0;
         UINT32 attributes = 0;
         UINT32 expected = EFI_VARIABLE_BOOTSERVICE_ACCESS |
-            EFI_VARIABLE_RUNTIME_ACCESS |
-            ((i & 1U) ? 0 : EFI_VARIABLE_NON_VOLATILE);
+                          EFI_VARIABLE_RUNTIME_ACCESS |
+                          ((i & 1U) ? 0 : EFI_VARIABLE_NON_VOLATILE);
         BOOLEAN serial = 0;
         BOOLEAN keyboard = 0;
         BOOLEAN ended = 0;
 
-        if (SystemTable->RuntimeServices->GetVariable(
-                names[i], global_guid, &attributes, &size, path) !=
-                EFI_SUCCESS || attributes != expected || size > sizeof(path)) {
+        if (SystemTable->RuntimeServices->GetVariable(names[i], global_guid,
+                                                      &attributes, &size,
+                                                      path) != EFI_SUCCESS ||
+            attributes != expected || size > sizeof(path)) {
             return 0;
         }
         while (size - offset >= 4U) {
@@ -487,10 +487,9 @@ static BOOLEAN console_variables_valid(EFI_SYSTEM_TABLE *SystemTable)
                 }
                 keyboard = 1;
             }
-            if (path[offset] == 2 && path[offset + 1U] == 1 &&
-                length == 12U && path[offset + 4U] == 0xd0 &&
-                path[offset + 5U] == 0x41 && path[offset + 6U] == 0x03 &&
-                path[offset + 7U] == 0x03) {
+            if (path[offset] == 2 && path[offset + 1U] == 1 && length == 12U &&
+                path[offset + 4U] == 0xd0 && path[offset + 5U] == 0x41 &&
+                path[offset + 6U] == 0x03 && path[offset + 7U] == 0x03) {
                 keyboard = 1;
             }
             if (path[offset] == 0x7f) {
@@ -523,11 +522,9 @@ static BOOLEAN console_variables_valid(EFI_SYSTEM_TABLE *SystemTable)
                 break;
             }
         }
-        if (!ended || offset != size ||
-            ((i & 1U) && serial_paths == 0) ||
-            ((i == 2 || i == 4) &&
-             (serial_paths != selected.Serial ||
-              graphics_paths != selected.Graphics))) {
+        if (!ended || offset != size || ((i & 1U) && serial_paths == 0) ||
+            ((i == 2 || i == 4) && (serial_paths != selected.Serial ||
+                                    graphics_paths != selected.Graphics))) {
             return 0;
         }
     }
@@ -553,22 +550,22 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
     EFI_STATUS status;
 
     ia64_test_pass(&context, "entry");
-    ia64_test_check(
-        &context, "system-table",
-        SystemTable != NULL &&
-            SystemTable->Hdr.Signature == EFI_SYSTEM_TABLE_SIGNATURE &&
-            SystemTable->BootServices != NULL &&
-            SystemTable->BootServices->Hdr.Signature ==
-                EFI_BOOT_SERVICES_SIGNATURE &&
-            SystemTable->RuntimeServices != NULL &&
-            SystemTable->RuntimeServices->Hdr.Signature ==
-                EFI_RUNTIME_SERVICES_SIGNATURE &&
-            system_table_crc_valid(SystemTable),
-        EFI_DEVICE_ERROR, "signature-or-crc");
+    ia64_test_check(&context, "system-table",
+                    SystemTable != NULL &&
+                        SystemTable->Hdr.Signature ==
+                            EFI_SYSTEM_TABLE_SIGNATURE &&
+                        SystemTable->BootServices != NULL &&
+                        SystemTable->BootServices->Hdr.Signature ==
+                            EFI_BOOT_SERVICES_SIGNATURE &&
+                        SystemTable->RuntimeServices != NULL &&
+                        SystemTable->RuntimeServices->Hdr.Signature ==
+                            EFI_RUNTIME_SERVICES_SIGNATURE &&
+                        system_table_crc_valid(SystemTable),
+                    EFI_DEVICE_ERROR, "signature-or-crc");
 
     ia64_test_check(&context, "low-memory-allocation",
-                    low_memory_allocation_valid(SystemTable),
-                    EFI_DEVICE_ERROR, "low-page-or-reserved-memory");
+                    low_memory_allocation_valid(SystemTable), EFI_DEVICE_ERROR,
+                    "low-page-or-reserved-memory");
 
     status = SystemTable->BootServices->HandleProtocol(
         ImageHandle, loaded_image_guid, (VOID **)&loaded);
@@ -585,8 +582,8 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
         status = EFI_NOT_FOUND;
     }
     ia64_test_check(&context, "device-path",
-                    status == EFI_SUCCESS && device_path != NULL,
-                    status, "device-path-protocol");
+                    status == EFI_SUCCESS && device_path != NULL, status,
+                    "device-path-protocol");
     if (status == EFI_SUCCESS && device_path != NULL) {
         print_device_path(&context, device_path);
         check_optical_whole_media_path(&context, ImageHandle,
@@ -601,13 +598,12 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
     } else {
         status = EFI_NOT_FOUND;
     }
-    ia64_test_check(
-        &context, "root-device-path",
-        status == EFI_SUCCESS && root_handle != NULL &&
-            remaining != NULL && remaining != device_path &&
-            ((UINT8 *)remaining)[0] == 0x01 &&
-            ((UINT8 *)remaining)[1] == 0x01,
-        status, "pci-root-prefix");
+    ia64_test_check(&context, "root-device-path",
+                    status == EFI_SUCCESS && root_handle != NULL &&
+                        remaining != NULL && remaining != device_path &&
+                        ((UINT8 *)remaining)[0] == 0x01 &&
+                        ((UINT8 *)remaining)[1] == 0x01,
+                    status, "pci-root-prefix");
     if (status == EFI_SUCCESS) {
         check_i2000_ide_dma(&context, root_handle, remaining);
     }
@@ -618,13 +614,12 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
         status = SystemTable->BootServices->LocateDevicePath(
             pci_io_guid, &remaining, &controller_handle);
         if (status == EFI_SUCCESS) {
-            ia64_test_check(
-                &context, "controller-device-path",
-                controller_handle != NULL && remaining != NULL &&
-                    remaining != device_path &&
-                    storage_node_valid(SystemTable, controller_handle,
-                                        remaining),
-                status, "pci-controller-prefix");
+            ia64_test_check(&context, "controller-device-path",
+                            controller_handle != NULL && remaining != NULL &&
+                                remaining != device_path &&
+                                storage_node_valid(
+                                    SystemTable, controller_handle, remaining),
+                            status, "pci-controller-prefix");
         }
     }
 
@@ -632,14 +627,14 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
                     SystemTable != NULL && SystemTable->ConOut != NULL &&
                         SystemTable->ConOut->OutputString != NULL &&
                         SystemTable->ConOut->QueryMode != NULL &&
-                        SystemTable->ConOut->QueryMode(
-                            SystemTable->ConOut, 0, &columns, &rows) ==
-                            EFI_SUCCESS &&
+                        SystemTable->ConOut->QueryMode(SystemTable->ConOut, 0,
+                                                       &columns,
+                                                       &rows) == EFI_SUCCESS &&
                         columns == 80 && rows == 25,
                     EFI_DEVICE_ERROR, "conout-geometry");
     ia64_test_check(&context, "console-variables",
-                    console_variables_valid(SystemTable),
-                    EFI_DEVICE_ERROR, "console-device-paths");
+                    console_variables_valid(SystemTable), EFI_DEVICE_ERROR,
+                    "console-device-paths");
     ia64_test_done(&context);
     return context.Failed == 0 ? EFI_SUCCESS : EFI_DEVICE_ERROR;
 }

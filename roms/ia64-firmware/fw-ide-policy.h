@@ -47,14 +47,14 @@ static inline UINT64 fw_ata_command_max_lba(BOOLEAN Lba48)
 static inline UINT64 fw_ata_clamp_identify_sector_count(UINT64 Sectors,
                                                         BOOLEAN Lba48)
 {
-    UINT64 maximum = Lba48 ? FW_ATA_IDENTIFY_LBA48_MAX_SECTORS :
-                             FW_ATA_IDENTIFY_LBA28_MAX_SECTORS;
+    UINT64 maximum = Lba48 ? FW_ATA_IDENTIFY_LBA48_MAX_SECTORS
+                           : FW_ATA_IDENTIFY_LBA28_MAX_SECTORS;
 
     return Sectors < maximum ? Sectors : maximum;
 }
 
 static inline BOOLEAN fw_ide_i2000_select_udma(const UINT16 *Identify,
-                                                UINT8 *Mode)
+                                               UINT8 *Mode)
 {
     UINT16 supported;
 
@@ -67,7 +67,7 @@ static inline BOOLEAN fw_ide_i2000_select_udma(const UINT16 *Identify,
     }
 
     supported = Identify[FW_ATA_IDENTIFY_UDMA_WORD] &
-        ((1U << (FW_IDE_I2000_MAX_UDMA_MODE + 1U)) - 1U);
+                ((1U << (FW_IDE_I2000_MAX_UDMA_MODE + 1U)) - 1U);
     if ((supported & (1U << 2)) != 0) {
         *Mode = 2;
     } else if ((supported & (1U << 1)) != 0) {
@@ -85,16 +85,15 @@ static inline BOOLEAN fw_ide_policy_port_range_valid(UINT16 Port, UINT8 Size)
     return Size != 0 && (UINT32)Port + Size <= 0x10000U;
 }
 
-static inline BOOLEAN fw_i2000_ide_policy_init(
-    const IA64PlatformI2000Profile *Profile, FW_IDE_POLICY *Policy)
+static inline BOOLEAN
+fw_i2000_ide_policy_init(const IA64PlatformI2000Profile *Profile,
+                         FW_IDE_POLICY *Policy)
 {
     FW_IDE_POLICY result = { 0 };
 
     if (Profile == NULL || Policy == NULL ||
-        Profile->ProfileType !=
-            IA64_PLATFORM_PROFILE_TYPE_HP_I2000 ||
-        Profile->ProfileRevision !=
-            IA64_PLATFORM_I2000_PROFILE_REVISION ||
+        Profile->ProfileType != IA64_PLATFORM_PROFILE_TYPE_HP_I2000 ||
+        Profile->ProfileRevision != IA64_PLATFORM_I2000_PROFILE_REVISION ||
         Profile->Length != sizeof(*Profile) ||
         Profile->Flags != IA64_I2000_PROFILE_REQUIRED_FLAGS ||
         Profile->IdeSegment != IA64_I2000_PROFILE_IDE_SEGMENT ||
@@ -110,8 +109,8 @@ static inline BOOLEAN fw_i2000_ide_policy_init(
         Profile->IdeControlPort != IA64_I2000_PROFILE_IDE_CONTROL_PORT ||
         Profile->IdeControlSize != IA64_I2000_PROFILE_IDE_CONTROL_SIZE ||
         Profile->IdeIrq != IA64_I2000_PROFILE_IDE_IRQ ||
-        Profile->IdeUnitMask == 0 ||
-        Profile->IdeDevice >= 32U || Profile->IdeFunction >= 8U ||
+        Profile->IdeUnitMask == 0 || Profile->IdeDevice >= 32U ||
+        Profile->IdeFunction >= 8U ||
         !fw_ide_policy_port_range_valid(Profile->IdeCommandPort,
                                         Profile->IdeCommandSize) ||
         !fw_ide_policy_port_range_valid(Profile->IdeControlPort,
@@ -138,24 +137,25 @@ static inline BOOLEAN fw_i2000_ide_policy_init(
     return 1;
 }
 
-static inline BOOLEAN fw_ide_policy_pci_identity_matches(
-    const FW_IDE_POLICY *Policy, UINT32 VendorDevice, UINT32 ClassRevision)
+static inline BOOLEAN
+fw_ide_policy_pci_identity_matches(const FW_IDE_POLICY *Policy,
+                                   UINT32 VendorDevice, UINT32 ClassRevision)
 {
     if (Policy == NULL) {
         return 0;
     }
 
     return (UINT16)VendorDevice == Policy->VendorId &&
-        (UINT16)(VendorDevice >> 16) == Policy->DeviceId &&
-        (UINT16)(ClassRevision >> 16) == Policy->Class &&
-        (UINT8)(ClassRevision >> 8) == Policy->ProgIf;
+           (UINT16)(VendorDevice >> 16) == Policy->DeviceId &&
+           (UINT16)(ClassRevision >> 16) == Policy->Class &&
+           (UINT8)(ClassRevision >> 8) == Policy->ProgIf;
 }
 
-static inline BOOLEAN fw_ide_policy_unit_enabled(
-    const FW_IDE_POLICY *Policy, UINTN Unit)
+static inline BOOLEAN fw_ide_policy_unit_enabled(const FW_IDE_POLICY *Policy,
+                                                 UINTN Unit)
 {
     return Policy != NULL && Unit < 2U &&
-        (Policy->UnitMask & (1U << Unit)) != 0;
+           (Policy->UnitMask & (1U << Unit)) != 0;
 }
 
 #endif /* IA64_FIRMWARE_FW_IDE_POLICY_H */

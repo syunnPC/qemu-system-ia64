@@ -50,8 +50,7 @@ uint32_t intel_460gx_host_core_address_read(const Intel460GXHostCore *core,
 void intel_460gx_host_core_address_write(Intel460GXHostCore *core,
                                          uint32_t value, unsigned size);
 uint32_t intel_460gx_host_core_data_read(Intel460GXHostCore *core,
-                                         unsigned data_offset,
-                                         unsigned size);
+                                         unsigned data_offset, unsigned size);
 void intel_460gx_host_core_data_write(Intel460GXHostCore *core,
                                       unsigned data_offset, uint32_t value,
                                       unsigned size);
@@ -63,18 +62,20 @@ bool intel_460gx_host_core_register_chipset(
     Intel460GXHostCore *core, unsigned device, unsigned function,
     const Intel460GXConfigTargetOps *ops, void *opaque, Error **errp);
 bool intel_460gx_host_core_apply_decoded_update(
-    Intel460GXHostCore *core,
-    const Intel460GXDecodedStateUpdate *update, Error **errp);
+    Intel460GXHostCore *core, const Intel460GXDecodedStateUpdate *update,
+    Error **errp);
 bool intel_460gx_host_core_set_present(Intel460GXHostCore *core,
                                        unsigned device, bool present,
                                        Error **errp);
-bool intel_460gx_host_core_attach_downstream(
-    Intel460GXHostCore *core, unsigned port, PCIBus *bus,
-    uint8_t first_bus, uint8_t last_bus, Error **errp);
-bool intel_460gx_host_core_set_downstream_range(
-    Intel460GXHostCore *core, unsigned port,
-    uint8_t first_bus, uint8_t last_bus, Error **errp);
-bool intel_460gx_host_core_validate_downstream(
-    const Intel460GXHostCore *core, Error **errp);
+bool intel_460gx_host_core_attach_downstream(Intel460GXHostCore *core,
+                                             unsigned port, PCIBus *bus,
+                                             uint8_t first_bus,
+                                             uint8_t last_bus, Error **errp);
+bool intel_460gx_host_core_set_downstream_range(Intel460GXHostCore *core,
+                                                unsigned port,
+                                                uint8_t first_bus,
+                                                uint8_t last_bus, Error **errp);
+bool intel_460gx_host_core_validate_downstream(const Intel460GXHostCore *core,
+                                               Error **errp);
 
 #endif

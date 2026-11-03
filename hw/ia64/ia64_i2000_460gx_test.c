@@ -72,15 +72,14 @@ typedef struct IA64I2000460GXQTestState {
 static bool fixture_system_range_is_free(uint64_t base, uint64_t size,
                                          const char *name, Error **errp)
 {
-    MemoryRegionSection section = memory_region_find(get_system_memory(),
-                                                      base, size);
+    MemoryRegionSection section =
+        memory_region_find(get_system_memory(), base, size);
 
     if (!section.mr) {
         return true;
     }
 
-    error_setg(errp,
-               "i2000 460GX test %s range overlaps system region '%s'",
+    error_setg(errp, "i2000 460GX test %s range overlaps system region '%s'",
                name, memory_region_name(section.mr));
     memory_region_unref(section.mr);
     return false;
@@ -90,8 +89,8 @@ static bool fixture_system_range_is_ram(IA64I2000460GXTestState *s,
                                         uint64_t base, uint64_t size,
                                         Error **errp)
 {
-    MemoryRegionSection section = memory_region_find(get_system_memory(),
-                                                      base, size);
+    MemoryRegionSection section =
+        memory_region_find(get_system_memory(), base, size);
     bool valid;
 
     valid = section.mr == s->ram &&
@@ -114,10 +113,9 @@ static bool fixture_system_range_is_ram(IA64I2000460GXTestState *s,
 static bool fixture_system_pib_is_present(uint64_t base, uint64_t size,
                                           Error **errp)
 {
-    MemoryRegionSection section = memory_region_find(get_system_memory(),
-                                                      base, size);
-    bool valid = section.mr &&
-                 section.offset_within_address_space == base &&
+    MemoryRegionSection section =
+        memory_region_find(get_system_memory(), base, size);
+    bool valid = section.mr && section.offset_within_address_space == base &&
                  int128_get64(section.size) == size &&
                  !memory_region_is_ram(section.mr) &&
                  !memory_region_is_ram_device(section.mr) &&
@@ -146,20 +144,17 @@ static bool fixture_validate_parent_resources(IA64I2000460GXTestState *s,
                    IA64_I2000_460GX_TEST_PROP_RAM);
         return false;
     }
-    if (!memory_region_is_ram(s->ram) ||
-        memory_region_is_ram_device(s->ram) ||
-        memory_region_is_rom(s->ram) ||
-        memory_region_is_protected(s->ram) ||
+    if (!memory_region_is_ram(s->ram) || memory_region_is_ram_device(s->ram) ||
+        memory_region_is_rom(s->ram) || memory_region_is_protected(s->ram) ||
         memory_region_size(s->ram) != s->layout.ram.size) {
-        error_setg(errp,
-                   "i2000 460GX test requires exactly 2 GiB of ordinary "
-                   "writable RAM");
+        error_setg(errp, "i2000 460GX test requires exactly 2 GiB of ordinary "
+                         "writable RAM");
         return false;
     }
-    if (!fixture_system_range_is_ram(s, s->layout.ram.base,
-                                     s->layout.ram.size, errp) ||
-        !fixture_system_pib_is_present(s->layout.pib.base,
-                                       s->layout.pib.size, errp) ||
+    if (!fixture_system_range_is_ram(s, s->layout.ram.base, s->layout.ram.size,
+                                     errp) ||
+        !fixture_system_pib_is_present(s->layout.pib.base, s->layout.pib.size,
+                                       errp) ||
         !fixture_system_range_is_free(s->layout.pid_envelope.base,
                                       s->layout.pid_envelope.size,
                                       "PID envelope", errp) ||
@@ -172,9 +167,9 @@ static bool fixture_validate_parent_resources(IA64I2000460GXTestState *s,
     for (i = 0; i < IA64_I2000_460GX_TEST_ROOT_COUNT; i++) {
         g_autofree char *name = g_strdup_printf("root %u MMIO32", i);
 
-        if (!fixture_system_range_is_free(
-                s->layout.roots[i].cpu_mmio32_base,
-                s->layout.roots[i].mmio32_size, name, errp)) {
+        if (!fixture_system_range_is_free(s->layout.roots[i].cpu_mmio32_base,
+                                          s->layout.roots[i].mmio32_size, name,
+                                          errp)) {
             return false;
         }
     }
@@ -272,8 +267,7 @@ static MemTxResult fixture_sparse_io_read(void *opaque, hwaddr addr,
         port < IA64_I2000_460GX_TEST_CFC_PORT + 4 &&
         size <= IA64_I2000_460GX_TEST_CFC_PORT + 4 - port) {
         return fixture_address_space_read(&s->host_data_as,
-                                          port -
-                                          IA64_I2000_460GX_TEST_CFC_PORT,
+                                          port - IA64_I2000_460GX_TEST_CFC_PORT,
                                           value, size, attrs);
     }
 
@@ -307,15 +301,14 @@ static MemTxResult fixture_sparse_io_write(void *opaque, hwaddr addr,
     if (port >= IA64_I2000_460GX_TEST_CFC_PORT &&
         port < IA64_I2000_460GX_TEST_CFC_PORT + 4 &&
         size <= IA64_I2000_460GX_TEST_CFC_PORT + 4 - port) {
-        return fixture_address_space_write(&s->host_data_as,
-                                           port -
-                                           IA64_I2000_460GX_TEST_CFC_PORT,
-                                           value, size, attrs);
+        return fixture_address_space_write(
+            &s->host_data_as, port - IA64_I2000_460GX_TEST_CFC_PORT, value,
+            size, attrs);
     }
 
     as = fixture_root_io_for_port(s, port, size);
-    return as ? fixture_address_space_write(as, port, value, size, attrs) :
-                MEMTX_DECODE_ERROR;
+    return as ? fixture_address_space_write(as, port, value, size, attrs)
+              : MEMTX_DECODE_ERROR;
 }
 
 static const MemoryRegionOps fixture_sparse_io_ops = {
@@ -335,7 +328,7 @@ static const MemoryRegionOps fixture_sparse_io_ops = {
 };
 
 static uint64_t fixture_subword_cf8_read(void *opaque, hwaddr addr,
-                                        unsigned size)
+                                         unsigned size)
 {
     IA64I2000460GXTestState *s = opaque;
     uint64_t value = 0;
@@ -347,8 +340,8 @@ static uint64_t fixture_subword_cf8_read(void *opaque, hwaddr addr,
     return value;
 }
 
-static void fixture_subword_cf8_write(void *opaque, hwaddr addr,
-                                     uint64_t value, unsigned size)
+static void fixture_subword_cf8_write(void *opaque, hwaddr addr, uint64_t value,
+                                      unsigned size)
 {
     IA64I2000460GXTestState *s = opaque;
     unsigned i;
@@ -359,8 +352,8 @@ static void fixture_subword_cf8_write(void *opaque, hwaddr addr,
 }
 
 static bool fixture_subword_cf8_accepts(void *opaque, hwaddr addr,
-                                       unsigned size, bool is_write,
-                                       MemTxAttrs attrs)
+                                        unsigned size, bool is_write,
+                                        MemTxAttrs attrs)
 {
     (void)opaque;
     (void)is_write;
@@ -421,8 +414,7 @@ static void fixture_unmap_system(IA64I2000460GXTestState *s)
         memory_region_del_subregion(get_system_memory(), &s->root_mmio[i]);
     }
     memory_region_del_subregion(
-        get_system_memory(),
-        sysbus_mmio_get_region(SYS_BUS_DEVICE(s->pid), 0));
+        get_system_memory(), sysbus_mmio_get_region(SYS_BUS_DEVICE(s->pid), 0));
     memory_region_transaction_commit();
     s->system_regions_mapped = false;
 }
@@ -454,8 +446,7 @@ static void fixture_destroy_spaces(IA64I2000460GXTestState *s)
 
     if (s->subword_cf8_mapped) {
         memory_region_del_subregion(
-            intel_460gx_root_host_io(
-                s->roots[s->layout.cf8_io_root]),
+            intel_460gx_root_host_io(s->roots[s->layout.cf8_io_root]),
             &s->subword_cf8_io);
         s->subword_cf8_mapped = false;
     }
@@ -517,7 +508,7 @@ static bool fixture_create_host_and_pid(IA64I2000460GXTestState *s,
     s->host = INTEL_460GX_HOST(child);
     qdev_prop_set_uint16(child, "x-initial-cbn", s->layout.cbn);
     qdev_prop_set_uint32(child, "x-initial-chipset-present",
-                        s->layout.chipset_present);
+                         s->layout.chipset_present);
     if (!sysbus_realize(SYS_BUS_DEVICE(child), errp)) {
         return false;
     }
@@ -525,9 +516,8 @@ static bool fixture_create_host_and_pid(IA64I2000460GXTestState *s,
     child = fixture_add_child(DEVICE(s), "pid", TYPE_INTEL_460GX_PID);
     s->pid = INTEL_460GX_PID(child);
     qdev_prop_set_uint8(child, INTEL_460GX_PID_PROP_INITIAL_ID,
-                       s->layout.pid_id);
-    qdev_prop_set_uint32(child, INTEL_460GX_PID_PROP_LEGACY_PIN,
-                        s->legacy_pin);
+                        s->layout.pid_id);
+    qdev_prop_set_uint32(child, INTEL_460GX_PID_PROP_LEGACY_PIN, s->legacy_pin);
     return sysbus_realize(SYS_BUS_DEVICE(child), errp);
 }
 
@@ -536,44 +526,44 @@ static bool fixture_create_root(IA64I2000460GXTestState *s, unsigned index,
 {
     const IA64I2000460GXTestRoot *layout_root = &s->layout.roots[index];
     g_autofree char *child_name = g_strdup_printf("root%u", index);
-    g_autofree char *io_name = g_strdup_printf(
-        TYPE_IA64_I2000_460GX_TEST ".root%u-io", index);
-    g_autofree char *mmio_name = g_strdup_printf(
-        TYPE_IA64_I2000_460GX_TEST ".root%u-mmio32", index);
+    g_autofree char *io_name =
+        g_strdup_printf(TYPE_IA64_I2000_460GX_TEST ".root%u-io", index);
+    g_autofree char *mmio_name =
+        g_strdup_printf(TYPE_IA64_I2000_460GX_TEST ".root%u-mmio32", index);
     DeviceState *child;
     PCIBus *bus;
     unsigned pin;
 
-    child = fixture_add_child(DEVICE(s), child_name,
-                              TYPE_INTEL_460GX_ROOT_HOST);
+    child =
+        fixture_add_child(DEVICE(s), child_name, TYPE_INTEL_460GX_ROOT_HOST);
     s->roots[index] = INTEL_460GX_ROOT_HOST(child);
     qdev_prop_set_uint16(child, INTEL_460GX_ROOT_PROP_FIRST_BUS,
-                        layout_root->first_bus);
+                         layout_root->first_bus);
     if (!sysbus_realize(SYS_BUS_DEVICE(child), errp)) {
         return false;
     }
     bus = intel_460gx_root_host_bus(s->roots[index]);
-    if (!intel_460gx_host_attach_downstream_bus(
-            s->host, layout_root->host_port, bus,
-            layout_root->first_bus, layout_root->last_bus, errp)) {
+    if (!intel_460gx_host_attach_downstream_bus(s->host, layout_root->host_port,
+                                                bus, layout_root->first_bus,
+                                                layout_root->last_bus, errp)) {
         return false;
     }
 
     address_space_init(&s->root_io_as[index],
                        intel_460gx_root_host_io(s->roots[index]), io_name);
     s->root_io_initialized[index] = true;
-    memory_region_init_alias(
-        &s->root_mmio[index], OBJECT(s), mmio_name,
-        intel_460gx_root_host_mem(s->roots[index]),
-        layout_root->pci_mmio32_base, layout_root->mmio32_size);
+    memory_region_init_alias(&s->root_mmio[index], OBJECT(s), mmio_name,
+                             intel_460gx_root_host_mem(s->roots[index]),
+                             layout_root->pci_mmio32_base,
+                             layout_root->mmio32_size);
     s->root_mmio_initialized[index] = true;
 
-    s->dma[index] = intel_460gx_dma_new(layout_root->dma_base,
-                                        layout_root->dma_size, errp);
+    s->dma[index] =
+        intel_460gx_dma_new(layout_root->dma_base, layout_root->dma_size, errp);
     if (!s->dma[index] ||
-        !intel_460gx_dma_add_ram_alias(
-            s->dma[index], layout_root->dma_base, layout_root->dma_size,
-            s->ram, layout_root->dma_target_offset, errp) ||
+        !intel_460gx_dma_add_ram_alias(s->dma[index], layout_root->dma_base,
+                                       layout_root->dma_size, s->ram,
+                                       layout_root->dma_target_offset, errp) ||
         !intel_460gx_dma_seal(s->dma[index], errp) ||
         !intel_460gx_dma_attach_root(s->dma[index], bus, errp)) {
         return false;
@@ -582,8 +572,7 @@ static bool fixture_create_root(IA64I2000460GXTestState *s, unsigned index,
     for (pin = 0; pin < IA64_I2000_460GX_TEST_PCI_INTX_COUNT; pin++) {
         qdev_connect_gpio_out_named(
             child, INTEL_460GX_ROOT_GPIO_INTX, pin,
-            qdev_get_gpio_in_named(DEVICE(s->pid),
-                                   INTEL_460GX_PID_GPIO_IRQ,
+            qdev_get_gpio_in_named(DEVICE(s->pid), INTEL_460GX_PID_GPIO_IRQ,
                                    layout_root->intx_base + pin));
     }
     return true;
@@ -616,8 +605,7 @@ static void fixture_realize(DeviceState *dev, Error **errp)
 
     if (s->legacy_pin != IA64_I2000_460GX_TEST_LEGACY_PIN_DISCONNECTED &&
         s->legacy_pin >= s->layout.legacy_pin_count) {
-        error_setg(errp,
-                   "%s must be 0..%u or %u (disconnected)",
+        error_setg(errp, "%s must be 0..%u or %u (disconnected)",
                    IA64_I2000_460GX_TEST_PROP_LEGACY_PIN,
                    s->layout.legacy_pin_count - 1,
                    IA64_I2000_460GX_TEST_LEGACY_PIN_DISCONNECTED);
@@ -630,11 +618,9 @@ static void fixture_realize(DeviceState *dev, Error **errp)
         goto fail;
     }
 
-    address_space_init(&s->host_conf_as,
-                       intel_460gx_host_conf_region(s->host),
+    address_space_init(&s->host_conf_as, intel_460gx_host_conf_region(s->host),
                        TYPE_IA64_I2000_460GX_TEST ".host-conf");
-    address_space_init(&s->host_data_as,
-                       intel_460gx_host_data_region(s->host),
+    address_space_init(&s->host_data_as, intel_460gx_host_data_region(s->host),
                        TYPE_IA64_I2000_460GX_TEST ".host-data");
     s->host_spaces_initialized = true;
 
@@ -649,8 +635,7 @@ static void fixture_realize(DeviceState *dev, Error **errp)
      * host latch.
      */
     memory_region_add_subregion(
-        intel_460gx_root_host_io(
-            s->roots[s->layout.cf8_io_root]),
+        intel_460gx_root_host_io(s->roots[s->layout.cf8_io_root]),
         IA64_I2000_460GX_TEST_CF8_PORT, &s->subword_cf8_io);
     s->subword_cf8_mapped = true;
 
@@ -671,18 +656,17 @@ static bool fixture_descriptor_installed(Object *obj, Error **errp)
 {
     IA64I2000460GXTestState *s = IA64_I2000_460GX_TEST(obj);
     const IA64I2000460GXTestRange *range = &s->layout.descriptor_rom;
-    MemoryRegionSection section = memory_region_find(get_system_memory(),
-                                                      range->base,
-                                                      range->size);
+    MemoryRegionSection section =
+        memory_region_find(get_system_memory(), range->base, range->size);
     bool installed;
 
     (void)errp;
-    installed = section.mr != s->ram ||
-                section.offset_within_address_space != range->base ||
-                int128_get64(section.size) != range->size ||
-                section.offset_within_region !=
-                    range->base - s->layout.ram.base ||
-                section.readonly;
+    installed =
+        section.mr != s->ram ||
+        section.offset_within_address_space != range->base ||
+        int128_get64(section.size) != range->size ||
+        section.offset_within_region != range->base - s->layout.ram.base ||
+        section.readonly;
     if (section.mr) {
         memory_region_unref(section.mr);
     }
@@ -702,8 +686,7 @@ static void fixture_init(Object *obj)
     IA64I2000460GXTestState *s = IA64_I2000_460GX_TEST(obj);
 
     ia64_i2000_460gx_test_layout_init(&s->layout);
-    memory_region_init_io(&s->subword_cf8_io, obj,
-                          &fixture_subword_cf8_ops, s,
+    memory_region_init_io(&s->subword_cf8_io, obj, &fixture_subword_cf8_ops, s,
                           TYPE_IA64_I2000_460GX_TEST ".subword-cf8", 4);
     memory_region_init_io(&s->sparse_io, obj, &fixture_sparse_io_ops, s,
                           TYPE_IA64_I2000_460GX_TEST ".sparse-io",
@@ -711,98 +694,92 @@ static void fixture_init(Object *obj)
     /* This bridge only forwards to independent host/root address spaces. */
     s->sparse_io.disable_reentrancy_guard = true;
     object_property_add_uint64_ptr(obj,
-        IA64_I2000_460GX_TEST_CF8_SUBDWORD_COUNT,
-        &s->cf8_subdword_count, OBJ_PROP_FLAG_READ);
-    object_property_add_bool(obj,
-        IA64_I2000_460GX_TEST_DESCRIPTOR_INSTALLED,
-        fixture_descriptor_installed, NULL);
+                                   IA64_I2000_460GX_TEST_CF8_SUBDWORD_COUNT,
+                                   &s->cf8_subdword_count, OBJ_PROP_FLAG_READ);
+    object_property_add_bool(obj, IA64_I2000_460GX_TEST_DESCRIPTOR_INSTALLED,
+                             fixture_descriptor_installed, NULL);
 }
 
 static const VMStateDescription vmstate_fixture_root_layout = {
     .name = TYPE_IA64_I2000_460GX_TEST "/root-layout",
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (const VMStateField[]) {
-        VMSTATE_UINT16_EQUAL(segment, IA64I2000460GXTestRoot),
-        VMSTATE_UINT8_EQUAL(config_mechanism, IA64I2000460GXTestRoot),
-        VMSTATE_UINT8_EQUAL(first_bus, IA64I2000460GXTestRoot),
-        VMSTATE_UINT8_EQUAL(last_bus, IA64I2000460GXTestRoot),
-        VMSTATE_UINT8_EQUAL(host_port, IA64I2000460GXTestRoot),
-        VMSTATE_UINT8_EQUAL(intx_base, IA64I2000460GXTestRoot),
-        VMSTATE_UINT32_EQUAL(io_base, IA64I2000460GXTestRoot),
-        VMSTATE_UINT32_EQUAL(io_size, IA64I2000460GXTestRoot),
-        VMSTATE_UINT64_EQUAL(pci_mmio32_base, IA64I2000460GXTestRoot),
-        VMSTATE_UINT64_EQUAL(cpu_mmio32_base, IA64I2000460GXTestRoot),
-        VMSTATE_UINT64_EQUAL(mmio32_size, IA64I2000460GXTestRoot),
-        VMSTATE_UINT64_EQUAL(mmio64_base, IA64I2000460GXTestRoot),
-        VMSTATE_UINT64_EQUAL(mmio64_size, IA64I2000460GXTestRoot),
-        VMSTATE_UINT64_EQUAL(dma_base, IA64I2000460GXTestRoot),
-        VMSTATE_UINT64_EQUAL(dma_size, IA64I2000460GXTestRoot),
-        VMSTATE_UINT64_EQUAL(dma_target_offset, IA64I2000460GXTestRoot),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) {
+            VMSTATE_UINT16_EQUAL(segment, IA64I2000460GXTestRoot),
+            VMSTATE_UINT8_EQUAL(config_mechanism, IA64I2000460GXTestRoot),
+            VMSTATE_UINT8_EQUAL(first_bus, IA64I2000460GXTestRoot),
+            VMSTATE_UINT8_EQUAL(last_bus, IA64I2000460GXTestRoot),
+            VMSTATE_UINT8_EQUAL(host_port, IA64I2000460GXTestRoot),
+            VMSTATE_UINT8_EQUAL(intx_base, IA64I2000460GXTestRoot),
+            VMSTATE_UINT32_EQUAL(io_base, IA64I2000460GXTestRoot),
+            VMSTATE_UINT32_EQUAL(io_size, IA64I2000460GXTestRoot),
+            VMSTATE_UINT64_EQUAL(pci_mmio32_base, IA64I2000460GXTestRoot),
+            VMSTATE_UINT64_EQUAL(cpu_mmio32_base, IA64I2000460GXTestRoot),
+            VMSTATE_UINT64_EQUAL(mmio32_size, IA64I2000460GXTestRoot),
+            VMSTATE_UINT64_EQUAL(mmio64_base, IA64I2000460GXTestRoot),
+            VMSTATE_UINT64_EQUAL(mmio64_size, IA64I2000460GXTestRoot),
+            VMSTATE_UINT64_EQUAL(dma_base, IA64I2000460GXTestRoot),
+            VMSTATE_UINT64_EQUAL(dma_size, IA64I2000460GXTestRoot),
+            VMSTATE_UINT64_EQUAL(dma_target_offset, IA64I2000460GXTestRoot),
+            VMSTATE_END_OF_LIST() },
 };
 
 static const VMStateDescription vmstate_fixture = {
     .name = TYPE_IA64_I2000_460GX_TEST,
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (const VMStateField[]) {
-        /* Fixed layout fields must match at the destination. */
-        VMSTATE_UINT64_EQUAL(layout.ram.base, IA64I2000460GXTestState),
-        VMSTATE_UINT64_EQUAL(layout.ram.size, IA64I2000460GXTestState),
-        VMSTATE_UINT64_EQUAL(layout.firmware.base,
-                             IA64I2000460GXTestState),
-        VMSTATE_UINT64_EQUAL(layout.firmware.size,
-                             IA64I2000460GXTestState),
-        VMSTATE_UINT64_EQUAL(layout.descriptor_rom.base,
-                             IA64I2000460GXTestState),
-        VMSTATE_UINT64_EQUAL(layout.descriptor_rom.size,
-                             IA64I2000460GXTestState),
-        VMSTATE_UINT64_EQUAL(layout.descriptor_envelope.base,
-                             IA64I2000460GXTestState),
-        VMSTATE_UINT64_EQUAL(layout.descriptor_envelope.size,
-                             IA64I2000460GXTestState),
-        VMSTATE_UINT64_EQUAL(layout.pid_decode.base,
-                             IA64I2000460GXTestState),
-        VMSTATE_UINT64_EQUAL(layout.pid_decode.size,
-                             IA64I2000460GXTestState),
-        VMSTATE_UINT64_EQUAL(layout.pid_envelope.base,
-                             IA64I2000460GXTestState),
-        VMSTATE_UINT64_EQUAL(layout.pid_envelope.size,
-                             IA64I2000460GXTestState),
-        VMSTATE_UINT64_EQUAL(layout.pib.base, IA64I2000460GXTestState),
-        VMSTATE_UINT64_EQUAL(layout.pib.size, IA64I2000460GXTestState),
-        VMSTATE_UINT64_EQUAL(layout.legacy_io.base,
-                             IA64I2000460GXTestState),
-        VMSTATE_UINT64_EQUAL(layout.legacy_io.size,
-                             IA64I2000460GXTestState),
-        VMSTATE_UINT64_EQUAL(layout.cf8_pa, IA64I2000460GXTestState),
-        VMSTATE_UINT64_EQUAL(layout.cfc_pa, IA64I2000460GXTestState),
-        VMSTATE_UINT32_EQUAL(layout.chipset_present,
-                             IA64I2000460GXTestState),
-        VMSTATE_UINT8_EQUAL(layout.cbn, IA64I2000460GXTestState),
-        VMSTATE_UINT8_EQUAL(layout.pid_id, IA64I2000460GXTestState),
-        VMSTATE_UINT8_EQUAL(layout.pid_pin_count,
-                            IA64I2000460GXTestState),
-        VMSTATE_UINT8_EQUAL(layout.legacy_pin_count,
-                            IA64I2000460GXTestState),
-        VMSTATE_UINT8_EQUAL(layout.cf8_io_root,
-                            IA64I2000460GXTestState),
-        VMSTATE_UINT32_EQUAL(legacy_pin, IA64I2000460GXTestState),
-        VMSTATE_UINT8_ARRAY(subword_cf8_bytes, IA64I2000460GXTestState, 4),
-        VMSTATE_STRUCT_ARRAY(layout.roots, IA64I2000460GXTestState,
-                             IA64_I2000_460GX_TEST_ROOT_COUNT, 1,
-                             vmstate_fixture_root_layout,
-                             IA64I2000460GXTestRoot),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) {
+            /* Fixed layout fields must match at the destination. */
+            VMSTATE_UINT64_EQUAL(layout.ram.base, IA64I2000460GXTestState),
+            VMSTATE_UINT64_EQUAL(layout.ram.size, IA64I2000460GXTestState),
+            VMSTATE_UINT64_EQUAL(layout.firmware.base, IA64I2000460GXTestState),
+            VMSTATE_UINT64_EQUAL(layout.firmware.size, IA64I2000460GXTestState),
+            VMSTATE_UINT64_EQUAL(layout.descriptor_rom.base,
+                                 IA64I2000460GXTestState),
+            VMSTATE_UINT64_EQUAL(layout.descriptor_rom.size,
+                                 IA64I2000460GXTestState),
+            VMSTATE_UINT64_EQUAL(layout.descriptor_envelope.base,
+                                 IA64I2000460GXTestState),
+            VMSTATE_UINT64_EQUAL(layout.descriptor_envelope.size,
+                                 IA64I2000460GXTestState),
+            VMSTATE_UINT64_EQUAL(layout.pid_decode.base,
+                                 IA64I2000460GXTestState),
+            VMSTATE_UINT64_EQUAL(layout.pid_decode.size,
+                                 IA64I2000460GXTestState),
+            VMSTATE_UINT64_EQUAL(layout.pid_envelope.base,
+                                 IA64I2000460GXTestState),
+            VMSTATE_UINT64_EQUAL(layout.pid_envelope.size,
+                                 IA64I2000460GXTestState),
+            VMSTATE_UINT64_EQUAL(layout.pib.base, IA64I2000460GXTestState),
+            VMSTATE_UINT64_EQUAL(layout.pib.size, IA64I2000460GXTestState),
+            VMSTATE_UINT64_EQUAL(layout.legacy_io.base,
+                                 IA64I2000460GXTestState),
+            VMSTATE_UINT64_EQUAL(layout.legacy_io.size,
+                                 IA64I2000460GXTestState),
+            VMSTATE_UINT64_EQUAL(layout.cf8_pa, IA64I2000460GXTestState),
+            VMSTATE_UINT64_EQUAL(layout.cfc_pa, IA64I2000460GXTestState),
+            VMSTATE_UINT32_EQUAL(layout.chipset_present,
+                                 IA64I2000460GXTestState),
+            VMSTATE_UINT8_EQUAL(layout.cbn, IA64I2000460GXTestState),
+            VMSTATE_UINT8_EQUAL(layout.pid_id, IA64I2000460GXTestState),
+            VMSTATE_UINT8_EQUAL(layout.pid_pin_count, IA64I2000460GXTestState),
+            VMSTATE_UINT8_EQUAL(layout.legacy_pin_count,
+                                IA64I2000460GXTestState),
+            VMSTATE_UINT8_EQUAL(layout.cf8_io_root, IA64I2000460GXTestState),
+            VMSTATE_UINT32_EQUAL(legacy_pin, IA64I2000460GXTestState),
+            VMSTATE_UINT8_ARRAY(subword_cf8_bytes, IA64I2000460GXTestState, 4),
+            VMSTATE_STRUCT_ARRAY(layout.roots, IA64I2000460GXTestState,
+                                 IA64_I2000_460GX_TEST_ROOT_COUNT, 1,
+                                 vmstate_fixture_root_layout,
+                                 IA64I2000460GXTestRoot),
+            VMSTATE_END_OF_LIST() },
 };
 
 static const Property fixture_properties[] = {
-    DEFINE_PROP_LINK(IA64_I2000_460GX_TEST_PROP_RAM,
-                     IA64I2000460GXTestState, ram,
-                     TYPE_MEMORY_REGION, MemoryRegion *),
+    DEFINE_PROP_LINK(IA64_I2000_460GX_TEST_PROP_RAM, IA64I2000460GXTestState,
+                     ram, TYPE_MEMORY_REGION, MemoryRegion *),
     DEFINE_PROP_UINT32(IA64_I2000_460GX_TEST_PROP_LEGACY_PIN,
                        IA64I2000460GXTestState, legacy_pin,
                        IA64_I2000_460GX_TEST_LEGACY_PIN_DISCONNECTED),
@@ -823,8 +800,8 @@ static void fixture_class_init(ObjectClass *klass, const void *data)
     device_class_set_props(dc, fixture_properties);
 }
 
-PCIBus *ia64_i2000_460gx_test_root_bus(
-    IA64I2000460GXTestState *fixture, unsigned index)
+PCIBus *ia64_i2000_460gx_test_root_bus(IA64I2000460GXTestState *fixture,
+                                       unsigned index)
 {
     if (!fixture || index >= IA64_I2000_460GX_TEST_ROOT_COUNT ||
         !fixture->roots[index]) {
@@ -833,8 +810,7 @@ PCIBus *ia64_i2000_460gx_test_root_bus(
     return intel_460gx_root_host_bus(fixture->roots[index]);
 }
 
-qemu_irq ia64_i2000_460gx_test_legacy_irq(
-    IA64I2000460GXTestState *fixture)
+qemu_irq ia64_i2000_460gx_test_legacy_irq(IA64I2000460GXTestState *fixture)
 {
     if (!fixture || !fixture->pid) {
         return NULL;
@@ -843,15 +819,14 @@ qemu_irq ia64_i2000_460gx_test_legacy_irq(
                                   INTEL_460GX_PID_GPIO_LEGACY, 0);
 }
 
-uint32_t ia64_i2000_460gx_test_legacy_pin(
-    const IA64I2000460GXTestState *fixture)
+uint32_t
+ia64_i2000_460gx_test_legacy_pin(const IA64I2000460GXTestState *fixture)
 {
-    return fixture ? fixture->legacy_pin :
-                     IA64_I2000_460GX_TEST_LEGACY_PIN_DISCONNECTED;
+    return fixture ? fixture->legacy_pin
+                   : IA64_I2000_460GX_TEST_LEGACY_PIN_DISCONNECTED;
 }
 
-static void fixture_qtest_remove_probes(
-    IA64I2000460GXQTestState *s)
+static void fixture_qtest_remove_probes(IA64I2000460GXQTestState *s)
 {
     int i;
 
@@ -869,8 +844,7 @@ static void fixture_qtest_remove_probes(
     drain_call_rcu();
 }
 
-static void fixture_qtest_remove_fixture(
-    IA64I2000460GXQTestState *s)
+static void fixture_qtest_remove_fixture(IA64I2000460GXQTestState *s)
 {
     DeviceState *fixture;
 
@@ -933,7 +907,7 @@ static void fixture_qtest_realize(DeviceState *dev, Error **errp)
                                 TYPE_IA64_I2000_460GX_TEST);
     s->fixture = IA64_I2000_460GX_TEST(fixture);
     qdev_prop_set_uint32(fixture, IA64_I2000_460GX_TEST_PROP_LEGACY_PIN,
-                        s->legacy_pin);
+                         s->legacy_pin);
     if (!object_property_set_link(OBJECT(fixture),
                                   IA64_I2000_460GX_TEST_PROP_RAM,
                                   OBJECT(machine->ram), &local_err) ||
@@ -944,9 +918,8 @@ static void fixture_qtest_realize(DeviceState *dev, Error **errp)
     for (i = 0; i < IA64_I2000_460GX_TEST_ROOT_COUNT; i++) {
         PCIBus *bus = ia64_i2000_460gx_test_root_bus(s->fixture, i);
 
-        s->probes[i] = pci_new(
-            PCI_DEVFN(IA64_I2000_460GX_TEST_PCI_SLOT, 0),
-            TYPE_IOMMU_TESTDEV);
+        s->probes[i] = pci_new(PCI_DEVFN(IA64_I2000_460GX_TEST_PCI_SLOT, 0),
+                               TYPE_IOMMU_TESTDEV);
         if (!qdev_realize(DEVICE(s->probes[i]), BUS(bus), &local_err)) {
             object_unref(OBJECT(s->probes[i]));
             s->probes[i] = NULL;
@@ -976,7 +949,7 @@ static void fixture_qtest_init(Object *obj)
     qdev_init_gpio_in_named(DEVICE(obj), fixture_qtest_set_intx,
                             IA64_I2000_460GX_TEST_GPIO_INTX,
                             IA64_I2000_460GX_TEST_ROOT_COUNT *
-                            IA64_I2000_460GX_TEST_PCI_INTX_COUNT);
+                                IA64_I2000_460GX_TEST_PCI_INTX_COUNT);
     qdev_init_gpio_in_named(DEVICE(obj), fixture_qtest_set_legacy,
                             IA64_I2000_460GX_TEST_GPIO_LEGACY, 1);
 }
@@ -987,8 +960,7 @@ static const Property fixture_qtest_properties[] = {
                        IA64_I2000_460GX_TEST_LEGACY_PIN_DISCONNECTED),
 };
 
-static void fixture_qtest_class_init(ObjectClass *klass,
-                                          const void *data)
+static void fixture_qtest_class_init(ObjectClass *klass, const void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
 
@@ -1008,7 +980,8 @@ static const TypeInfo fixture_types[] = {
         .instance_size = sizeof(IA64I2000460GXTestState),
         .instance_init = fixture_init,
         .class_init = fixture_class_init,
-    }, {
+    },
+    {
         .name = TYPE_IA64_I2000_460GX_QTEST,
         .parent = TYPE_DEVICE,
         .instance_size = sizeof(IA64I2000460GXQTestState),

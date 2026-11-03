@@ -3,8 +3,8 @@ typedef union MMXReg MMXReg;
 typedef union ZMMReg ZMMReg;
 
 DEF_HELPER_5(raise_exception, noreturn, env, i32, i64, i64, i32)
-DEF_HELPER_FLAGS_7(check_native_traps, TCG_CALL_NO_WG,
-                   void, env, i64, i64, i32, i32, i64, i64)
+DEF_HELPER_FLAGS_7(check_native_traps, TCG_CALL_NO_WG, void, env, i64, i64, i32,
+                   i32, i64, i64)
 DEF_HELPER_3(raise_nat_consumption, noreturn, env, i64, i64)
 DEF_HELPER_1(ia32_unsupported, noreturn, env)
 DEF_HELPER_1(ia32_jmpe_check, void, env)
@@ -29,22 +29,19 @@ DEF_HELPER_1(ia32_sse_exception_end, void, env)
 DEF_HELPER_5(cmpxchg, i64, env, i64, i64, i64, i32)
 DEF_HELPER_5(cmp8xchg16, i64, env, i64, i64, i64, i64)
 DEF_HELPER_FLAGS_1(alat_load_begin, TCG_CALL_NO_RWG, i64, env)
-DEF_HELPER_FLAGS_5(set_alat, TCG_CALL_NO_WG, void,
-                   env, i32, i64, i32, i64)
-DEF_HELPER_FLAGS_5(set_alat_fp, TCG_CALL_NO_WG, void,
-                   env, i32, i64, i32, i64)
-DEF_HELPER_FLAGS_2(advanced_load_allowed, TCG_CALL_NO_WG,
-                   i64, env, i64)
-DEF_HELPER_FLAGS_3(check_montecito_16byte_access, TCG_CALL_NO_WG,
-                   void, env, i64, i32)
+DEF_HELPER_FLAGS_5(set_alat, TCG_CALL_NO_WG, void, env, i32, i64, i32, i64)
+DEF_HELPER_FLAGS_5(set_alat_fp, TCG_CALL_NO_WG, void, env, i32, i64, i32, i64)
+DEF_HELPER_FLAGS_2(advanced_load_allowed, TCG_CALL_NO_WG, i64, env, i64)
+DEF_HELPER_FLAGS_3(check_montecito_16byte_access, TCG_CALL_NO_WG, void, env,
+                   i64, i32)
 DEF_HELPER_FLAGS_2(invalidate_alat_reg, TCG_CALL_NO_RWG, void, env, i32)
 DEF_HELPER_FLAGS_2(invalidate_alat_fp_reg, TCG_CALL_NO_RWG, void, env, i32)
 DEF_HELPER_FLAGS_3(check_load_alat, TCG_CALL_NO_RWG, i64, env, i32, i32)
 DEF_HELPER_FLAGS_3(check_load_alat_fp, TCG_CALL_NO_RWG, i64, env, i32, i32)
-DEF_HELPER_FLAGS_5(check_load_alat_addr, TCG_CALL_NO_WG, i64,
-                   env, i32, i64, i32, i32)
-DEF_HELPER_FLAGS_5(check_load_alat_fp_addr, TCG_CALL_NO_WG, i64,
-                   env, i32, i64, i32, i32)
+DEF_HELPER_FLAGS_5(check_load_alat_addr, TCG_CALL_NO_WG, i64, env, i32, i64,
+                   i32, i32)
+DEF_HELPER_FLAGS_5(check_load_alat_fp_addr, TCG_CALL_NO_WG, i64, env, i32, i64,
+                   i32, i32)
 DEF_HELPER_FLAGS_1(alat_write_begin, TCG_CALL_NO_RWG, void, env)
 DEF_HELPER_FLAGS_3(alat_write_end, TCG_CALL_NO_WG, void, env, i64, i32)
 DEF_HELPER_FLAGS_1(alat_write_cancel, TCG_CALL_NO_RWG, void, env)
@@ -94,8 +91,7 @@ DEF_HELPER_6(itr_insert, void, env, i64, i64, i32, i64, i32)
 DEF_HELPER_6(ptr_purge, void, env, i64, i64, i32, i64, i32)
 DEF_HELPER_6(ptc_purge, void, env, i64, i64, i32, i64, i32)
 DEF_HELPER_3(tlb_serialize, void, env, i32, i32)
-DEF_HELPER_FLAGS_3(merced_dtlb1_touch, TCG_CALL_NO_WG,
-                   void, env, i64, i32)
+DEF_HELPER_FLAGS_3(merced_dtlb1_touch, TCG_CALL_NO_WG, void, env, i64, i32)
 DEF_HELPER_1(clear_psr_fault_suppression, void, env)
 DEF_HELPER_2(ssm, void, env, i64)
 DEF_HELPER_2(rsm, void, env, i64)
@@ -119,24 +115,20 @@ DEF_HELPER_3(chk_a, i64, env, i64, i32)
 DEF_HELPER_4(probe, i64, env, i64, i32, i64)
 DEF_HELPER_5(probe_fault, void, env, i64, i32, i32, i64)
 DEF_HELPER_4(lfetch_fault, void, env, i64, i64, i32)
-DEF_HELPER_FLAGS_5(data_debug, TCG_CALL_NO_WG,
-                   void, env, i64, i32, i64, i64)
-DEF_HELPER_FLAGS_3(instruction_debug, TCG_CALL_NO_WG,
-                   void, env, i64, i32)
-DEF_HELPER_FLAGS_2(check_semaphore_access, TCG_CALL_NO_WG,
-                   void, env, i64)
-DEF_HELPER_FLAGS_5(check_alignment, TCG_CALL_NO_WG,
-                   void, env, i64, i32, i64, i64)
-DEF_HELPER_FLAGS_6(speculative_probe, TCG_CALL_NO_WG,
-                   i64, env, i64, i32, i32, i32, i32)
-DEF_HELPER_FLAGS_3(speculative_int_probe, TCG_CALL_NO_WG,
-                   i64, env, i64, i32)
-DEF_HELPER_FLAGS_3(speculative_int_probe_pa, TCG_CALL_NO_WG,
-                   i128, env, i64, i32)
-DEF_HELPER_FLAGS_6(speculative_probe_pa, TCG_CALL_NO_WG,
-                   i128, env, i64, i32, i32, i32, i32)
-DEF_HELPER_FLAGS_6(set_alat_pa, TCG_CALL_NO_WG, void,
-                   env, i32, i64, i32, i64, i64)
+DEF_HELPER_FLAGS_5(data_debug, TCG_CALL_NO_WG, void, env, i64, i32, i64, i64)
+DEF_HELPER_FLAGS_3(instruction_debug, TCG_CALL_NO_WG, void, env, i64, i32)
+DEF_HELPER_FLAGS_2(check_semaphore_access, TCG_CALL_NO_WG, void, env, i64)
+DEF_HELPER_FLAGS_5(check_alignment, TCG_CALL_NO_WG, void, env, i64, i32, i64,
+                   i64)
+DEF_HELPER_FLAGS_6(speculative_probe, TCG_CALL_NO_WG, i64, env, i64, i32, i32,
+                   i32, i32)
+DEF_HELPER_FLAGS_3(speculative_int_probe, TCG_CALL_NO_WG, i64, env, i64, i32)
+DEF_HELPER_FLAGS_3(speculative_int_probe_pa, TCG_CALL_NO_WG, i128, env, i64,
+                   i32)
+DEF_HELPER_FLAGS_6(speculative_probe_pa, TCG_CALL_NO_WG, i128, env, i64, i32,
+                   i32, i32, i32)
+DEF_HELPER_FLAGS_6(set_alat_pa, TCG_CALL_NO_WG, void, env, i32, i64, i32, i64,
+                   i64)
 DEF_HELPER_FLAGS_1(itc_read, TCG_CALL_NO_RWG, i64, env)
 DEF_HELPER_2(tak, i64, env, i64)
 DEF_HELPER_FLAGS_2(thash, TCG_CALL_NO_RWG_SE, i64, env, i64)
@@ -149,8 +141,7 @@ DEF_HELPER_FLAGS_2(mov_rrgr_read, TCG_CALL_NO_RWG_SE, i64, env, i64)
 DEF_HELPER_5(validate_rr_value, i64, env, i64, i64, i64, i32)
 DEF_HELPER_3(mov_grrr_write, void, env, i64, i64)
 DEF_HELPER_FLAGS_2(mov_pkrgr_read, TCG_CALL_NO_RWG_SE, i64, env, i32)
-DEF_HELPER_FLAGS_2(mov_pkrgr_indexed_read, TCG_CALL_NO_RWG_SE,
-                   i64, env, i64)
+DEF_HELPER_FLAGS_2(mov_pkrgr_indexed_read, TCG_CALL_NO_RWG_SE, i64, env, i64)
 DEF_HELPER_3(mov_grpkr_write, void, env, i32, i64)
 DEF_HELPER_3(mov_grpkr_indexed_write, void, env, i64, i64)
 DEF_HELPER_5(fmin, void, env, i32, i32, i32, i32)
@@ -204,8 +195,7 @@ DEF_HELPER_2(clrrrb_rse, void, env, i32)
 DEF_HELPER_FLAGS_3(simd_pavg, TCG_CALL_NO_RWG_SE, i64, i32, i64, i64)
 DEF_HELPER_FLAGS_3(simd_pcmp, TCG_CALL_NO_RWG_SE, i64, i32, i64, i64)
 DEF_HELPER_FLAGS_3(simd_pminmax, TCG_CALL_NO_RWG_SE, i64, i32, i64, i64)
-DEF_HELPER_FLAGS_4(simd_pmpy, TCG_CALL_NO_RWG_SE, i64,
-                   i32, i64, i64, i32)
+DEF_HELPER_FLAGS_4(simd_pmpy, TCG_CALL_NO_RWG_SE, i64, i32, i64, i64, i32)
 DEF_HELPER_FLAGS_2(simd_psad1, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_3(simd_pshladd2, TCG_CALL_NO_RWG_SE, i64, i64, i64, i32)
 DEF_HELPER_FLAGS_3(simd_mux, TCG_CALL_NO_RWG_SE, i64, i32, i64, i32)

@@ -114,8 +114,7 @@ void lpc47b27_config_reset(LPC47B27ConfigState *state);
  * Access the SYSOPT=0 pair.  Writes return an effective-change mask.  Outside
  * the pair or in Run Mode, reads return 0xff and writes are ignored.
  */
-uint8_t lpc47b27_config_read(const LPC47B27ConfigState *state,
-                             uint16_t port);
+uint8_t lpc47b27_config_read(const LPC47B27ConfigState *state, uint16_t port);
 LPC47B27ConfigChange lpc47b27_config_write(LPC47B27ConfigState *state,
                                            uint16_t port, uint8_t value);
 

@@ -5,6 +5,7 @@
  */
 
 #include "qemu/osdep.h"
+#include "qemu-version.h"
 
 #include "qemu/datadir.h"
 #include "qemu/error-report.h"
@@ -77,9 +78,8 @@ static MemTxResult ia64_pib_write(void *opaque, hwaddr addr, uint64_t value,
     id = (addr >> 12) & 0xff;
     eid = (addr >> 4) & 0xff;
     delivery = (IA64SapicDeliveryMode)((value >> 8) & 7);
-    ia64_sapic_deliver(IA64_SAPIC_DESTINATION_PHYSICAL,
-                       id, eid, (addr & 8) != 0, delivery,
-                       (uint8_t)value);
+    ia64_sapic_deliver(IA64_SAPIC_DESTINATION_PHYSICAL, id, eid,
+                       (addr & 8) != 0, delivery, (uint8_t)value);
     return MEMTX_OK;
 }
 
@@ -97,17 +97,15 @@ static const MemoryRegionOps ia64_pib_ops = {
     },
 };
 
-void ia64_machine_map_pib(Object *owner, MemoryRegion **pib,
-                          const char *name, hwaddr base, uint64_t size)
+void ia64_machine_map_pib(Object *owner, MemoryRegion **pib, const char *name,
+                          hwaddr base, uint64_t size)
 {
-    ia64_machine_map_pib_with_inta(owner, pib, name, base, size,
-                                   NULL, NULL);
+    ia64_machine_map_pib_with_inta(owner, pib, name, base, size, NULL, NULL);
 }
 
 void ia64_machine_map_pib_with_inta(Object *owner, MemoryRegion **pib,
                                     const char *name, hwaddr base,
-                                    uint64_t size,
-                                    IA64MachinePibIntaFn inta,
+                                    uint64_t size, IA64MachinePibIntaFn inta,
                                     void *inta_opaque)
 {
     IA64MachinePibState *s;
@@ -122,17 +120,15 @@ void ia64_machine_map_pib_with_inta(Object *owner, MemoryRegion **pib,
     s->inta = inta;
     s->inta_opaque = inta_opaque;
     *pib = &s->memory;
-    memory_region_init_io(*pib, owner, &ia64_pib_ops, s, name,
-                          size);
+    memory_region_init_io(*pib, owner, &ia64_pib_ops, s, name, size);
     memory_region_add_subregion(get_system_memory(), base, *pib);
 }
 
 bool ia64_machine_create_cpus(MachineState *machine,
-                              const IA64MachineCpuConfig *config,
-                              Error **errp)
+                              const IA64MachineCpuConfig *config, Error **errp)
 {
-    g_autoptr(GPtrArray) cpus = g_ptr_array_new_with_free_func(
-        (GDestroyNotify)object_unref);
+    g_autoptr(GPtrArray) cpus =
+        g_ptr_array_new_with_free_func((GDestroyNotify)object_unref);
     uint32_t threads = MAX(machine->smp.threads, 1U);
     uint32_t cores = MAX(machine->smp.cores, 1U);
     uint32_t per_socket = threads * cores;
@@ -144,12 +140,10 @@ bool ia64_machine_create_cpus(MachineState *machine,
         return false;
     }
 
-    alat_full = ia64_machine_effective_alat_full(machine,
-                                                 config->alat_full);
+    alat_full = ia64_machine_effective_alat_full(machine, config->alat_full);
     for (i = 0; i < machine->smp.cpus; i++) {
         uint32_t package_base = (i / per_socket) * per_socket;
-        IA64BootInfo boot_info = config->boot_info(i,
-                                                   config->boot_info_opaque);
+        IA64BootInfo boot_info = config->boot_info(i, config->boot_info_opaque);
         IA64CPU *cpu = IA64_CPU(object_new(machine->cpu_type));
 
         g_ptr_array_add(cpus, cpu);
@@ -161,8 +155,7 @@ bool ia64_machine_create_cpus(MachineState *machine,
         cpu->cores_per_socket = cores;
         cpu->threads_per_core = threads;
         cpu->package_base = package_base;
-        cpu->package_cpus = MIN(per_socket,
-                                machine->smp.cpus - package_base);
+        cpu->package_cpus = MIN(per_socket, machine->smp.cpus - package_base);
         ia64_cpu_set_boot_info(cpu, &boot_info);
         if (!qdev_realize(DEVICE(cpu), NULL, errp)) {
             int rollback;
@@ -211,24 +204,25 @@ bool ia64_machine_validate_socket_smp(const MachineState *machine,
         smp->dies != 1 || smp->clusters != 1 || smp->modules != 1 ||
         smp->cores != 1 || smp->threads != 1) {
         error_setg(errp, "IA-64 machine requires one single-core, "
-                   "single-thread processor per socket");
+                         "single-thread processor per socket");
         return false;
     }
     return true;
 }
 
 static void ia64_firmware_base_get(Object *obj, Visitor *v, const char *name,
-                                    void *opaque, Error **errp)
+                                   void *opaque, Error **errp)
 {
     IA64MachineFirmware *fw = opaque;
-    g_autofree char *value = fw->automatic ? g_strdup("auto") :
-        g_strdup_printf("0x%" PRIx64, fw->base);
+    g_autofree char *value = fw->automatic
+                                 ? g_strdup("auto")
+                                 : g_strdup_printf("0x%" PRIx64, fw->base);
 
     visit_type_str(v, name, &value, errp);
 }
 
 static void ia64_firmware_base_set(Object *obj, Visitor *v, const char *name,
-                                    void *opaque, Error **errp)
+                                   void *opaque, Error **errp)
 {
     IA64MachineFirmware *fw = opaque;
     g_autofree char *value = NULL;
@@ -242,7 +236,7 @@ static void ia64_firmware_base_set(Object *obj, Visitor *v, const char *name,
     } else if (qemu_strtou64(value, NULL, 0, &base) ||
                base < IA64_PLATFORM_FIRMWARE_BASE || (base & 0x1fff)) {
         error_setg(errp, "firmware-base must be 'auto' or an 8 KiB aligned "
-                   "RAM address at or above 1 MiB");
+                         "RAM address at or above 1 MiB");
     } else {
         fw->automatic = false;
         fw->base = base;
@@ -258,12 +252,13 @@ void ia64_machine_firmware_init(Object *obj, IA64MachineFirmware *fw)
     fw->pal_entry = fw->base + 0x60;
     object_property_add(obj, "firmware-base", "str", ia64_firmware_base_get,
                         ia64_firmware_base_set, NULL, fw);
-    object_property_set_description(obj, "firmware-base",
+    object_property_set_description(
+        obj, "firmware-base",
         "Firmware RAM address (default 0x100000), or auto for upper low RAM");
 }
 
 void ia64_machine_firmware_boot_info(const IA64MachineFirmware *fw,
-                                      IA64BootInfo *info)
+                                     IA64BootInfo *info)
 {
     info->firmware_base = fw->base;
     info->firmware_size = fw->size;
@@ -279,12 +274,26 @@ static bool ia64_firmware_placement_valid(uint64_t base, uint64_t size,
 {
     /* ACPI tables occupy 8--8.125 MiB; assist storage is above limit. */
     return base >= IA64_PLATFORM_FIRMWARE_BASE && base <= limit &&
-           size <= limit - base &&
-           !(base < 0x820000 && base + size > 0x800000);
+           size <= limit - base && !(base < 0x820000 && base + size > 0x800000);
 }
 
-bool ia64_machine_load_firmware(MachineState *machine,
-                                IA64MachineFirmware *fw,
+static void ia64_firmware_check_build_commit(const char *commit)
+{
+    if (!commit[0]) {
+        printf("Warning: IA-64 firmware build commit is unavailable; "
+               "compatibility with this QEMU build cannot be verified "
+               "and compatibility issues may occur.\n");
+    } else if (QEMU_BUILD_COMMIT[0] && strcmp(commit, QEMU_BUILD_COMMIT)) {
+        printf("Warning: IA-64 firmware build commit %s differs from "
+               "QEMU build commit %s; compatibility issues may occur.\n",
+               commit, QEMU_BUILD_COMMIT);
+    } else {
+        return;
+    }
+    fflush(stdout);
+}
+
+bool ia64_machine_load_firmware(MachineState *machine, IA64MachineFirmware *fw,
                                 uint64_t low_ram_end, Error **errp)
 {
     g_autofree char *firmware_path = NULL;
@@ -300,8 +309,8 @@ bool ia64_machine_load_firmware(MachineState *machine,
         return false;
     }
     /* Leave the aligned EFI system table pointer page below assist storage. */
-    limit = (low_ram_end - IA64_FW_BOOT_STACK_SIZE - 0x1000) &
-            ~UINT64_C(0x3fffff);
+    limit =
+        (low_ram_end - IA64_FW_BOOT_STACK_SIZE - 0x1000) & ~UINT64_C(0x3fffff);
     if (!machine->firmware || g_str_equal(machine->firmware, "none")) {
         if (fw->automatic || fw->base != IA64_PLATFORM_FIRMWARE_BASE) {
             error_setg(errp,
@@ -315,8 +324,8 @@ bool ia64_machine_load_firmware(MachineState *machine,
         firmware_path = g_strdup(machine->firmware);
     }
     if (!g_file_get_contents(firmware_path, &image, &image_size, &gerr)) {
-        error_setg(errp, "failed to load firmware '%s': %s",
-                   machine->firmware, gerr->message);
+        error_setg(errp, "failed to load firmware '%s': %s", machine->firmware,
+                   gerr->message);
         return false;
     }
     if (image_size >= 4 && !memcmp(image, "\177ELF", 4)) {
@@ -324,30 +333,31 @@ bool ia64_machine_load_firmware(MachineState *machine,
             return false;
         }
         if (fw->automatic) {
-            fw->base = (limit - ROUND_UP(elf.size, 0x2000)) &
-                       ~(elf.alignment - 1);
+            fw->base =
+                (limit - ROUND_UP(elf.size, 0x2000)) & ~(elf.alignment - 1);
         }
         fw->size = elf.size;
-        if (!ia64_firmware_placement_valid(fw->base,
-                                          ROUND_UP(fw->size, 0x2000), limit)) {
+        if (!ia64_firmware_placement_valid(fw->base, ROUND_UP(fw->size, 0x2000),
+                                           limit)) {
             ia64_firmware_elf_clear(&elf);
             error_setg(errp, "firmware-base overlaps reserved memory or "
-                       "is outside low RAM");
+                             "is outside low RAM");
             return false;
         }
         ia64_firmware_elf_clear(&elf);
         if (!ia64_firmware_elf_load(image, image_size, fw->base, &elf, errp)) {
             return false;
         }
+        ia64_firmware_check_build_commit(elf.build_commit);
         fw->elf = true;
         fw->entry = elf.entry;
         fw->global_pointer = elf.global_pointer;
         fw->pal_entry = elf.pal_entry;
         for (i = 0; i < elf.segments->len; i++) {
-            IA64FirmwareSegment *segment = &g_array_index(
-                elf.segments, IA64FirmwareSegment, i);
-            g_autofree char *name = g_strdup_printf("%s.segment.%u",
-                                                    machine->firmware, i);
+            IA64FirmwareSegment *segment =
+                &g_array_index(elf.segments, IA64FirmwareSegment, i);
+            g_autofree char *name =
+                g_strdup_printf("%s.segment.%u", machine->firmware, i);
             rom_add_blob_fixed(name, elf.data + segment->offset, segment->size,
                                fw->base + segment->offset);
         }
@@ -362,6 +372,7 @@ bool ia64_machine_load_firmware(MachineState *machine,
             error_setg(errp, "invalid raw IA-64 firmware size");
             return false;
         }
+        ia64_firmware_check_build_commit("");
         fw->legacy_raw = true;
         rom_add_blob_fixed(machine->firmware, image, image_size, fw->base);
     }
@@ -391,8 +402,8 @@ char *ia64_machine_resolve_nvram_path(MachineState *machine,
 
 static void ia64_machine_firmware_done(Notifier *notifier, void *data)
 {
-    IA64MachineFirmwareNotifier *context = container_of(
-        notifier, IA64MachineFirmwareNotifier, notifier);
+    IA64MachineFirmwareNotifier *context =
+        container_of(notifier, IA64MachineFirmwareNotifier, notifier);
     g_autofree uint8_t *image = NULL;
     IA64FirmwareEntrypoint entrypoint;
     CPUState *cs;
@@ -417,9 +428,9 @@ static void ia64_machine_firmware_done(Notifier *notifier, void *data)
     }
 
     CPU_FOREACH(cs) {
-        IA64BootInfo info = context->boot_info(
-            cs->cpu_index, entrypoint.entry, entrypoint.global_pointer,
-            context->opaque);
+        IA64BootInfo info =
+            context->boot_info(cs->cpu_index, entrypoint.entry,
+                               entrypoint.global_pointer, context->opaque);
 
         ia64_cpu_set_boot_info(IA64_CPU(cs), &info);
         ia64_cpu_reset_to_boot_info(IA64_CPU(cs));
@@ -429,8 +440,8 @@ static void ia64_machine_firmware_done(Notifier *notifier, void *data)
 void ia64_machine_init_firmware_notifier(
     IA64MachineFirmwareNotifier *notifier, MachineState *machine,
     hwaddr firmware_base, size_t firmware_size,
-    IA64MachineFirmwareBootInfoFn boot_info,
-    IA64MachineDoneFn machine_done, void *opaque)
+    IA64MachineFirmwareBootInfoFn boot_info, IA64MachineDoneFn machine_done,
+    void *opaque)
 {
     g_assert(notifier != NULL);
     g_assert(machine != NULL);

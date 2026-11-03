@@ -26,8 +26,8 @@ typedef struct {
     UINT64 Value2;
 } TEST_SAL_RETURN;
 
-typedef TEST_SAL_RETURN (*TEST_SAL_PROC)(UINT64, UINT64, UINT64, UINT64,
-                                        UINT64, UINT64, UINT64, UINT64);
+typedef TEST_SAL_RETURN (*TEST_SAL_PROC)(UINT64, UINT64, UINT64, UINT64, UINT64,
+                                         UINT64, UINT64, UINT64);
 
 static UINT8 sal_guid[16] = IA64_GUID_SAL;
 static UINT8 acpi20_guid[16] = IA64_GUID_ACPI20;
@@ -38,16 +38,15 @@ static volatile UINT64 *rendezvous_counts(VOID)
     return (volatile UINT64 *)(UINTN)TEST_RENDEZVOUS_PAGE;
 }
 
-static VOID *find_config_table(EFI_SYSTEM_TABLE *SystemTable,
-                               const UINT8 *Guid)
+static VOID *find_config_table(EFI_SYSTEM_TABLE *SystemTable, const UINT8 *Guid)
 {
     UINTN i;
 
     for (i = 0; i < SystemTable->NumberOfTableEntries; i++) {
         if (ia64_bytes_equal(SystemTable->ConfigurationTable[i].VendorGuid,
                              Guid, 16)) {
-            return (VOID *)(UINTN)
-                SystemTable->ConfigurationTable[i].VendorTable;
+            return (VOID *)(UINTN)SystemTable->ConfigurationTable[i]
+                .VendorTable;
         }
     }
     return NULL;
@@ -64,8 +63,8 @@ static UINT32 get_u32(const VOID *Address)
 {
     const UINT8 *p = (const UINT8 *)Address;
 
-    return (UINT32)p[0] | ((UINT32)p[1] << 8) |
-           ((UINT32)p[2] << 16) | ((UINT32)p[3] << 24);
+    return (UINT32)p[0] | ((UINT32)p[1] << 8) | ((UINT32)p[2] << 16) |
+           ((UINT32)p[3] << 24);
 }
 
 static UINT64 get_u64(const VOID *Address)
@@ -110,7 +109,7 @@ static UINTN acpi_processor_count(EFI_SYSTEM_TABLE *SystemTable)
         if (madt_length < 44U) {
             return 0;
         }
-        for (offset = 44U; offset + 2U <= madt_length; ) {
+        for (offset = 44U; offset + 2U <= madt_length;) {
             UINTN length = madt[offset + 1U];
 
             if (length < 2U || length > madt_length - offset) {
@@ -131,8 +130,9 @@ static UINTN acpi_processor_count(EFI_SYSTEM_TABLE *SystemTable)
         }
         if (offset != madt_length || enabled == 0 ||
             enabled > TEST_MAX_PROCESSOR_COUNT ||
-            present != (enabled == TEST_MAX_PROCESSOR_COUNT ?
-                        ~(UINT64)0 : (1ULL << enabled) - 1U)) {
+            present != (enabled == TEST_MAX_PROCESSOR_COUNT
+                            ? ~(UINT64)0
+                            : (1ULL << enabled) - 1U)) {
             return 0;
         }
         return enabled;
@@ -159,8 +159,8 @@ static UINTN sal_descriptor_size(UINT8 Type)
     }
 }
 
-static BOOLEAN find_sal_descriptors(UINT8 *Sal, UINT64 *Procedure,
-                                    UINT64 *Gp, UINT64 *WakeVector)
+static BOOLEAN find_sal_descriptors(UINT8 *Sal, UINT64 *Procedure, UINT64 *Gp,
+                                    UINT64 *WakeVector)
 {
     UINT32 length;
     UINT16 entries;
@@ -174,8 +174,7 @@ static BOOLEAN find_sal_descriptors(UINT8 *Sal, UINT64 *Procedure,
     }
     length = get_u32(Sal + 4U);
     entries = get_u16(Sal + 10U);
-    if (length < 96U || length > 4096U ||
-        ia64_checksum8(Sal, length) != 0) {
+    if (length < 96U || length > 4096U || ia64_checksum8(Sal, length) != 0) {
         return 0;
     }
     for (i = 0; i < entries; i++) {
@@ -205,7 +204,7 @@ static UINT64 read_lid(VOID)
 {
     UINT64 lid;
 
-    __asm__ volatile ("mov %0 = cr.lid;;" : "=r"(lid) : : "memory");
+    __asm__ volatile("mov %0 = cr.lid;;" : "=r"(lid) : : "memory");
     return lid;
 }
 
@@ -213,7 +212,7 @@ static UINT64 read_itc(VOID)
 {
     UINT64 itc;
 
-    __asm__ volatile ("mov %0 = ar.itc;;" : "=r"(itc) : : "memory");
+    __asm__ volatile("mov %0 = ar.itc;;" : "=r"(itc) : : "memory");
     return itc;
 }
 
@@ -222,12 +221,12 @@ static UINT64 alat_local_probe(volatile UINT64 *Data)
 {
     UINT64 value;
 
-    __asm__ volatile ("ld8.a %0=[%1];;\n\t"
-                      "mov %0=%2;;\n\t"
-                      "ld8.c.nc %0=[%1];;"
-                      : "=&r"(value)
-                      : "r"(Data), "r"(TEST_ALAT_SENTINEL)
-                      : "memory");
+    __asm__ volatile("ld8.a %0=[%1];;\n\t"
+                     "mov %0=%2;;\n\t"
+                     "ld8.c.nc %0=[%1];;"
+                     : "=&r"(value)
+                     : "r"(Data), "r"(TEST_ALAT_SENTINEL)
+                     : "memory");
     return value;
 }
 
@@ -242,22 +241,21 @@ static BOOLEAN alat_remote_store_probe(VOID)
         UINT64 observed;
 
         while (page[TEST_ALAT_READY_INDEX] != iteration) {
-            __asm__ volatile ("hint @pause" : : : "memory");
+            __asm__ volatile("hint @pause" : : : "memory");
         }
-        __asm__ volatile (
-            "ld8.a %0=[%3];;\n\t"
-            "mov %0=%5;;\n\t"
-            "st8.rel [%2]=%4;;\n"
-            "1:\n\t"
-            "ld8.acq %1=[%3];;\n\t"
-            "cmp.eq p6,p7=%1,%4;;\n\t"
-            "(p7) br.cond.spnt 1b;;\n\t"
-            "ld8.c.nc %0=[%3];;"
-            : "=&r"(result), "=&r"(observed)
-            : "r"(&page[TEST_ALAT_GO_INDEX]),
-              "r"(&page[TEST_ALAT_DATA_INDEX]), "r"(iteration),
-              "r"(TEST_ALAT_SENTINEL)
-            : "p6", "p7", "memory");
+        __asm__ volatile("ld8.a %0=[%3];;\n\t"
+                         "mov %0=%5;;\n\t"
+                         "st8.rel [%2]=%4;;\n"
+                         "1:\n\t"
+                         "ld8.acq %1=[%3];;\n\t"
+                         "cmp.eq p6,p7=%1,%4;;\n\t"
+                         "(p7) br.cond.spnt 1b;;\n\t"
+                         "ld8.c.nc %0=[%3];;"
+                         : "=&r"(result), "=&r"(observed)
+                         : "r"(&page[TEST_ALAT_GO_INDEX]),
+                           "r"(&page[TEST_ALAT_DATA_INDEX]), "r"(iteration),
+                           "r"(TEST_ALAT_SENTINEL)
+                         : "p6", "p7", "memory");
         if (result != iteration) {
             return 0;
         }
@@ -281,32 +279,34 @@ static VOID ap_rendezvous(VOID)
             for (iteration = 1; iteration <= TEST_ALAT_ITERATIONS;
                  iteration++) {
                 counts[TEST_ALAT_READY_INDEX] = iteration;
-                __asm__ volatile ("mf;;" : : : "memory");
+                __asm__ volatile("mf;;" : : : "memory");
                 while (counts[TEST_ALAT_GO_INDEX] != iteration) {
-                    __asm__ volatile ("hint @pause" : : : "memory");
+                    __asm__ volatile("hint @pause" : : : "memory");
                 }
                 counts[TEST_ALAT_DATA_INDEX] = iteration;
-                __asm__ volatile ("mf;;" : : : "memory");
+                __asm__ volatile("mf;;" : : : "memory");
             }
         }
 
         counts[id]++;
-        __asm__ volatile ("mf;;" : : : "memory");
+        __asm__ volatile("mf;;" : : : "memory");
         /*
          * SAL defines TPR as scratch on return.  Leave the wake vector
          * masked until firmware regains control and clears it.
          */
-        __asm__ volatile ("mov cr.tpr = %0;;\n\tsrlz.d;;"
-                          : : "r"(masked) : "memory");
+        __asm__ volatile("mov cr.tpr = %0;;\n\tsrlz.d;;"
+                         :
+                         : "r"(masked)
+                         : "memory");
     }
 }
 
 static VOID send_wake_ipi(UINTN Id, UINT64 Vector)
 {
-    volatile UINT64 *ipi = (volatile UINT64 *)(UINTN)
-        (TEST_LOCAL_SAPIC_BASE + (Id << 12));
+    volatile UINT64 *ipi =
+        (volatile UINT64 *)(UINTN)(TEST_LOCAL_SAPIC_BASE + (Id << 12));
 
-    __asm__ volatile ("mf;;" : : : "memory");
+    __asm__ volatile("mf;;" : : : "memory");
     *ipi = Vector;
 }
 
@@ -319,7 +319,7 @@ static BOOLEAN wait_for_round(UINT64 Round)
         UINTN id;
         BOOLEAN complete = 1;
 
-        __asm__ volatile ("mf;;" : : : "memory");
+        __asm__ volatile("mf;;" : : : "memory");
         for (id = 1; id < mProcessorCount; id++) {
             if (counts[id] < Round) {
                 complete = 0;
@@ -331,7 +331,7 @@ static BOOLEAN wait_for_round(UINT64 Round)
         if ((INTN)(read_itc() - deadline) >= 0) {
             return 0;
         }
-        __asm__ volatile ("hint @pause" : : : "memory");
+        __asm__ volatile("hint @pause" : : : "memory");
     }
 }
 
@@ -340,7 +340,7 @@ static VOID wait_for_rendezvous_return(VOID)
     UINT64 deadline = read_itc() + TEST_RETURN_TICKS;
 
     while ((INTN)(read_itc() - deadline) < 0) {
-        __asm__ volatile ("hint @pause" : : : "memory");
+        __asm__ volatile("hint @pause" : : : "memory");
     }
 }
 
@@ -378,24 +378,22 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
         for (offset = 0; offset < EFI_PAGE_SIZE; offset += sizeof(UINT64)) {
             *(volatile UINT64 *)(UINTN)(rendezvous_page + offset) = 0;
         }
-        full_alat = alat_local_probe(
-            &rendezvous_counts()[TEST_ALAT_DATA_INDEX]) ==
+        full_alat =
+            alat_local_probe(&rendezvous_counts()[TEST_ALAT_DATA_INDEX]) ==
             TEST_ALAT_SENTINEL;
     }
     descriptors = find_sal_descriptors(sal, &sal_descriptor[0],
                                        &sal_descriptor[1], &wake_vector);
     ia64_test_check(&context, "sal-ap-wake",
-                    mProcessorCount != 0 &&
-                        page_status == EFI_SUCCESS && descriptors &&
-                        wake_vector == TEST_AP_WAKE_VECTOR,
+                    mProcessorCount != 0 && page_status == EFI_SUCCESS &&
+                        descriptors && wake_vector == TEST_AP_WAKE_VECTOR,
                     EFI_DEVICE_ERROR, "missing-rendezvous-descriptor");
 
     if (descriptors) {
         sal_proc = (TEST_SAL_PROC)(UINTN)sal_descriptor;
-        result = sal_proc(TEST_SAL_SET_VECTORS,
-                          TEST_SAL_VECTOR_BOOT_RENDEZ,
-                          handler_descriptor[0], 0,
-                          TEST_HANDLER_CHECKSUM_BYTES, 0, 0, 0);
+        result = sal_proc(TEST_SAL_SET_VECTORS, TEST_SAL_VECTOR_BOOT_RENDEZ,
+                          handler_descriptor[0], 0, TEST_HANDLER_CHECKSUM_BYTES,
+                          0, 0, 0);
     }
     if (result.Status == TEST_SAL_SUCCESS) {
         for (id = 1; id < mProcessorCount; id++) {
@@ -424,9 +422,8 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
                         alat_remote_store, EFI_DEVICE_ERROR,
                         "stale-full-alat-entry");
     } else {
-        ia64_test_check(&context, "zero-alat-check-reload",
-                        alat_remote_store, EFI_DEVICE_ERROR,
-                        "zero-alat-did-not-reload");
+        ia64_test_check(&context, "zero-alat-check-reload", alat_remote_store,
+                        EFI_DEVICE_ERROR, "zero-alat-did-not-reload");
     }
     ia64_test_done(&context);
     return context.Failed == 0 ? EFI_SUCCESS : EFI_DEVICE_ERROR;

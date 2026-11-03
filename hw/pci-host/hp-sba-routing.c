@@ -33,8 +33,7 @@ bool hp_sba_routing_variant_valid(const HPSBARoutingVariant *variant)
 
     for (i = 0; i < variant->root_count; i++) {
         for (j = i + 1; j < variant->root_count; j++) {
-            if (variant->roots[i].hpa_offset ==
-                    variant->roots[j].hpa_offset ||
+            if (variant->roots[i].hpa_offset == variant->roots[j].hpa_offset ||
                 variant->roots[i].bus_num == variant->roots[j].bus_num) {
                 return false;
             }
@@ -74,8 +73,7 @@ bool hp_sba_routing_variant_valid(const HPSBARoutingVariant *variant)
 }
 
 bool hp_sba_routing_root_for_rope(const HPSBARoutingVariant *variant,
-                                  unsigned int rope,
-                                  unsigned int *root_index)
+                                  unsigned int rope, unsigned int *root_index)
 {
     size_t i;
 
@@ -94,8 +92,7 @@ bool hp_sba_routing_root_for_rope(const HPSBARoutingVariant *variant,
 }
 
 bool hp_sba_routing_rope_for_root(const HPSBARoutingVariant *variant,
-                                  unsigned int root_index,
-                                  unsigned int ordinal,
+                                  unsigned int root_index, unsigned int ordinal,
                                   unsigned int *rope)
 {
     size_t i;
@@ -119,8 +116,7 @@ bool hp_sba_routing_rope_for_root(const HPSBARoutingVariant *variant,
 }
 
 bool hp_sba_routing_direct_root(const HPSBARoutingVariant *variant,
-                                uint64_t route,
-                                unsigned int *root_index)
+                                uint64_t route, unsigned int *root_index)
 {
     unsigned int candidate;
 
@@ -156,9 +152,8 @@ bool hp_sba_reg64_access_valid(uint64_t offset, unsigned int size)
            (size == 8 && offset == 0);
 }
 
-static bool hp_sba_reg64_shift(enum device_endian endianness,
-                               uint64_t offset, unsigned int size,
-                               unsigned int *shift)
+static bool hp_sba_reg64_shift(enum device_endian endianness, uint64_t offset,
+                               unsigned int size, unsigned int *shift)
 {
     unsigned int lane = offset & 7;
 
@@ -188,8 +183,7 @@ bool hp_sba_reg64_read(enum device_endian endianness, uint64_t reg,
 {
     unsigned int shift;
 
-    if (!value ||
-        !hp_sba_reg64_shift(endianness, offset, size, &shift)) {
+    if (!value || !hp_sba_reg64_shift(endianness, offset, size, &shift)) {
         return false;
     }
 

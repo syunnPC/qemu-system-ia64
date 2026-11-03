@@ -363,11 +363,10 @@ typedef struct IA64I2000IoTestLayout {
 } IA64I2000IoTestLayout;
 
 /* Populate the fixed i2000 I/O test layout. */
-void ia64_i2000_io_test_layout_init(
-    IA64I2000IoTestLayout *layout);
+void ia64_i2000_io_test_layout_init(IA64I2000IoTestLayout *layout);
 
 /* Validate without creating or mapping devices. */
-bool ia64_i2000_io_test_layout_validate(
-    const IA64I2000IoTestLayout *layout, Error **errp);
+bool ia64_i2000_io_test_layout_validate(const IA64I2000IoTestLayout *layout,
+                                        Error **errp);
 
 #endif /* HW_IA64_I2000_TEST_LAYOUT_H */

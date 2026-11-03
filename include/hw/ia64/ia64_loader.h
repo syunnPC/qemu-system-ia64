@@ -23,6 +23,8 @@ typedef struct IA64FirmwareElf {
     uint64_t pal_entry;
     uint8_t *data;
     GArray *segments;
+    /* Empty when the optional full Git object ID is unavailable. */
+    char build_commit[65];
 } IA64FirmwareElf;
 
 bool ia64_firmware_elf_load(const void *image, size_t image_size,

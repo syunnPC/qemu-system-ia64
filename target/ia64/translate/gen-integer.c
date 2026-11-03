@@ -104,9 +104,9 @@ static void ia64_gen_native_integer_write(const Ia64Instruction *insn)
         break;
     case IA64_OP_SHR:
         tmp = tcg_temp_new_i64();
-        tcg_gen_movcond_i64(TCG_COND_GTU, tmp,
-                            ia64_gr_src(op->source1), tcg_constant_i64(63),
-                            tcg_constant_i64(63), ia64_gr_src(op->source1));
+        tcg_gen_movcond_i64(TCG_COND_GTU, tmp, ia64_gr_src(op->source1),
+                            tcg_constant_i64(63), tcg_constant_i64(63),
+                            ia64_gr_src(op->source1));
         tcg_gen_sar_i64(cpu_gr[op->destination], ia64_gr_src(op->source2), tmp);
         break;
     case IA64_OP_SHL_IMM:
@@ -144,8 +144,8 @@ static void ia64_gen_native_integer_write(const Ia64Instruction *insn)
     }
     case IA64_OP_EXTRU: {
         const uint64_t pos = op->immediate & 0x3f;
-        const uint64_t len = ia64_bitfield_effective_len(pos,
-                                                         op->immediate >> 6);
+        const uint64_t len =
+            ia64_bitfield_effective_len(pos, op->immediate >> 6);
 
         tmp = tcg_temp_new_i64();
         tmp2 = tcg_temp_new_i64();
@@ -526,8 +526,7 @@ static void ia64_gen_integer_nat_from_1(const Ia64Instruction *insn,
 }
 
 static void ia64_gen_integer_nat_from_2(const Ia64Instruction *insn,
-                                        uint8_t dst, uint8_t src1,
-                                        uint8_t src2)
+                                        uint8_t dst, uint8_t src1, uint8_t src2)
 {
     /* x.NaT | x.NaT is just x.NaT. */
     if (src1 == src2) {
@@ -605,8 +604,8 @@ static void ia64_gen_native_integer_nat(const Ia64Instruction *insn)
     case IA64_OP_MPYSHL4:
     case IA64_OP_MPYSH:
     case IA64_OP_MPYUH:
-        ia64_gen_integer_nat_from_2(insn, op->destination,
-                                    op->source1, op->source2);
+        ia64_gen_integer_nat_from_2(insn, op->destination, op->source1,
+                                    op->source2);
         break;
     case IA64_OP_MUX:
         ia64_gen_gr_nat_from_3(insn, op->destination, op->destination,
@@ -617,8 +616,7 @@ static void ia64_gen_native_integer_nat(const Ia64Instruction *insn)
     }
 }
 
-IA64GenResult ia64_gen_integer(DisasContext *ctx,
-                               const Ia64Instruction *insn)
+IA64GenResult ia64_gen_integer(DisasContext *ctx, const Ia64Instruction *insn)
 {
     const IA64IntegerOperands *op = &insn->operands.integer;
     TCGv_i64 tmp;
@@ -1094,15 +1092,11 @@ IA64GenResult ia64_gen_integer(DisasContext *ctx,
             break;
         }
         const bool r2_nat_clear =
-            is_cmp_imm ||
-            ia64_gr_nat_is_known_clear(insn, op->source1);
+            is_cmp_imm || ia64_gr_nat_is_known_clear(insn, op->source1);
         const bool r2_nat_set =
-            !is_cmp_imm &&
-            ia64_gr_nat_is_known_set(insn, op->source1);
-        const bool r3_nat_clear =
-            ia64_gr_nat_is_known_clear(insn, op->source2);
-        const bool r3_nat_set =
-            ia64_gr_nat_is_known_set(insn, op->source2);
+            !is_cmp_imm && ia64_gr_nat_is_known_set(insn, op->source1);
+        const bool r3_nat_clear = ia64_gr_nat_is_known_clear(insn, op->source2);
+        const bool r3_nat_set = ia64_gr_nat_is_known_set(insn, op->source2);
         const bool nat_clear = r2_nat_clear && r3_nat_clear;
         const bool nat_set = r2_nat_set || r3_nat_set;
         TCGv_i64 src2;
@@ -1175,32 +1169,32 @@ IA64GenResult ia64_gen_integer(DisasContext *ctx,
         /* Parallel AND/OR compares apply the same result to both targets. */
         if (is_and) {
             if (op->predicate1 != 0) {
-                tcg_gen_and_i64(cpu_pr[op->predicate1],
-                                cpu_pr[op->predicate1], tmp);
+                tcg_gen_and_i64(cpu_pr[op->predicate1], cpu_pr[op->predicate1],
+                                tmp);
             }
             if (op->predicate2 != 0) {
-                tcg_gen_and_i64(cpu_pr[op->predicate2],
-                                cpu_pr[op->predicate2], tmp);
+                tcg_gen_and_i64(cpu_pr[op->predicate2], cpu_pr[op->predicate2],
+                                tmp);
             }
         } else if (is_or) {
             if (op->predicate1 != 0) {
-                tcg_gen_or_i64(cpu_pr[op->predicate1],
-                                cpu_pr[op->predicate1], tmp);
+                tcg_gen_or_i64(cpu_pr[op->predicate1], cpu_pr[op->predicate1],
+                               tmp);
             }
             if (op->predicate2 != 0) {
-                tcg_gen_or_i64(cpu_pr[op->predicate2],
-                                cpu_pr[op->predicate2], tmp);
+                tcg_gen_or_i64(cpu_pr[op->predicate2], cpu_pr[op->predicate2],
+                               tmp);
             }
         } else if (is_or_andcm) {
             if (op->predicate1 != 0) {
-                tcg_gen_or_i64(cpu_pr[op->predicate1],
-                               cpu_pr[op->predicate1], tmp);
+                tcg_gen_or_i64(cpu_pr[op->predicate1], cpu_pr[op->predicate1],
+                               tmp);
             }
             if (op->predicate2 != 0) {
                 TCGv_i64 not_tmp = tcg_temp_new_i64();
                 tcg_gen_xori_i64(not_tmp, tmp, 1);
-                tcg_gen_and_i64(cpu_pr[op->predicate2],
-                                cpu_pr[op->predicate2], not_tmp);
+                tcg_gen_and_i64(cpu_pr[op->predicate2], cpu_pr[op->predicate2],
+                                not_tmp);
             }
         } else {
             if (op->predicate1 != 0) {
@@ -1221,13 +1215,10 @@ IA64GenResult ia64_gen_integer(DisasContext *ctx,
     case IA64_OP_TBIT_NZ_OR_ANDCM: {
         const bool is_nz = insn->opcode == IA64_OP_TBIT_NZ ||
                            insn->opcode == IA64_OP_TBIT_NZ_OR_ANDCM;
-        const bool old_or_andcm =
-            insn->opcode == IA64_OP_TBIT_Z_OR_ANDCM ||
-            insn->opcode == IA64_OP_TBIT_NZ_OR_ANDCM;
-        const bool nat_clear =
-            ia64_gr_nat_is_known_clear(insn, op->source2);
-        const bool nat_set =
-            ia64_gr_nat_is_known_set(insn, op->source2);
+        const bool old_or_andcm = insn->opcode == IA64_OP_TBIT_Z_OR_ANDCM ||
+                                  insn->opcode == IA64_OP_TBIT_NZ_OR_ANDCM;
+        const bool nat_clear = ia64_gr_nat_is_known_clear(insn, op->source2);
+        const bool nat_set = ia64_gr_nat_is_known_set(insn, op->source2);
         TCGv_i64 bit;
         TCGv_i64 cond;
         TCGv_i64 not_cond;
@@ -1295,10 +1286,8 @@ IA64GenResult ia64_gen_integer(DisasContext *ctx,
     case IA64_OP_TNAT_NZ_AND: {
         const bool is_nz = insn->opcode == IA64_OP_TNAT_NZ ||
                            insn->opcode == IA64_OP_TNAT_NZ_AND;
-        const bool nat_clear =
-            ia64_gr_nat_is_known_clear(insn, op->source2);
-        const bool nat_set =
-            ia64_gr_nat_is_known_set(insn, op->source2);
+        const bool nat_clear = ia64_gr_nat_is_known_clear(insn, op->source2);
+        const bool nat_set = ia64_gr_nat_is_known_set(insn, op->source2);
         TCGv_i64 cond;
         TCGv_i64 not_cond;
         Ia64Instruction pred_insn = *insn;
@@ -1330,14 +1319,12 @@ IA64GenResult ia64_gen_integer(DisasContext *ctx,
     case IA64_OP_TF_Z:
     case IA64_OP_TF_NZ: {
         const bool is_nz = insn->opcode == IA64_OP_TF_NZ;
-        const uint64_t features =
-            ia64_env_cpu_class(ctx->env)->cpuid_features;
+        const uint64_t features = ia64_env_cpu_class(ctx->env)->cpuid_features;
         const bool bit = extract64(features, op->immediate, 1);
         const bool condition = is_nz ? bit : !bit;
 
-        ia64_gen_predicate_test_write(
-            insn, tcg_constant_i64(condition),
-            tcg_constant_i64(!condition));
+        ia64_gen_predicate_test_write(insn, tcg_constant_i64(condition),
+                                      tcg_constant_i64(!condition));
         break;
     }
     case IA64_OP_MOVL:
@@ -1351,8 +1338,8 @@ IA64GenResult ia64_gen_integer(DisasContext *ctx,
             ia64_gen_addp4_result(cpu_gr[op->destination],
                                   ia64_gr_src(op->source1),
                                   ia64_gr_src(op->source2));
-            ia64_gen_gr_nat_from_2(insn, op->destination,
-                                   op->source1, op->source2);
+            ia64_gen_gr_nat_from_2(insn, op->destination, op->source1,
+                                   op->source2);
         }
         break;
     case IA64_OP_ADDP4_IMM:

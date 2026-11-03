@@ -42,12 +42,9 @@ static void test_fixed_layout(void)
     g_assert_cmphex(layout.descriptor_rom.size, ==, UINT64_C(0x1000));
     g_assert_cmphex(layout.descriptor_envelope.size, ==, UINT64_C(0x2000));
 
-    g_assert_cmphex(layout.roots[0].pci_mmio32_base, ==,
-                    UINT64_C(0x90000000));
-    g_assert_cmphex(layout.roots[1].pci_mmio32_base, ==,
-                    UINT64_C(0xa0000000));
-    g_assert_cmphex(layout.roots[2].pci_mmio32_base, ==,
-                    UINT64_C(0xb0000000));
+    g_assert_cmphex(layout.roots[0].pci_mmio32_base, ==, UINT64_C(0x90000000));
+    g_assert_cmphex(layout.roots[1].pci_mmio32_base, ==, UINT64_C(0xa0000000));
+    g_assert_cmphex(layout.roots[2].pci_mmio32_base, ==, UINT64_C(0xb0000000));
     g_assert_cmpuint(layout.roots[0].first_bus, ==, 0x00);
     g_assert_cmpuint(layout.roots[0].last_bus, ==, 0x00);
     g_assert_cmpuint(layout.roots[1].first_bus, ==, 0x01);
@@ -72,8 +69,7 @@ static void test_fixed_layout(void)
 
     g_assert_cmphex(layout.pid_decode.base, ==, UINT64_C(0xfec00000));
     g_assert_cmphex(layout.pib.base, ==, UINT64_C(0xfee00000));
-    g_assert_cmphex(layout.legacy_io.base, ==,
-                    UINT64_C(0x0000000ffc000000));
+    g_assert_cmphex(layout.legacy_io.base, ==, UINT64_C(0x0000000ffc000000));
     g_assert_cmphex(layout.cf8_pa, ==, UINT64_C(0x0000000ffc33ecf8));
     g_assert_cmphex(layout.cfc_pa, ==, UINT64_C(0x0000000ffc33fcfc));
     g_assert_cmphex(layout.roots[0].dma_base, ==, 0);
@@ -92,15 +88,15 @@ static void test_sparse_io_mapping(void)
 {
     g_assert_cmphex(ia64_i2000_460gx_test_sparse_io_pa(0), ==,
                     IA64_I2000_460GX_TEST_LEGACY_IO_BASE);
-    g_assert_cmphex(ia64_i2000_460gx_test_sparse_io_pa(
-                        IA64_I2000_460GX_TEST_CF8_PORT), ==,
-                    IA64_I2000_460GX_TEST_CF8_PA);
-    g_assert_cmphex(ia64_i2000_460gx_test_sparse_io_pa(
-                        IA64_I2000_460GX_TEST_CFC_PORT), ==,
-                    IA64_I2000_460GX_TEST_CFC_PA);
+    g_assert_cmphex(
+        ia64_i2000_460gx_test_sparse_io_pa(IA64_I2000_460GX_TEST_CF8_PORT), ==,
+        IA64_I2000_460GX_TEST_CF8_PA);
+    g_assert_cmphex(
+        ia64_i2000_460gx_test_sparse_io_pa(IA64_I2000_460GX_TEST_CFC_PORT), ==,
+        IA64_I2000_460GX_TEST_CFC_PA);
     g_assert_cmphex(ia64_i2000_460gx_test_sparse_io_pa(UINT16_MAX), ==,
                     IA64_I2000_460GX_TEST_LEGACY_IO_BASE +
-                    IA64_I2000_460GX_TEST_LEGACY_IO_SIZE - 1);
+                        IA64_I2000_460GX_TEST_LEGACY_IO_SIZE - 1);
 }
 
 static void test_null_layout(void)
@@ -173,8 +169,8 @@ static void test_root_partitions(void)
     assert_invalid(&layout);
 
     layout = fixture_layout();
-    layout.roots[1].io_base = layout.roots[0].io_base +
-                              layout.roots[0].io_size - 1;
+    layout.roots[1].io_base =
+        layout.roots[0].io_base + layout.roots[0].io_size - 1;
     assert_invalid(&layout);
 
     layout = fixture_layout();
@@ -253,8 +249,7 @@ int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
 
-    g_test_add_func("/ia64/i2000-460gx-layout/fixed",
-                    test_fixed_layout);
+    g_test_add_func("/ia64/i2000-460gx-layout/fixed", test_fixed_layout);
     g_test_add_func("/ia64/i2000-460gx-layout/sparse-io",
                     test_sparse_io_mapping);
     g_test_add_func("/ia64/i2000-460gx-layout/null", test_null_layout);

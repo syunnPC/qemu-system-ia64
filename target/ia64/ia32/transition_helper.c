@@ -21,8 +21,7 @@ void helper_ia32_jmpe_check(CPUIA64State *env)
     }
 }
 
-G_NORETURN void helper_ia32_jmpe(CPUIA64State *env,
-                                 target_ulong target_eip,
+G_NORETURN void helper_ia32_jmpe(CPUIA64State *env, target_ulong target_eip,
                                  target_ulong next_ip)
 {
     CPUState *cs = env_cpu(env);
@@ -51,8 +50,8 @@ G_NORETURN void helper_ia32_jmpe(CPUIA64State *env,
     }
 
     if (trap_code) {
-        env->cr_isr = ((uint64_t)EXCP01_DB << IA64_ISR_VECTOR_SHIFT) |
-                      trap_code;
+        env->cr_isr =
+            ((uint64_t)EXCP01_DB << IA64_ISR_VECTOR_SHIFT) | trap_code;
         env->exception_state.fault_ip = source_ip;
         env->exception_state.fault_imm = target_ip;
         env->exception_state.fault_slot = 0;

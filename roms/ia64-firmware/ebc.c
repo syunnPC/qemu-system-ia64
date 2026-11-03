@@ -149,8 +149,8 @@ static FW_EBC_CACHE_FLUSH mEbcCacheFlush;
 static BOOLEAN mEbcProtocolInstalled;
 
 extern UINT64 fw_ebc_capture_context(VOID);
-extern UINT64 fw_ebc_call_native(UINTN FunctionDescriptor,
-                                 UINTN ArgumentBase, UINTN ArgumentLimit);
+extern UINT64 fw_ebc_call_native(UINTN FunctionDescriptor, UINTN ArgumentBase,
+                                 UINTN ArgumentLimit);
 
 static UINT64 fw_ebc_mask(UINTN bytes)
 {
@@ -212,15 +212,14 @@ static BOOLEAN fw_ebc_natural_offset(UINT64 encoding, UINTN bytes,
         return 0;
     }
     constant_bits = payload_bits - natural_bits;
-    natural_mask = natural_bits == 0 ? 0 :
-                   (1ULL << natural_bits) - 1ULL;
-    constant_mask = constant_bits == 0 ? 0 :
-                    (1ULL << constant_bits) - 1ULL;
+    natural_mask = natural_bits == 0 ? 0 : (1ULL << natural_bits) - 1ULL;
+    constant_mask = constant_bits == 0 ? 0 : (1ULL << constant_bits) - 1ULL;
     natural_units = encoding & natural_mask;
     constant_units = (encoding >> natural_bits) & constant_mask;
     magnitude = constant_units + natural_units * sizeof(UINTN);
-    *offset = (encoding & (1ULL << (bits - 1U))) != 0 ?
-              (INT64)(0ULL - magnitude) : (INT64)magnitude;
+    *offset = (encoding & (1ULL << (bits - 1U))) != 0
+                  ? (INT64)(0ULL - magnitude)
+                  : (INT64)magnitude;
     return 1;
 }
 
@@ -231,8 +230,8 @@ static EFI_STATUS fw_ebc_fail(FW_EBC_MACHINE *machine, FW_EBC_FAULT fault,
     return status;
 }
 
-static BOOLEAN fw_ebc_stack_range(const FW_EBC_MACHINE *machine,
-                                  UINTN address, UINTN bytes)
+static BOOLEAN fw_ebc_stack_range(const FW_EBC_MACHINE *machine, UINTN address,
+                                  UINTN bytes)
 {
     return address >= machine->stack_low && address <= machine->stack_high &&
            bytes <= machine->stack_high - address;
@@ -266,8 +265,7 @@ static EFI_STATUS fw_ebc_pop(FW_EBC_MACHINE *machine, UINTN bytes,
 }
 
 static UINT64 fw_ebc_operand(const FW_EBC_MACHINE *machine, UINT8 reg,
-                             BOOLEAN indirect, INT64 displacement,
-                             UINTN bytes)
+                             BOOLEAN indirect, INT64 displacement, UINTN bytes)
 {
     UINT64 location = machine->registers[reg] + (UINT64)displacement;
 
@@ -280,16 +278,15 @@ static VOID fw_ebc_store_operand(FW_EBC_MACHINE *machine, UINT8 reg,
 {
     value &= fw_ebc_mask(bytes);
     if (indirect) {
-        fw_ebc_write((UINTN)(machine->registers[reg] +
-                             (UINT64)displacement), value, bytes);
+        fw_ebc_write((UINTN)(machine->registers[reg] + (UINT64)displacement),
+                     value, bytes);
     } else {
         machine->registers[reg] = value;
     }
 }
 
-static BOOLEAN fw_ebc_condition(const FW_EBC_MACHINE *machine,
-                                UINT8 encoding, UINT8 conditional_bit,
-                                UINT8 desired_bit)
+static BOOLEAN fw_ebc_condition(const FW_EBC_MACHINE *machine, UINT8 encoding,
+                                UINT8 conditional_bit, UINT8 desired_bit)
 {
     BOOLEAN condition;
 
@@ -375,20 +372,21 @@ static EFI_STATUS fw_ebc_data_instruction(FW_EBC_MACHINE *machine)
 
     if (operation >= FW_EBC_OP_EXTEND_BYTE &&
         operation <= FW_EBC_OP_EXTEND_DWORD) {
-        UINTN source_width = operation == FW_EBC_OP_EXTEND_BYTE ? 1U :
-                             operation == FW_EBC_OP_EXTEND_WORD ? 2U : 4U;
+        UINTN source_width = operation == FW_EBC_OP_EXTEND_BYTE   ? 1U
+                             : operation == FW_EBC_OP_EXTEND_WORD ? 2U
+                                                                  : 4U;
 
-        right = fw_ebc_operand(machine, source, source_indirect,
-                               source_offset, source_width);
+        right = fw_ebc_operand(machine, source, source_indirect, source_offset,
+                               source_width);
         result = (UINT64)fw_ebc_sign_extend(right & fw_ebc_mask(source_width),
                                             source_width * 8U);
     } else {
-        right = fw_ebc_operand(machine, source, source_indirect,
-                               source_offset, width) & fw_ebc_mask(width);
-        if (operation != FW_EBC_OP_NOT &&
-            operation != FW_EBC_OP_NEGATE) {
-            left = fw_ebc_operand(machine, destination,
-                                  destination_indirect, 0, width) &
+        right = fw_ebc_operand(machine, source, source_indirect, source_offset,
+                               width) &
+                fw_ebc_mask(width);
+        if (operation != FW_EBC_OP_NOT && operation != FW_EBC_OP_NEGATE) {
+            left = fw_ebc_operand(machine, destination, destination_indirect, 0,
+                                  width) &
                    fw_ebc_mask(width);
         }
         switch (operation) {
@@ -419,12 +417,12 @@ static EFI_STATUS fw_ebc_data_instruction(FW_EBC_MACHINE *machine)
                 INT32 divisor = (INT32)(UINT32)right;
 
                 if (divisor == -1 && dividend == (-2147483647 - 1)) {
-                    result = operation == FW_EBC_OP_DIVIDE ?
-                             (UINT32)dividend : 0U;
+                    result =
+                        operation == FW_EBC_OP_DIVIDE ? (UINT32)dividend : 0U;
                 } else {
-                    result = operation == FW_EBC_OP_DIVIDE ?
-                             (UINT32)(dividend / divisor) :
-                             (UINT32)(dividend % divisor);
+                    result = operation == FW_EBC_OP_DIVIDE
+                                 ? (UINT32)(dividend / divisor)
+                                 : (UINT32)(dividend % divisor);
                 }
             } else {
                 INT64 dividend = (INT64)left;
@@ -433,9 +431,9 @@ static EFI_STATUS fw_ebc_data_instruction(FW_EBC_MACHINE *machine)
                 if (divisor == -1 && dividend == (INT64)(1ULL << 63)) {
                     result = operation == FW_EBC_OP_DIVIDE ? left : 0U;
                 } else {
-                    result = operation == FW_EBC_OP_DIVIDE ?
-                             (UINT64)(dividend / divisor) :
-                             (UINT64)(dividend % divisor);
+                    result = operation == FW_EBC_OP_DIVIDE
+                                 ? (UINT64)(dividend / divisor)
+                                 : (UINT64)(dividend % divisor);
                 }
             }
             break;
@@ -472,15 +470,13 @@ static EFI_STATUS fw_ebc_data_instruction(FW_EBC_MACHINE *machine)
             if (width == 4U) {
                 INT32 signed_value = (INT32)(UINT32)left;
 
-                result = right >= 32U ?
-                         (signed_value < 0 ? 0xffffffffU : 0U) :
-                         (UINT32)(signed_value >> right);
+                result = right >= 32U ? (signed_value < 0 ? 0xffffffffU : 0U)
+                                      : (UINT32)(signed_value >> right);
             } else {
                 INT64 signed_value = (INT64)left;
 
-                result = right >= 64U ?
-                         (signed_value < 0 ? ~0ULL : 0U) :
-                         (UINT64)(signed_value >> right);
+                result = right >= 64U ? (signed_value < 0 ? ~0ULL : 0U)
+                                      : (UINT64)(signed_value >> right);
             }
             break;
         default:
@@ -489,8 +485,8 @@ static EFI_STATUS fw_ebc_data_instruction(FW_EBC_MACHINE *machine)
         }
     }
 
-    fw_ebc_store_operand(machine, destination, destination_indirect, 0,
-                         result, width);
+    fw_ebc_store_operand(machine, destination, destination_indirect, 0, result,
+                         width);
     machine->pc += length;
     return EFI_SUCCESS;
 }
@@ -525,9 +521,9 @@ static EFI_STATUS fw_ebc_compare_instruction(FW_EBC_MACHINE *machine)
     }
     right = fw_ebc_operand(machine, right_register, right_indirect,
                            displacement, width);
-    fw_ebc_set_condition(machine,
-        fw_ebc_compare(operation, machine->registers[left_register],
-                       right, width));
+    fw_ebc_set_condition(
+        machine, fw_ebc_compare(operation, machine->registers[left_register],
+                                right, width));
     machine->pc += length;
     return EFI_SUCCESS;
 }
@@ -547,16 +543,13 @@ static EFI_STATUS fw_ebc_compare_immediate(FW_EBC_MACHINE *machine)
     INT64 immediate;
     UINT64 left;
 
-    if ((operands & 0xe0U) != 0 ||
-        ((operands & 0x10U) != 0 && !indirect)) {
+    if ((operands & 0xe0U) != 0 || ((operands & 0x10U) != 0 && !indirect)) {
         return fw_ebc_fail(machine, FwEbcFaultEncoding, EFI_UNSUPPORTED);
     }
     if ((operands & 0x10U) != 0) {
-        if (!fw_ebc_natural_offset(
-                fw_ebc_read((UINTN)machine->pc + cursor, 2U), 2U,
-                &displacement)) {
-            return fw_ebc_fail(machine, FwEbcFaultEncoding,
-                               EFI_UNSUPPORTED);
+        if (!fw_ebc_natural_offset(fw_ebc_read((UINTN)machine->pc + cursor, 2U),
+                                   2U, &displacement)) {
+            return fw_ebc_fail(machine, FwEbcFaultEncoding, EFI_UNSUPPORTED);
         }
         cursor += 2U;
     }
@@ -564,11 +557,11 @@ static EFI_STATUS fw_ebc_compare_immediate(FW_EBC_MACHINE *machine)
         fw_ebc_read((UINTN)machine->pc + cursor, immediate_width),
         immediate_width * 8U);
     cursor += immediate_width;
-    left = fw_ebc_operand(machine, operands & 7U, indirect,
-                          displacement, comparison_width);
-    fw_ebc_set_condition(machine,
-        fw_ebc_compare(operation, left, (UINT64)immediate,
-                       comparison_width));
+    left = fw_ebc_operand(machine, operands & 7U, indirect, displacement,
+                          comparison_width);
+    fw_ebc_set_condition(
+        machine,
+        fw_ebc_compare(operation, left, (UINT64)immediate, comparison_width));
     machine->pc += cursor;
     return EFI_SUCCESS;
 }
@@ -587,8 +580,8 @@ static EFI_STATUS fw_ebc_move_instruction(FW_EBC_MACHINE *machine)
     BOOLEAN source_indirect = (operands & 0x80U) != 0;
     UINT64 value;
 
-    if ((operation >= FW_EBC_OP_MOVE_BW &&
-         operation <= FW_EBC_OP_MOVE_QW) || operation == FW_EBC_OP_MOVE_NW) {
+    if ((operation >= FW_EBC_OP_MOVE_BW && operation <= FW_EBC_OP_MOVE_QW) ||
+        operation == FW_EBC_OP_MOVE_NW) {
         index_width = 2U;
     } else if ((operation >= FW_EBC_OP_MOVE_BD &&
                 operation <= FW_EBC_OP_MOVE_QD) ||
@@ -602,8 +595,7 @@ static EFI_STATUS fw_ebc_move_instruction(FW_EBC_MACHINE *machine)
             !fw_ebc_natural_offset(
                 fw_ebc_read((UINTN)machine->pc + cursor, index_width),
                 index_width, &destination_offset)) {
-            return fw_ebc_fail(machine, FwEbcFaultEncoding,
-                               EFI_UNSUPPORTED);
+            return fw_ebc_fail(machine, FwEbcFaultEncoding, EFI_UNSUPPORTED);
         }
         cursor += index_width;
     }
@@ -611,8 +603,7 @@ static EFI_STATUS fw_ebc_move_instruction(FW_EBC_MACHINE *machine)
         if (!fw_ebc_natural_offset(
                 fw_ebc_read((UINTN)machine->pc + cursor, index_width),
                 index_width, &source_offset)) {
-            return fw_ebc_fail(machine, FwEbcFaultEncoding,
-                               EFI_UNSUPPORTED);
+            return fw_ebc_fail(machine, FwEbcFaultEncoding, EFI_UNSUPPORTED);
         }
         cursor += index_width;
     }
@@ -634,8 +625,8 @@ static EFI_STATUS fw_ebc_move_instruction(FW_EBC_MACHINE *machine)
         move_width = sizeof(UINTN);
         break;
     }
-    value = fw_ebc_operand(machine, (operands >> 4) & 7U,
-                           source_indirect, source_offset, move_width);
+    value = fw_ebc_operand(machine, (operands >> 4) & 7U, source_indirect,
+                           source_offset, move_width);
     fw_ebc_store_operand(machine, operands & 7U, destination_indirect,
                          destination_offset, value, move_width);
     machine->pc += cursor;
@@ -646,8 +637,9 @@ static EFI_STATUS fw_ebc_move_signed_natural(FW_EBC_MACHINE *machine)
 {
     UINT8 encoded_opcode = machine->pc[0];
     UINT8 operands = machine->pc[1];
-    UINTN index_width = (encoded_opcode & FW_EBC_OPCODE_MASK) ==
-                        FW_EBC_OP_MOVE_SIGNED_W ? 2U : 4U;
+    UINTN index_width =
+        (encoded_opcode & FW_EBC_OPCODE_MASK) == FW_EBC_OP_MOVE_SIGNED_W ? 2U
+                                                                         : 4U;
     UINTN cursor = 2U;
     BOOLEAN destination_indirect = (operands & 0x08U) != 0;
     BOOLEAN source_indirect = (operands & 0x80U) != 0;
@@ -660,18 +652,15 @@ static EFI_STATUS fw_ebc_move_signed_natural(FW_EBC_MACHINE *machine)
             !fw_ebc_natural_offset(
                 fw_ebc_read((UINTN)machine->pc + cursor, index_width),
                 index_width, &destination_offset)) {
-            return fw_ebc_fail(machine, FwEbcFaultEncoding,
-                               EFI_UNSUPPORTED);
+            return fw_ebc_fail(machine, FwEbcFaultEncoding, EFI_UNSUPPORTED);
         }
         cursor += index_width;
     }
     if ((encoded_opcode & FW_EBC_MODIFIER_LOW) != 0) {
-        UINT64 encoded = fw_ebc_read((UINTN)machine->pc + cursor,
-                                     index_width);
+        UINT64 encoded = fw_ebc_read((UINTN)machine->pc + cursor, index_width);
 
         if (source_indirect) {
-            if (!fw_ebc_natural_offset(encoded, index_width,
-                                       &source_offset)) {
+            if (!fw_ebc_natural_offset(encoded, index_width, &source_offset)) {
                 return fw_ebc_fail(machine, FwEbcFaultEncoding,
                                    EFI_UNSUPPORTED);
             }
@@ -681,12 +670,13 @@ static EFI_STATUS fw_ebc_move_signed_natural(FW_EBC_MACHINE *machine)
         cursor += index_width;
     }
     if (source_indirect) {
-        value = (INTN)fw_ebc_read(
-            (UINTN)(machine->registers[(operands >> 4) & 7U] +
-                    (UINT64)source_offset), sizeof(UINTN));
+        value =
+            (INTN)fw_ebc_read((UINTN)(machine->registers[(operands >> 4) & 7U] +
+                                      (UINT64)source_offset),
+                              sizeof(UINTN));
     } else {
         value = (INT64)(machine->registers[(operands >> 4) & 7U] +
-                          (UINT64)source_offset);
+                        (UINT64)source_offset);
     }
     if (destination_indirect) {
         fw_ebc_write((UINTN)(machine->registers[operands & 7U] +
@@ -715,11 +705,9 @@ static EFI_STATUS fw_ebc_move_immediate(FW_EBC_MACHINE *machine)
         return fw_ebc_fail(machine, FwEbcFaultEncoding, EFI_UNSUPPORTED);
     }
     if ((operands & 0x40U) != 0) {
-        if (!fw_ebc_natural_offset(
-                fw_ebc_read((UINTN)machine->pc + cursor, 2U), 2U,
-                &destination_offset)) {
-            return fw_ebc_fail(machine, FwEbcFaultEncoding,
-                               EFI_UNSUPPORTED);
+        if (!fw_ebc_natural_offset(fw_ebc_read((UINTN)machine->pc + cursor, 2U),
+                                   2U, &destination_offset)) {
+            return fw_ebc_fail(machine, FwEbcFaultEncoding, EFI_UNSUPPORTED);
         }
         cursor += 2U;
     }
@@ -748,11 +736,9 @@ static EFI_STATUS fw_ebc_move_index(FW_EBC_MACHINE *machine)
         return fw_ebc_fail(machine, FwEbcFaultEncoding, EFI_UNSUPPORTED);
     }
     if ((operands & 0x40U) != 0) {
-        if (!fw_ebc_natural_offset(
-                fw_ebc_read((UINTN)machine->pc + cursor, 2U), 2U,
-                &destination_offset)) {
-            return fw_ebc_fail(machine, FwEbcFaultEncoding,
-                               EFI_UNSUPPORTED);
+        if (!fw_ebc_natural_offset(fw_ebc_read((UINTN)machine->pc + cursor, 2U),
+                                   2U, &destination_offset)) {
+            return fw_ebc_fail(machine, FwEbcFaultEncoding, EFI_UNSUPPORTED);
         }
         cursor += 2U;
     }
@@ -784,34 +770,31 @@ static EFI_STATUS fw_ebc_move_relative(FW_EBC_MACHINE *machine)
         return fw_ebc_fail(machine, FwEbcFaultEncoding, EFI_UNSUPPORTED);
     }
     if ((operands & 0x40U) != 0) {
-        if (!fw_ebc_natural_offset(
-                fw_ebc_read((UINTN)machine->pc + cursor, 2U), 2U,
-                &destination_offset)) {
-            return fw_ebc_fail(machine, FwEbcFaultEncoding,
-                               EFI_UNSUPPORTED);
+        if (!fw_ebc_natural_offset(fw_ebc_read((UINTN)machine->pc + cursor, 2U),
+                                   2U, &destination_offset)) {
+            return fw_ebc_fail(machine, FwEbcFaultEncoding, EFI_UNSUPPORTED);
         }
         cursor += 2U;
     }
     relative = fw_ebc_sign_extend(
-        fw_ebc_read((UINTN)machine->pc + cursor, data_width),
-        data_width * 8U);
+        fw_ebc_read((UINTN)machine->pc + cursor, data_width), data_width * 8U);
     cursor += data_width;
-    value = fw_ebc_read((UINTN)machine->pc + cursor + (UINTN)relative,
-                        data_width);
+    value =
+        fw_ebc_read((UINTN)machine->pc + cursor + (UINTN)relative, data_width);
     fw_ebc_store_operand(machine, operands & 7U, destination_indirect,
                          destination_offset, value, data_width);
     machine->pc += cursor;
     return EFI_SUCCESS;
 }
 
-static EFI_STATUS fw_ebc_stack_instruction(FW_EBC_MACHINE *machine,
-                                           BOOLEAN pop,
+static EFI_STATUS fw_ebc_stack_instruction(FW_EBC_MACHINE *machine, BOOLEAN pop,
                                            BOOLEAN natural)
 {
     UINT8 encoded_opcode = machine->pc[0];
     UINT8 operands = machine->pc[1];
-    UINTN width = natural ? sizeof(UINTN) :
-        ((encoded_opcode & FW_EBC_MODIFIER_LOW) != 0 ? 8U : 4U);
+    UINTN width = natural
+                      ? sizeof(UINTN)
+                      : ((encoded_opcode & FW_EBC_MODIFIER_LOW) != 0 ? 8U : 4U);
     UINTN length = (encoded_opcode & FW_EBC_MODIFIER_HIGH) != 0 ? 4U : 2U;
     BOOLEAN indirect = (operands & 0x08U) != 0;
     INT64 displacement = 0;
@@ -835,15 +818,15 @@ static EFI_STATUS fw_ebc_stack_instruction(FW_EBC_MACHINE *machine,
         }
     }
     if (!pop) {
-        value = fw_ebc_operand(machine, operands & 7U, indirect,
-                               displacement, width);
+        value = fw_ebc_operand(machine, operands & 7U, indirect, displacement,
+                               width);
         status = fw_ebc_push(machine, value, width);
     } else {
         status = fw_ebc_pop(machine, width, &value);
         if (status == EFI_SUCCESS) {
             if (indirect) {
-                fw_ebc_store_operand(machine, operands & 7U, 1,
-                                     displacement, value, width);
+                fw_ebc_store_operand(machine, operands & 7U, 1, displacement,
+                                     value, width);
             } else {
                 if (!natural && width == 4U) {
                     value = (UINT64)(INT64)(INT32)(UINT32)value;
@@ -872,8 +855,8 @@ static FW_EBC_THUNK *fw_ebc_find_thunk(UINTN descriptor)
     return NULL;
 }
 
-static EFI_STATUS fw_ebc_enter_byte_code(FW_EBC_MACHINE *machine,
-                                         UINTN target, UINTN return_address)
+static EFI_STATUS fw_ebc_enter_byte_code(FW_EBC_MACHINE *machine, UINTN target,
+                                         UINTN return_address)
 {
     UINTN saved_limit = machine->argument_limit;
     EFI_STATUS status;
@@ -928,12 +911,14 @@ static EFI_STATUS fw_ebc_call_instruction(FW_EBC_MACHINE *machine)
                 displacement = fw_ebc_sign_extend(encoded, 32U);
             }
         }
-        address = (operands & 0x08U) != 0 ?
-            fw_ebc_read((UINTN)(base + (UINT64)displacement), sizeof(UINTN)) :
-            base + (UINT64)displacement;
+        address = (operands & 0x08U) != 0
+                      ? fw_ebc_read((UINTN)(base + (UINT64)displacement),
+                                    sizeof(UINTN))
+                      : base + (UINT64)displacement;
     }
-    target = (operands & 0x10U) != 0 ?
-             (UINTN)machine->pc + length + (UINTN)address : (UINTN)address;
+    target = (operands & 0x10U) != 0
+                 ? (UINTN)machine->pc + length + (UINTN)address
+                 : (UINTN)address;
 
     if (external) {
         FW_EBC_THUNK *thunk = fw_ebc_find_thunk(target);
@@ -946,7 +931,7 @@ static EFI_STATUS fw_ebc_call_instruction(FW_EBC_MACHINE *machine)
             (UINTN)machine->registers[0] > machine->argument_limit ||
             !fw_ebc_stack_range(machine, (UINTN)machine->registers[0],
                                 machine->argument_limit -
-                                (UINTN)machine->registers[0])) {
+                                    (UINTN)machine->registers[0])) {
             return fw_ebc_fail(machine, FwEbcFaultStack, EFI_LOAD_ERROR);
         }
         machine->registers[7] = fw_ebc_call_native(
@@ -954,8 +939,7 @@ static EFI_STATUS fw_ebc_call_instruction(FW_EBC_MACHINE *machine)
         machine->pc += length;
         return EFI_SUCCESS;
     }
-    return fw_ebc_enter_byte_code(machine, target,
-                                  (UINTN)machine->pc + length);
+    return fw_ebc_enter_byte_code(machine, target, (UINTN)machine->pc + length);
 }
 
 static EFI_STATUS fw_ebc_return_instruction(FW_EBC_MACHINE *machine)
@@ -964,8 +948,7 @@ static EFI_STATUS fw_ebc_return_instruction(FW_EBC_MACHINE *machine)
     UINT64 saved_limit;
     EFI_STATUS status;
 
-    if ((machine->pc[0] & ~FW_EBC_OPCODE_MASK) != 0 ||
-        machine->pc[1] != 0) {
+    if ((machine->pc[0] & ~FW_EBC_OPCODE_MASK) != 0 || machine->pc[1] != 0) {
         return fw_ebc_fail(machine, FwEbcFaultEncoding, EFI_UNSUPPORTED);
     }
     if ((UINTN)machine->registers[0] == machine->final_frame) {
@@ -1016,16 +999,18 @@ static EFI_STATUS fw_ebc_jump_instruction(FW_EBC_MACHINE *machine)
                 displacement = fw_ebc_sign_extend(encoded, 32U);
             }
         }
-        address = (operands & 0x08U) != 0 ?
-            fw_ebc_read((UINTN)(base + (UINT64)displacement), sizeof(UINTN)) :
-            base + (UINT64)displacement;
+        address = (operands & 0x08U) != 0
+                      ? fw_ebc_read((UINTN)(base + (UINT64)displacement),
+                                    sizeof(UINTN))
+                      : base + (UINT64)displacement;
     }
     if (!fw_ebc_condition(machine, operands, 0x80U, 0x40U)) {
         machine->pc += length;
         return EFI_SUCCESS;
     }
-    target = (operands & 0x10U) != 0 ?
-             (UINTN)machine->pc + length + (UINTN)address : (UINTN)address;
+    target = (operands & 0x10U) != 0
+                 ? (UINTN)machine->pc + length + (UINTN)address
+                 : (UINTN)address;
     return fw_ebc_set_pc(machine, target);
 }
 
@@ -1057,8 +1042,7 @@ static EFI_STATUS fw_ebc_special_instruction(FW_EBC_MACHINE *machine,
         UINT8 source = (operands >> 4) & 7U;
 
         if (special != 0) {
-            return fw_ebc_fail(machine, FwEbcFaultEncoding,
-                               EFI_UNSUPPORTED);
+            return fw_ebc_fail(machine, FwEbcFaultEncoding, EFI_UNSUPPORTED);
         }
         machine->flags = (machine->flags & ~FW_EBC_FLAG_MASK) |
                          (machine->registers[source] & FW_EBC_FLAG_MASK);
@@ -1067,11 +1051,10 @@ static EFI_STATUS fw_ebc_special_instruction(FW_EBC_MACHINE *machine,
         UINT8 special = (operands >> 4) & 7U;
 
         if (special > 1U) {
-            return fw_ebc_fail(machine, FwEbcFaultEncoding,
-                               EFI_UNSUPPORTED);
+            return fw_ebc_fail(machine, FwEbcFaultEncoding, EFI_UNSUPPORTED);
         }
-        machine->registers[destination] = special == 0 ?
-            machine->flags : (UINTN)machine->pc;
+        machine->registers[destination] =
+            special == 0 ? machine->flags : (UINTN)machine->pc;
     }
     machine->pc += 2;
     return EFI_SUCCESS;
@@ -1104,8 +1087,7 @@ static EFI_STATUS fw_ebc_break_instruction(FW_EBC_MACHINE *machine)
         EFI_STATUS status;
 
         if (pointer_address == 0) {
-            return fw_ebc_fail(machine, FwEbcFaultBadBreak,
-                               EFI_LOAD_ERROR);
+            return fw_ebc_fail(machine, FwEbcFaultBadBreak, EFI_LOAD_ERROR);
         }
         relative = (INT32)(UINT32)fw_ebc_read(pointer_address, 4U);
         byte_code = (UINT8 *)(pointer_address + 4U + (INTN)relative);
@@ -1214,8 +1196,7 @@ static EFI_STATUS fw_ebc_step(FW_EBC_MACHINE *machine)
     case FW_EBC_OP_MOVE_RELATIVE:
         return fw_ebc_move_relative(machine);
     default:
-        return fw_ebc_fail(machine, FwEbcFaultInvalidOpcode,
-                           EFI_UNSUPPORTED);
+        return fw_ebc_fail(machine, FwEbcFaultInvalidOpcode, EFI_UNSUPPORTED);
     }
 }
 
@@ -1233,10 +1214,8 @@ static EFI_STATUS fw_ebc_execute(FW_EBC_MACHINE *machine)
         if ((machine->flags & FW_EBC_FLAG_SINGLE_STEP) != 0) {
             machine->fault = FwEbcFaultSingleStep;
         }
-        if (!fw_ebc_stack_range(machine,
-                                (UINTN)machine->registers[0], 0)) {
-            status = fw_ebc_fail(machine, FwEbcFaultStack,
-                                 EFI_LOAD_ERROR);
+        if (!fw_ebc_stack_range(machine, (UINTN)machine->registers[0], 0)) {
+            status = fw_ebc_fail(machine, FwEbcFaultStack, EFI_LOAD_ERROR);
             break;
         }
     }
@@ -1316,8 +1295,7 @@ static UINT64 fw_ebc_run(EFI_HANDLE image, UINT8 *byte_code,
 
 static UINT64 fw_ebc_protocol_gate(UINT64 first_argument, ...)
 {
-    FW_EBC_THUNK *context =
-        (FW_EBC_THUNK *)(UINTN)fw_ebc_capture_context();
+    FW_EBC_THUNK *context = (FW_EBC_THUNK *)(UINTN)fw_ebc_capture_context();
     UINT64 arguments[FW_EBC_NATIVE_ARGUMENTS];
     __builtin_va_list list;
     UINTN i;
@@ -1337,8 +1315,7 @@ static UINT64 fw_ebc_protocol_gate(UINT64 first_argument, ...)
 
 static UINT64 fw_ebc_image_gate(EFI_HANDLE image, VOID *system)
 {
-    FW_EBC_THUNK *context =
-        (FW_EBC_THUNK *)(UINTN)fw_ebc_capture_context();
+    FW_EBC_THUNK *context = (FW_EBC_THUNK *)(UINTN)fw_ebc_capture_context();
     UINT64 arguments[2];
 
     if (context == NULL || !context->active || context->byte_code == NULL ||
@@ -1363,15 +1340,12 @@ static VOID fw_ebc_pack_bundle(UINT8 *destination, UINT8 template_value,
 static VOID fw_ebc_emit_movl(UINT8 *destination, UINTN reg, UINT64 value)
 {
     UINT64 extension = (value >> 22) & 0x1ffffffffffULL;
-    UINT64 base = ((value & 0x7fULL) << 13) |
-                  (((value >> 21) & 1ULL) << 21) |
-                  (((value >> 16) & 0x1fULL) << 22) |
-                  (((value >> 7) & 0x1ffULL) << 27) |
-                  (((value >> 63) & 1ULL) << 36) |
-                  (0x06ULL << 37) | ((reg & 0x7fU) << 6);
+    UINT64 base =
+        ((value & 0x7fULL) << 13) | (((value >> 21) & 1ULL) << 21) |
+        (((value >> 16) & 0x1fULL) << 22) | (((value >> 7) & 0x1ffULL) << 27) |
+        (((value >> 63) & 1ULL) << 36) | (0x06ULL << 37) | ((reg & 0x7fU) << 6);
 
-    fw_ebc_pack_bundle(destination, 0x05U, 0x00008000000ULL,
-                       extension, base);
+    fw_ebc_pack_bundle(destination, 0x05U, 0x00008000000ULL, extension, base);
 }
 
 static EFI_STATUS fw_ebc_make_thunk(EFI_HANDLE image, UINT8 *byte_code,
@@ -1382,14 +1356,13 @@ static EFI_STATUS fw_ebc_make_thunk(EFI_HANDLE image, UINT8 *byte_code,
     FW_EBC_FUNCTION_DESCRIPTOR *gate;
     UINT8 *allocation;
     UINT8 *code;
-    UINTN allocation_size = FW_EBC_THUNK_TOTAL_BYTES +
-                            FW_EBC_THUNK_ALIGNMENT - 1U;
+    UINTN allocation_size =
+        FW_EBC_THUNK_TOTAL_BYTES + FW_EBC_THUNK_ALIGNMENT - 1U;
     UINT64 branch_slot;
     EFI_STATUS status;
     UINTN i;
 
-    if (result == NULL || byte_code == NULL ||
-        ((UINTN)byte_code & 1U) != 0) {
+    if (result == NULL || byte_code == NULL || ((UINTN)byte_code & 1U) != 0) {
         return EFI_INVALID_PARAMETER;
     }
     *result = NULL;
@@ -1408,9 +1381,11 @@ static EFI_STATUS fw_ebc_make_thunk(EFI_HANDLE image, UINT8 *byte_code,
         return EFI_OUT_OF_RESOURCES;
     }
     fw_set_mem(allocation, allocation_size, 0);
-    descriptor = (FW_EBC_FUNCTION_DESCRIPTOR *)(VOID *)
-        (((UINTN)allocation + FW_EBC_THUNK_ALIGNMENT - 1U) &
-         ~(UINTN)(FW_EBC_THUNK_ALIGNMENT - 1U));
+    descriptor =
+        (FW_EBC_FUNCTION_DESCRIPTOR *)(VOID *)(((UINTN)allocation +
+                                                FW_EBC_THUNK_ALIGNMENT - 1U) &
+                                               ~(UINTN)(FW_EBC_THUNK_ALIGNMENT -
+                                                        1U));
     code = (UINT8 *)(descriptor + 1);
     if (image_entry) {
         gate = (FW_EBC_FUNCTION_DESCRIPTOR *)(UINTN)fw_ebc_image_gate;
@@ -1429,11 +1404,11 @@ static EFI_STATUS fw_ebc_make_thunk(EFI_HANDLE image, UINT8 *byte_code,
     fw_ebc_emit_movl(code, 8U, (UINTN)slot);
     fw_ebc_emit_movl(code + 16U, 31U, gate->entry);
     branch_slot = 0x00e00100000ULL | (6ULL << 6) | (31ULL << 13);
-    fw_ebc_pack_bundle(code + 32U, 0x0dU, 0x00008000000ULL,
-                       0x00008000000ULL, branch_slot);
+    fw_ebc_pack_bundle(code + 32U, 0x0dU, 0x00008000000ULL, 0x00008000000ULL,
+                       branch_slot);
     branch_slot = 0x00100000000ULL | (6ULL << 13);
-    fw_ebc_pack_bundle(code + 48U, 0x1dU, 0x00008000000ULL,
-                       0x00008000000ULL, branch_slot);
+    fw_ebc_pack_bundle(code + 48U, 0x1dU, 0x00008000000ULL, 0x00008000000ULL,
+                       branch_slot);
 
     if (mEbcCacheFlush != NULL) {
         status = mEbcCacheFlush((EFI_PHYSICAL_ADDRESS)(UINTN)descriptor,

@@ -17,24 +17,23 @@ static inline BOOLEAN fw_scsi_lsi53c895a_id_supported(UINT32 VendorDevice)
 }
 
 static inline BOOLEAN fw_scsi_capacity_10_valid(UINT32 LastLba,
-                                                 UINT32 BlockSize,
-                                                 UINT32 BounceBytes,
-                                                 UINT64 CapacityLimitBytes)
+                                                UINT32 BlockSize,
+                                                UINT32 BounceBytes,
+                                                UINT64 CapacityLimitBytes)
 {
-    if (BlockSize == 0 || BounceBytes == 0 ||
-        BlockSize > BounceBytes || CapacityLimitBytes <= 1U) {
+    if (BlockSize == 0 || BounceBytes == 0 || BlockSize > BounceBytes ||
+        CapacityLimitBytes <= 1U) {
         return 0;
     }
 
     /* READ(10) capacity stays below this limit. */
-    return (UINT64)LastLba + 1U <=
-        (CapacityLimitBytes - 1U) / BlockSize;
+    return (UINT64)LastLba + 1U <= (CapacityLimitBytes - 1U) / BlockSize;
 }
 
 static inline BOOLEAN fw_scsi_transfer_bytes(UINT32 BlockSize,
-                                              UINT32 BlockCount,
-                                              UINT32 BounceBytes,
-                                              UINT32 *TransferBytes)
+                                             UINT32 BlockCount,
+                                             UINT32 BounceBytes,
+                                             UINT32 *TransferBytes)
 {
     UINT32 result;
 

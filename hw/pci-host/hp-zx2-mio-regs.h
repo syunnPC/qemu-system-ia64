@@ -43,8 +43,8 @@ bool hp_zx2_mio_regs_read(const HPZX2MIORegs *regs, uint64_t offset,
                           unsigned int size, uint64_t *value);
 bool hp_zx2_mio_regs_write(HPZX2MIORegs *regs, uint64_t offset,
                            unsigned int size, uint64_t value);
-bool hp_zx2_mio_regs_group_for_ropes(const HPZX2MIORegs *regs,
-                                     uint16_t ropes, unsigned int *group,
+bool hp_zx2_mio_regs_group_for_ropes(const HPZX2MIORegs *regs, uint16_t ropes,
+                                     unsigned int *group,
                                      unsigned int *context);
 void hp_zx2_mio_regs_report_fault(HPZX2MIORegs *regs, uint64_t status,
                                   uint64_t address, uint64_t information);

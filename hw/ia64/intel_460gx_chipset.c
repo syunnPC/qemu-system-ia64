@@ -96,8 +96,7 @@ struct Intel460GXChipsetState {
 static uint32_t register_block_get_long(const uint8_t *config,
                                         unsigned int offset)
 {
-    return (uint32_t)config[offset] |
-           (uint32_t)config[offset + 1] << 8 |
+    return (uint32_t)config[offset] | (uint32_t)config[offset + 1] << 8 |
            (uint32_t)config[offset + 2] << 16 |
            (uint32_t)config[offset + 3] << 24;
 }
@@ -135,25 +134,25 @@ static void register_block_write_raw(Intel460GXRegisterBlock *block,
         uint8_t old = block->config[index];
         uint8_t clear = byte & block->w1cmask[index];
 
-        old = (old & ~block->wmask[index]) |
-              (byte & block->wmask[index]);
+        old = (old & ~block->wmask[index]) | (byte & block->wmask[index]);
         old &= ~clear;
         block->config[index] = old;
         if (index >= block->coupled_w1c_a &&
             index < block->coupled_w1c_a + block->coupled_w1c_size) {
-            block->config[block->coupled_w1c_b +
-                          index - block->coupled_w1c_a] &= ~clear;
+            block
+                ->config[block->coupled_w1c_b + index - block->coupled_w1c_a] &=
+                ~clear;
         } else if (index >= block->coupled_w1c_b &&
-                   index < block->coupled_w1c_b +
-                           block->coupled_w1c_size) {
-            block->config[block->coupled_w1c_a +
-                          index - block->coupled_w1c_b] &= ~clear;
+                   index < block->coupled_w1c_b + block->coupled_w1c_size) {
+            block
+                ->config[block->coupled_w1c_a + index - block->coupled_w1c_b] &=
+                ~clear;
         }
     }
 }
 
-static void register_block_write(void *opaque, uint16_t offset,
-                                 uint32_t value, unsigned size)
+static void register_block_write(void *opaque, uint16_t offset, uint32_t value,
+                                 unsigned size)
 {
     Intel460GXRegisterBlock *block = opaque;
     Intel460GXDecodedStateUpdate update = { 0 };
@@ -170,18 +169,16 @@ static void register_block_write(void *opaque, uint16_t offset,
             update.cbn = block->config[INTEL_460GX_SAC_CBN_OFFSET];
             decoded = true;
         }
-        if (ranges_overlap(offset, size,
-                           INTEL_460GX_SAC_DEVNPRES_OFFSET, 4)) {
+        if (ranges_overlap(offset, size, INTEL_460GX_SAC_DEVNPRES_OFFSET, 4)) {
             update.has_chipset_present = true;
             update.chipset_present =
-                ~register_block_get_long(
-                    block->config, INTEL_460GX_SAC_DEVNPRES_OFFSET) &
+                ~register_block_get_long(block->config,
+                                         INTEL_460GX_SAC_DEVNPRES_OFFSET) &
                 intel_460gx_chipset_device_mask();
             decoded = true;
         }
     } else if (block->decoded_role == INTEL_460GX_DECODED_XXB &&
-               ranges_overlap(offset, size,
-                              INTEL_460GX_SAC_BUSNO_OFFSET, 2)) {
+               ranges_overlap(offset, size, INTEL_460GX_SAC_BUSNO_OFFSET, 2)) {
         update.route_mask = BIT(block->decoded_port);
         update.routes[block->decoded_port].first_bus =
             block->config[INTEL_460GX_SAC_BUSNO_OFFSET];
@@ -190,9 +187,8 @@ static void register_block_write(void *opaque, uint16_t offset,
         decoded = true;
     }
 
-    if (decoded &&
-        !intel_460gx_host_apply_decoded_update(block->chipset->host,
-                                                &update, &local_err)) {
+    if (decoded && !intel_460gx_host_apply_decoded_update(
+                       block->chipset->host, &update, &local_err)) {
         memcpy(block->config, old_config, sizeof(block->config));
         error_free(local_err);
     }
@@ -243,21 +239,20 @@ static bool register_block_first_error(Intel460GXRegisterBlock *block,
 }
 
 static void register_block_mark_sticky(Intel460GXRegisterBlock *block,
-                                       unsigned int offset,
-                                       unsigned int size)
+                                       unsigned int offset, unsigned int size)
 {
     memset(block->sticky + offset, 0xff, size);
 }
 
 static void register_block_mark_writable(Intel460GXRegisterBlock *block,
-                                         unsigned int offset,
-                                         unsigned int size)
+                                         unsigned int offset, unsigned int size)
 {
     memset(block->wmask + offset, 0xff, size);
 }
 
-static void register_block_mark_writable_low_bits(
-    Intel460GXRegisterBlock *block, unsigned int offset, unsigned int bits)
+static void
+register_block_mark_writable_low_bits(Intel460GXRegisterBlock *block,
+                                      unsigned int offset, unsigned int bits)
 {
     unsigned int bytes = bits / 8;
 
@@ -272,11 +267,9 @@ static void register_block_init(Intel460GXRegisterBlock *block,
                                 uint8_t revision)
 {
     memset(block, 0, sizeof(*block));
-    register_block_set_word(block->reset, PCI_VENDOR_ID,
-                            INTEL_460GX_VENDOR_ID);
+    register_block_set_word(block->reset, PCI_VENDOR_ID, INTEL_460GX_VENDOR_ID);
     register_block_set_word(block->reset, PCI_DEVICE_ID, device_id);
-    register_block_set_word(block->reset, PCI_STATUS,
-                            PCI_STATUS_DEVSEL_MEDIUM);
+    register_block_set_word(block->reset, PCI_STATUS, PCI_STATUS_DEVSEL_MEDIUM);
     register_block_set_long(block->reset, PCI_REVISION_ID,
                             (uint32_t)class_id << 16 | revision);
     register_block_set_word(block->reset, PCI_SUBSYSTEM_VENDOR_ID,
@@ -285,8 +278,7 @@ static void register_block_init(Intel460GXRegisterBlock *block,
     memcpy(block->config, block->reset, sizeof(block->config));
 }
 
-static void intel_460gx_chipset_init_registers(
-    Intel460GXChipsetState *s)
+static void intel_460gx_chipset_init_registers(Intel460GXChipsetState *s)
 {
     unsigned i;
     unsigned function;
@@ -303,16 +295,15 @@ static void intel_460gx_chipset_init_registers(
     s->sac[0][0].chipset = s;
     s->sac[0][0].decoded_role = INTEL_460GX_DECODED_SAC;
     s->sac[0][0].wmask[INTEL_460GX_SAC_CBN_OFFSET] = UINT8_MAX;
-    register_block_set_long(
-        s->sac[0][0].wmask, INTEL_460GX_SAC_DEVNPRES_OFFSET,
-        intel_460gx_chipset_device_mask());
+    register_block_set_long(s->sac[0][0].wmask, INTEL_460GX_SAC_DEVNPRES_OFFSET,
+                            intel_460gx_chipset_device_mask());
     s->sac[0][0].reset[INTEL_460GX_SAC_CBN_OFFSET] =
         intel_460gx_host_get_cbn(s->host);
     s->sac[0][0].reset[INTEL_460GX_SAC_CBUSES_OFFSET] = 1;
     register_block_set_long(
         s->sac[0][0].reset, INTEL_460GX_SAC_DEVNPRES_OFFSET,
         ~intel_460gx_chipset_present_mask(s->expander_mask) &
-        intel_460gx_chipset_device_mask());
+            intel_460gx_chipset_device_mask());
     s->sac[0][0].wmask[0x80] = BIT(7);
     s->sac[0][0].wmask[0x81] = BIT(7);
     s->sac[0][0].wmask[0x82] = BIT(7);
@@ -320,10 +311,8 @@ static void intel_460gx_chipset_init_registers(
     s->sac[0][0].w1cmask[0x81] = BIT(6);
     s->sac[0][0].w1cmask[0x82] = BIT(6);
     memset(s->sac[0][0].sticky + 0x80, 0xff, 3);
-    register_block_set_long(s->sac[0][1].w1cmask, 0x40,
-                            UINT32_C(0xffff7fe1));
-    register_block_set_long(s->sac[0][1].w1cmask, 0x44,
-                            UINT32_C(0xffff7fe1));
+    register_block_set_long(s->sac[0][1].w1cmask, 0x40, UINT32_C(0xffff7fe1));
+    register_block_set_long(s->sac[0][1].w1cmask, 0x44, UINT32_C(0xffff7fe1));
     memset(s->sac[0][1].sticky + 0x40, 0xff, 8);
     register_block_mark_sticky(&s->sac[0][1], 0x60, 0x10);
     s->sac[0][1].wmask[0x80] = 0x3f;
@@ -334,8 +323,7 @@ static void intel_460gx_chipset_init_registers(
         register_block_mark_writable_low_bits(&s->sac[0][2], i, 41);
     }
 
-    register_block_init(&s->sdc, INTEL_460GX_SDC_ID,
-                        PCI_CLASS_BRIDGE_HOST,
+    register_block_init(&s->sdc, INTEL_460GX_SDC_ID, PCI_CLASS_BRIDGE_HOST,
                         INTEL_460GX_SDC_REVISION);
     memset(s->sdc.w1cmask + 0x80, 0xff, 8);
     s->sdc.coupled_w1c_a = 0x80;
@@ -352,16 +340,13 @@ static void intel_460gx_chipset_init_registers(
 
     for (i = 0; i < 2; i++) {
         for (function = 0; function < 2; function++) {
-            Intel460GXRegisterBlock *block =
-                &s->memory_card[i][function];
+            Intel460GXRegisterBlock *block = &s->memory_card[i][function];
 
-            register_block_init(block, INTEL_460GX_MAC_ID,
-                                PCI_CLASS_MEMORY_RAM,
+            register_block_init(block, INTEL_460GX_MAC_ID, PCI_CLASS_MEMORY_RAM,
                                 INTEL_460GX_MAC_REVISION);
             block->reset[PCI_HEADER_TYPE] = PCI_HEADER_TYPE_MULTI_FUNCTION;
             register_block_mark_sticky(block, INTEL_460GX_MAC_FERR, 1);
-            register_block_mark_sticky(block,
-                                       INTEL_460GX_MAC_CMND_FERR, 3);
+            register_block_mark_sticky(block, INTEL_460GX_MAC_CMND_FERR, 3);
         }
     }
 
@@ -371,8 +356,7 @@ static void intel_460gx_chipset_init_registers(
         uint8_t revision = INTEL_460GX_PXB_REVISION;
 
         register_block_init(&s->downstream_sac[i], INTEL_460GX_SAC_ID,
-                            PCI_CLASS_BRIDGE_HOST,
-                            INTEL_460GX_SAC_REVISION);
+                            PCI_CLASS_BRIDGE_HOST, INTEL_460GX_SAC_REVISION);
         s->downstream_sac[i].reset[PCI_HEADER_TYPE] =
             PCI_HEADER_TYPE_MULTI_FUNCTION;
         s->downstream_sac[i].chipset = s;
@@ -388,10 +372,8 @@ static void intel_460gx_chipset_init_registers(
             device_id = INTEL_460GX_GXB_F1_ID;
             revision = INTEL_460GX_GXB_REVISION;
         }
-        register_block_init(block, device_id, PCI_CLASS_BRIDGE_HOST,
-                            revision);
-        if (i == INTEL_460GX_WXB0_PORT ||
-            i == INTEL_460GX_WXB1_PORT) {
+        register_block_init(block, device_id, PCI_CLASS_BRIDGE_HOST, revision);
+        if (i == INTEL_460GX_WXB0_PORT || i == INTEL_460GX_WXB1_PORT) {
             block->w1cmask[0x44] = 0xeb;
             block->sticky[0x44] = 0xeb;
             register_block_set_word(block->reset, 0x45, 0x8040);
@@ -425,15 +407,12 @@ static void intel_460gx_chipset_init_registers(
     s->expander[INTEL_460GX_GXB_PORT].reset[PCI_HEADER_TYPE] =
         PCI_HEADER_TYPE_MULTI_FUNCTION;
     register_block_init(&s->gxb_function2, INTEL_460GX_GXB_F2_ID,
-                        PCI_CLASS_BRIDGE_OTHER,
-                        INTEL_460GX_GXB_REVISION);
-    s->gxb_function2.reset[PCI_HEADER_TYPE] =
-        PCI_HEADER_TYPE_MULTI_FUNCTION;
+                        PCI_CLASS_BRIDGE_OTHER, INTEL_460GX_GXB_REVISION);
+    s->gxb_function2.reset[PCI_HEADER_TYPE] = PCI_HEADER_TYPE_MULTI_FUNCTION;
 
     for (i = 0; i < 2; i++) {
         for (function = 0; function < 8; function++) {
-            memcpy(s->sac[i][function].config,
-                   s->sac[i][function].reset,
+            memcpy(s->sac[i][function].config, s->sac[i][function].reset,
                    sizeof(s->sac[i][function].config));
         }
     }
@@ -446,8 +425,7 @@ static void intel_460gx_chipset_init_registers(
         }
     }
     for (i = 0; i < INTEL_460GX_DOWNSTREAM_PORTS; i++) {
-        memcpy(s->downstream_sac[i].config,
-               s->downstream_sac[i].reset,
+        memcpy(s->downstream_sac[i].config, s->downstream_sac[i].reset,
                sizeof(s->downstream_sac[i].config));
         memcpy(s->expander[i].config, s->expander[i].reset,
                sizeof(s->expander[i].config));
@@ -459,13 +437,13 @@ static void intel_460gx_chipset_init_registers(
 uint32_t intel_460gx_chipset_present_mask(uint8_t expander_mask)
 {
     return INTEL_460GX_CHIPSET_FIXED_PRESENT_MASK |
-           (uint32_t)expander_mask <<
-           INTEL_460GX_CHIPSET_EXPANDER_DEVICE_BASE;
+           (uint32_t)expander_mask << INTEL_460GX_CHIPSET_EXPANDER_DEVICE_BASE;
 }
 
-void intel_460gx_chipset_set_downstream_reset_range(
-    Intel460GXChipsetState *s, unsigned int port,
-    uint8_t first_bus, uint8_t last_bus)
+void intel_460gx_chipset_set_downstream_reset_range(Intel460GXChipsetState *s,
+                                                    unsigned int port,
+                                                    uint8_t first_bus,
+                                                    uint8_t last_bus)
 {
     Intel460GXRegisterBlock *block;
 
@@ -479,14 +457,13 @@ void intel_460gx_chipset_set_downstream_reset_range(
 }
 
 static void intel_460gx_record_sac_error(Intel460GXChipsetState *s,
-                                         uint32_t status,
-                                         uint64_t address)
+                                         uint32_t status, uint64_t address)
 {
     Intel460GXRegisterBlock *block = &s->sac[0][1];
-    uint32_t first = register_block_get_long(block->config,
-                                              INTEL_460GX_SAC_FERR);
-    uint32_t next = register_block_get_long(block->config,
-                                             INTEL_460GX_SAC_NERR);
+    uint32_t first =
+        register_block_get_long(block->config, INTEL_460GX_SAC_FERR);
+    uint32_t next =
+        register_block_get_long(block->config, INTEL_460GX_SAC_NERR);
     uint32_t old_first = first;
     bool record_address = false;
 
@@ -507,16 +484,15 @@ static void intel_460gx_record_sac_error(Intel460GXChipsetState *s,
     }
 
     if (first != old_first) {
-        register_block_set_long(block->config, INTEL_460GX_SAC_FERR,
-                                first);
+        register_block_set_long(block->config, INTEL_460GX_SAC_FERR, first);
     }
     if (record_address) {
         uint64_t encoded = (address >> 3) & MAKE_64BIT_MASK(0, 33);
 
         register_block_set_qword(block->config, INTEL_460GX_SAC_SA_FERR,
                                  encoded);
-        register_block_set_qword(block->config,
-                                 INTEL_460GX_SAC_SA_FERR + 8, encoded);
+        register_block_set_qword(block->config, INTEL_460GX_SAC_SA_FERR + 8,
+                                 encoded);
     }
     register_block_set_long(block->config, INTEL_460GX_SAC_NERR, next);
 }
@@ -552,8 +528,9 @@ static void intel_460gx_notify_fault(Intel460GXChipsetState *s,
     s->fault_notify(s->fault_opaque, &fault);
 }
 
-void intel_460gx_chipset_set_fault_notify(
-    Intel460GXChipsetState *s, IA64ChipsetFaultNotify notify, void *opaque)
+void intel_460gx_chipset_set_fault_notify(Intel460GXChipsetState *s,
+                                          IA64ChipsetFaultNotify notify,
+                                          void *opaque)
 {
     s->fault_notify = notify;
     s->fault_opaque = opaque;
@@ -561,8 +538,8 @@ void intel_460gx_chipset_set_fault_notify(
 
 void intel_460gx_chipset_report_memory_error(
     Intel460GXChipsetState *s, unsigned int card, unsigned int mac,
-    Intel460GXMemoryError error, uint64_t address, uint64_t data,
-    uint8_t ecc, uint8_t chunk, uint8_t itid)
+    Intel460GXMemoryError error, uint64_t address, uint64_t data, uint8_t ecc,
+    uint8_t chunk, uint8_t itid)
 {
     Intel460GXRegisterBlock *sdc;
     Intel460GXRegisterBlock *mac_block;
@@ -603,8 +580,7 @@ void intel_460gx_chipset_report_memory_error(
                                     INTEL_460GX_MAC_CMND_FERR,
                                     address & MAKE_64BIT_MASK(0, 22));
         }
-        sac_status = card ? INTEL_460GX_SAC_MBE :
-                            INTEL_460GX_SAC_MAE;
+        sac_status = card ? INTEL_460GX_SAC_MBE : INTEL_460GX_SAC_MAE;
         reason = IA64_CHIPSET_FAULT_PARITY;
         severity = IA64_RAS_SEVERITY_RECOVERABLE;
         break;
@@ -613,8 +589,7 @@ void intel_460gx_chipset_report_memory_error(
             mac_block->config[INTEL_460GX_MAC_FERR] =
                 INTEL_460GX_MAC_QUEUE_ERROR;
         }
-        sac_status = card ? INTEL_460GX_SAC_MBE :
-                            INTEL_460GX_SAC_MAE;
+        sac_status = card ? INTEL_460GX_SAC_MBE : INTEL_460GX_SAC_MAE;
         reason = IA64_CHIPSET_FAULT_PROTOCOL;
         severity = IA64_RAS_SEVERITY_RECOVERABLE;
         break;
@@ -624,8 +599,7 @@ void intel_460gx_chipset_report_memory_error(
 
     if (sdc_status) {
         first = register_block_first_error(sdc, INTEL_460GX_SDC_FERR,
-                                           INTEL_460GX_SDC_NERR,
-                                           sdc_status);
+                                           INTEL_460GX_SDC_NERR, sdc_status);
         if (first) {
             register_block_set_qword(sdc->config, log_offset, data);
             sdc->config[log_offset + 8] = ecc;
@@ -634,18 +608,17 @@ void intel_460gx_chipset_report_memory_error(
         }
     }
     intel_460gx_record_sac_error(s, sac_status, address);
-    intel_460gx_notify_fault(s, reason, severity, address,
-                             (uint64_t)sac_status << 32 | sdc_status,
-                             (uint64_t)card << 40 |
-                             (uint64_t)mac << 32 |
-                             (uint64_t)ecc << 16 |
-                             (uint64_t)(chunk & 0x7) << 6 |
-                             (itid & 0x3f));
+    intel_460gx_notify_fault(
+        s, reason, severity, address, (uint64_t)sac_status << 32 | sdc_status,
+        (uint64_t)card << 40 | (uint64_t)mac << 32 | (uint64_t)ecc << 16 |
+            (uint64_t)(chunk & 0x7) << 6 | (itid & 0x3f));
 }
 
-static void intel_460gx_chipset_record_expander_error(
-    Intel460GXChipsetState *s, unsigned int port, uint8_t status,
-    uint64_t address, uint64_t data)
+static void intel_460gx_chipset_record_expander_error(Intel460GXChipsetState *s,
+                                                      unsigned int port,
+                                                      uint8_t status,
+                                                      uint64_t address,
+                                                      uint64_t data)
 {
     Intel460GXRegisterBlock *block;
     uint8_t device_status;
@@ -655,8 +628,7 @@ static void intel_460gx_chipset_record_expander_error(
     g_return_if_fail(s->expander_mask & BIT(port));
     block = &s->expander[port];
 
-    if (port == INTEL_460GX_WXB0_PORT ||
-        port == INTEL_460GX_WXB1_PORT) {
+    if (port == INTEL_460GX_WXB0_PORT || port == INTEL_460GX_WXB1_PORT) {
         device_status = status & 0xfb;
         if (!(block->config[0x83] & 0x7b)) {
             block->config[0x83] |= device_status | BIT(7);
@@ -692,9 +664,9 @@ static void intel_460gx_chipset_record_expander_error(
     intel_460gx_record_sac_error(s, BIT(29), address);
 }
 
-bool intel_460gx_chipset_report_expander_fault(
-    Intel460GXChipsetState *s, unsigned int port,
-    const IA64ChipsetFault *fault)
+bool intel_460gx_chipset_report_expander_fault(Intel460GXChipsetState *s,
+                                               unsigned int port,
+                                               const IA64ChipsetFault *fault)
 {
     IA64ChipsetFault routed;
 
@@ -710,8 +682,8 @@ bool intel_460gx_chipset_report_expander_fault(
 }
 
 static bool register_target(Intel460GXChipsetState *s, unsigned device,
-                            unsigned function,
-                            Intel460GXRegisterBlock *block, Error **errp)
+                            unsigned function, Intel460GXRegisterBlock *block,
+                            Error **errp)
 {
     return intel_460gx_host_register_chipset_target(
         s->host, device, function, &register_block_ops, block, errp);
@@ -743,15 +715,15 @@ static bool intel_460gx_qtest_command(CharFrontend *chr, gchar **words)
         qtest_sendf(chr, "FAIL invalid 460GX memory error\n");
         return true;
     }
-    chipset = INTEL_460GX_CHIPSET(object_resolve_path_type(
-        "", TYPE_INTEL_460GX_CHIPSET, &ambiguous));
+    chipset = INTEL_460GX_CHIPSET(
+        object_resolve_path_type("", TYPE_INTEL_460GX_CHIPSET, &ambiguous));
     if (!chipset || ambiguous) {
         qtest_sendf(chr, "FAIL requires one Intel 460GX chipset\n");
         return true;
     }
-    intel_460gx_chipset_report_memory_error(
-        chipset, args[0], args[1], args[2], args[3], args[4],
-        args[5], args[6], args[7]);
+    intel_460gx_chipset_report_memory_error(chipset, args[0], args[1], args[2],
+                                            args[3], args[4], args[5], args[6],
+                                            args[7]);
     qtest_sendf(chr, "OK\n");
     return true;
 }
@@ -764,8 +736,7 @@ static void intel_460gx_chipset_realize(DeviceState *dev, Error **errp)
     unsigned function;
 
     if (!s->host) {
-        error_setg(errp, "%s requires the '%s' link",
-                   TYPE_INTEL_460GX_CHIPSET,
+        error_setg(errp, "%s requires the '%s' link", TYPE_INTEL_460GX_CHIPSET,
                    INTEL_460GX_CHIPSET_PROP_HOST);
         return;
     }
@@ -791,39 +762,35 @@ static void intel_460gx_chipset_realize(DeviceState *dev, Error **errp)
             }
         }
     }
-    if (!register_target(s, INTEL_460GX_CHIPSET_SDC_DEVICE, 0,
-                         &s->sdc, errp)) {
+    if (!register_target(s, INTEL_460GX_CHIPSET_SDC_DEVICE, 0, &s->sdc, errp)) {
         return;
     }
     for (i = 0; i < 2; i++) {
         for (function = 0; function < 2; function++) {
             if (!register_target(
-                    s, INTEL_460GX_CHIPSET_MEMORY_CARD_A_DEVICE + i,
-                    function, &s->memory_card[i][function], errp)) {
+                    s, INTEL_460GX_CHIPSET_MEMORY_CARD_A_DEVICE + i, function,
+                    &s->memory_card[i][function], errp)) {
                 return;
             }
         }
     }
     for (i = 0; i < INTEL_460GX_DOWNSTREAM_PORTS; i++) {
-        if (!register_target(s,
-                             INTEL_460GX_CHIPSET_EXPANDER_DEVICE_BASE + i,
-                             0, &s->downstream_sac[i], errp)) {
+        if (!register_target(s, INTEL_460GX_CHIPSET_EXPANDER_DEVICE_BASE + i, 0,
+                             &s->downstream_sac[i], errp)) {
             return;
         }
     }
     for (i = 0; i < INTEL_460GX_DOWNSTREAM_PORTS; i++) {
         if ((s->expander_mask & BIT(i)) &&
-            !register_target(s,
-                             INTEL_460GX_CHIPSET_EXPANDER_DEVICE_BASE + i,
-                             1, &s->expander[i], errp)) {
+            !register_target(s, INTEL_460GX_CHIPSET_EXPANDER_DEVICE_BASE + i, 1,
+                             &s->expander[i], errp)) {
             return;
         }
     }
     if ((s->expander_mask & BIT(INTEL_460GX_GXB_PORT)) &&
-        !register_target(s,
-                         INTEL_460GX_CHIPSET_EXPANDER_DEVICE_BASE +
-                         INTEL_460GX_GXB_PORT,
-                         2, &s->gxb_function2, errp)) {
+        !register_target(
+            s, INTEL_460GX_CHIPSET_EXPANDER_DEVICE_BASE + INTEL_460GX_GXB_PORT,
+            2, &s->gxb_function2, errp)) {
         return;
     }
     if (qtest_driver()) {
@@ -865,16 +832,15 @@ static void intel_460gx_chipset_reset(DeviceState *dev)
     register_block_reset(&s->gxb_function2);
 }
 
-static bool register_block_post_load(void *opaque, int version_id,
-                                     Error **errp)
+static bool register_block_post_load(void *opaque, int version_id, Error **errp)
 {
     Intel460GXRegisterBlock *block = opaque;
     unsigned i;
 
     (void)version_id;
     for (i = 0; i < INTEL_460GX_CONFIG_SIZE; i++) {
-        uint8_t mutable = block->wmask[i] | block->w1cmask[i] |
-                          block->sticky[i];
+        uint8_t mutable =
+            block->wmask[i] | block->w1cmask[i] | block->sticky[i];
 
         if ((block->config[i] ^ block->reset[i]) & ~mutable) {
             error_setg(errp,
@@ -890,15 +856,14 @@ static const VMStateDescription vmstate_intel_460gx_register_block = {
     .version_id = 1,
     .minimum_version_id = 1,
     .post_load_errp = register_block_post_load,
-    .fields = (const VMStateField[]) {
-        VMSTATE_UINT8_ARRAY(config, Intel460GXRegisterBlock,
-                            INTEL_460GX_CONFIG_SIZE),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields = (const VMStateField[]) { VMSTATE_UINT8_ARRAY(
+                                           config, Intel460GXRegisterBlock,
+                                           INTEL_460GX_CONFIG_SIZE),
+                                       VMSTATE_END_OF_LIST() },
 };
 
 static bool intel_460gx_chipset_post_load(void *opaque, int version_id,
-                                           Error **errp)
+                                          Error **errp)
 {
     Intel460GXChipsetState *s = opaque;
     Intel460GXDecodedStateUpdate update = { 0 };
@@ -927,43 +892,39 @@ static const VMStateDescription vmstate_intel_460gx_chipset = {
     .version_id = 5,
     .minimum_version_id = 5,
     .post_load_errp = intel_460gx_chipset_post_load,
-    .fields = (const VMStateField[]) {
-        VMSTATE_UINT8_EQUAL(expander_mask, Intel460GXChipsetState),
-        VMSTATE_STRUCT_2DARRAY(sac, Intel460GXChipsetState, 2, 8, 1,
-                               vmstate_intel_460gx_register_block,
-                               Intel460GXRegisterBlock),
-        VMSTATE_STRUCT(sdc, Intel460GXChipsetState, 1,
-                       vmstate_intel_460gx_register_block,
-                       Intel460GXRegisterBlock),
-        VMSTATE_STRUCT_2DARRAY(memory_card, Intel460GXChipsetState,
-                               2, 2, 0,
-                               vmstate_intel_460gx_register_block,
-                               Intel460GXRegisterBlock),
-        VMSTATE_STRUCT_ARRAY(downstream_sac, Intel460GXChipsetState,
-                             INTEL_460GX_DOWNSTREAM_PORTS, 1,
-                             vmstate_intel_460gx_register_block,
-                             Intel460GXRegisterBlock),
-        VMSTATE_STRUCT_ARRAY(expander, Intel460GXChipsetState,
-                             INTEL_460GX_DOWNSTREAM_PORTS, 1,
-                             vmstate_intel_460gx_register_block,
-                             Intel460GXRegisterBlock),
-        VMSTATE_STRUCT(gxb_function2, Intel460GXChipsetState, 1,
-                       vmstate_intel_460gx_register_block,
-                       Intel460GXRegisterBlock),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) {
+            VMSTATE_UINT8_EQUAL(expander_mask, Intel460GXChipsetState),
+            VMSTATE_STRUCT_2DARRAY(sac, Intel460GXChipsetState, 2, 8, 1,
+                                   vmstate_intel_460gx_register_block,
+                                   Intel460GXRegisterBlock),
+            VMSTATE_STRUCT(sdc, Intel460GXChipsetState, 1,
+                           vmstate_intel_460gx_register_block,
+                           Intel460GXRegisterBlock),
+            VMSTATE_STRUCT_2DARRAY(memory_card, Intel460GXChipsetState, 2, 2, 0,
+                                   vmstate_intel_460gx_register_block,
+                                   Intel460GXRegisterBlock),
+            VMSTATE_STRUCT_ARRAY(downstream_sac, Intel460GXChipsetState,
+                                 INTEL_460GX_DOWNSTREAM_PORTS, 1,
+                                 vmstate_intel_460gx_register_block,
+                                 Intel460GXRegisterBlock),
+            VMSTATE_STRUCT_ARRAY(
+                expander, Intel460GXChipsetState, INTEL_460GX_DOWNSTREAM_PORTS,
+                1, vmstate_intel_460gx_register_block, Intel460GXRegisterBlock),
+            VMSTATE_STRUCT(gxb_function2, Intel460GXChipsetState, 1,
+                           vmstate_intel_460gx_register_block,
+                           Intel460GXRegisterBlock),
+            VMSTATE_END_OF_LIST() },
 };
 
 static const Property intel_460gx_chipset_properties[] = {
-    DEFINE_PROP_LINK(INTEL_460GX_CHIPSET_PROP_HOST,
-                     Intel460GXChipsetState, host,
-                     TYPE_INTEL_460GX_HOST, Intel460GXHostState *),
+    DEFINE_PROP_LINK(INTEL_460GX_CHIPSET_PROP_HOST, Intel460GXChipsetState,
+                     host, TYPE_INTEL_460GX_HOST, Intel460GXHostState *),
     DEFINE_PROP_UINT8(INTEL_460GX_CHIPSET_PROP_EXPANDER_MASK,
                       Intel460GXChipsetState, expander_mask, 0),
 };
 
-static void intel_460gx_chipset_class_init(ObjectClass *klass,
-                                            const void *data)
+static void intel_460gx_chipset_class_init(ObjectClass *klass, const void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
 

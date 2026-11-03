@@ -31,8 +31,8 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
     controller = options->Controller;
     if (options->ReinstallProtocol != NULL) {
         status = SystemTable->BootServices->ReinstallProtocolInterface(
-            controller, options->ReinstallProtocol,
-            options->Interface, options->Interface);
+            controller, options->ReinstallProtocol, options->Interface,
+            options->Interface);
     } else {
         status = SystemTable->BootServices->InstallProtocolInterface(
             &controller, start_image_change_guid, EFI_NATIVE_INTERFACE,
@@ -42,8 +42,8 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
         *options->ConnectReady = 1;
     }
     if (status == EFI_SUCCESS && options->UseExit) {
-        return SystemTable->BootServices->Exit(ImageHandle, EFI_SUCCESS,
-                                                0, NULL);
+        return SystemTable->BootServices->Exit(ImageHandle, EFI_SUCCESS, 0,
+                                               NULL);
     }
     return status;
 }

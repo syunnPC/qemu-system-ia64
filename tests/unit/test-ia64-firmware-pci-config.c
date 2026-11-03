@@ -52,16 +52,11 @@ static int test_request_validation(void)
                                     FW_PCI_CF8_CONFIG_SIZE) ||
         fw_pci_config_request_valid(0, 0, 0x20, 0, 0, 1,
                                     FW_PCI_CF8_CONFIG_SIZE) ||
-        fw_pci_config_request_valid(0, 0, 0, 8, 0, 1,
-                                    FW_PCI_CF8_CONFIG_SIZE) ||
-        fw_pci_config_request_valid(0, 0, 0, 0, 0, 0,
-                                    FW_PCI_CF8_CONFIG_SIZE) ||
-        fw_pci_config_request_valid(0, 0, 0, 0, 0, 8,
-                                    FW_PCI_CF8_CONFIG_SIZE) ||
-        fw_pci_config_request_valid(0, 0, 0, 0, 1, 2,
-                                    FW_PCI_CF8_CONFIG_SIZE) ||
-        fw_pci_config_request_valid(0, 0, 0, 0, 2, 4,
-                                    FW_PCI_CF8_CONFIG_SIZE) ||
+        fw_pci_config_request_valid(0, 0, 0, 8, 0, 1, FW_PCI_CF8_CONFIG_SIZE) ||
+        fw_pci_config_request_valid(0, 0, 0, 0, 0, 0, FW_PCI_CF8_CONFIG_SIZE) ||
+        fw_pci_config_request_valid(0, 0, 0, 0, 0, 8, FW_PCI_CF8_CONFIG_SIZE) ||
+        fw_pci_config_request_valid(0, 0, 0, 0, 1, 2, FW_PCI_CF8_CONFIG_SIZE) ||
+        fw_pci_config_request_valid(0, 0, 0, 0, 2, 4, FW_PCI_CF8_CONFIG_SIZE) ||
         fw_pci_config_request_valid(0, 0, 0, 0, 0xff, 2,
                                     FW_PCI_CF8_CONFIG_SIZE) ||
         fw_pci_config_request_valid(0, 0, 0, 0, 0x100, 1,
@@ -97,8 +92,8 @@ static int test_ecam_encoding(void)
     UINT64 address = 0;
 
     if (!fw_pci_ecam_address(base, 0x20, 0x1d, 6, 0x7f, &address) ||
-        address != base + (0x20ULL << 20) + (0x1dULL << 15) +
-                   (6ULL << 12) + 0x7fU ||
+        address !=
+            base + (0x20ULL << 20) + (0x1dULL << 15) + (6ULL << 12) + 0x7fU ||
         !fw_pci_ecam_address(base, 0xff, 0x1f, 7, 0xfff, &address) ||
         address != base + 0xfffffffU ||
         !fw_pci_ecam_address(0, 1, 0, 0, 0, &address) ||
@@ -107,8 +102,8 @@ static int test_ecam_encoding(void)
         fw_pci_ecam_address(base, 0, 0x20, 0, 0, &address) ||
         fw_pci_ecam_address(base, 0, 0, 8, 0, &address) ||
         fw_pci_ecam_address(base, 0, 0, 0, 0x1000, &address) ||
-        fw_pci_ecam_address(~(UINT64)0 - 0xffffffeU,
-                            0xff, 0x1f, 7, 0xfff, &address) ||
+        fw_pci_ecam_address(~(UINT64)0 - 0xffffffeU, 0xff, 0x1f, 7, 0xfff,
+                            &address) ||
         fw_pci_ecam_address(base, 0, 0, 0, 0, NULL)) {
         return 1;
     }
@@ -131,36 +126,33 @@ static int test_zx1_config_encoding(void)
     roots[1].ConfigType = IA64_PLATFORM_PCI_CONFIG_ZX1_LBA;
     roots[1].ConfigBase = 0x0000000400002000ULL;
 
-    if (!fw_pci_zx1_config_prepare(roots, 2, 2, 0x20, 0x1d, 6,
-                                   0x7f, 1, &access) ||
+    if (!fw_pci_zx1_config_prepare(roots, 2, 2, 0x20, 0x1d, 6, 0x7f, 1,
+                                   &access) ||
         access.Root != &roots[0] ||
-        access.SelectorAddress != roots[0].ConfigBase +
-                                  FW_PCI_ZX1_SELECTOR_OFFSET ||
-        access.DataAddress != roots[0].ConfigBase +
-                              FW_PCI_ZX1_DATA_OFFSET + 3U ||
+        access.SelectorAddress !=
+            roots[0].ConfigBase + FW_PCI_ZX1_SELECTOR_OFFSET ||
+        access.DataAddress !=
+            roots[0].ConfigBase + FW_PCI_ZX1_DATA_OFFSET + 3U ||
         access.Selector != (0x1dU << 11 | 6U << 8 | 0x7cU)) {
         return 1;
     }
 
-    if (!fw_pci_zx1_config_prepare(roots, 2, 2, 0x2a, 0x1f, 7,
-                                   0xfe, 2, &access) ||
+    if (!fw_pci_zx1_config_prepare(roots, 2, 2, 0x2a, 0x1f, 7, 0xfe, 2,
+                                   &access) ||
         access.Root != &roots[0] ||
-        access.SelectorAddress != roots[0].ConfigBase +
-                                  FW_PCI_ZX1_SELECTOR_OFFSET ||
-        access.DataAddress != roots[0].ConfigBase +
-                              FW_PCI_ZX1_DATA_OFFSET + 2U ||
-        access.Selector != (0x2aU << 16 | 0x1fU << 11 |
-                            7U << 8 | 0xfcU)) {
+        access.SelectorAddress !=
+            roots[0].ConfigBase + FW_PCI_ZX1_SELECTOR_OFFSET ||
+        access.DataAddress !=
+            roots[0].ConfigBase + FW_PCI_ZX1_DATA_OFFSET + 2U ||
+        access.Selector != (0x2aU << 16 | 0x1fU << 11 | 7U << 8 | 0xfcU)) {
         return 1;
     }
 
-    if (!fw_pci_zx1_config_prepare(roots, 2, 3, 0x40, 0, 0,
-                                   0xfc, 4, &access) ||
+    if (!fw_pci_zx1_config_prepare(roots, 2, 3, 0x40, 0, 0, 0xfc, 4, &access) ||
         access.Root != &roots[1] ||
-        access.SelectorAddress != roots[1].ConfigBase +
-                                  FW_PCI_ZX1_SELECTOR_OFFSET ||
-        access.DataAddress != roots[1].ConfigBase +
-                              FW_PCI_ZX1_DATA_OFFSET ||
+        access.SelectorAddress !=
+            roots[1].ConfigBase + FW_PCI_ZX1_SELECTOR_OFFSET ||
+        access.DataAddress != roots[1].ConfigBase + FW_PCI_ZX1_DATA_OFFSET ||
         access.Selector != 0xfcU) {
         return 1;
     }
@@ -177,28 +169,18 @@ static int test_zx1_config_lanes(void)
     root.ConfigType = IA64_PLATFORM_PCI_CONFIG_ZX1_LBA;
     root.ConfigBase = 0x0000000400000000ULL;
 
-    if (!fw_pci_zx1_config_prepare(&root, 1, 0, 0, 0, 0,
-                                   0, 1, &access) ||
+    if (!fw_pci_zx1_config_prepare(&root, 1, 0, 0, 0, 0, 0, 1, &access) ||
         access.DataAddress != root.ConfigBase + FW_PCI_ZX1_DATA_OFFSET ||
-        !fw_pci_zx1_config_prepare(&root, 1, 0, 0, 0, 0,
-                                   1, 1, &access) ||
-        access.DataAddress != root.ConfigBase +
-                              FW_PCI_ZX1_DATA_OFFSET + 1U ||
-        !fw_pci_zx1_config_prepare(&root, 1, 0, 0, 0, 0,
-                                   2, 2, &access) ||
-        access.DataAddress != root.ConfigBase +
-                              FW_PCI_ZX1_DATA_OFFSET + 2U ||
-        !fw_pci_zx1_config_prepare(&root, 1, 0, 0, 0, 0,
-                                   3, 1, &access) ||
-        access.DataAddress != root.ConfigBase +
-                              FW_PCI_ZX1_DATA_OFFSET + 3U ||
-        !fw_pci_zx1_config_prepare(&root, 1, 0, 0, 0, 0,
-                                   0xff, 1, &access) ||
-        access.DataAddress != root.ConfigBase +
-                              FW_PCI_ZX1_DATA_OFFSET + 3U ||
+        !fw_pci_zx1_config_prepare(&root, 1, 0, 0, 0, 0, 1, 1, &access) ||
+        access.DataAddress != root.ConfigBase + FW_PCI_ZX1_DATA_OFFSET + 1U ||
+        !fw_pci_zx1_config_prepare(&root, 1, 0, 0, 0, 0, 2, 2, &access) ||
+        access.DataAddress != root.ConfigBase + FW_PCI_ZX1_DATA_OFFSET + 2U ||
+        !fw_pci_zx1_config_prepare(&root, 1, 0, 0, 0, 0, 3, 1, &access) ||
+        access.DataAddress != root.ConfigBase + FW_PCI_ZX1_DATA_OFFSET + 3U ||
+        !fw_pci_zx1_config_prepare(&root, 1, 0, 0, 0, 0, 0xff, 1, &access) ||
+        access.DataAddress != root.ConfigBase + FW_PCI_ZX1_DATA_OFFSET + 3U ||
         access.Selector != 0xfcU ||
-        !fw_pci_zx1_config_prepare(&root, 1, 0, 0, 0, 0,
-                                   0xfc, 4, &access) ||
+        !fw_pci_zx1_config_prepare(&root, 1, 0, 0, 0, 0, 0xfc, 4, &access) ||
         access.DataAddress != root.ConfigBase + FW_PCI_ZX1_DATA_OFFSET ||
         access.Selector != 0xfcU) {
         return 1;
@@ -207,9 +189,9 @@ static int test_zx1_config_lanes(void)
 }
 
 static int zx1_config_rejected(const IA64PlatformPciRoot *roots,
-                               UINTN root_count, UINT64 segment,
-                               UINT64 bus, UINT64 device, UINT64 function,
-                               UINT64 offset, UINTN size)
+                               UINTN root_count, UINT64 segment, UINT64 bus,
+                               UINT64 device, UINT64 function, UINT64 offset,
+                               UINTN size)
 {
     const IA64PlatformPciRoot *sentinel_root =
         (const IA64PlatformPciRoot *)(UINTN)1;
@@ -220,11 +202,10 @@ static int zx1_config_rejected(const IA64PlatformPciRoot *roots,
         .Selector = 4,
     };
 
-    return !fw_pci_zx1_config_prepare(roots, root_count, segment, bus,
-                                      device, function, offset, size,
-                                      &access) &&
-        access.Root == sentinel_root && access.SelectorAddress == 2 &&
-        access.DataAddress == 3 && access.Selector == 4;
+    return !fw_pci_zx1_config_prepare(roots, root_count, segment, bus, device,
+                                      function, offset, size, &access) &&
+           access.Root == sentinel_root && access.SelectorAddress == 2 &&
+           access.DataAddress == 3 && access.Selector == 4;
 }
 
 static int test_zx1_config_rejections(void)
@@ -253,8 +234,7 @@ static int test_zx1_config_rejections(void)
         !zx1_config_rejected(roots, 1, 1, 0x20, 0, 0, 2, 4) ||
         !zx1_config_rejected(roots, 1, 1, 0x20, 0, 0, 0xff, 2) ||
         !zx1_config_rejected(roots, 1, 1, 0x20, 0, 0, 0x100, 1) ||
-        fw_pci_zx1_config_prepare(roots, 1, 1, 0x20, 0, 0, 0, 1,
-                                  NULL)) {
+        fw_pci_zx1_config_prepare(roots, 1, 1, 0x20, 0, 0, 0, 1, NULL)) {
         return 1;
     }
 
@@ -280,20 +260,17 @@ static int test_zx1_config_rejections(void)
     if (!zx1_config_rejected(roots, 2, 1, 0x20, 0, 0, 0, 1)) {
         return 1;
     }
-    roots[0].ConfigBase =
-        (1ULL << IA64_PLATFORM_ZX6000_PHYS_ADDR_BITS) -
-        IA64_PLATFORM_ZX1_LBA_CONFIG_SIZE;
-    if (!fw_pci_zx1_config_prepare(roots, 2, 1, 0x20, 0, 0,
-                                   0xfc, 4, &access)) {
+    roots[0].ConfigBase = (1ULL << IA64_PLATFORM_ZX6000_PHYS_ADDR_BITS) -
+                          IA64_PLATFORM_ZX1_LBA_CONFIG_SIZE;
+    if (!fw_pci_zx1_config_prepare(roots, 2, 1, 0x20, 0, 0, 0xfc, 4, &access)) {
         return 1;
     }
-    roots[0].ConfigBase =
-        1ULL << IA64_PLATFORM_ZX6000_PHYS_ADDR_BITS;
+    roots[0].ConfigBase = 1ULL << IA64_PLATFORM_ZX6000_PHYS_ADDR_BITS;
     if (!zx1_config_rejected(roots, 2, 1, 0x20, 0, 0, 0, 1)) {
         return 1;
     }
-    roots[0].ConfigBase = ~(UINT64)0 &
-        ~((UINT64)IA64_PLATFORM_ZX1_LBA_CONFIG_SIZE - 1U);
+    roots[0].ConfigBase =
+        ~(UINT64)0 & ~((UINT64)IA64_PLATFORM_ZX1_LBA_CONFIG_SIZE - 1U);
     if (!zx1_config_rejected(roots, 2, 1, 0x20, 0, 0, 0, 1)) {
         return 1;
     }
@@ -309,20 +286,17 @@ static int test_pci_io_config_encoding(void)
     UINT64 offset;
     UINT64 address = fw_pci_io_config_address(0xab, 0x1d, 6, 0x7f);
 
-    if (address != ((0xabULL << 24) | (0x1dULL << 16) |
-                    (6ULL << 8) | 0x7fU) ||
-        !fw_pci_root_config_decode(
-            address, 1, 1, 0, FW_PCI_ECAM_CONFIG_SIZE, 1,
-            &bus, &device, &function, &offset) ||
+    if (address != ((0xabULL << 24) | (0x1dULL << 16) | (6ULL << 8) | 0x7fU) ||
+        !fw_pci_root_config_decode(address, 1, 1, 0, FW_PCI_ECAM_CONFIG_SIZE, 1,
+                                   &bus, &device, &function, &offset) ||
         bus != 0xab || device != 0x1d || function != 6 || offset != 0x7f) {
         return 1;
     }
 
     address = fw_pci_io_config_address(0xab, 0x1d, 6, 0x101);
     if ((address & 0xffU) != 0 || address >> 32 != 0x101 ||
-        !fw_pci_root_config_decode(
-            address, 1, 1, 0, FW_PCI_ECAM_CONFIG_SIZE, 1,
-            &bus, &device, &function, &offset) ||
+        !fw_pci_root_config_decode(address, 1, 1, 0, FW_PCI_ECAM_CONFIG_SIZE, 1,
+                                   &bus, &device, &function, &offset) ||
         bus != 0xab || device != 0x1d || function != 6 || offset != 0x101) {
         return 1;
     }
@@ -335,48 +309,40 @@ static int test_root_config_decode(void)
     UINT64 device;
     UINT64 function;
     UINT64 offset;
-    UINT64 address = (0xabULL << 24) | (0x1dULL << 16) |
-        (6ULL << 8) | 0xf8U;
+    UINT64 address = (0xabULL << 24) | (0x1dULL << 16) | (6ULL << 8) | 0xf8U;
 
-    if (!fw_pci_root_config_decode(
-            address, 4, 2, 0, FW_PCI_CF8_CONFIG_SIZE, 0,
-            &bus, &device, &function, &offset) ||
+    if (!fw_pci_root_config_decode(address, 4, 2, 0, FW_PCI_CF8_CONFIG_SIZE, 0,
+                                   &bus, &device, &function, &offset) ||
         bus != 0xab || device != 0x1d || function != 6 || offset != 0xf8 ||
-        fw_pci_root_config_decode(
-            address + 4U, 4, 2, 0, FW_PCI_CF8_CONFIG_SIZE, 0,
-            &bus, &device, &function, &offset) ||
-        !fw_pci_root_config_decode(
-            address + 4U, 4, ~(UINTN)0, 1, FW_PCI_CF8_CONFIG_SIZE, 0,
-            &bus, &device, &function, &offset) ||
-        fw_pci_root_config_decode(
-            address | (1ULL << 32), 4, 1, 0, FW_PCI_CF8_CONFIG_SIZE, 0,
-            &bus, &device, &function, &offset) ||
-        fw_pci_root_config_decode(
-            (0x20ULL << 16), 4, 1, 0, FW_PCI_CF8_CONFIG_SIZE, 0,
-            &bus, &device, &function, &offset) ||
-        fw_pci_root_config_decode(
-            (8ULL << 8), 4, 1, 0, FW_PCI_CF8_CONFIG_SIZE, 0,
-            &bus, &device, &function, &offset) ||
-        fw_pci_root_config_decode(
-            2, 4, 1, 0, FW_PCI_CF8_CONFIG_SIZE, 0,
-            &bus, &device, &function, &offset) ||
-        !fw_pci_root_config_decode(
-            0xffcULL << 32, 4, 1, 0, FW_PCI_ECAM_CONFIG_SIZE, 1,
-            &bus, &device, &function, &offset) ||
+        fw_pci_root_config_decode(address + 4U, 4, 2, 0, FW_PCI_CF8_CONFIG_SIZE,
+                                  0, &bus, &device, &function, &offset) ||
+        !fw_pci_root_config_decode(address + 4U, 4, ~(UINTN)0, 1,
+                                   FW_PCI_CF8_CONFIG_SIZE, 0, &bus, &device,
+                                   &function, &offset) ||
+        fw_pci_root_config_decode(address | (1ULL << 32), 4, 1, 0,
+                                  FW_PCI_CF8_CONFIG_SIZE, 0, &bus, &device,
+                                  &function, &offset) ||
+        fw_pci_root_config_decode((0x20ULL << 16), 4, 1, 0,
+                                  FW_PCI_CF8_CONFIG_SIZE, 0, &bus, &device,
+                                  &function, &offset) ||
+        fw_pci_root_config_decode((8ULL << 8), 4, 1, 0, FW_PCI_CF8_CONFIG_SIZE,
+                                  0, &bus, &device, &function, &offset) ||
+        fw_pci_root_config_decode(2, 4, 1, 0, FW_PCI_CF8_CONFIG_SIZE, 0, &bus,
+                                  &device, &function, &offset) ||
+        !fw_pci_root_config_decode(0xffcULL << 32, 4, 1, 0,
+                                   FW_PCI_ECAM_CONFIG_SIZE, 1, &bus, &device,
+                                   &function, &offset) ||
         offset != 0xffc ||
-        fw_pci_root_config_decode(
-            0xffcULL << 32, 4, 2, 0, FW_PCI_ECAM_CONFIG_SIZE, 1,
-            &bus, &device, &function, &offset) ||
-        fw_pci_root_config_decode(
-            (0x100ULL << 32) | 1U, 1, 1, 0,
-            FW_PCI_ECAM_CONFIG_SIZE, 1,
-            &bus, &device, &function, &offset) ||
-        fw_pci_root_config_decode(
-            0, 8, 1, 0, FW_PCI_ECAM_CONFIG_SIZE, 1,
-            &bus, &device, &function, &offset) ||
-        fw_pci_root_config_decode(
-            0, 1, 1, 0, FW_PCI_ECAM_CONFIG_SIZE, 1,
-            NULL, &device, &function, &offset)) {
+        fw_pci_root_config_decode(0xffcULL << 32, 4, 2, 0,
+                                  FW_PCI_ECAM_CONFIG_SIZE, 1, &bus, &device,
+                                  &function, &offset) ||
+        fw_pci_root_config_decode((0x100ULL << 32) | 1U, 1, 1, 0,
+                                  FW_PCI_ECAM_CONFIG_SIZE, 1, &bus, &device,
+                                  &function, &offset) ||
+        fw_pci_root_config_decode(0, 8, 1, 0, FW_PCI_ECAM_CONFIG_SIZE, 1, &bus,
+                                  &device, &function, &offset) ||
+        fw_pci_root_config_decode(0, 1, 1, 0, FW_PCI_ECAM_CONFIG_SIZE, 1, NULL,
+                                  &device, &function, &offset)) {
         return 1;
     }
     return 0;
@@ -421,12 +387,9 @@ static int test_aperture_bounds(void)
 
 static int test_io_access_sizes(void)
 {
-    if (!fw_pci_io_access_size_valid(1) ||
-        !fw_pci_io_access_size_valid(2) ||
-        !fw_pci_io_access_size_valid(4) ||
-        fw_pci_io_access_size_valid(0) ||
-        fw_pci_io_access_size_valid(3) ||
-        fw_pci_io_access_size_valid(8)) {
+    if (!fw_pci_io_access_size_valid(1) || !fw_pci_io_access_size_valid(2) ||
+        !fw_pci_io_access_size_valid(4) || fw_pci_io_access_size_valid(0) ||
+        fw_pci_io_access_size_valid(3) || fw_pci_io_access_size_valid(8)) {
         return 1;
     }
     return 0;
@@ -457,11 +420,10 @@ static int test_access_span_bounds(void)
 int main(void)
 {
     return test_unique_root_lookup() || test_request_validation() ||
-        test_cf8_encoding() || test_ecam_encoding() ||
-        test_zx1_config_encoding() ||
-        test_zx1_config_lanes() || test_zx1_config_rejections() ||
-        test_pci_io_config_encoding() || test_root_config_decode() ||
-        test_transfer_buffer_bounds() ||
-        test_aperture_bounds() || test_io_access_sizes() ||
-        test_access_span_bounds();
+           test_cf8_encoding() || test_ecam_encoding() ||
+           test_zx1_config_encoding() || test_zx1_config_lanes() ||
+           test_zx1_config_rejections() || test_pci_io_config_encoding() ||
+           test_root_config_decode() || test_transfer_buffer_bounds() ||
+           test_aperture_bounds() || test_io_access_sizes() ||
+           test_access_span_bounds();
 }

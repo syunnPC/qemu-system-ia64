@@ -31,7 +31,7 @@ static void pci_setup(QTestState *qts)
 {
     qtest_writel(qts, ECAM + DEVFN * 4096 + PCI_BASE_ADDRESS_0, BAR);
     qtest_writew(qts, ECAM + DEVFN * 4096 + PCI_COMMAND,
-                  PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
+                 PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
 }
 
 static uint32_t dma_at(QTestState *qts, uint64_t bar, uint64_t iova,
@@ -56,8 +56,8 @@ static uint32_t dma(QTestState *qts, uint64_t iova, uint64_t target)
 /* The machine assigns BARs to -device endpoints; enable bus mastering. */
 static uint64_t assigned_bar(QTestState *qts, uint64_t cfg)
 {
-    uint64_t bar = qtest_readl(qts, cfg + PCI_BASE_ADDRESS_0) &
-                   PCI_BASE_ADDRESS_MEM_MASK;
+    uint64_t bar =
+        qtest_readl(qts, cfg + PCI_BASE_ADDRESS_0) & PCI_BASE_ADDRESS_MEM_MASK;
 
     g_assert_cmphex(bar, !=, 0);
     g_assert_cmphex(qtest_readw(qts, cfg + PCI_COMMAND) & PCI_COMMAND_MEMORY,
@@ -77,7 +77,7 @@ static void tables(QTestState *qts, uint64_t target)
         uint64_t table = PT + (4 - level) * 4096;
         uint64_t next = level == 1 ? target : table + 4096;
         qtest_writeq(qts, table + ((IOVA >> (12 + 9 * (level - 1))) & 511) * 8,
-                      next | 3);
+                     next | 3);
     }
 }
 
@@ -87,8 +87,8 @@ static void enable(QTestState *qts, uint64_t base)
     qtest_writel(qts, base + DMAR_GCMD_REG, VTD_GCMD_SRTP);
     g_assert_cmphex(qtest_readl(qts, base + DMAR_GSTS_REG), ==, VTD_GCMD_SRTP);
     qtest_writel(qts, base + DMAR_GCMD_REG, VTD_GCMD_TE);
-    g_assert_cmphex(qtest_readl(qts, base + DMAR_GSTS_REG) & VTD_GCMD_TE,
-                    ==, VTD_GCMD_TE);
+    g_assert_cmphex(qtest_readl(qts, base + DMAR_GSTS_REG) & VTD_GCMD_TE, ==,
+                    VTD_GCMD_TE);
 }
 
 static void test_registers(void)
@@ -136,10 +136,10 @@ static void test_interrupt_remapping_unavailable(void)
         /* VT-d 1.3, 10.4.4 and 10.4.29: IR=0 reserves these controls. */
         qtest_writeq(qts, base + DMAR_IRTA_REG, queue | 7);
         g_assert_cmphex(qtest_readq(qts, base + DMAR_IRTA_REG), ==, 0);
-        qtest_writel(qts, base + DMAR_GCMD_REG,
-                     VTD_GCMD_SIRTP | VTD_GCMD_IRE);
+        qtest_writel(qts, base + DMAR_GCMD_REG, VTD_GCMD_SIRTP | VTD_GCMD_IRE);
         g_assert_cmphex(qtest_readl(qts, base + DMAR_GSTS_REG) &
-                        (VTD_GCMD_SIRTP | VTD_GCMD_IRE), ==, 0);
+                            (VTD_GCMD_SIRTP | VTD_GCMD_IRE),
+                        ==, 0);
 
         /* An unsupported invalidation descriptor must stop at IQH. */
         qtest_writeq(qts, queue, VTD_INV_DESC_IEC);
@@ -325,8 +325,7 @@ static void test_fault_overflow(void)
     qtest_writel(qts, base + FRCD_HI(0) + 4, 1U << 31);
     g_assert_cmphex(dma_at(qts, bars[FAULT_RECORDS], TARGET, TARGET), ==,
                     ITD_DMA_ERR_TX_FAIL);
-    g_assert_cmphex(qtest_readq(qts, base + FRCD_HI(0)) & (1ULL << 63),
-                    ==, 0);
+    g_assert_cmphex(qtest_readq(qts, base + FRCD_HI(0)) & (1ULL << 63), ==, 0);
     g_assert_cmphex(qtest_readl(qts, base + DMAR_FECTL_REG), ==,
                     FECTL_IM | FECTL_IP);
 
@@ -403,16 +402,16 @@ static void test_queue_disable(void)
     g_assert_cmphex(qtest_readl(qts, completion), ==, 0x11111111);
     /* Disabling the drained queue resets IQH; IQT belongs to software. */
     qtest_writel(qts, base + DMAR_GCMD_REG, 0);
-    g_assert_cmphex(qtest_readl(qts, base + DMAR_GSTS_REG) & VTD_GCMD_QIE,
-                    ==, 0);
+    g_assert_cmphex(qtest_readl(qts, base + DMAR_GSTS_REG) & VTD_GCMD_QIE, ==,
+                    0);
     g_assert_cmphex(qtest_readq(qts, base + DMAR_IQH_REG), ==, 0);
     g_assert_cmphex(qtest_readq(qts, base + DMAR_IQT_REG), ==, 16);
     /* Re-enabling without rewriting IQA replays no old descriptor. */
     qtest_writel(qts, completion, 0);
     qtest_writeq(qts, base + DMAR_IQT_REG, 0);
     qtest_writel(qts, base + DMAR_GCMD_REG, VTD_GCMD_QIE);
-    g_assert_cmphex(qtest_readl(qts, base + DMAR_GSTS_REG) & VTD_GCMD_QIE,
-                    ==, VTD_GCMD_QIE);
+    g_assert_cmphex(qtest_readl(qts, base + DMAR_GSTS_REG) & VTD_GCMD_QIE, ==,
+                    VTD_GCMD_QIE);
     g_assert_cmphex(qtest_readq(qts, base + DMAR_IQH_REG), ==, 0);
     g_assert_cmphex(qtest_readl(qts, base + DMAR_FSTS_REG) & 0x10, ==, 0);
     g_assert_cmphex(qtest_readl(qts, completion), ==, 0);
@@ -437,26 +436,25 @@ static void test_completion_ack(void)
         qtest_writel(qts, base + DMAR_IEDATA_REG, 0x5a);
         qtest_writel(qts, base + DMAR_IEADDR_REG, event);
         qtest_writeq(qts, queue, VTD_INV_DESC_WAIT | VTD_INV_DESC_WAIT_IF);
-        qtest_writeq(qts, queue + 16,
-                     VTD_INV_DESC_WAIT | VTD_INV_DESC_WAIT_IF);
+        qtest_writeq(qts, queue + 16, VTD_INV_DESC_WAIT | VTD_INV_DESC_WAIT_IF);
         qtest_writeq(qts, base + DMAR_IQA_REG, queue);
         qtest_writel(qts, base + DMAR_GCMD_REG, VTD_GCMD_QIE);
         qtest_writeq(qts, base + DMAR_IQT_REG, 16);
         g_assert_cmphex(qtest_readl(qts, base + DMAR_ICS_REG), ==, VTD_ICS_IWC);
         g_assert_cmphex(qtest_readl(qts, base + DMAR_IECTL_REG), ==,
-                       VTD_IECTL_IM | VTD_IECTL_IP);
+                        VTD_IECTL_IM | VTD_IECTL_IP);
 
         /* IWC is W1C: writing zero leaves the masked event pending. */
         qtest_writel(qts, base + DMAR_ICS_REG, 0);
         g_assert_cmphex(qtest_readl(qts, base + DMAR_ICS_REG), ==, VTD_ICS_IWC);
         g_assert_cmphex(qtest_readl(qts, base + DMAR_IECTL_REG), ==,
-                       VTD_IECTL_IM | VTD_IECTL_IP);
+                        VTD_IECTL_IM | VTD_IECTL_IP);
 
         /* Acknowledging IWC also cancels the pending interrupt. */
         qtest_writel(qts, base + DMAR_ICS_REG, VTD_ICS_IWC);
         g_assert_cmphex(qtest_readl(qts, base + DMAR_ICS_REG), ==, 0);
         g_assert_cmphex(qtest_readl(qts, base + DMAR_IECTL_REG), ==,
-                       VTD_IECTL_IM);
+                        VTD_IECTL_IM);
         qtest_writel(qts, base + DMAR_IECTL_REG, 0);
         g_assert_cmphex(qtest_readl(qts, event), ==, 0);
 
@@ -488,14 +486,14 @@ static void test_completion_coalescing(void)
         for (i = 0; i < 4; i++) {
             qtest_writeq(qts, queue + i * 16,
                          VTD_INV_DESC_WAIT | VTD_INV_DESC_WAIT_IF |
-                         VTD_INV_DESC_WAIT_SW | ((uint64_t)(i + 1) << 32));
+                             VTD_INV_DESC_WAIT_SW | ((uint64_t)(i + 1) << 32));
             qtest_writeq(qts, queue + i * 16 + 8, completion);
         }
         qtest_writeq(qts, base + DMAR_IQA_REG, queue);
         qtest_writel(qts, base + DMAR_GCMD_REG, VTD_GCMD_QIE);
         qtest_writeq(qts, base + DMAR_IQT_REG, 16);
         g_assert_cmphex(qtest_readl(qts, base + DMAR_IECTL_REG), ==,
-                       VTD_IECTL_IM | VTD_IECTL_IP);
+                        VTD_IECTL_IM | VTD_IECTL_IP);
         qtest_writel(qts, base + DMAR_IECTL_REG, 0);
         g_assert_cmphex(qtest_readl(qts, event), ==, 0x5a);
         g_assert_cmphex(qtest_readl(qts, base + DMAR_IECTL_REG), ==, 0);
@@ -515,7 +513,7 @@ static void test_completion_coalescing(void)
         g_assert_cmphex(qtest_readq(qts, base + DMAR_IQH_REG), ==, 48);
         g_assert_cmphex(qtest_readl(qts, completion), ==, 3);
         g_assert_cmphex(qtest_readl(qts, base + DMAR_IECTL_REG), ==,
-                       VTD_IECTL_IM);
+                        VTD_IECTL_IM);
         qtest_writel(qts, base + DMAR_ICS_REG, VTD_ICS_IWC);
         qtest_writel(qts, base + DMAR_IECTL_REG, 0);
         g_assert_cmphex(qtest_readl(qts, event), ==, 0);
@@ -563,11 +561,11 @@ static void iosapic_write(QTestState *qts, uint32_t reg, uint32_t value)
 
 static void test_second_unit(void)
 {
-    QTestState *qts = qtest_init(
-        "-machine itanium2-vpc-iommu,nvram=none -m 256M -nodefaults "
-        "-device iommu-testdev,bus=ioh7500-secondary,addr=0 "
-        "-device pci-testdev,bus=ioh7500-secondary,addr=1 "
-        "-device edu,bus=ioh7500-secondary,addr=2");
+    QTestState *qts =
+        qtest_init("-machine itanium2-vpc-iommu,nvram=none -m 256M -nodefaults "
+                   "-device iommu-testdev,bus=ioh7500-secondary,addr=0 "
+                   "-device pci-testdev,bus=ioh7500-secondary,addr=1 "
+                   "-device edu,bus=ioh7500-secondary,addr=2");
     const uint64_t bridge = ECAM + PCI_DEVFN(7, 0) * 4096;
     const uint64_t endpoint = ECAM + (1ULL << 20);
     const uint64_t testdev = endpoint + PCI_DEVFN(1, 0) * 4096;
@@ -577,28 +575,30 @@ static void test_second_unit(void)
     uint32_t io_base, io_limit, io_bar;
 
     /* The machine numbers the bridge and opens windows around its bus. */
-    g_assert_cmphex(qtest_readl(qts, bridge + PCI_PRIMARY_BUS) & 0xffffff,
-                    ==, 0x010100);
+    g_assert_cmphex(qtest_readl(qts, bridge + PCI_PRIMARY_BUS) & 0xffffff, ==,
+                    0x010100);
     g_assert_cmphex(qtest_readw(qts, bridge + PCI_COMMAND), ==,
                     PCI_COMMAND_IO | PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
-    mem_base = (uint64_t)(qtest_readw(qts, bridge + PCI_MEMORY_BASE) &
-                          0xfff0) << 16;
-    mem_limit = ((uint64_t)(qtest_readw(qts, bridge + PCI_MEMORY_LIMIT) &
-                            0xfff0) << 16) | 0xfffff;
+    mem_base = (uint64_t)(qtest_readw(qts, bridge + PCI_MEMORY_BASE) & 0xfff0)
+               << 16;
+    mem_limit =
+        ((uint64_t)(qtest_readw(qts, bridge + PCI_MEMORY_LIMIT) & 0xfff0)
+         << 16) |
+        0xfffff;
     io_base = (qtest_readb(qts, bridge + PCI_IO_BASE) & 0xf0) << 8;
     io_limit = ((qtest_readb(qts, bridge + PCI_IO_LIMIT) & 0xf0) << 8) | 0xfff;
     g_assert_cmphex(mem_base, <, mem_limit);
     g_assert_cmphex(io_base, <, io_limit);
     /* Prefetchable decoding is closed (base above limit). */
-    g_assert_cmphex(qtest_readw(qts, bridge + PCI_PREF_MEMORY_BASE) & 0xfff0,
-                    >, qtest_readw(qts, bridge + PCI_PREF_MEMORY_LIMIT) &
-                       0xfff0);
+    g_assert_cmphex(qtest_readw(qts, bridge + PCI_PREF_MEMORY_BASE) & 0xfff0, >,
+                    qtest_readw(qts, bridge + PCI_PREF_MEMORY_LIMIT) & 0xfff0);
 
     bar = assigned_bar(qts, endpoint);
     g_assert_cmphex(bar, >=, mem_base);
     g_assert_cmphex(bar + 4095, <=, mem_limit);
     g_assert_cmphex(qtest_readl(qts, testdev + PCI_BASE_ADDRESS_0) &
-                    PCI_BASE_ADDRESS_MEM_MASK, >=, mem_base);
+                        PCI_BASE_ADDRESS_MEM_MASK,
+                    >=, mem_base);
     io_bar = qtest_readl(qts, testdev + PCI_BASE_ADDRESS_1) &
              PCI_BASE_ADDRESS_IO_MASK;
     g_assert_cmphex(io_bar, >=, io_base);
@@ -616,12 +616,12 @@ static void test_second_unit(void)
     g_assert_cmpuint(qtest_readb(qts, edu + PCI_INTERRUPT_LINE), ==, 17);
     iosapic_write(qts, IOSAPIC_RTE(17), vector | IOSAPIC_RTE_LEVEL);
     qtest_writel(qts, edu_bar + 0x60, 1);
-    g_assert_cmphex(iosapic_read(qts, IOSAPIC_RTE(17)) &
-                    IOSAPIC_RTE_REMOTE_IRR, !=, 0);
+    g_assert_cmphex(iosapic_read(qts, IOSAPIC_RTE(17)) & IOSAPIC_RTE_REMOTE_IRR,
+                    !=, 0);
     qtest_writel(qts, edu_bar + 0x64, 1);
     qtest_writel(qts, IOSAPIC_BASE + 0x40, vector);
-    g_assert_cmphex(iosapic_read(qts, IOSAPIC_RTE(17)) &
-                    IOSAPIC_RTE_REMOTE_IRR, ==, 0);
+    g_assert_cmphex(iosapic_read(qts, IOSAPIC_RTE(17)) & IOSAPIC_RTE_REMOTE_IRR,
+                    ==, 0);
 
     /* Conventional bridge aliases DMA to its root requester ID. */
     qtest_writeq(qts, ROOT, CTX | 1);
@@ -632,16 +632,17 @@ static void test_second_unit(void)
     g_assert_cmphex(dma_at(qts, bar, TARGET, TARGET), ==, 0);
     qtest_writeq(qts, CTX + PCI_DEVFN(7, 0) * 16, 0);
     g_assert_cmphex(dma_at(qts, bar, TARGET, TARGET), ==, ITD_DMA_ERR_TX_FAIL);
-    g_assert_cmphex(qtest_readl(qts, INTEL_7500_VTBAR + 4096 +
-                                DMAR_FSTS_REG) & 2, ==, 2);
+    g_assert_cmphex(
+        qtest_readl(qts, INTEL_7500_VTBAR + 4096 + DMAR_FSTS_REG) & 2, ==, 2);
     g_assert_cmphex(qtest_readl(qts, INTEL_7500_VTBAR + DMAR_FSTS_REG), ==, 0);
 
     /* A system reset restores the same assignment. */
     qtest_system_reset(qts);
-    g_assert_cmphex(qtest_readl(qts, bridge + PCI_PRIMARY_BUS) & 0xffffff,
-                    ==, 0x010100);
+    g_assert_cmphex(qtest_readl(qts, bridge + PCI_PRIMARY_BUS) & 0xffffff, ==,
+                    0x010100);
     g_assert_cmphex(qtest_readl(qts, endpoint + PCI_BASE_ADDRESS_0) &
-                    PCI_BASE_ADDRESS_MEM_MASK, ==, bar);
+                        PCI_BASE_ADDRESS_MEM_MASK,
+                    ==, bar);
     qtest_quit(qts);
 }
 
@@ -652,9 +653,10 @@ static bool irr_contains(QTestState *qts, unsigned vector)
     uint64_t irr[4];
 
     g_assert_nonnull(line);
-    g_assert_cmpint(sscanf(line, "SAPIC IRR: %" SCNx64 " %" SCNx64
-                          " %" SCNx64 " %" SCNx64,
-                          &irr[0], &irr[1], &irr[2], &irr[3]), ==, 4);
+    g_assert_cmpint(
+        sscanf(line, "SAPIC IRR: %" SCNx64 " %" SCNx64 " %" SCNx64 " %" SCNx64,
+               &irr[0], &irr[1], &irr[2], &irr[3]),
+        ==, 4);
     return !!(irr[vector / 64] & (1ULL << (vector % 64)));
 }
 
@@ -682,7 +684,7 @@ static void test_msi_fault_events(void)
         unsigned cap, flags;
         qtest_writel(qts, cfg + PCI_BASE_ADDRESS_0, BAR + 0x100000);
         qtest_writew(qts, cfg + PCI_COMMAND,
-                      PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
+                     PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
         for (cap = qtest_readb(qts, cfg + PCI_CAPABILITY_LIST);
              cap && qtest_readb(qts, cfg + cap) != PCI_CAP_ID_MSI;
              cap = qtest_readb(qts, cfg + cap + 1)) {
@@ -694,7 +696,7 @@ static void test_msi_fault_events(void)
         qtest_writel(qts, cfg + cap + PCI_MSI_ADDRESS_HI, 0);
         qtest_writew(qts, cfg + cap + PCI_MSI_DATA_64, 0x66);
         qtest_writew(qts, cfg + cap + PCI_MSI_FLAGS,
-                      flags | PCI_MSI_FLAGS_ENABLE);
+                     flags | PCI_MSI_FLAGS_ENABLE);
         g_assert_cmphex(qtest_readl(qts, BAR + 0x100000), ==, 0x010000ed);
         qtest_writel(qts, BAR + 0x100060, 1);
         wait_vector(qts, 0x66);
@@ -845,7 +847,7 @@ static void assert_ram(QTestState *qts, uint64_t pa, bool ram)
 static void test_ram_split(void)
 {
     QTestState *qts = qtest_init("-machine itanium2-vpc-iommu,nvram=none "
-                                "-m 4G -nodefaults");
+                                 "-m 4G -nodefaults");
     uint64_t end = RAM_ABOVE_4G + SPLIT_RAM - RAM_BELOW_4G;
 
     /* RAM stops at VTBAR and resumes after both remapping units. */

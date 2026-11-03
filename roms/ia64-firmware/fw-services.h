@@ -60,8 +60,7 @@ void fw_copy_mem(VOID *destination, const VOID *source, UINTN length);
 UINT64 fw_read_itc(void);
 UINT64 fw_itc_ticks_per_100ns(void);
 BOOLEAN fw_platform_descriptor_init(UINT64 descriptor_gpa,
-                                    UINT64 descriptor_size,
-                                    UINT64 platform_id);
+                                    UINT64 descriptor_size, UINT64 platform_id);
 BOOLEAN fw_vpc_devices_enabled(void);
 BOOLEAN fw_i2000_profile_enabled(void);
 const FW_UART_POLICY *fw_i2000_uart_policy(void);

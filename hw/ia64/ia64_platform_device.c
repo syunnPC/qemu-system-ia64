@@ -32,8 +32,8 @@ struct IA64PlatformDescriptorDevice {
     bool installed;
 };
 
-static void ia64_platform_desc_device_unmap(
-    IA64PlatformDescriptorDevice *device)
+static void
+ia64_platform_desc_device_unmap(IA64PlatformDescriptorDevice *device)
 {
     DeviceState *owner = DEVICE(device);
 
@@ -48,11 +48,9 @@ static void ia64_platform_desc_device_unmap(
 
 static void ia64_platform_desc_device_realize(DeviceState *dev, Error **errp)
 {
-    IA64PlatformDescriptorDevice *device =
-        IA64_PLATFORM_DESCRIPTOR_DEVICE(dev);
+    IA64PlatformDescriptorDevice *device = IA64_PLATFORM_DESCRIPTOR_DEVICE(dev);
 
-    if (!device->configured || device->rom_name == NULL ||
-        device->installed) {
+    if (!device->configured || device->rom_name == NULL || device->installed) {
         error_setg(errp, "unconfigured IA-64 platform descriptor device");
         return;
     }
@@ -71,8 +69,7 @@ static void ia64_platform_desc_device_unrealize(DeviceState *dev)
 
 static void ia64_platform_desc_device_finalize(Object *obj)
 {
-    IA64PlatformDescriptorDevice *device =
-        IA64_PLATFORM_DESCRIPTOR_DEVICE(obj);
+    IA64PlatformDescriptorDevice *device = IA64_PLATFORM_DESCRIPTOR_DEVICE(obj);
 
     g_assert(!device->installed);
     g_clear_pointer(&device->rom_name, g_free);
@@ -83,17 +80,17 @@ static const VMStateDescription vmstate_ia64_platform_desc_device = {
     .name = TYPE_IA64_PLATFORM_DESCRIPTOR_DEVICE,
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (const VMStateField[]) {
-        VMSTATE_UINT64_EQUAL(gpa, IA64PlatformDescriptorDevice),
-        VMSTATE_ARRAY(storage.bytes, IA64PlatformDescriptorDevice,
-                      IA64_PLATFORM_DESC_MAX_SIZE, 0,
-                      vmstate_info_uint8_equal, uint8_t),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) {
+            VMSTATE_UINT64_EQUAL(gpa, IA64PlatformDescriptorDevice),
+            VMSTATE_ARRAY(storage.bytes, IA64PlatformDescriptorDevice,
+                          IA64_PLATFORM_DESC_MAX_SIZE, 0,
+                          vmstate_info_uint8_equal, uint8_t),
+            VMSTATE_END_OF_LIST() },
 };
 
 static void ia64_platform_desc_device_class_init(ObjectClass *oc,
-                                                  const void *data)
+                                                 const void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(oc);
 
@@ -120,10 +117,10 @@ static void ia64_platform_desc_device_register_types(void)
 
 type_init(ia64_platform_desc_device_register_types)
 
-IA64PlatformDescriptorDevice *ia64_platform_desc_device_create(
-    Object *parent, const char *name, hwaddr gpa,
-    const IA64PlatformDescriptor *header,
-    const IA64PlatformDescriptorArrays *arrays, Error **errp)
+    IA64PlatformDescriptorDevice *ia64_platform_desc_device_create(
+        Object *parent, const char *name, hwaddr gpa,
+        const IA64PlatformDescriptor *header,
+        const IA64PlatformDescriptorArrays *arrays, Error **errp)
 {
     DeviceState *dev;
     IA64PlatformDescriptorDevice *device;
@@ -136,9 +133,9 @@ IA64PlatformDescriptorDevice *ia64_platform_desc_device_create(
 
     dev = qdev_new(TYPE_IA64_PLATFORM_DESCRIPTOR_DEVICE);
     device = IA64_PLATFORM_DESCRIPTOR_DEVICE(dev);
-    if (!ia64_platform_desc_build(
-            device->storage.bytes, sizeof(device->storage.bytes), header,
-            arrays, &device->descriptor_size, errp)) {
+    if (!ia64_platform_desc_build(device->storage.bytes,
+                                  sizeof(device->storage.bytes), header, arrays,
+                                  &device->descriptor_size, errp)) {
         object_unref(OBJECT(device));
         return NULL;
     }
@@ -188,8 +185,7 @@ void ia64_platform_desc_device_destroy(IA64PlatformDescriptorDevice *device)
 }
 
 bool ia64_platform_desc_device_get_firmware_args(
-    const IA64PlatformDescriptorDevice *device,
-    IA64PlatformFirmwareArgs *args)
+    const IA64PlatformDescriptorDevice *device, IA64PlatformFirmwareArgs *args)
 {
     IA64PlatformFirmwareArgs result;
     const IA64PlatformDescriptor *descriptor;

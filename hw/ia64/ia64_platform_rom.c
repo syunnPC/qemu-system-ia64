@@ -15,15 +15,14 @@
 #define IA64_PLATFORM_DESC_ROM_PRIORITY 1
 
 static bool ia64_platform_desc_range_is_writable_ram(MemoryRegion *sysmem,
-                                                       hwaddr gpa,
-                                                       Error **errp)
+                                                     hwaddr gpa, Error **errp)
 {
     hwaddr cursor = gpa;
     uint64_t remaining = IA64_PLATFORM_DESC_MAX_SIZE;
 
     while (remaining) {
-        MemoryRegionSection section = memory_region_find(sysmem, cursor,
-                                                          remaining);
+        MemoryRegionSection section =
+            memory_region_find(sysmem, cursor, remaining);
         uint64_t section_size;
 
         if (!section.mr || section.offset_within_address_space != cursor) {
@@ -67,15 +66,15 @@ static bool ia64_platform_desc_range_is_writable_ram(MemoryRegion *sysmem,
 }
 
 static bool ia64_platform_desc_rom_is_active(MemoryRegion *sysmem,
-                                              MemoryRegion *region,
-                                              hwaddr gpa, Error **errp)
+                                             MemoryRegion *region, hwaddr gpa,
+                                             Error **errp)
 {
     hwaddr cursor = gpa;
     uint64_t remaining = IA64_PLATFORM_DESC_MAX_SIZE;
 
     while (remaining) {
-        MemoryRegionSection section = memory_region_find(sysmem, cursor,
-                                                          remaining);
+        MemoryRegionSection section =
+            memory_region_find(sysmem, cursor, remaining);
         uint64_t section_size;
 
         if (!section.mr || section.offset_within_address_space != cursor) {
@@ -119,8 +118,7 @@ bool ia64_platform_desc_install_rom(MemoryRegion *region, Object *owner,
     DeviceState *owner_dev;
     void *rom_ptr;
 
-    if (region == NULL || owner == NULL || name == NULL ||
-        descriptor == NULL ||
+    if (region == NULL || owner == NULL || name == NULL || descriptor == NULL ||
         !ia64_platform_desc_mapping_valid(gpa, descriptor_size)) {
         error_setg(errp, "invalid IA-64 firmware-assist descriptor mapping");
         return false;

@@ -169,13 +169,12 @@ typedef struct __attribute__((packed)) IA64PlatformI2000Profile {
     unsigned int Reserved3;
 } IA64PlatformI2000Profile;
 
-typedef void (*IA64I2000SuperIoWrite)(void *opaque,
-                                        unsigned int logical_port,
-                                        unsigned char value);
+typedef void (*IA64I2000SuperIoWrite)(void *opaque, unsigned int logical_port,
+                                      unsigned char value);
 
-static inline void ia64_i2000_profile_superio_emit(
-    const IA64PlatformI2000Profile *profile,
-    IA64I2000SuperIoWrite write, void *opaque)
+static inline void
+ia64_i2000_profile_superio_emit(const IA64PlatformI2000Profile *profile,
+                                IA64I2000SuperIoWrite write, void *opaque)
 {
     unsigned int i;
 
@@ -183,38 +182,28 @@ static inline void ia64_i2000_profile_superio_emit(
         write(opaque, profile->SuperIoIndexPort, profile->SuperIoEnterKey);
     }
 
-    write(opaque, profile->SuperIoIndexPort,
-          profile->SuperIoLdnSelectRegister);
+    write(opaque, profile->SuperIoIndexPort, profile->SuperIoLdnSelectRegister);
     write(opaque, profile->SuperIoDataPort, profile->UartLdn);
-    write(opaque, profile->SuperIoIndexPort,
-          profile->UartBaseMsbRegister);
+    write(opaque, profile->SuperIoIndexPort, profile->UartBaseMsbRegister);
     write(opaque, profile->SuperIoDataPort, profile->UartBaseMsbValue);
-    write(opaque, profile->SuperIoIndexPort,
-          profile->UartBaseLsbRegister);
+    write(opaque, profile->SuperIoIndexPort, profile->UartBaseLsbRegister);
     write(opaque, profile->SuperIoDataPort, profile->UartBaseLsbValue);
     write(opaque, profile->SuperIoIndexPort, profile->UartIrqRegister);
     write(opaque, profile->SuperIoDataPort, profile->UartIrqValue);
     write(opaque, profile->SuperIoIndexPort, profile->UartModeRegister);
     write(opaque, profile->SuperIoDataPort, profile->UartModeValue);
     /* Activation is the final write to this logical device. */
-    write(opaque, profile->SuperIoIndexPort,
-          profile->UartActivateRegister);
+    write(opaque, profile->SuperIoIndexPort, profile->UartActivateRegister);
     write(opaque, profile->SuperIoDataPort, profile->UartActivateValue);
 
-    write(opaque, profile->SuperIoIndexPort,
-          profile->SuperIoLdnSelectRegister);
+    write(opaque, profile->SuperIoIndexPort, profile->SuperIoLdnSelectRegister);
     write(opaque, profile->SuperIoDataPort, profile->I8042Ldn);
-    write(opaque, profile->SuperIoIndexPort,
-          profile->I8042KeyboardIrqRegister);
-    write(opaque, profile->SuperIoDataPort,
-          profile->I8042KeyboardIrqValue);
-    write(opaque, profile->SuperIoIndexPort,
-          profile->I8042MouseIrqRegister);
-    write(opaque, profile->SuperIoDataPort,
-          profile->I8042MouseIrqValue);
+    write(opaque, profile->SuperIoIndexPort, profile->I8042KeyboardIrqRegister);
+    write(opaque, profile->SuperIoDataPort, profile->I8042KeyboardIrqValue);
+    write(opaque, profile->SuperIoIndexPort, profile->I8042MouseIrqRegister);
+    write(opaque, profile->SuperIoDataPort, profile->I8042MouseIrqValue);
     /* Activation is the final write to this logical device. */
-    write(opaque, profile->SuperIoIndexPort,
-          profile->I8042ActivateRegister);
+    write(opaque, profile->SuperIoIndexPort, profile->I8042ActivateRegister);
     write(opaque, profile->SuperIoDataPort, profile->I8042ActivateValue);
 
     write(opaque, profile->SuperIoIndexPort, profile->SuperIoExitKey);

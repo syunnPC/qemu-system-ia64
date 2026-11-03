@@ -32,10 +32,10 @@ typedef struct {
     FW_DEVICE_PATH_NODE End;
 } __attribute__((packed)) FW_DEBUGPORT_DEVICE_PATH;
 
-static const UINT8 mDebugPortProtocolGuid[16] = {
-    0xd2, 0xe8, 0xa4, 0xeb, 0x58, 0x38, 0xec, 0x41,
-    0xa2, 0x81, 0x26, 0x47, 0xba, 0x96, 0x60, 0xd0
-};
+static const UINT8 mDebugPortProtocolGuid[16] = { 0xd2, 0xe8, 0xa4, 0xeb,
+                                                  0x58, 0x38, 0xec, 0x41,
+                                                  0xa2, 0x81, 0x26, 0x47,
+                                                  0xba, 0x96, 0x60, 0xd0 };
 
 static EFI_DEBUGPORT_PROTOCOL mDebugPortProtocol;
 static EFI_HANDLE mDebugPortHandle;
@@ -87,9 +87,8 @@ static BOOLEAN debug_port_timed_out(UINT64 Start, UINT32 Timeout)
     return fw_read_itc() - Start >= ticks;
 }
 
-static EFI_STATUS debug_port_write(EFI_DEBUGPORT_PROTOCOL *This,
-                                   UINT32 Timeout, UINTN *BufferSize,
-                                   VOID *Buffer)
+static EFI_STATUS debug_port_write(EFI_DEBUGPORT_PROTOCOL *This, UINT32 Timeout,
+                                   UINTN *BufferSize, VOID *Buffer)
 {
     UINT8 *bytes = (UINT8 *)Buffer;
     UINTN requested;
@@ -127,9 +126,8 @@ static EFI_STATUS debug_port_write(EFI_DEBUGPORT_PROTOCOL *This,
     return EFI_SUCCESS;
 }
 
-static EFI_STATUS debug_port_read(EFI_DEBUGPORT_PROTOCOL *This,
-                                  UINT32 Timeout, UINTN *BufferSize,
-                                  VOID *Buffer)
+static EFI_STATUS debug_port_read(EFI_DEBUGPORT_PROTOCOL *This, UINT32 Timeout,
+                                  UINTN *BufferSize, VOID *Buffer)
 {
     UINT8 *bytes = (UINT8 *)Buffer;
     UINTN requested;
@@ -198,8 +196,7 @@ static VOID debug_port_init_device_path(VOID)
 
     mDebugPortDevicePath.Uart.Header.Type = 0x03;
     mDebugPortDevicePath.Uart.Header.SubType = 0x0e;
-    mDebugPortDevicePath.Uart.Header.Length =
-        sizeof(mDebugPortDevicePath.Uart);
+    mDebugPortDevicePath.Uart.Header.Length = sizeof(mDebugPortDevicePath.Uart);
     mDebugPortDevicePath.Uart.BaudRate = 115200;
     mDebugPortDevicePath.Uart.DataBits = 8;
     mDebugPortDevicePath.Uart.Parity = NoParity;
@@ -209,8 +206,8 @@ static VOID debug_port_init_device_path(VOID)
     mDebugPortDevicePath.DebugPort.Header.SubType = 0x0a;
     mDebugPortDevicePath.DebugPort.Header.Length =
         sizeof(mDebugPortDevicePath.DebugPort);
-    fw_copy_mem(mDebugPortDevicePath.DebugPort.Guid,
-                mDebugPortProtocolGuid, sizeof(mDebugPortProtocolGuid));
+    fw_copy_mem(mDebugPortDevicePath.DebugPort.Guid, mDebugPortProtocolGuid,
+                sizeof(mDebugPortProtocolGuid));
     mDebugPortDevicePath.End.Type = 0x7f;
     mDebugPortDevicePath.End.SubType = 0xff;
     mDebugPortDevicePath.End.Length = sizeof(FW_DEVICE_PATH_NODE);

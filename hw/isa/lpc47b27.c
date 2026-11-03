@@ -100,8 +100,8 @@ static void lpc47b27_update_irq(LPC47B27ISAState *s, uint8_t irq)
 }
 
 static void lpc47b27_set_irq_target(LPC47B27ISAState *s,
-                                    enum LPC47B27IRQSource source,
-                                    uint8_t irq, bool drive)
+                                    enum LPC47B27IRQSource source, uint8_t irq,
+                                    bool drive)
 {
     uint8_t old_irq = s->routed_irq[source];
 
@@ -148,8 +148,8 @@ static void lpc47b27_rebuild_irq_cache(LPC47B27ISAState *s)
 
     memset(s->irq_level, 0, sizeof(s->irq_level));
     for (irq = 1; irq < ISA_NUM_IRQS; irq++) {
-        s->irq_level[irq] = lpc47b27_irq_router_level(
-            s->routed_irq, s->source_level, irq);
+        s->irq_level[irq] =
+            lpc47b27_irq_router_level(s->routed_irq, s->source_level, irq);
     }
 }
 
@@ -164,8 +164,7 @@ static void lpc47b27_unmap_uart(LPC47B27ISAState *s)
 static void lpc47b27_unmap_i8042(LPC47B27ISAState *s)
 {
     if (s->i8042_mapped) {
-        memory_region_del_subregion(s->io_space,
-                                    &s->i8042_command_alias);
+        memory_region_del_subregion(s->io_space, &s->i8042_command_alias);
         memory_region_del_subregion(s->io_space, &s->i8042_data_alias);
         s->i8042_mapped = false;
     }
@@ -185,8 +184,9 @@ static void lpc47b27_unmap_parallel(LPC47B27ISAState *s)
 
 static unsigned lpc47b27_parallel_mode(LPC47B27ISAState *s)
 {
-    return (s->config.parallel_mode & 2) ? s->parallel_ecr >> 5 :
-           (s->config.parallel_mode & 7) == 4 ? 0 : 1;
+    return (s->config.parallel_mode & 2)        ? s->parallel_ecr >> 5
+           : (s->config.parallel_mode & 7) == 4 ? 0
+                                                : 1;
 }
 
 static void lpc47b27_parallel_service(LPC47B27ISAState *s)
@@ -194,14 +194,15 @@ static void lpc47b27_parallel_service(LPC47B27ISAState *s)
     unsigned mode = lpc47b27_parallel_mode(s);
     /* FIFO thresholds 15 and 16 both require at least one byte to service. */
     unsigned threshold = MAX(1, 15 - ((s->config.parallel_mode >> 3) & 15));
-    bool reverse = mode != 2 &&
-                   (s->parallel_control & LPC47B27_PARALLEL_DIRECTION);
-    unsigned available = reverse ? s->parallel_count :
-                         LPC47B27_PARALLEL_FIFO_SIZE - s->parallel_count;
+    bool reverse =
+        mode != 2 && (s->parallel_control & LPC47B27_PARALLEL_DIRECTION);
+    unsigned available = reverse
+                             ? s->parallel_count
+                             : LPC47B27_PARALLEL_FIFO_SIZE - s->parallel_count;
 
     if ((mode == 2 || mode == 3 || mode == 6) &&
-        !(s->parallel_ecr & (LPC47B27_PARALLEL_SERVICE |
-                            LPC47B27_PARALLEL_DMA)) &&
+        !(s->parallel_ecr &
+          (LPC47B27_PARALLEL_SERVICE | LPC47B27_PARALLEL_DMA)) &&
         available >= threshold) {
         s->parallel_ecr |= LPC47B27_PARALLEL_SERVICE;
         lpc47b27_set_irq_source(s, LPC47B27_IRQ_SOURCE_PARALLEL, 1);
@@ -222,8 +223,7 @@ static uint8_t lpc47b27_parallel_pop(LPC47B27ISAState *s)
 {
     if (s->parallel_count) {
         s->parallel_last = s->parallel_fifo[s->parallel_head];
-        s->parallel_head = (s->parallel_head + 1) %
-                          LPC47B27_PARALLEL_FIFO_SIZE;
+        s->parallel_head = (s->parallel_head + 1) % LPC47B27_PARALLEL_FIFO_SIZE;
         s->parallel_count--;
     }
     lpc47b27_parallel_service(s);
@@ -232,18 +232,17 @@ static uint8_t lpc47b27_parallel_pop(LPC47B27ISAState *s)
 
 static void lpc47b27_sync_parallel(LPC47B27ISAState *s, bool drive_irq)
 {
-    uint16_t base = (s->config.parallel_base_msb << 8) |
-                    s->config.parallel_base_lsb;
+    uint16_t base =
+        (s->config.parallel_base_msb << 8) | s->config.parallel_base_lsb;
     bool decode = s->config.parallel_activate && base >= 0x100 &&
                   s->config.parallel_mode2 == 0;
     bool ecp = decode && (s->config.parallel_mode & 2);
 
     lpc47b27_set_irq_target(s, LPC47B27_IRQ_SOURCE_PARALLEL,
-                           decode ? s->config.parallel_irq : 0, drive_irq);
+                            decode ? s->config.parallel_irq : 0, drive_irq);
     memory_region_transaction_begin();
-    if (s->parallel_mapped &&
-        (!decode || s->parallel_mapped_base != base ||
-         s->parallel_ecp_mapped != ecp)) {
+    if (s->parallel_mapped && (!decode || s->parallel_mapped_base != base ||
+                               s->parallel_ecp_mapped != ecp)) {
         lpc47b27_unmap_parallel(s);
     }
     if (decode && !s->parallel_mapped) {
@@ -283,8 +282,8 @@ static uint64_t lpc47b27_parallel_read(void *opaque, hwaddr addr, unsigned size)
     return value;
 }
 
-static void lpc47b27_parallel_write(void *opaque, hwaddr addr,
-                                  uint64_t value, unsigned size)
+static void lpc47b27_parallel_write(void *opaque, hwaddr addr, uint64_t value,
+                                    unsigned size)
 {
     LPC47B27ISAState *s = opaque;
 
@@ -303,11 +302,10 @@ static void lpc47b27_parallel_write(void *opaque, hwaddr addr,
 }
 
 static uint64_t lpc47b27_parallel_ecp_read(void *opaque, hwaddr addr,
-                                        unsigned size)
+                                           unsigned size)
 {
     static const uint8_t irq_encoding[16] = {
-        [5] = 7, [7] = 1, [9] = 2, [10] = 3,
-        [11] = 4, [14] = 5, [15] = 6,
+        [5] = 7, [7] = 1, [9] = 2, [10] = 3, [11] = 4, [14] = 5, [15] = 6,
     };
     LPC47B27ISAState *s = opaque;
     unsigned mode = lpc47b27_parallel_mode(s);
@@ -317,13 +315,15 @@ static uint64_t lpc47b27_parallel_ecp_read(void *opaque, hwaddr addr,
         value = s->parallel_ecr | (s->parallel_count == 0) |
                 ((s->parallel_count == LPC47B27_PARALLEL_FIFO_SIZE) << 1);
     } else if (mode == 7) {
-        value = addr == 0 ? 0x10 :
-                (s->source_level[LPC47B27_IRQ_SOURCE_PARALLEL] << 6) |
-                (irq_encoding[s->config.parallel_irq] << 3) |
-                (s->config.parallel_dma < 4 ? s->config.parallel_dma : 0);
-    } else if (addr == 0 && (mode == 6 ||
-               (mode == 3 && (s->parallel_control &
-                              LPC47B27_PARALLEL_DIRECTION)))) {
+        value =
+            addr == 0
+                ? 0x10
+                : (s->source_level[LPC47B27_IRQ_SOURCE_PARALLEL] << 6) |
+                      (irq_encoding[s->config.parallel_irq] << 3) |
+                      (s->config.parallel_dma < 4 ? s->config.parallel_dma : 0);
+    } else if (addr == 0 &&
+               (mode == 6 || (mode == 3 && (s->parallel_control &
+                                            LPC47B27_PARALLEL_DIRECTION)))) {
         value = lpc47b27_parallel_pop(s);
     }
     trace_lpc47b27_parallel_read(addr + 0x400, value);
@@ -331,7 +331,7 @@ static uint64_t lpc47b27_parallel_ecp_read(void *opaque, hwaddr addr,
 }
 
 static void lpc47b27_parallel_ecp_write(void *opaque, hwaddr addr,
-                                      uint64_t value, unsigned size)
+                                        uint64_t value, unsigned size)
 {
     LPC47B27ISAState *s = opaque;
     unsigned mode = lpc47b27_parallel_mode(s);
@@ -346,8 +346,8 @@ static void lpc47b27_parallel_ecp_write(void *opaque, hwaddr addr,
         }
         lpc47b27_parallel_service(s);
     } else if (addr == 0 && (mode == 2 || mode == 6 ||
-               (mode == 3 && !(s->parallel_control &
-                               LPC47B27_PARALLEL_DIRECTION)))) {
+                             (mode == 3 && !(s->parallel_control &
+                                             LPC47B27_PARALLEL_DIRECTION)))) {
         lpc47b27_parallel_push(s, value);
     }
 }
@@ -378,8 +378,7 @@ static void lpc47b27_sync_uart(LPC47B27ISAState *s, bool drive_irq)
                             decode ? config.irq : 0, drive_irq);
 
     memory_region_transaction_begin();
-    if (s->uart_mapped &&
-        (!decode || s->uart_mapped_base != config.base)) {
+    if (s->uart_mapped && (!decode || s->uart_mapped_base != config.base)) {
         lpc47b27_unmap_uart(s);
     }
     if (decode && !s->uart_mapped) {
@@ -397,11 +396,9 @@ static void lpc47b27_sync_i8042(LPC47B27ISAState *s, bool drive_irq)
     lpc47b27_config_get_i8042(&s->config, &config);
 
     lpc47b27_set_irq_target(s, LPC47B27_IRQ_SOURCE_I8042_KBD,
-                            config.active ? config.keyboard_irq : 0,
-                            drive_irq);
+                            config.active ? config.keyboard_irq : 0, drive_irq);
     lpc47b27_set_irq_target(s, LPC47B27_IRQ_SOURCE_I8042_MOUSE,
-                            config.active ? config.mouse_irq : 0,
-                            drive_irq);
+                            config.active ? config.mouse_irq : 0, drive_irq);
 
     memory_region_transaction_begin();
     if (!config.active) {
@@ -409,8 +406,7 @@ static void lpc47b27_sync_i8042(LPC47B27ISAState *s, bool drive_irq)
     } else if (!s->i8042_mapped) {
         memory_region_add_subregion(s->io_space, LPC47B27_I8042_DATA_PORT,
                                     &s->i8042_data_alias);
-        memory_region_add_subregion(s->io_space,
-                                    LPC47B27_I8042_COMMAND_PORT,
+        memory_region_add_subregion(s->io_space, LPC47B27_I8042_COMMAND_PORT,
                                     &s->i8042_command_alias);
         s->i8042_mapped = true;
     }
@@ -421,23 +417,24 @@ static uint64_t lpc47b27_config_io_read(void *opaque, hwaddr addr,
                                         unsigned size)
 {
     LPC47B27ISAState *s = opaque;
-    uint8_t value = lpc47b27_config_read(&s->config,
-        addr ? LPC47B27_CONFIG_DATA_PORT : LPC47B27_CONFIG_INDEX_PORT);
+    uint8_t value =
+        lpc47b27_config_read(&s->config, addr ? LPC47B27_CONFIG_DATA_PORT
+                                              : LPC47B27_CONFIG_INDEX_PORT);
 
     trace_lpc47b27_config_read(addr, s->config.ldn, s->config.index, value);
     return value;
 }
 
-static void lpc47b27_config_io_write(void *opaque, hwaddr addr,
-                                     uint64_t value, unsigned size)
+static void lpc47b27_config_io_write(void *opaque, hwaddr addr, uint64_t value,
+                                     unsigned size)
 {
     LPC47B27ISAState *s = opaque;
     LPC47B27ConfigChange change;
 
     trace_lpc47b27_config_write(addr, s->config.ldn, s->config.index, value);
-    change = lpc47b27_config_write(&s->config,
-        addr ? LPC47B27_CONFIG_DATA_PORT : LPC47B27_CONFIG_INDEX_PORT,
-        value);
+    change = lpc47b27_config_write(
+        &s->config,
+        addr ? LPC47B27_CONFIG_DATA_PORT : LPC47B27_CONFIG_INDEX_PORT, value);
     if (change & LPC47B27_CONFIG_CHANGE_UART_RESOURCES) {
         lpc47b27_sync_uart(s, true);
     }
@@ -466,20 +463,14 @@ static const MemoryRegionOps lpc47b27_config_io_ops = {
 
 static bool lpc47b27_migration_config_valid(const LPC47B27ConfigState *c)
 {
-    return c->serial1_activate <= 1 &&
-           !(c->serial1_base_msb & ~0x0fU) &&
-           !(c->serial1_base_lsb & ~0xf8U) &&
-           c->serial1_irq < ISA_NUM_IRQS &&
-           !(c->serial1_mode & ~0x83U) &&
-           c->keyboard_activate <= 1 &&
-           c->keyboard_irq < ISA_NUM_IRQS &&
-           c->mouse_irq < ISA_NUM_IRQS &&
-           !(c->keyboard_mode & ~0xfcU) &&
-           c->parallel_activate <= 1 &&
+    return c->serial1_activate <= 1 && !(c->serial1_base_msb & ~0x0fU) &&
+           !(c->serial1_base_lsb & ~0xf8U) && c->serial1_irq < ISA_NUM_IRQS &&
+           !(c->serial1_mode & ~0x83U) && c->keyboard_activate <= 1 &&
+           c->keyboard_irq < ISA_NUM_IRQS && c->mouse_irq < ISA_NUM_IRQS &&
+           !(c->keyboard_mode & ~0xfcU) && c->parallel_activate <= 1 &&
            !(c->parallel_base_msb & ~0x0fU) &&
-           !(c->parallel_base_lsb & ~0xfcU) &&
-           c->parallel_irq < ISA_NUM_IRQS && c->parallel_dma <= 7 &&
-           c->parallel_mode2 <= 3;
+           !(c->parallel_base_lsb & ~0xfcU) && c->parallel_irq < ISA_NUM_IRQS &&
+           c->parallel_dma <= 7 && c->parallel_mode2 <= 3;
 }
 
 static int lpc47b27_pre_load(void *opaque)
@@ -523,42 +514,42 @@ static const VMStateDescription vmstate_lpc47b27_isa = {
     .minimum_version_id = 1,
     .pre_load = lpc47b27_pre_load,
     .post_load = lpc47b27_post_load,
-    .fields = (const VMStateField[]) {
-        VMSTATE_UINT16_EQUAL(config_iobase, LPC47B27ISAState),
-        VMSTATE_UINT32_EQUAL(uart_input_clock_hz, LPC47B27ISAState),
-        VMSTATE_BOOL(config.config_mode, LPC47B27ISAState),
-        VMSTATE_UINT8(config.index, LPC47B27ISAState),
-        VMSTATE_UINT8(config.ldn, LPC47B27ISAState),
-        VMSTATE_UINT8(config.serial1_activate, LPC47B27ISAState),
-        VMSTATE_UINT8(config.serial1_base_msb, LPC47B27ISAState),
-        VMSTATE_UINT8(config.serial1_base_lsb, LPC47B27ISAState),
-        VMSTATE_UINT8(config.serial1_irq, LPC47B27ISAState),
-        VMSTATE_UINT8(config.serial1_mode, LPC47B27ISAState),
-        VMSTATE_UINT8(config.keyboard_activate, LPC47B27ISAState),
-        VMSTATE_UINT8(config.keyboard_irq, LPC47B27ISAState),
-        VMSTATE_UINT8(config.mouse_irq, LPC47B27ISAState),
-        VMSTATE_UINT8(config.keyboard_mode, LPC47B27ISAState),
-        VMSTATE_BOOL_ARRAY(source_level, LPC47B27ISAState,
-                           LPC47B27_IRQ_SOURCE_COUNT),
-        VMSTATE_STRUCT(uart, LPC47B27ISAState, 0, vmstate_serial,
-                       SerialState),
-        VMSTATE_UINT8(config.parallel_activate, LPC47B27ISAState),
-        VMSTATE_UINT8(config.parallel_base_msb, LPC47B27ISAState),
-        VMSTATE_UINT8(config.parallel_base_lsb, LPC47B27ISAState),
-        VMSTATE_UINT8(config.parallel_irq, LPC47B27ISAState),
-        VMSTATE_UINT8(config.parallel_dma, LPC47B27ISAState),
-        VMSTATE_UINT8(config.parallel_mode, LPC47B27ISAState),
-        VMSTATE_UINT8(config.parallel_mode2, LPC47B27ISAState),
-        VMSTATE_UINT8(parallel_data, LPC47B27ISAState),
-        VMSTATE_UINT8(parallel_control, LPC47B27ISAState),
-        VMSTATE_UINT8(parallel_ecr, LPC47B27ISAState),
-        VMSTATE_UINT8_ARRAY(parallel_fifo, LPC47B27ISAState,
-                           LPC47B27_PARALLEL_FIFO_SIZE),
-        VMSTATE_UINT8(parallel_head, LPC47B27ISAState),
-        VMSTATE_UINT8(parallel_count, LPC47B27ISAState),
-        VMSTATE_UINT8(parallel_last, LPC47B27ISAState),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) {
+            VMSTATE_UINT16_EQUAL(config_iobase, LPC47B27ISAState),
+            VMSTATE_UINT32_EQUAL(uart_input_clock_hz, LPC47B27ISAState),
+            VMSTATE_BOOL(config.config_mode, LPC47B27ISAState),
+            VMSTATE_UINT8(config.index, LPC47B27ISAState),
+            VMSTATE_UINT8(config.ldn, LPC47B27ISAState),
+            VMSTATE_UINT8(config.serial1_activate, LPC47B27ISAState),
+            VMSTATE_UINT8(config.serial1_base_msb, LPC47B27ISAState),
+            VMSTATE_UINT8(config.serial1_base_lsb, LPC47B27ISAState),
+            VMSTATE_UINT8(config.serial1_irq, LPC47B27ISAState),
+            VMSTATE_UINT8(config.serial1_mode, LPC47B27ISAState),
+            VMSTATE_UINT8(config.keyboard_activate, LPC47B27ISAState),
+            VMSTATE_UINT8(config.keyboard_irq, LPC47B27ISAState),
+            VMSTATE_UINT8(config.mouse_irq, LPC47B27ISAState),
+            VMSTATE_UINT8(config.keyboard_mode, LPC47B27ISAState),
+            VMSTATE_BOOL_ARRAY(source_level, LPC47B27ISAState,
+                               LPC47B27_IRQ_SOURCE_COUNT),
+            VMSTATE_STRUCT(uart, LPC47B27ISAState, 0, vmstate_serial,
+                           SerialState),
+            VMSTATE_UINT8(config.parallel_activate, LPC47B27ISAState),
+            VMSTATE_UINT8(config.parallel_base_msb, LPC47B27ISAState),
+            VMSTATE_UINT8(config.parallel_base_lsb, LPC47B27ISAState),
+            VMSTATE_UINT8(config.parallel_irq, LPC47B27ISAState),
+            VMSTATE_UINT8(config.parallel_dma, LPC47B27ISAState),
+            VMSTATE_UINT8(config.parallel_mode, LPC47B27ISAState),
+            VMSTATE_UINT8(config.parallel_mode2, LPC47B27ISAState),
+            VMSTATE_UINT8(parallel_data, LPC47B27ISAState),
+            VMSTATE_UINT8(parallel_control, LPC47B27ISAState),
+            VMSTATE_UINT8(parallel_ecr, LPC47B27ISAState),
+            VMSTATE_UINT8_ARRAY(parallel_fifo, LPC47B27ISAState,
+                                LPC47B27_PARALLEL_FIFO_SIZE),
+            VMSTATE_UINT8(parallel_head, LPC47B27ISAState),
+            VMSTATE_UINT8(parallel_count, LPC47B27ISAState),
+            VMSTATE_UINT8(parallel_last, LPC47B27ISAState),
+            VMSTATE_END_OF_LIST() },
 };
 
 static void lpc47b27_reset(DeviceState *dev)
@@ -589,8 +580,7 @@ static void lpc47b27_realize(DeviceState *dev, Error **errp)
 
     s->isa_bus = isa_bus_from_device(isadev);
     if (!s->isa_bus->irqs_in) {
-        error_setg(errp,
-                   "LPC47B27x requires registered ISA interrupt inputs");
+        error_setg(errp, "LPC47B27x requires registered ISA interrupt inputs");
         return;
     }
     if (s->config_iobase == UINT16_MAX) {
@@ -601,16 +591,16 @@ static void lpc47b27_realize(DeviceState *dev, Error **errp)
         s->uart_input_clock_hz % LPC47B27_UART_CLOCK_DIVISOR) {
         error_setg(errp,
                    "LPC47B27x UART input clock must be a nonzero multiple "
-                   "of %u Hz", LPC47B27_UART_CLOCK_DIVISOR);
+                   "of %u Hz",
+                   LPC47B27_UART_CLOCK_DIVISOR);
         return;
     }
     s->io_space = isa_address_space_io(isadev);
 
-    s->uart.irq = qdev_get_gpio_in_named(dev, "irq-source",
-                                         LPC47B27_IRQ_SOURCE_UART);
+    s->uart.irq =
+        qdev_get_gpio_in_named(dev, "irq-source", LPC47B27_IRQ_SOURCE_UART);
     qdev_prop_set_uint32(DEVICE(&s->uart), "baudbase",
-                         s->uart_input_clock_hz /
-                         LPC47B27_UART_CLOCK_DIVISOR);
+                         s->uart_input_clock_hz / LPC47B27_UART_CLOCK_DIVISOR);
     if (!qdev_realize(DEVICE(&s->uart), NULL, errp)) {
         return;
     }
@@ -618,12 +608,13 @@ static void lpc47b27_realize(DeviceState *dev, Error **errp)
 
     qdev_prop_set_uint64(DEVICE(&s->i8042), "mask",
                          LPC47B27_I8042_COMMAND_MASK);
-    qdev_prop_set_uint32(DEVICE(&s->i8042), "size",
-                         LPC47B27_I8042_MMIO_SIZE);
-    qdev_connect_gpio_out(DEVICE(&s->i8042), I8042_KBD_IRQ,
+    qdev_prop_set_uint32(DEVICE(&s->i8042), "size", LPC47B27_I8042_MMIO_SIZE);
+    qdev_connect_gpio_out(
+        DEVICE(&s->i8042), I8042_KBD_IRQ,
         qdev_get_gpio_in_named(dev, "irq-source",
                                LPC47B27_IRQ_SOURCE_I8042_KBD));
-    qdev_connect_gpio_out(DEVICE(&s->i8042), I8042_MOUSE_IRQ,
+    qdev_connect_gpio_out(
+        DEVICE(&s->i8042), I8042_MOUSE_IRQ,
         qdev_get_gpio_in_named(dev, "irq-source",
                                LPC47B27_IRQ_SOURCE_I8042_MOUSE));
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->i8042), errp)) {
@@ -694,16 +685,15 @@ static void lpc47b27_init(Object *obj)
     object_property_add_alias(obj, "chardev", OBJECT(&s->uart), "chardev");
     object_property_add_alias(obj, "wakeup", OBJECT(&s->uart), "wakeup");
     object_initialize_child(obj, "i8042", &s->i8042, TYPE_I8042_MMIO);
-    qdev_init_gpio_in_named(DEVICE(obj), lpc47b27_set_irq_source,
-                            "irq-source", LPC47B27_IRQ_SOURCE_COUNT);
+    qdev_init_gpio_in_named(DEVICE(obj), lpc47b27_set_irq_source, "irq-source",
+                            LPC47B27_IRQ_SOURCE_COUNT);
 }
 
 static const Property lpc47b27_properties[] = {
     DEFINE_PROP_UINT16(LPC47B27_ISA_PROP_CONFIG_IOBASE, LPC47B27ISAState,
                        config_iobase, LPC47B27_CONFIG_INDEX_PORT),
-    DEFINE_PROP_UINT32(LPC47B27_ISA_PROP_UART_INPUT_CLOCK_HZ,
-                       LPC47B27ISAState, uart_input_clock_hz,
-                       LPC47B27_UART_INPUT_CLOCK_HZ),
+    DEFINE_PROP_UINT32(LPC47B27_ISA_PROP_UART_INPUT_CLOCK_HZ, LPC47B27ISAState,
+                       uart_input_clock_hz, LPC47B27_UART_INPUT_CLOCK_HZ),
 };
 
 static void lpc47b27_class_init(ObjectClass *klass, const void *data)

@@ -38,8 +38,8 @@ static TCGv_i64 cpu_rse_gr_dirty[2];
 #define IA64_COUNTED_SELF_BUDGET 4096
 #define IA64_CLOOP_FILL_ST1_MAX IA64_COUNTED_SELF_BUDGET
 
-static bool ia64_current_insn_cannot_execute(
-    const DisasContext *ctx, const Ia64Instruction *insn);
+static bool ia64_current_insn_cannot_execute(const DisasContext *ctx,
+                                             const Ia64Instruction *insn);
 static void ia64_forget_fp_written_formats(DisasContext *ctx,
                                            const Ia64Instruction *insn);
 
@@ -92,8 +92,7 @@ static void ia64_gen_merced_dtlb1_touch(DisasContext *ctx, TCGv_i64 addr,
         tcg_gen_brcond_i64(TCG_COND_EQ, field, rid, done);
 
         gen_set_label(slow);
-        gen_helper_merced_dtlb1_touch(
-            tcg_env, addr, tcg_constant_i32(size));
+        gen_helper_merced_dtlb1_touch(tcg_env, addr, tcg_constant_i32(size));
         gen_set_label(done);
     }
 }
@@ -145,9 +144,8 @@ void ia64_gen_qemu_st_i128(DisasContext *ctx, TCGv_i128 value, TCGv_i64 addr,
     ia64_gen_alat_write_end(ctx, addr, 16);
 }
 
-void ia64_gen_atomic_xchg_i64(DisasContext *ctx, TCGv_i64 result,
-                              TCGv_i64 addr, TCGv_i64 value, int mmu_idx,
-                              MemOp memop)
+void ia64_gen_atomic_xchg_i64(DisasContext *ctx, TCGv_i64 result, TCGv_i64 addr,
+                              TCGv_i64 value, int mmu_idx, MemOp memop)
 {
     ia64_gen_merced_dtlb1_touch(ctx, addr, mmu_idx, memop);
     ia64_gen_alat_write_begin(ctx);
@@ -156,8 +154,8 @@ void ia64_gen_atomic_xchg_i64(DisasContext *ctx, TCGv_i64 result,
 }
 
 void ia64_gen_atomic_cmpxchg_i64(DisasContext *ctx, TCGv_i64 result,
-                                 TCGv_i64 addr, TCGv_i64 cmp,
-                                 TCGv_i64 value, int mmu_idx, MemOp memop)
+                                 TCGv_i64 addr, TCGv_i64 cmp, TCGv_i64 value,
+                                 int mmu_idx, MemOp memop)
 {
     unsigned size = ia64_memop_size(memop);
     TCGLabel *load_only = NULL;
@@ -172,8 +170,8 @@ void ia64_gen_atomic_cmpxchg_i64(DisasContext *ctx, TCGv_i64 result,
     done = gen_new_label();
     if (size < 8) {
         load_only = gen_new_label();
-        tcg_gen_brcondi_i64(TCG_COND_GTU, cmp,
-                            (1ULL << (size * 8)) - 1, load_only);
+        tcg_gen_brcondi_i64(TCG_COND_GTU, cmp, (1ULL << (size * 8)) - 1,
+                            load_only);
     }
     ia64_gen_alat_write_begin(ctx);
     tcg_gen_atomic_cmpxchg_i64(result, addr, cmp, value, mmu_idx, memop);
@@ -316,8 +314,7 @@ static void ia64_invalidate_fp_state(DisasContext *ctx,
     }
 }
 
-static bool ia64_insn_may_modify_native_trap_psr(
-    const Ia64Instruction *insn)
+static bool ia64_insn_may_modify_native_trap_psr(const Ia64Instruction *insn)
 {
     switch (insn->opcode) {
     case IA64_OP_SSM:
@@ -371,8 +368,8 @@ static bool ia64_insn_may_modify_cfm_sof(const Ia64Instruction *insn)
     }
 }
 
-static void ia64_update_cached_register_state(
-    DisasContext *ctx, const Ia64Instruction *insn)
+static void ia64_update_cached_register_state(DisasContext *ctx,
+                                              const Ia64Instruction *insn)
 {
     if (ia64_current_insn_cannot_execute(ctx, insn)) {
         return;
@@ -427,16 +424,15 @@ static bool ia64_instruction_address_matches_physical_entry(CPUIA64State *env,
         return address == entry_pa;
     }
 
-    if (ia64_firmware_identity_pa(env,
-                                  address, &pa)) {
+    if (ia64_firmware_identity_pa(env, address, &pa)) {
         return pa == entry_pa;
     }
 
     rid = ia64_region_rid(env, address);
     entry = ia64_tlb_find_cached(env, address, rid, true);
     if (entry) {
-        ia64_tlb_entry_translate(entry, address, ia64_psr_cpl(env->psr),
-                                 &pa, &perm);
+        ia64_tlb_entry_translate(entry, address, ia64_psr_cpl(env->psr), &pa,
+                                 &perm);
     }
     if (entry && (perm & IA64_TLB_X)) {
         return pa == entry_pa;
@@ -448,11 +444,12 @@ static bool ia64_instruction_address_matches_physical_entry(CPUIA64State *env,
 bool ia64_is_pal_proc_break(CPUIA64State *env, uint64_t address)
 {
     IA64CPU *cpu = env_archcpu(env);
-    uint64_t pal_proc_entry_pa = cpu->boot_info_valid ?
-        cpu->boot_info.pal_entry : IA64_FW_IDENTITY_BASE + 0x60;
+    uint64_t pal_proc_entry_pa = cpu->boot_info_valid
+                                     ? cpu->boot_info.pal_entry
+                                     : IA64_FW_IDENTITY_BASE + 0x60;
 
-    if (ia64_instruction_address_matches_physical_entry(
-            env, address, pal_proc_entry_pa)) {
+    if (ia64_instruction_address_matches_physical_entry(env, address,
+                                                        pal_proc_entry_pa)) {
         return true;
     }
 
@@ -461,8 +458,8 @@ bool ia64_is_pal_proc_break(CPUIA64State *env, uint64_t address)
                env, address, env->pal.pal_proc_copy_addr);
 }
 
-bool ia64_is_firmware_debug_break(CPUIA64State *env,
-                                   uint64_t address, uint64_t imm)
+bool ia64_is_firmware_debug_break(CPUIA64State *env, uint64_t address,
+                                  uint64_t imm)
 {
     if (imm == 0x100002) {
         return address >= IA64_FIRMWARE_IVT_BASE &&
@@ -568,8 +565,8 @@ bool ia64_insn_has_invalid_fp_target(const Ia64Instruction *insn)
         /* If exactly one operand rotates, RRB.FR determines its physical
          * bank and the conflict check must be generated at run time.
          */
-        return (f1 < IA64_FR_ROTATING_BASE) ==
-               (f2 < IA64_FR_ROTATING_BASE) && ((f1 ^ f2) & 1) == 0;
+        return (f1 < IA64_FR_ROTATING_BASE) == (f2 < IA64_FR_ROTATING_BASE) &&
+               ((f1 ^ f2) & 1) == 0;
     }
     default:
         break;
@@ -621,16 +618,15 @@ static void ia64_gen_check_fp_pair_bank(const Ia64Instruction *insn)
 
     rrb_parity = tcg_temp_new_i32();
     valid = gen_new_label();
-    tcg_gen_ld8u_i32(rrb_parity, tcg_env,
-                     offsetof(CPUIA64State, cfm_rrb_fr));
+    tcg_gen_ld8u_i32(rrb_parity, tcg_env, offsetof(CPUIA64State, cfm_rrb_fr));
     tcg_gen_andi_i32(rrb_parity, rrb_parity, 1);
     /* Physical bank parity is logical parity XOR RRB.FR parity for a
      * rotating FR.  A load pair is legal only when the two parities differ.
      */
-    tcg_gen_brcondi_i32(((f1 ^ f2) & 1) ? TCG_COND_EQ : TCG_COND_NE,
-                        rrb_parity, 0, valid);
-    ia64_gen_raise_exception(IA64_EXCP_ILLEGAL, insn->address,
-                             insn->raw, insn->slot);
+    tcg_gen_brcondi_i32(((f1 ^ f2) & 1) ? TCG_COND_EQ : TCG_COND_NE, rrb_parity,
+                        0, valid);
+    ia64_gen_raise_exception(IA64_EXCP_ILLEGAL, insn->address, insn->raw,
+                             insn->slot);
     gen_set_label(valid);
 }
 
@@ -743,32 +739,31 @@ static IA64KnownNat ia64_nat_or(IA64KnownNat a, IA64KnownNat b)
     return IA64_NAT_UNKNOWN;
 }
 
-static IA64NatResultPolicy ia64_nat_result_policy(
-    const Ia64Instruction *insn)
+static IA64NatResultPolicy ia64_nat_result_policy(const Ia64Instruction *insn)
 {
     switch (insn->opcode) {
     case IA64_OP_PSHR2:
     case IA64_OP_PSHR2_U:
     case IA64_OP_PSHR4:
     case IA64_OP_PSHR4_U:
-        return insn->operands.common.immediate >= 0 ?
-               IA64_NAT_RESULT_SOURCE_R3 :
-               IA64_NAT_RESULT_SOURCES_R2_R3;
+        return insn->operands.common.immediate >= 0
+                   ? IA64_NAT_RESULT_SOURCE_R3
+                   : IA64_NAT_RESULT_SOURCES_R2_R3;
     case IA64_OP_PSHL2:
     case IA64_OP_PSHL4:
-        return insn->operands.common.immediate >= 0 ?
-               IA64_NAT_RESULT_SOURCE_R2 :
-               IA64_NAT_RESULT_SOURCES_R2_R3;
+        return insn->operands.common.immediate >= 0
+                   ? IA64_NAT_RESULT_SOURCE_R2
+                   : IA64_NAT_RESULT_SOURCES_R2_R3;
     case IA64_OP_GETF_D:
     case IA64_OP_GETF_S:
     case IA64_OP_GETF_EXP:
     case IA64_OP_GETF_SIG:
-        return insn->operands.common.source1 <= 1 ?
-               IA64_NAT_RESULT_CLEAR : IA64_NAT_RESULT_UNKNOWN;
+        return insn->operands.common.source1 <= 1 ? IA64_NAT_RESULT_CLEAR
+                                                  : IA64_NAT_RESULT_UNKNOWN;
     default:
-        return (unsigned)insn->opcode < IA64_OP_COUNT ?
-               ia64_opcode_properties[insn->opcode].nat_policy :
-               IA64_NAT_RESULT_UNKNOWN;
+        return (unsigned)insn->opcode < IA64_OP_COUNT
+                   ? ia64_opcode_properties[insn->opcode].nat_policy
+                   : IA64_NAT_RESULT_UNKNOWN;
     }
 }
 
@@ -776,10 +771,8 @@ static IA64KnownNat ia64_nat_result_known(const DisasContext *ctx,
                                           const Ia64Instruction *insn,
                                           IA64KnownNat old_r1)
 {
-    IA64KnownNat r2 =
-        ia64_nat_known(ctx, insn->operands.common.source1);
-    IA64KnownNat r3 =
-        ia64_nat_known(ctx, insn->operands.common.source2);
+    IA64KnownNat r2 = ia64_nat_known(ctx, insn->operands.common.source1);
+    IA64KnownNat r3 = ia64_nat_known(ctx, insn->operands.common.source2);
 
     switch (ia64_nat_result_policy(insn)) {
     case IA64_NAT_RESULT_CLEAR:
@@ -795,17 +788,17 @@ static IA64KnownNat ia64_nat_result_known(const DisasContext *ctx,
     case IA64_NAT_RESULT_SOURCES_R1_R2_R3:
         return ia64_nat_or(old_r1, ia64_nat_or(r2, r3));
     case IA64_NAT_RESULT_PRESERVE_ON_FULL_ALAT:
-        return ctx->memory.full_alat ?
-               ia64_nat_merge(old_r1, IA64_NAT_CLEAR) : IA64_NAT_CLEAR;
+        return ctx->memory.full_alat ? ia64_nat_merge(old_r1, IA64_NAT_CLEAR)
+                                     : IA64_NAT_CLEAR;
     case IA64_NAT_RESULT_SET_IF_R3_SET:
-        return r3 == IA64_NAT_SET ?
-               IA64_NAT_SET : IA64_NAT_UNKNOWN;
+        return r3 == IA64_NAT_SET ? IA64_NAT_SET : IA64_NAT_UNKNOWN;
     case IA64_NAT_RESULT_R3_OR_UNIMPLEMENTED_VA:
         if (r3 == IA64_NAT_SET) {
             return IA64_NAT_SET;
         }
-        return ia64_env_cpu_class(ctx->env)->impl_va_msb >= 60 ?
-               r3 : IA64_NAT_UNKNOWN;
+        return ia64_env_cpu_class(ctx->env)->impl_va_msb >= 60
+                   ? r3
+                   : IA64_NAT_UNKNOWN;
     case IA64_NAT_RESULT_UNKNOWN:
     default:
         return IA64_NAT_UNKNOWN;
@@ -829,8 +822,7 @@ static void ia64_invalidate_nat_mask(DisasContext *ctx, uint32_t word,
     ctx->memory.nat_known_set[word] &= ~mask;
 }
 
-static bool ia64_insn_may_rewrite_stacked_gr_view(
-    const Ia64Instruction *insn)
+static bool ia64_insn_may_rewrite_stacked_gr_view(const Ia64Instruction *insn)
 {
     switch (insn->opcode) {
     case IA64_OP_CLRRRB_PR:
@@ -875,8 +867,8 @@ static bool ia64_insn_may_swap_banked_gr(const Ia64Instruction *insn)
     }
 }
 
-static void ia64_invalidate_nat_known_for_insn(
-    DisasContext *ctx, const Ia64Instruction *insn)
+static void ia64_invalidate_nat_known_for_insn(DisasContext *ctx,
+                                               const Ia64Instruction *insn)
 {
     if (insn->opcode == IA64_OP_BREAK) {
         ctx->memory.nat_known_clear[0] = 1;
@@ -886,13 +878,12 @@ static void ia64_invalidate_nat_known_for_insn(
         return;
     }
     if (ia64_insn_may_swap_banked_gr(insn)) {
-        ia64_invalidate_nat_mask(
-            ctx, 0, MAKE_64BIT_MASK(16, 16));
+        ia64_invalidate_nat_mask(ctx, 0, MAKE_64BIT_MASK(16, 16));
     }
     if (ia64_insn_may_rewrite_stacked_gr_view(insn)) {
         ia64_invalidate_nat_mask(
-            ctx, 0, MAKE_64BIT_MASK(IA64_STACKED_GR_BASE,
-                                    64 - IA64_STACKED_GR_BASE));
+            ctx, 0,
+            MAKE_64BIT_MASK(IA64_STACKED_GR_BASE, 64 - IA64_STACKED_GR_BASE));
         ia64_invalidate_nat_mask(ctx, 1, UINT64_MAX);
     }
 }
@@ -903,12 +894,11 @@ static void ia64_invalidate_nat_known_for_insn(
  * ordinary per-register dataflow: it protects both an internal TCG back edge
  * and direct chaining to a TB keyed by IA64_TB_FLAG_NAT_CLEAR.
  */
-static bool ia64_insn_preserves_all_nat_clear(
-    const DisasContext *ctx, const Ia64Instruction *insn)
+static bool ia64_insn_preserves_all_nat_clear(const DisasContext *ctx,
+                                              const Ia64Instruction *insn)
 {
     if (!insn->valid || insn->placement_illegal || insn->reserved_field ||
-        insn->opcode == IA64_OP_BREAK ||
-        ia64_insn_may_swap_banked_gr(insn) ||
+        insn->opcode == IA64_OP_BREAK || ia64_insn_may_swap_banked_gr(insn) ||
         ia64_insn_may_rewrite_stacked_gr_view(insn)) {
         return false;
     }
@@ -935,8 +925,7 @@ static bool ia64_insn_preserves_all_nat_clear(
     }
 }
 
-void ia64_update_nat_known(DisasContext *ctx,
-                           const Ia64Instruction *insn)
+void ia64_update_nat_known(DisasContext *ctx, const Ia64Instruction *insn)
 {
     IA64KnownNat old_r1;
     IA64KnownNat old_r2;
@@ -955,17 +944,15 @@ void ia64_update_nat_known(DisasContext *ctx,
         IA64KnownNat result = ia64_nat_result_known(ctx, insn, old_r1);
 
         /* A predicated-off instruction preserves the old destination. */
-        ia64_nat_set_known(
-            ctx, insn->operands.common.destination,
-            ia64_nat_after_predication(ctx, old_r1, result));
+        ia64_nat_set_known(ctx, insn->operands.common.destination,
+                           ia64_nat_after_predication(ctx, old_r1, result));
     }
 
     if (insn->reg_base_update) {
         /* The executed update assigns base.NaT | increment.NaT. */
-        ia64_nat_set_known(
-            ctx, insn->operands.common.source2,
-            ia64_nat_after_predication(ctx, old_r3,
-                                       ia64_nat_or(old_r3, old_r2)));
+        ia64_nat_set_known(ctx, insn->operands.common.source2,
+                           ia64_nat_after_predication(
+                               ctx, old_r3, ia64_nat_or(old_r3, old_r2)));
     }
     /* An immediate base update preserves the base register's NaT bit. */
 }
@@ -1040,16 +1027,14 @@ static bool ia64_insn_psr_ic_must_be_clear(const Ia64Instruction *insn)
     }
 }
 
-static bool ia64_reserved_ar_for_unit(uint8_t ar, IA64SlotUnit unit,
-                                      bool write)
+static bool ia64_reserved_ar_for_unit(uint8_t ar, IA64SlotUnit unit, bool write)
 {
     if (unit == IA64_UNIT_I) {
         return ar <= 47 || (ar >= 67 && ar <= 111);
     }
 
-    if ((ar >= 8 && ar <= 15) || ar == 20 ||
-        (ar >= 22 && ar <= 23) || ar == 31 ||
-        (ar >= 33 && ar <= 35) || (ar >= 37 && ar <= 39) ||
+    if ((ar >= 8 && ar <= 15) || ar == 20 || (ar >= 22 && ar <= 23) ||
+        ar == 31 || (ar >= 33 && ar <= 35) || (ar >= 37 && ar <= 39) ||
         (ar >= 41 && ar <= 43) || (ar >= 46 && ar <= 47) ||
         (ar >= 64 && ar <= 111)) {
         return true;
@@ -1066,8 +1051,7 @@ static bool ia64_insn_has_reserved_ar(const Ia64Instruction *insn)
     case IA64_OP_MOV_ARGR:
         ar = insn->operands.common.source1;
         if (ar == IA64_AR_RUC &&
-            !(ia64_env_cpu_class(ctx->env)->cpuid_features &
-              IA64_CPUID4_RU)) {
+            !(ia64_env_cpu_class(ctx->env)->cpuid_features & IA64_CPUID4_RU)) {
             return true;
         }
         return ia64_reserved_ar_for_unit(ar, insn->unit, false);
@@ -1075,8 +1059,7 @@ static bool ia64_insn_has_reserved_ar(const Ia64Instruction *insn)
     case IA64_OP_MOV_IMMAR:
         ar = insn->operands.common.source1;
         if (ar == IA64_AR_RUC &&
-            !(ia64_env_cpu_class(ctx->env)->cpuid_features &
-              IA64_CPUID4_RU)) {
+            !(ia64_env_cpu_class(ctx->env)->cpuid_features & IA64_CPUID4_RU)) {
             return true;
         }
         return ia64_reserved_ar_for_unit(ar, insn->unit, true);
@@ -1087,9 +1070,8 @@ static bool ia64_insn_has_reserved_ar(const Ia64Instruction *insn)
 
 static bool ia64_reserved_cr(uint8_t cr)
 {
-    return (cr >= 3 && cr <= 7) || (cr >= 10 && cr <= 15) ||
-           cr == 18 || (cr >= 26 && cr <= 63) ||
-           (cr >= 75 && cr <= 79) || (cr >= 82);
+    return (cr >= 3 && cr <= 7) || (cr >= 10 && cr <= 15) || cr == 18 ||
+           (cr >= 26 && cr <= 63) || (cr >= 75 && cr <= 79) || (cr >= 82);
 }
 
 bool ia64_insn_has_illegal_register(const Ia64Instruction *insn)
@@ -1123,7 +1105,6 @@ static bool ia64_fr_is_writable(uint8_t reg)
     return reg > 1;
 }
 
-
 static void ia64_gen_fr_nat_clear(uint8_t reg)
 {
     if (reg <= 1) {
@@ -1142,8 +1123,7 @@ static void ia64_gen_fr_sig_clear(uint8_t reg)
 
     tcg_gen_andi_i64(cpu_fr_sig[reg / 64], cpu_fr_sig[reg / 64],
                      ~(1ULL << (reg % 64)));
-    tcg_gen_andi_i64(cpu_fr_int_origin[reg / 64],
-                     cpu_fr_int_origin[reg / 64],
+    tcg_gen_andi_i64(cpu_fr_int_origin[reg / 64], cpu_fr_int_origin[reg / 64],
                      ~(1ULL << (reg % 64)));
 }
 
@@ -1155,8 +1135,7 @@ static void ia64_gen_fr_sig_set(uint8_t reg)
 
     tcg_gen_ori_i64(cpu_fr_sig[reg / 64], cpu_fr_sig[reg / 64],
                     1ULL << (reg % 64));
-    tcg_gen_ori_i64(cpu_fr_int_origin[reg / 64],
-                    cpu_fr_int_origin[reg / 64],
+    tcg_gen_ori_i64(cpu_fr_int_origin[reg / 64], cpu_fr_int_origin[reg / 64],
                     1ULL << (reg % 64));
     tcg_gen_st_i64(cpu_fr[reg], tcg_env,
                    offsetof(CPUIA64State, fp.fr_int_value[reg]));
@@ -1242,8 +1221,7 @@ TCGv_i64 ia64_gen_fr_special_read(DisasContext *ctx, uint8_t reg)
     }
 
     tags = tcg_temp_new_i64();
-    tcg_gen_or_i64(tags, cpu_fr_nat[reg / 64],
-                   cpu_fr_sig[reg / 64]);
+    tcg_gen_or_i64(tags, cpu_fr_nat[reg / 64], cpu_fr_sig[reg / 64]);
     tcg_gen_or_i64(tags, tags, cpu_fr_ext_valid[reg / 64]);
     tcg_gen_or_i64(tags, tags, cpu_fr_int_origin[reg / 64]);
     tcg_gen_shri_i64(tags, tags, reg % 64);
@@ -1267,8 +1245,8 @@ void ia64_gen_fr_read_double(DisasContext *ctx, TCGv_i64 result, uint8_t reg)
     }
     slow = gen_new_label();
     done = gen_new_label();
-    tcg_gen_brcondi_i64(TCG_COND_NE, ia64_gen_fr_special_read(ctx, reg),
-                        0, slow);
+    tcg_gen_brcondi_i64(TCG_COND_NE, ia64_gen_fr_special_read(ctx, reg), 0,
+                        slow);
     tcg_gen_mov_i64(result, ia64_fr_binary_src(reg));
     tcg_gen_br(done);
     gen_set_label(slow);
@@ -1301,8 +1279,7 @@ TCGv_i64 ia64_gen_fr_fmov_slow_read(DisasContext *ctx, uint8_t reg)
     orphan_origin = tcg_temp_new_i64();
     tcg_gen_andc_i64(orphan_origin, cpu_fr_int_origin[reg / 64],
                      cpu_fr_sig[reg / 64]);
-    tcg_gen_or_i64(tags, cpu_fr_nat[reg / 64],
-                   cpu_fr_ext_valid[reg / 64]);
+    tcg_gen_or_i64(tags, cpu_fr_nat[reg / 64], cpu_fr_ext_valid[reg / 64]);
     tcg_gen_or_i64(tags, tags, orphan_origin);
     tcg_gen_shri_i64(tags, tags, reg % 64);
     tcg_gen_andi_i64(tags, tags, 1);
@@ -1315,8 +1292,7 @@ static void ia64_gen_fr_ext_clear(uint8_t reg)
         return;
     }
 
-    tcg_gen_andi_i64(cpu_fr_ext_valid[reg / 64],
-                     cpu_fr_ext_valid[reg / 64],
+    tcg_gen_andi_i64(cpu_fr_ext_valid[reg / 64], cpu_fr_ext_valid[reg / 64],
                      ~(1ULL << (reg % 64)));
 }
 
@@ -1382,12 +1358,11 @@ static void ia64_gen_fr_nat_assign(uint8_t reg, TCGv_i64 bit)
     tcg_gen_or_i64(cpu_fr_nat[reg / 64], cpu_fr_nat[reg / 64], shifted);
     tcg_gen_not_i64(shifted, shifted);
     tcg_gen_and_i64(cpu_fr_sig[reg / 64], cpu_fr_sig[reg / 64], shifted);
-    tcg_gen_and_i64(cpu_fr_int_origin[reg / 64],
-                    cpu_fr_int_origin[reg / 64], shifted);
-    tcg_gen_and_i64(cpu_fr_ext_valid[reg / 64],
-                    cpu_fr_ext_valid[reg / 64], shifted);
+    tcg_gen_and_i64(cpu_fr_int_origin[reg / 64], cpu_fr_int_origin[reg / 64],
+                    shifted);
+    tcg_gen_and_i64(cpu_fr_ext_valid[reg / 64], cpu_fr_ext_valid[reg / 64],
+                    shifted);
 }
-
 
 void ia64_gen_fr_mov(DisasContext *ctx, uint8_t reg, TCGv_i64 value)
 {
@@ -1476,8 +1451,7 @@ static void ia64_gen_fr_ld_sig(DisasContext *ctx, uint8_t reg, TCGv_i64 addr,
 }
 
 void ia64_gen_fr_load(DisasContext *ctx, uint8_t reg, TCGv_i64 addr,
-                      int mmu_idx, MemOp memop,
-                      IA64FPRegisterLoadFormat format)
+                      int mmu_idx, MemOp memop, IA64FPRegisterLoadFormat format)
 {
     switch (format) {
     case IA64_FP_REGISTER_LOAD_DOUBLE:
@@ -1502,9 +1476,9 @@ void ia64_gen_fr_set_nat(DisasContext *ctx, uint8_t reg)
     ia64_gen_fr_nat_set(ctx, reg);
 }
 
-void ia64_gen_check_data_debug(DisasContext *ctx,
-                               const Ia64Instruction *insn, TCGv_i64 addr,
-                               uint32_t size, uint64_t isr_access)
+void ia64_gen_check_data_debug(DisasContext *ctx, const Ia64Instruction *insn,
+                               TCGv_i64 addr, uint32_t size,
+                               uint64_t isr_access)
 {
     TCGv_i64 enabled = tcg_temp_new_i64();
     TCGLabel *done;
@@ -1532,22 +1506,19 @@ void ia64_gen_check_data_debug(DisasContext *ctx,
 }
 
 void ia64_gen_check_alignment_access(DisasContext *ctx,
-                                     const Ia64Instruction *insn,
-                                     TCGv_i64 addr, uint32_t size,
-                                     bool always_fault,
+                                     const Ia64Instruction *insn, TCGv_i64 addr,
+                                     uint32_t size, bool always_fault,
                                      uint64_t isr_access)
 {
     ia64_gen_check_alignment_model(
         ctx, insn, addr, size, size, size,
-        always_fault ? IA64_ALIGNMENT_NATURAL_REQUIRED :
-                       IA64_ALIGNMENT_GENERIC,
+        always_fault ? IA64_ALIGNMENT_NATURAL_REQUIRED : IA64_ALIGNMENT_GENERIC,
         isr_access);
 }
 
 void ia64_gen_check_alignment_model(DisasContext *ctx,
-                                    const Ia64Instruction *insn,
-                                    TCGv_i64 addr, uint32_t debug_size,
-                                    uint32_t datum_size,
+                                    const Ia64Instruction *insn, TCGv_i64 addr,
+                                    uint32_t debug_size, uint32_t datum_size,
                                     uint32_t natural_alignment,
                                     IA64AlignmentClass alignment_class,
                                     uint64_t isr_access)
@@ -1572,21 +1543,20 @@ void ia64_gen_check_alignment_model(DisasContext *ctx,
     } else {
         ia64_gen_check_data_debug(ctx, insn, addr, debug_size, isr_access);
     }
-    ia64_gen_check_alignment_only(insn, addr, datum_size,
-                                  natural_alignment, alignment_class,
-                                  isr_access);
+    ia64_gen_check_alignment_only(insn, addr, datum_size, natural_alignment,
+                                  alignment_class, isr_access);
 }
 
-void ia64_gen_check_alignment_only(const Ia64Instruction *insn,
-                                   TCGv_i64 addr, uint32_t datum_size,
+void ia64_gen_check_alignment_only(const Ia64Instruction *insn, TCGv_i64 addr,
+                                   uint32_t datum_size,
                                    uint32_t natural_alignment,
                                    IA64AlignmentClass alignment_class,
                                    uint64_t isr_access)
 {
     TCGv_i64 misalignment;
     TCGLabel *done;
-    uint32_t alignment_info = IA64_ALIGNMENT_INFO(
-        datum_size, natural_alignment, alignment_class);
+    uint32_t alignment_info =
+        IA64_ALIGNMENT_INFO(datum_size, natural_alignment, alignment_class);
 
     if (datum_size <= 1 || natural_alignment <= 1) {
         return;
@@ -1597,22 +1567,19 @@ void ia64_gen_check_alignment_only(const Ia64Instruction *insn,
     tcg_gen_andi_i64(misalignment, addr, natural_alignment - 1U);
     tcg_gen_brcondi_i64(TCG_COND_EQ, misalignment, 0, done);
     ia64_gen_sync_ip_for_helper(insn);
-    gen_helper_check_alignment(
-        tcg_env, addr, tcg_constant_i32(alignment_info),
-        tcg_constant_i64(isr_access),
-        tcg_constant_i64(insn->address | insn->slot));
+    gen_helper_check_alignment(tcg_env, addr, tcg_constant_i32(alignment_info),
+                               tcg_constant_i64(isr_access),
+                               tcg_constant_i64(insn->address | insn->slot));
     gen_set_label(done);
 }
 
-void ia64_gen_check_alignment(DisasContext *ctx,
-                              const Ia64Instruction *insn,
-                              TCGv_i64 addr, uint32_t size,
-                              bool always_fault, bool is_write)
+void ia64_gen_check_alignment(DisasContext *ctx, const Ia64Instruction *insn,
+                              TCGv_i64 addr, uint32_t size, bool always_fault,
+                              bool is_write)
 {
     ia64_gen_check_alignment_model(
         ctx, insn, addr, size, size, size,
-        always_fault ? IA64_ALIGNMENT_NATURAL_REQUIRED :
-                       IA64_ALIGNMENT_INTEGER,
+        always_fault ? IA64_ALIGNMENT_NATURAL_REQUIRED : IA64_ALIGNMENT_INTEGER,
         is_write ? IA64_ISR_W : IA64_ISR_R);
 }
 
@@ -1627,8 +1594,7 @@ static TCGLabel *ia64_gen_predicate_skip(DisasContext *ctx,
      * than a predicate that nullifies the instruction.  A false condition
      * must still drain the software pipeline while AR.EC is nonzero.
      */
-    if (insn->qp == 0 ||
-        insn->opcode == IA64_OP_BR_WEXIT ||
+    if (insn->qp == 0 || insn->opcode == IA64_OP_BR_WEXIT ||
         insn->opcode == IA64_OP_BR_WTOP) {
         return NULL;
     }
@@ -1696,12 +1662,13 @@ static IA64KnownPredicate ia64_predicate_merge(IA64KnownPredicate a,
     return a == b ? a : IA64_PREDICATE_UNKNOWN;
 }
 
-static void ia64_gen_clear_unc_compare_targets(
-    DisasContext *ctx, const Ia64Instruction *insn, TCGv_i64 qp_value,
-    IA64KnownPredicate qp_known)
+static void ia64_gen_clear_unc_compare_targets(DisasContext *ctx,
+                                               const Ia64Instruction *insn,
+                                               TCGv_i64 qp_value,
+                                               IA64KnownPredicate qp_known)
 {
-    uint32_t targets[] = {insn->operands.common.auxiliary1,
-                          insn->operands.common.auxiliary2};
+    uint32_t targets[] = { insn->operands.common.auxiliary1,
+                           insn->operands.common.auxiliary2 };
 
     if (!insn->compare_unc || qp_known == IA64_PREDICATE_ONE) {
         return;
@@ -1715,12 +1682,13 @@ static void ia64_gen_clear_unc_compare_targets(
                 tcg_gen_movi_i64(cpu_pr[p], 0);
             } else {
                 tcg_gen_movcond_i64(TCG_COND_EQ, cpu_pr[p], qp_value,
-                                    tcg_constant_i64(0),
-                                    tcg_constant_i64(0), cpu_pr[p]);
+                                    tcg_constant_i64(0), tcg_constant_i64(0),
+                                    cpu_pr[p]);
             }
-            ia64_predicate_set_known(ctx, p, qp_known == IA64_PREDICATE_ZERO ?
-                                      IA64_PREDICATE_ZERO :
-                                      IA64_PREDICATE_UNKNOWN);
+            ia64_predicate_set_known(ctx, p,
+                                     qp_known == IA64_PREDICATE_ZERO
+                                         ? IA64_PREDICATE_ZERO
+                                         : IA64_PREDICATE_UNKNOWN);
         }
     }
 }
@@ -1826,8 +1794,7 @@ static bool ia64_insn_is_integer_compare(const Ia64Instruction *insn)
             insn->opcode <= IA64_OP_CMP4_NE_OR_IMM);
 }
 
-static bool ia64_integer_compare_uses_immediate(
-    const Ia64Instruction *insn)
+static bool ia64_integer_compare_uses_immediate(const Ia64Instruction *insn)
 {
     switch (insn->opcode) {
     case IA64_OP_CMP_EQ_IMM:
@@ -1861,8 +1828,8 @@ static bool ia64_compare_has_equal_targets(const Ia64Instruction *insn)
            ia64_insn_writes_predicate_pair(insn);
 }
 
-void ia64_gen_predicate_test_write(const Ia64Instruction *insn,
-                                   TCGv_i64 cond, TCGv_i64 not_cond)
+void ia64_gen_predicate_test_write(const Ia64Instruction *insn, TCGv_i64 cond,
+                                   TCGv_i64 not_cond)
 {
     switch (insn->pred_update) {
     case IA64_PRED_UPDATE_AND: {
@@ -1915,8 +1882,8 @@ void ia64_gen_predicate_test_write(const Ia64Instruction *insn,
     }
 }
 
-static Ia64PredicateUpdate ia64_effective_predicate_update(
-    const Ia64Instruction *insn)
+static Ia64PredicateUpdate
+ia64_effective_predicate_update(const Ia64Instruction *insn)
 {
     switch (insn->opcode) {
     case IA64_OP_TNAT_NZ_AND:
@@ -1929,16 +1896,17 @@ static Ia64PredicateUpdate ia64_effective_predicate_update(
     }
 }
 
-static IA64KnownPredicate ia64_predicate_dynamic_result(
-    IA64KnownPredicate old, Ia64PredicateUpdate update, bool second)
+static IA64KnownPredicate
+ia64_predicate_dynamic_result(IA64KnownPredicate old,
+                              Ia64PredicateUpdate update, bool second)
 {
     switch (update) {
     case IA64_PRED_UPDATE_AND:
-        return old == IA64_PREDICATE_ZERO ?
-               IA64_PREDICATE_ZERO : IA64_PREDICATE_UNKNOWN;
+        return old == IA64_PREDICATE_ZERO ? IA64_PREDICATE_ZERO
+                                          : IA64_PREDICATE_UNKNOWN;
     case IA64_PRED_UPDATE_OR:
-        return old == IA64_PREDICATE_ONE ?
-               IA64_PREDICATE_ONE : IA64_PREDICATE_UNKNOWN;
+        return old == IA64_PREDICATE_ONE ? IA64_PREDICATE_ONE
+                                         : IA64_PREDICATE_UNKNOWN;
     case IA64_PRED_UPDATE_OR_ANDCM:
         if ((!second && old == IA64_PREDICATE_ONE) ||
             (second && old == IA64_PREDICATE_ZERO)) {
@@ -1951,9 +1919,9 @@ static IA64KnownPredicate ia64_predicate_dynamic_result(
     }
 }
 
-static IA64KnownPredicate ia64_predicate_known_result(
-    IA64KnownPredicate old, Ia64PredicateUpdate update, bool second,
-    bool condition)
+static IA64KnownPredicate
+ia64_predicate_known_result(IA64KnownPredicate old, Ia64PredicateUpdate update,
+                            bool second, bool condition)
 {
     switch (update) {
     case IA64_PRED_UPDATE_AND:
@@ -1967,43 +1935,41 @@ static IA64KnownPredicate ia64_predicate_known_result(
         return second ? IA64_PREDICATE_ZERO : IA64_PREDICATE_ONE;
     case IA64_PRED_UPDATE_NORMAL:
     default:
-        return (condition ^ second) ?
-               IA64_PREDICATE_ONE : IA64_PREDICATE_ZERO;
+        return (condition ^ second) ? IA64_PREDICATE_ONE : IA64_PREDICATE_ZERO;
     }
 }
 
 static bool ia64_predicate_nullifies_insn(const Ia64Instruction *insn)
 {
-    return insn->opcode != IA64_OP_BR_WEXIT &&
-           insn->opcode != IA64_OP_BR_WTOP;
+    return insn->opcode != IA64_OP_BR_WEXIT && insn->opcode != IA64_OP_BR_WTOP;
 }
 
-static bool ia64_current_insn_cannot_execute(
-    const DisasContext *ctx, const Ia64Instruction *insn)
+static bool ia64_current_insn_cannot_execute(const DisasContext *ctx,
+                                             const Ia64Instruction *insn)
 {
-    return ia64_predicate_nullifies_insn(insn) &&
-           ctx->reg.current_qp_known &&
+    return ia64_predicate_nullifies_insn(insn) && ctx->reg.current_qp_known &&
            !ctx->reg.current_qp_value;
 }
 
-static bool ia64_current_insn_definitely_executes(
-    const DisasContext *ctx, const Ia64Instruction *insn)
+static bool ia64_current_insn_definitely_executes(const DisasContext *ctx,
+                                                  const Ia64Instruction *insn)
 {
     return !ia64_predicate_nullifies_insn(insn) ||
            (ctx->reg.current_qp_known && ctx->reg.current_qp_value);
 }
 
-static void ia64_predicate_commit_result(
-    DisasContext *ctx, uint8_t reg, IA64KnownPredicate old,
-    IA64KnownPredicate executed, bool definitely_executes)
+static void ia64_predicate_commit_result(DisasContext *ctx, uint8_t reg,
+                                         IA64KnownPredicate old,
+                                         IA64KnownPredicate executed,
+                                         bool definitely_executes)
 {
     ia64_predicate_set_known(
-        ctx, reg, definitely_executes ?
-        executed : ia64_predicate_merge(old, executed));
+        ctx, reg,
+        definitely_executes ? executed : ia64_predicate_merge(old, executed));
 }
 
-static void ia64_update_predicate_pair_known(
-    DisasContext *ctx, const Ia64Instruction *insn)
+static void ia64_update_predicate_pair_known(DisasContext *ctx,
+                                             const Ia64Instruction *insn)
 {
     Ia64PredicateUpdate update = ia64_effective_predicate_update(insn);
     uint8_t p1 = insn->operands.common.auxiliary1;
@@ -2012,45 +1978,39 @@ static void ia64_update_predicate_pair_known(
     IA64KnownPredicate old2 = ia64_predicate_known(ctx, p2);
     IA64KnownPredicate result1;
     IA64KnownPredicate result2;
-    bool definitely_executes =
-        ia64_current_insn_definitely_executes(ctx, insn);
+    bool definitely_executes = ia64_current_insn_definitely_executes(ctx, insn);
 
-    if (insn->opcode == IA64_OP_TF_Z ||
-        insn->opcode == IA64_OP_TF_NZ) {
-        bool bit = extract64(
-            ia64_env_cpu_class(ctx->env)->cpuid_features,
-            insn->operands.common.immediate, 1);
+    if (insn->opcode == IA64_OP_TF_Z || insn->opcode == IA64_OP_TF_NZ) {
+        bool bit = extract64(ia64_env_cpu_class(ctx->env)->cpuid_features,
+                             insn->operands.common.immediate, 1);
         bool condition = insn->opcode == IA64_OP_TF_NZ ? bit : !bit;
 
-        result1 = ia64_predicate_known_result(old1, update, false,
-                                               condition);
-        result2 = ia64_predicate_known_result(old2, update, true,
-                                               condition);
+        result1 = ia64_predicate_known_result(old1, update, false, condition);
+        result2 = ia64_predicate_known_result(old2, update, true, condition);
     } else if (insn->opcode == IA64_OP_TNAT_Z ||
                insn->opcode == IA64_OP_TNAT_NZ ||
                insn->opcode == IA64_OP_TNAT_NZ_AND) {
-        IA64KnownNat nat = ia64_nat_known(
-            ctx, insn->operands.common.source2);
+        IA64KnownNat nat = ia64_nat_known(ctx, insn->operands.common.source2);
 
         if (nat == IA64_NAT_UNKNOWN) {
             result1 = ia64_predicate_dynamic_result(old1, update, false);
             result2 = ia64_predicate_dynamic_result(old2, update, true);
         } else {
             bool is_nz = insn->opcode != IA64_OP_TNAT_Z;
-            bool condition = is_nz ?
-                nat == IA64_NAT_SET : nat == IA64_NAT_CLEAR;
+            bool condition =
+                is_nz ? nat == IA64_NAT_SET : nat == IA64_NAT_CLEAR;
 
-            result1 = ia64_predicate_known_result(
-                old1, update, false, condition);
-            result2 = ia64_predicate_known_result(
-                old2, update, true, condition);
+            result1 =
+                ia64_predicate_known_result(old1, update, false, condition);
+            result2 =
+                ia64_predicate_known_result(old2, update, true, condition);
         }
     } else if ((insn->opcode == IA64_OP_TBIT_Z ||
                 insn->opcode == IA64_OP_TBIT_NZ ||
                 insn->opcode == IA64_OP_TBIT_Z_OR_ANDCM ||
                 insn->opcode == IA64_OP_TBIT_NZ_OR_ANDCM) &&
                ia64_nat_known(ctx, insn->operands.common.source2) ==
-               IA64_NAT_SET) {
+                   IA64_NAT_SET) {
         if (update == IA64_PRED_UPDATE_OR ||
             update == IA64_PRED_UPDATE_OR_ANDCM) {
             result1 = old1;
@@ -2064,13 +2024,11 @@ static void ia64_update_predicate_pair_known(
         bool nat_set =
             ia64_nat_known(ctx, insn->operands.common.source2) ==
                 IA64_NAT_SET ||
-            (!immediate &&
-             ia64_nat_known(ctx, insn->operands.common.source1) ==
-                IA64_NAT_SET);
+            (!immediate && ia64_nat_known(ctx, insn->operands.common.source1) ==
+                               IA64_NAT_SET);
 
-        if (nat_set &&
-            (update == IA64_PRED_UPDATE_OR ||
-             update == IA64_PRED_UPDATE_OR_ANDCM)) {
+        if (nat_set && (update == IA64_PRED_UPDATE_OR ||
+                        update == IA64_PRED_UPDATE_OR_ANDCM)) {
             result1 = old1;
             result2 = old2;
         } else if (nat_set) {
@@ -2085,10 +2043,8 @@ static void ia64_update_predicate_pair_known(
         result2 = ia64_predicate_dynamic_result(old2, update, true);
     }
 
-    ia64_predicate_commit_result(ctx, p1, old1, result1,
-                                 definitely_executes);
-    ia64_predicate_commit_result(ctx, p2, old2, result2,
-                                 definitely_executes);
+    ia64_predicate_commit_result(ctx, p1, old1, result1, definitely_executes);
+    ia64_predicate_commit_result(ctx, p2, old2, result2, definitely_executes);
 }
 
 static void ia64_invalidate_predicate_mask(DisasContext *ctx, uint64_t mask)
@@ -2145,8 +2101,8 @@ static void ia64_update_predicate_known(DisasContext *ctx,
     if (ia64_insn_writes_predicate_pair(insn)) {
         ia64_update_predicate_pair_known(ctx, insn);
     } else {
-        ia64_invalidate_predicate_mask(
-            ctx, ia64_insn_predicate_write_mask(insn));
+        ia64_invalidate_predicate_mask(ctx,
+                                       ia64_insn_predicate_write_mask(insn));
     }
 }
 
@@ -2161,8 +2117,7 @@ static void ia64_rse_dirty_set_known(DisasContext *ctx, uint8_t reg)
     ctx->reg.rse_dirty_known[bit / 64] |= UINT64_C(1) << (bit % 64);
 }
 
-static bool ia64_insn_may_preserve_gr_destination(
-    const Ia64Instruction *insn)
+static bool ia64_insn_may_preserve_gr_destination(const Ia64Instruction *insn)
 {
     switch (insn->opcode) {
     case IA64_OP_LD1C_CLR:
@@ -2220,16 +2175,13 @@ static void ia64_update_rse_dirty_known(DisasContext *ctx,
     }
     if (ia64_insn_writes_gr_r1(insn) &&
         !ia64_insn_may_preserve_gr_destination(insn)) {
-        ia64_rse_dirty_set_known(
-            ctx, insn->operands.common.destination);
+        ia64_rse_dirty_set_known(ctx, insn->operands.common.destination);
     }
     if (insn->reg_base_update || insn->imm_base_update ||
-        (insn->opcode == IA64_OP_HINT_M &&
-         insn->hint_m_reg_increment)) {
+        (insn->opcode == IA64_OP_HINT_M && insn->hint_m_reg_increment)) {
         ia64_rse_dirty_set_known(ctx, insn->operands.common.source2);
     }
 }
-
 
 void ia64_gen_clear_ri(void)
 {
@@ -2240,8 +2192,7 @@ static void ia64_gen_set_ri(uint8_t slot)
 {
     ia64_gen_clear_ri();
     if (slot != 0) {
-        tcg_gen_ori_i64(cpu_psr, cpu_psr,
-                        (uint64_t)slot << IA64_PSR_RI_SHIFT);
+        tcg_gen_ori_i64(cpu_psr, cpu_psr, (uint64_t)slot << IA64_PSR_RI_SHIFT);
     }
 }
 
@@ -2253,10 +2204,9 @@ void ia64_gen_set_ri_tracked(DisasContext *ctx, uint8_t slot)
 
     if (ctx->restart.current_ri_known) {
         /* Only the two known RI bits differ; toggle them in one operation. */
-        tcg_gen_xori_i64(
-            cpu_psr, cpu_psr,
-            (uint64_t)(ctx->restart.current_ri ^ slot) <<
-                IA64_PSR_RI_SHIFT);
+        tcg_gen_xori_i64(cpu_psr, cpu_psr,
+                         (uint64_t)(ctx->restart.current_ri ^ slot)
+                             << IA64_PSR_RI_SHIFT);
     } else {
         ia64_gen_clear_ri();
         if (slot != 0) {
@@ -2313,9 +2263,8 @@ static void ia64_gen_save_fault_slot_from_ri(void)
 
     tcg_gen_extract_i64(slot64, cpu_psr, IA64_PSR_RI_SHIFT, 2);
     tcg_gen_extrl_i64_i32(slot32, slot64);
-    tcg_gen_st_i32(
-        slot32, tcg_env,
-        offsetof(CPUIA64State, exception_state.fault_slot));
+    tcg_gen_st_i32(slot32, tcg_env,
+                   offsetof(CPUIA64State, exception_state.fault_slot));
 }
 
 void ia64_gen_save_fault_slot_for_exit(DisasContext *ctx)
@@ -2332,8 +2281,7 @@ static void ia64_gen_note_successful_bundle(DisasContext *ctx,
                                             bool record_iipa,
                                             bool track_psr_suppression)
 {
-    if (record_iipa &&
-        (!ctx->restart.psr_ic_known || ctx->restart.psr_ic)) {
+    if (record_iipa && (!ctx->restart.psr_ic_known || ctx->restart.psr_ic)) {
         TCGLabel *l_done = NULL;
 
         if (!ctx->restart.psr_ic_known) {
@@ -2344,8 +2292,7 @@ static void ia64_gen_note_successful_bundle(DisasContext *ctx,
             tcg_gen_brcondi_i64(TCG_COND_EQ, collecting, 0, l_done);
         }
         tcg_gen_st_i64(tcg_constant_i64(ia64_ip_bundle_addr(bundle_ip)),
-                       tcg_env,
-                       offsetof(CPUIA64State, last_successful_bundle));
+                       tcg_env, offsetof(CPUIA64State, last_successful_bundle));
         if (l_done) {
             gen_set_label(l_done);
         }
@@ -2355,10 +2302,9 @@ static void ia64_gen_note_successful_bundle(DisasContext *ctx,
         TCGv_i64 suppression = tcg_temp_new_i64();
         TCGLabel *l_no_suppression = gen_new_label();
 
-        tcg_gen_ld_i64(
-            suppression, tcg_env,
-            offsetof(CPUIA64State,
-                     exception_state.psr_suppression_before_insn));
+        tcg_gen_ld_i64(suppression, tcg_env,
+                       offsetof(CPUIA64State,
+                                exception_state.psr_suppression_before_insn));
         tcg_gen_brcondi_i64(TCG_COND_EQ, suppression, 0, l_no_suppression);
         gen_helper_clear_psr_fault_suppression(tcg_env);
         gen_set_label(l_no_suppression);
@@ -2389,8 +2335,7 @@ static TCGv_i64 ia64_gen_native_trap_psr(DisasContext *ctx)
 
     trap_psr = tcg_temp_new_i64();
     tcg_gen_ld_i64(trap_psr, tcg_env,
-                   offsetof(CPUIA64State,
-                            exception_state.psr_before_insn));
+                   offsetof(CPUIA64State, exception_state.psr_before_insn));
     return trap_psr;
 }
 
@@ -2415,20 +2360,19 @@ static bool ia64_static_native_trap_needed(DisasContext *ctx,
     return !ia64_pa_is_implemented(ctx->env, target_ip);
 }
 
-static void ia64_gen_check_static_native_traps(
-    DisasContext *ctx, uint64_t target_ip, uint8_t target_slot,
-    uint64_t source_ip, uint8_t source_slot, uint32_t conditions,
-    uint64_t base_isr)
+static void
+ia64_gen_check_static_native_traps(DisasContext *ctx, uint64_t target_ip,
+                                   uint8_t target_slot, uint64_t source_ip,
+                                   uint8_t source_slot, uint32_t conditions,
+                                   uint64_t base_isr)
 {
-    if (!ia64_static_native_trap_needed(ctx, target_ip, conditions,
-                                        base_isr)) {
+    if (!ia64_static_native_trap_needed(ctx, target_ip, conditions, base_isr)) {
         return;
     }
 
     ia64_gen_check_native_traps(
         tcg_constant_i64(target_ip), target_slot, source_ip, source_slot,
-        tcg_constant_i32(conditions), base_isr,
-        ia64_gen_native_trap_psr(ctx));
+        tcg_constant_i32(conditions), base_isr, ia64_gen_native_trap_psr(ctx));
 }
 
 static void ia64_gen_exit_to(DisasContext *ctx, uint64_t ip)
@@ -2446,14 +2390,13 @@ void ia64_gen_store_instruction_group_start(bool group_start)
 }
 
 void ia64_gen_exit_to_completed(DisasContext *ctx, uint64_t ip,
-                                uint64_t completed_ip,
-                                bool record_iipa,
+                                uint64_t completed_ip, bool record_iipa,
                                 bool track_psr_suppression)
 {
     ia64_gen_note_successful_bundle(ctx, completed_ip, record_iipa,
                                     track_psr_suppression);
-    ia64_gen_check_static_native_traps(
-        ctx, ip, 0, completed_ip, ctx->restart.completion_slot, 0, 0);
+    ia64_gen_check_static_native_traps(ctx, ip, 0, completed_ip,
+                                       ctx->restart.completion_slot, 0, 0);
     ia64_gen_store_instruction_group_start(
         ctx->restart.next_instruction_group_start);
     ia64_gen_exit_to(ctx, ip);
@@ -2473,16 +2416,15 @@ void ia64_gen_lookup_or_exit(DisasContext *ctx)
 }
 
 void ia64_gen_lookup_tcg_completed(DisasContext *ctx, TCGv_i64 ip,
-                                   uint64_t completed_ip,
-                                   bool record_iipa,
+                                   uint64_t completed_ip, bool record_iipa,
                                    bool track_psr_suppression)
 {
     ia64_gen_note_successful_bundle(ctx, completed_ip, record_iipa,
                                     track_psr_suppression);
-    ia64_gen_check_native_traps(
-        ip, 0, completed_ip, ctx->restart.completion_slot,
-        tcg_constant_i32(IA64_NATIVE_TRAP_TAKEN), 0,
-        ia64_gen_native_trap_psr(ctx));
+    ia64_gen_check_native_traps(ip, 0, completed_ip,
+                                ctx->restart.completion_slot,
+                                tcg_constant_i32(IA64_NATIVE_TRAP_TAKEN), 0,
+                                ia64_gen_native_trap_psr(ctx));
     ia64_gen_store_instruction_group_start(true);
     ia64_gen_save_fault_slot_from_ri();
     ia64_gen_clear_ri();
@@ -2490,8 +2432,7 @@ void ia64_gen_lookup_tcg_completed(DisasContext *ctx, TCGv_i64 ip,
     ia64_gen_lookup_or_exit(ctx);
 }
 
-void ia64_gen_lookup_current_completed(DisasContext *ctx,
-                                       uint64_t completed_ip,
+void ia64_gen_lookup_current_completed(DisasContext *ctx, uint64_t completed_ip,
                                        bool record_iipa,
                                        bool track_psr_suppression,
                                        TCGv_i32 trap_conditions,
@@ -2503,10 +2444,9 @@ void ia64_gen_lookup_current_completed(DisasContext *ctx,
         if (trap_conditions == NULL) {
             trap_conditions = tcg_constant_i32(IA64_NATIVE_TRAP_TAKEN);
         }
-        ia64_gen_check_native_traps(cpu_ip, 0, completed_ip,
-                                    ctx->restart.completion_slot,
-                                    trap_conditions, 0,
-                                    ia64_gen_native_trap_psr(ctx));
+        ia64_gen_check_native_traps(
+            cpu_ip, 0, completed_ip, ctx->restart.completion_slot,
+            trap_conditions, 0, ia64_gen_native_trap_psr(ctx));
     }
     ia64_gen_store_instruction_group_start(true);
     ia64_gen_save_fault_slot_from_ri();
@@ -2528,8 +2468,7 @@ static void ia64_gen_exit_to_slot(DisasContext *ctx, uint64_t ip, uint8_t slot)
 }
 
 void ia64_gen_exit_to_slot_completed(DisasContext *ctx, uint64_t ip,
-                                     uint8_t slot,
-                                     uint64_t completed_ip,
+                                     uint8_t slot, uint64_t completed_ip,
                                      bool record_iipa,
                                      bool track_psr_suppression)
 {
@@ -2538,30 +2477,28 @@ void ia64_gen_exit_to_slot_completed(DisasContext *ctx, uint64_t ip,
 
     ia64_gen_note_successful_bundle(ctx, completed_ip, record_iipa,
                                     track_psr_suppression);
-    ia64_gen_check_static_native_traps(
-        ctx, target_ip, target_slot, completed_ip,
-        ctx->restart.completion_slot, 0, 0);
+    ia64_gen_check_static_native_traps(ctx, target_ip, target_slot,
+                                       completed_ip,
+                                       ctx->restart.completion_slot, 0, 0);
     ia64_gen_store_instruction_group_start(
         ctx->restart.next_instruction_group_start);
     ia64_gen_exit_to_slot(ctx, ip, slot);
 }
 
 void ia64_gen_goto_completed(DisasContext *ctx, uint64_t ip,
-                             uint64_t completed_ip,
-                             bool record_iipa,
+                             uint64_t completed_ip, bool record_iipa,
                              bool track_psr_suppression)
 {
     ia64_gen_note_successful_bundle(ctx, completed_ip, record_iipa,
                                     track_psr_suppression);
-    ia64_gen_check_static_native_traps(
-        ctx, ip, 0, completed_ip, ctx->restart.completion_slot,
-        IA64_NATIVE_TRAP_TAKEN, 0);
+    ia64_gen_check_static_native_traps(ctx, ip, 0, completed_ip,
+                                       ctx->restart.completion_slot,
+                                       IA64_NATIVE_TRAP_TAKEN, 0);
     ia64_gen_goto_tb_group(ctx, ip, true);
 }
 
 bool ia64_gen_completed_direct_branch(DisasContext *ctx, TCGLabel *skip,
-                                      uint64_t target,
-                                      uint64_t completed_ip,
+                                      uint64_t target, uint64_t completed_ip,
                                       bool record_iipa,
                                       bool track_psr_suppression)
 {
@@ -2570,16 +2507,14 @@ bool ia64_gen_completed_direct_branch(DisasContext *ctx, TCGLabel *skip,
     return skip == NULL;
 }
 
-IA64GenResult ia64_gen_complete_branch(
-    DisasContext *ctx, TCGLabel *skip,
-    const IA64BranchCompletion *completion)
+IA64GenResult ia64_gen_complete_branch(DisasContext *ctx, TCGLabel *skip,
+                                       const IA64BranchCompletion *completion)
 {
     switch (completion->target_kind) {
     case IA64_BRANCH_TARGET_DIRECT:
         if (ia64_gen_completed_direct_branch(
-                ctx, skip, completion->direct_target,
-                completion->completed_ip, completion->record_iipa,
-                completion->track_psr_suppression)) {
+                ctx, skip, completion->direct_target, completion->completed_ip,
+                completion->record_iipa, completion->track_psr_suppression)) {
             return IA64_GEN_NORETURN;
         }
         return IA64_GEN_CONTINUE;
@@ -2591,8 +2526,7 @@ IA64GenResult ia64_gen_complete_branch(
     case IA64_BRANCH_TARGET_CURRENT:
         ia64_gen_lookup_current_completed(
             ctx, completion->completed_ip, completion->record_iipa,
-            completion->track_psr_suppression,
-            completion->trap_conditions,
+            completion->track_psr_suppression, completion->trap_conditions,
             completion->skip_native_traps);
         break;
     default:
@@ -2601,9 +2535,9 @@ IA64GenResult ia64_gen_complete_branch(
     return skip == NULL ? IA64_GEN_NORETURN : IA64_GEN_CONTINUE;
 }
 
-static Ia64Instruction ia64_decode_insn_for_model(
-    CPUIA64State *env, IA64SlotUnit unit, uint64_t raw,
-    uint64_t address, uint8_t slot)
+static Ia64Instruction
+ia64_decode_insn_for_model(CPUIA64State *env, IA64SlotUnit unit, uint64_t raw,
+                           uint64_t address, uint8_t slot)
 {
     Ia64Instruction insn = ia64_decode_insn(unit, raw, address, slot);
 
@@ -2612,17 +2546,17 @@ static Ia64Instruction ia64_decode_insn_for_model(
 
 static bool ia64_is_fill_st1_postinc(const Ia64Instruction *insn)
 {
-    return (insn->opcode == IA64_OP_ST1 ||
-            insn->opcode == IA64_OP_ST1REL) &&
+    return (insn->opcode == IA64_OP_ST1 || insn->opcode == IA64_OP_ST1REL) &&
            insn->qp == 0 &&
            insn->operands.common.source1 != insn->operands.common.source2 &&
            insn->operands.common.source2 != 0 &&
            insn->operands.common.immediate == 1;
 }
 
-static bool ia64_analyze_self_counted_loop(
-    const Ia64Instruction decoded[3], bool skip_x_slot,
-    uint64_t bundle_ip, uint8_t start_slot, DisasContext *ctx)
+static bool ia64_analyze_self_counted_loop(const Ia64Instruction decoded[3],
+                                           bool skip_x_slot, uint64_t bundle_ip,
+                                           uint8_t start_slot,
+                                           DisasContext *ctx)
 {
     bool fill_st1_exact = true;
     bool fill_st1_seen = false;
@@ -2642,8 +2576,7 @@ static bool ia64_analyze_self_counted_loop(
         }
 
         insn = decoded[slot];
-        nat_clear_preserving &=
-            ia64_insn_preserves_all_nat_clear(ctx, &insn);
+        nat_clear_preserving &= ia64_insn_preserves_all_nat_clear(ctx, &insn);
         if (insn.valid &&
             ((insn.opcode == IA64_OP_BR_CLOOP &&
               insn.address + insn.operands.common.immediate == bundle_ip) ||
@@ -2699,21 +2632,19 @@ static bool ia64_all_gr_nats_known_clear(const DisasContext *ctx)
            ctx->memory.nat_known_clear[1] == UINT64_MAX;
 }
 
-static void ia64_prepare_self_counted_loop(
-    DisasContext *ctx, const Ia64Instruction decoded[3], bool skip_x_slot,
-    uint64_t bundle_ip)
+static void ia64_prepare_self_counted_loop(DisasContext *ctx,
+                                           const Ia64Instruction decoded[3],
+                                           bool skip_x_slot, uint64_t bundle_ip)
 {
     ctx->branch.counted_self_label = NULL;
     ctx->branch.cloop_fill_st1_valid = false;
     ctx->branch.counted_self_preserves_nat_clear = false;
 
-    if (ctx->restart.start_slot != 0 ||
-        ctx->base.plugin_enabled ||
+    if (ctx->restart.start_slot != 0 || ctx->base.plugin_enabled ||
         (tb_cflags(ctx->base.tb) & CF_USE_ICOUNT) ||
-        (ctx->base.tb->flags &
-         (IA64_TB_FLAG_PSR_TB | IA64_TB_FLAG_PSR_SS)) ||
-        !ia64_analyze_self_counted_loop(
-            decoded, skip_x_slot, bundle_ip, ctx->restart.start_slot, ctx)) {
+        (ctx->base.tb->flags & (IA64_TB_FLAG_PSR_TB | IA64_TB_FLAG_PSR_SS)) ||
+        !ia64_analyze_self_counted_loop(decoded, skip_x_slot, bundle_ip,
+                                        ctx->restart.start_slot, ctx)) {
         return;
     }
 
@@ -2740,8 +2671,8 @@ static void ia64_prepare_self_counted_loop(
         if (ia64_insn_may_modify_cpl(insn)) {
             ctx->reg.cpl_known = false;
         }
-        ia64_invalidate_predicate_mask(
-            ctx, ia64_insn_predicate_write_mask(insn));
+        ia64_invalidate_predicate_mask(ctx,
+                                       ia64_insn_predicate_write_mask(insn));
         if (ia64_insn_resets_rse_dirty(insn)) {
             ctx->reg.rse_dirty_known[0] = 0;
             ctx->reg.rse_dirty_known[1] = 0;
@@ -2760,8 +2691,7 @@ static void ia64_prepare_self_counted_loop(
 }
 
 bool ia64_gen_self_counted_loop(DisasContext *ctx, uint64_t target,
-                                uint64_t completed_ip,
-                                bool record_iipa,
+                                uint64_t completed_ip, bool record_iipa,
                                 bool track_psr_suppression)
 {
     TCGLabel *exit_to_tb;
@@ -2776,15 +2706,15 @@ bool ia64_gen_self_counted_loop(DisasContext *ctx, uint64_t target,
     }
 
     exit_to_tb = gen_new_label();
-    tcg_gen_brcondi_i64(TCG_COND_EQ, ctx->branch.counted_self_budget,
-                        0, exit_to_tb);
+    tcg_gen_brcondi_i64(TCG_COND_EQ, ctx->branch.counted_self_budget, 0,
+                        exit_to_tb);
     tcg_gen_subi_i64(ctx->branch.counted_self_budget,
                      ctx->branch.counted_self_budget, 1);
     ia64_gen_note_successful_bundle(ctx, completed_ip, record_iipa,
                                     track_psr_suppression);
-    ia64_gen_check_static_native_traps(
-        ctx, target, 0, completed_ip, ctx->restart.current_ri,
-        IA64_NATIVE_TRAP_TAKEN, 0);
+    ia64_gen_check_static_native_traps(ctx, target, 0, completed_ip,
+                                       ctx->restart.current_ri,
+                                       IA64_NATIVE_TRAP_TAKEN, 0);
     /*
      * The taken branch restarts the target bundle at slot 0.  The internal
      * TCG back-edge bypasses the normal TB-entry RI initialization, so clear
@@ -2810,10 +2740,9 @@ void ia64_gen_raise_exception(uint32_t exception, uint64_t fault_ip,
                               uint64_t fault_imm, uint32_t fault_slot)
 {
     tcg_gen_movi_i64(cpu_ip, fault_ip);
-    gen_helper_raise_exception(tcg_env, tcg_constant_i32(exception),
-                                tcg_constant_i64(fault_ip),
-                                tcg_constant_i64(fault_imm),
-                                tcg_constant_i32(fault_slot));
+    gen_helper_raise_exception(
+        tcg_env, tcg_constant_i32(exception), tcg_constant_i64(fault_ip),
+        tcg_constant_i64(fault_imm), tcg_constant_i32(fault_slot));
 }
 
 bool ia64_cr_is_read_only(uint32_t cr_num)
@@ -2854,12 +2783,12 @@ void ia64_gen_note_stacked_gr_write(const Ia64Instruction *insn, uint8_t reg)
         return;
     }
     bit = reg - IA64_STACKED_GR_BASE;
-    if (ctx && (ctx->reg.rse_dirty_known[bit / 64] &
-                (UINT64_C(1) << (bit % 64)))) {
+    if (ctx &&
+        (ctx->reg.rse_dirty_known[bit / 64] & (UINT64_C(1) << (bit % 64)))) {
         return;
     }
-    tcg_gen_ori_i64(cpu_rse_gr_dirty[bit / 64],
-                    cpu_rse_gr_dirty[bit / 64], 1ULL << (bit % 64));
+    tcg_gen_ori_i64(cpu_rse_gr_dirty[bit / 64], cpu_rse_gr_dirty[bit / 64],
+                    1ULL << (bit % 64));
 }
 
 static IA64KnownNat ia64_insn_nat_known(const Ia64Instruction *insn,
@@ -2904,8 +2833,7 @@ void ia64_gen_gr_nat_set(const Ia64Instruction *insn, uint8_t reg)
     if (ia64_insn_nat_known(insn, reg) == IA64_NAT_SET) {
         return;
     }
-    tcg_gen_ori_i64(cpu_nat[reg / 64], cpu_nat[reg / 64],
-                    1ULL << (reg % 64));
+    tcg_gen_ori_i64(cpu_nat[reg / 64], cpu_nat[reg / 64], 1ULL << (reg % 64));
 }
 
 void ia64_gen_gr_nat_or_from_1(const Ia64Instruction *insn, uint8_t dst,
@@ -2939,9 +2867,8 @@ void ia64_gen_gr_nat_or_from_1(const Ia64Instruction *insn, uint8_t dst,
     src_mask = 1ULL << (src % 64);
     set = tcg_temp_new_i64();
     tcg_gen_ori_i64(set, cpu_nat[dst / 64], dst_mask);
-    tcg_gen_movcond_i64(TCG_COND_TSTNE, cpu_nat[dst / 64],
-                        cpu_nat[src / 64], tcg_constant_i64(src_mask),
-                        set, cpu_nat[dst / 64]);
+    tcg_gen_movcond_i64(TCG_COND_TSTNE, cpu_nat[dst / 64], cpu_nat[src / 64],
+                        tcg_constant_i64(src_mask), set, cpu_nat[dst / 64]);
 }
 
 void ia64_gen_gr_write_nat_clear(const Ia64Instruction *insn, uint8_t reg,
@@ -2982,8 +2909,8 @@ static void ia64_gen_gr_nat_assign_masked(const Ia64Instruction *insn,
         set = tcg_temp_new_i64();
         tcg_gen_ori_i64(set, cpu_nat[reg / 64], dst_mask);
     }
-    tcg_gen_movcond_i64(TCG_COND_TSTNE, cpu_nat[reg / 64],
-                        source, tcg_constant_i64(source_mask), set, cleared);
+    tcg_gen_movcond_i64(TCG_COND_TSTNE, cpu_nat[reg / 64], source,
+                        tcg_constant_i64(source_mask), set, cleared);
 }
 
 void ia64_gen_gr_nat_assign(const Ia64Instruction *insn, uint8_t reg,
@@ -3025,8 +2952,8 @@ void ia64_gen_gr_nat_from_1(const Ia64Instruction *insn, uint8_t dst,
     } else if (known == IA64_NAT_SET) {
         ia64_gen_gr_nat_set(insn, dst);
     } else {
-        ia64_gen_gr_nat_assign_masked(
-            insn, dst, cpu_nat[src / 64], 1ULL << (src % 64));
+        ia64_gen_gr_nat_assign_masked(insn, dst, cpu_nat[src / 64],
+                                      1ULL << (src % 64));
     }
 }
 
@@ -3055,9 +2982,9 @@ static TCGv_i64 ia64_gen_va_unimplemented(TCGv_i64 va, uint8_t impl_va_msb)
     return result;
 }
 
-void ia64_gen_gr_nat_from_1_or_unimplemented_va(
-    const Ia64Instruction *insn, uint8_t dst, uint8_t src,
-    uint8_t impl_va_msb)
+void ia64_gen_gr_nat_from_1_or_unimplemented_va(const Ia64Instruction *insn,
+                                                uint8_t dst, uint8_t src,
+                                                uint8_t impl_va_msb)
 {
     IA64KnownNat known;
     TCGv_i64 nat;
@@ -3072,8 +2999,7 @@ void ia64_gen_gr_nat_from_1_or_unimplemented_va(
         ia64_gen_gr_nat_set(insn, dst);
         return;
     }
-    unimplemented = ia64_gen_va_unimplemented(ia64_gr_src(src),
-                                              impl_va_msb);
+    unimplemented = ia64_gen_va_unimplemented(ia64_gr_src(src), impl_va_msb);
     if (known == IA64_NAT_CLEAR) {
         ia64_gen_gr_nat_assign(insn, dst, unimplemented);
         return;
@@ -3119,9 +3045,9 @@ void ia64_gen_gr_nat_from_2(const Ia64Instruction *insn, uint8_t dst,
         return;
     }
     if (src1 / 64 == src2 / 64) {
-        ia64_gen_gr_nat_assign_masked(
-            insn, dst, cpu_nat[src1 / 64],
-            (1ULL << (src1 % 64)) | (1ULL << (src2 % 64)));
+        ia64_gen_gr_nat_assign_masked(insn, dst, cpu_nat[src1 / 64],
+                                      (1ULL << (src1 % 64)) |
+                                          (1ULL << (src2 % 64)));
         return;
     }
     bit = ia64_gen_gr_nat_read(src1);
@@ -3148,8 +3074,7 @@ void ia64_gen_gr_nat_from_3(const Ia64Instruction *insn, uint8_t dst,
     known1 = ia64_insn_nat_known(insn, src1);
     known2 = ia64_insn_nat_known(insn, src2);
     known3 = ia64_insn_nat_known(insn, src3);
-    if (known1 == IA64_NAT_SET ||
-        known2 == IA64_NAT_SET ||
+    if (known1 == IA64_NAT_SET || known2 == IA64_NAT_SET ||
         known3 == IA64_NAT_SET) {
         ia64_gen_gr_nat_set(insn, dst);
         return;
@@ -3181,8 +3106,8 @@ void ia64_gen_gr_nat_from_3(const Ia64Instruction *insn, uint8_t dst,
     if (source_word < 0) {
         ia64_gen_gr_nat_clear(insn, dst);
     } else if (one_source_word) {
-        ia64_gen_gr_nat_assign_masked(
-            insn, dst, cpu_nat[source_word], source_mask);
+        ia64_gen_gr_nat_assign_masked(insn, dst, cpu_nat[source_word],
+                                      source_mask);
     } else {
         if (known1 == IA64_NAT_UNKNOWN) {
             bit = ia64_gen_gr_nat_read(src1);
@@ -3209,14 +3134,12 @@ void ia64_gen_gr_nat_from_3(const Ia64Instruction *insn, uint8_t dst,
     }
 }
 
-
-void ia64_gen_check_nat_consumption(const Ia64Instruction *insn,
-                                    uint8_t reg, uint64_t isr_access,
+void ia64_gen_check_nat_consumption(const Ia64Instruction *insn, uint8_t reg,
+                                    uint64_t isr_access,
                                     Ia64NatConsumptionKind kind)
 {
     const DisasContext *ctx = insn->ctx;
-    IA64KnownNat known = ctx ?
-        ia64_nat_known(ctx, reg) : IA64_NAT_UNKNOWN;
+    IA64KnownNat known = ctx ? ia64_nat_known(ctx, reg) : IA64_NAT_UNKNOWN;
     TCGLabel *ok;
 
     if (known == IA64_NAT_CLEAR) {
@@ -3235,8 +3158,8 @@ void ia64_gen_check_nat_consumption(const Ia64Instruction *insn,
     }
 
     ok = gen_new_label();
-    tcg_gen_brcondi_i64(TCG_COND_TSTEQ, cpu_nat[reg / 64],
-                        1ULL << (reg % 64), ok);
+    tcg_gen_brcondi_i64(TCG_COND_TSTEQ, cpu_nat[reg / 64], 1ULL << (reg % 64),
+                        ok);
     tcg_gen_movi_i64(cpu_ip, insn->address);
     gen_helper_raise_nat_consumption(
         tcg_env, tcg_constant_i64(isr_access),
@@ -3244,8 +3167,8 @@ void ia64_gen_check_nat_consumption(const Ia64Instruction *insn,
     gen_set_label(ok);
 }
 
-void ia64_gen_check_fr_nat_consumption(const Ia64Instruction *insn,
-                                       uint8_t reg, uint64_t isr_access)
+void ia64_gen_check_fr_nat_consumption(const Ia64Instruction *insn, uint8_t reg,
+                                       uint64_t isr_access)
 {
     TCGLabel *ok;
 
@@ -3254,8 +3177,8 @@ void ia64_gen_check_fr_nat_consumption(const Ia64Instruction *insn,
     }
 
     ok = gen_new_label();
-    tcg_gen_brcondi_i64(TCG_COND_EQ,
-                        ia64_gen_fr_nat_read(insn->ctx, reg), 0, ok);
+    tcg_gen_brcondi_i64(TCG_COND_EQ, ia64_gen_fr_nat_read(insn->ctx, reg), 0,
+                        ok);
     tcg_gen_movi_i64(cpu_ip, insn->address);
     gen_helper_raise_nat_consumption(
         tcg_env, tcg_constant_i64(isr_access),
@@ -3263,14 +3186,13 @@ void ia64_gen_check_fr_nat_consumption(const Ia64Instruction *insn,
     gen_set_label(ok);
 }
 
-static void ia64_gen_check_gr_in_frame(const Ia64Instruction *insn,
-                                       uint8_t reg)
+static void ia64_gen_check_gr_in_frame(const Ia64Instruction *insn, uint8_t reg)
 {
     DisasContext *ctx = insn->ctx;
 
     if (reg == 0) {
-        ia64_gen_raise_exception(IA64_EXCP_ILLEGAL, insn->address,
-                                  insn->raw, insn->slot);
+        ia64_gen_raise_exception(IA64_EXCP_ILLEGAL, insn->address, insn->raw,
+                                 insn->slot);
         return;
     }
 
@@ -3293,8 +3215,7 @@ static void ia64_gen_check_gr_in_frame(const Ia64Instruction *insn,
             cfm_sof = ctx->reg.cfm_sof;
         } else {
             cfm_sof = tcg_temp_new_i32();
-            tcg_gen_ld8u_i32(cfm_sof, tcg_env,
-                             offsetof(CPUIA64State, cfm_sof));
+            tcg_gen_ld8u_i32(cfm_sof, tcg_env, offsetof(CPUIA64State, cfm_sof));
             /*
              * A load emitted below an unknown predicate does not dominate
              * later instructions: the predicated instruction may skip it.
@@ -3305,10 +3226,10 @@ static void ia64_gen_check_gr_in_frame(const Ia64Instruction *insn,
                 ctx->reg.cfm_sof_valid = true;
             }
         }
-        tcg_gen_brcondi_i32(TCG_COND_GTU, cfm_sof,
-                            reg - IA64_STACKED_GR_BASE, valid);
-        ia64_gen_raise_exception(IA64_EXCP_ILLEGAL, insn->address,
-                                  insn->raw, insn->slot);
+        tcg_gen_brcondi_i32(TCG_COND_GTU, cfm_sof, reg - IA64_STACKED_GR_BASE,
+                            valid);
+        ia64_gen_raise_exception(IA64_EXCP_ILLEGAL, insn->address, insn->raw,
+                                 insn->slot);
         gen_set_label(valid);
         if (ia64_current_insn_definitely_executes(ctx, insn)) {
             ctx->reg.cfm_sof_checked = required_sof;
@@ -3340,8 +3261,8 @@ void ia64_gen_check_privileged(const Ia64Instruction *insn)
     }
     tcg_gen_st_i64(tcg_constant_i64(isr), tcg_env,
                    offsetof(CPUIA64State, cr_isr));
-    ia64_gen_raise_exception(IA64_EXCP_PRIVILEGED_OP, insn->address,
-                              insn->raw, insn->slot);
+    ia64_gen_raise_exception(IA64_EXCP_PRIVILEGED_OP, insn->address, insn->raw,
+                             insn->slot);
     if (allowed != NULL) {
         gen_set_label(allowed);
     }
@@ -3361,8 +3282,8 @@ void ia64_gen_check_virtualization(const Ia64Instruction *insn)
     vm = tcg_temp_new_i64();
     tcg_gen_andi_i64(vm, cpu_psr, IA64_PSR_VM);
     tcg_gen_brcondi_i64(TCG_COND_EQ, vm, 0, allowed);
-    ia64_gen_raise_exception(IA64_EXCP_VIRTUALIZATION, insn->address,
-                             insn->raw, insn->slot);
+    ia64_gen_raise_exception(IA64_EXCP_VIRTUALIZATION, insn->address, insn->raw,
+                             insn->slot);
     gen_set_label(allowed);
 }
 
@@ -3379,11 +3300,10 @@ void ia64_gen_check_cover_virtualization(const Ia64Instruction *insn)
     /* cover virtualizes only for the cpl == 0, PSR.vm == 1 combination. */
     allowed = gen_new_label();
     cpl_vm = tcg_temp_new_i64();
-    tcg_gen_andi_i64(cpl_vm, cpu_psr,
-                     IA64_PSR_CPL_MASK | IA64_PSR_VM);
+    tcg_gen_andi_i64(cpl_vm, cpu_psr, IA64_PSR_CPL_MASK | IA64_PSR_VM);
     tcg_gen_brcondi_i64(TCG_COND_NE, cpl_vm, IA64_PSR_VM, allowed);
-    ia64_gen_raise_exception(IA64_EXCP_VIRTUALIZATION, insn->address,
-                             insn->raw, insn->slot);
+    ia64_gen_raise_exception(IA64_EXCP_VIRTUALIZATION, insn->address, insn->raw,
+                             insn->slot);
     gen_set_label(allowed);
 }
 
@@ -3396,13 +3316,13 @@ static void ia64_gen_check_psr_ic_clear(const Ia64Instruction *insn)
     tcg_gen_brcondi_i64(TCG_COND_EQ, ic, 0, allowed);
     tcg_gen_st_i64(tcg_constant_i64(0), tcg_env,
                    offsetof(CPUIA64State, cr_isr));
-    ia64_gen_raise_exception(IA64_EXCP_ILLEGAL, insn->address,
-                             insn->raw, insn->slot);
+    ia64_gen_raise_exception(IA64_EXCP_ILLEGAL, insn->address, insn->raw,
+                             insn->slot);
     gen_set_label(allowed);
 }
 
-void ia64_gen_check_register_index(const Ia64Instruction *insn,
-                                   TCGv_i64 index, uint32_t count)
+void ia64_gen_check_register_index(const Ia64Instruction *insn, TCGv_i64 index,
+                                   uint32_t count)
 {
     TCGv_i64 low8 = tcg_temp_new_i64();
     TCGLabel *valid = gen_new_label();
@@ -3411,13 +3331,13 @@ void ia64_gen_check_register_index(const Ia64Instruction *insn,
     tcg_gen_brcondi_i64(TCG_COND_LTU, low8, count, valid);
     tcg_gen_st_i64(tcg_constant_i64(0x30), tcg_env,
                    offsetof(CPUIA64State, cr_isr));
-    ia64_gen_raise_exception(IA64_EXCP_RESERVED_REG_FIELD,
-                              insn->address, insn->raw, insn->slot);
+    ia64_gen_raise_exception(IA64_EXCP_RESERVED_REG_FIELD, insn->address,
+                             insn->raw, insn->slot);
     gen_set_label(valid);
 }
 
-void ia64_gen_check_reserved_bits(const Ia64Instruction *insn,
-                                  TCGv_i64 value, uint64_t allowed)
+void ia64_gen_check_reserved_bits(const Ia64Instruction *insn, TCGv_i64 value,
+                                  uint64_t allowed)
 {
     TCGv_i64 reserved = tcg_temp_new_i64();
     TCGLabel *valid = gen_new_label();
@@ -3426,8 +3346,8 @@ void ia64_gen_check_reserved_bits(const Ia64Instruction *insn,
     tcg_gen_brcondi_i64(TCG_COND_EQ, reserved, 0, valid);
     tcg_gen_st_i64(tcg_constant_i64(0x30), tcg_env,
                    offsetof(CPUIA64State, cr_isr));
-    ia64_gen_raise_exception(IA64_EXCP_RESERVED_REG_FIELD,
-                              insn->address, insn->raw, insn->slot);
+    ia64_gen_raise_exception(IA64_EXCP_RESERVED_REG_FIELD, insn->address,
+                             insn->raw, insn->slot);
     gen_set_label(valid);
 }
 
@@ -3454,8 +3374,8 @@ void ia64_gen_write_user_mask(TCGv_i64 value)
     tcg_gen_mov_i64(cpu_psr, new_psr);
 }
 
-void ia64_gen_validate_ar_access(const Ia64Instruction *insn,
-                                 TCGv_i64 value, bool write)
+void ia64_gen_validate_ar_access(const Ia64Instruction *insn, TCGv_i64 value,
+                                 bool write)
 {
     uint32_t ar_num = insn->operands.common.source1;
 
@@ -3474,15 +3394,15 @@ void ia64_gen_validate_ar_access(const Ia64Instruction *insn,
         }
     } else {
         switch (ar_num) {
-        case IA64_AR_RSC: /* reserved fields */
+        case IA64_AR_RSC:      /* reserved fields */
         case IA64_AR_BSPSTORE: /* RSC.mode */
-        case IA64_AR_RNAT: /* RSC.mode */
-        case IA64_AR_FPSR: /* reserved fields */
-        case IA64_AR_PFS: /* reserved fields */
-        case IA64_AR_CFLG: /* reserved fields and privileged */
+        case IA64_AR_RNAT:     /* RSC.mode */
+        case IA64_AR_FPSR:     /* reserved fields */
+        case IA64_AR_PFS:      /* reserved fields */
+        case IA64_AR_CFLG:     /* reserved fields and privileged */
             break;
         case IA64_AR_KR0 ... IA64_AR_KR7: /* privileged */
-        case IA64_AR_ITC: /* privileged and virtualizable */
+        case IA64_AR_ITC:                 /* privileged and virtualizable */
         case IA64_AR_RUC:
             break;
         default:
@@ -3490,12 +3410,10 @@ void ia64_gen_validate_ar_access(const Ia64Instruction *insn,
         }
     }
 
-    gen_helper_validate_ar_access(tcg_env, value,
-                                  tcg_constant_i32(ar_num),
-                                  tcg_constant_i32(write),
-                                  tcg_constant_i64(insn->address),
-                                  tcg_constant_i64(insn->raw),
-                                  tcg_constant_i32(insn->slot));
+    gen_helper_validate_ar_access(
+        tcg_env, value, tcg_constant_i32(ar_num), tcg_constant_i32(write),
+        tcg_constant_i64(insn->address), tcg_constant_i64(insn->raw),
+        tcg_constant_i32(insn->slot));
 }
 
 bool ia64_ar_is_simple(uint32_t ar)
@@ -3531,24 +3449,19 @@ void ia64_gen_write_simple_ar(uint32_t ar, TCGv_i64 value)
                    offsetof(CPUIA64State, ar) + ar * sizeof(uint64_t));
 }
 
-void ia64_gen_validate_cr_access(TCGv_i64 result,
-                                 const Ia64Instruction *insn,
+void ia64_gen_validate_cr_access(TCGv_i64 result, const Ia64Instruction *insn,
                                  TCGv_i64 value, bool write)
 {
-    gen_helper_validate_cr_access(result, tcg_env, value,
-                                  tcg_constant_i32(
-                                      insn->operands.common.source1),
-                                  tcg_constant_i32(write),
-                                  tcg_constant_i64(insn->address),
-                                  tcg_constant_i64(insn->raw),
-                                  tcg_constant_i32(insn->slot));
+    gen_helper_validate_cr_access(
+        result, tcg_env, value, tcg_constant_i32(insn->operands.common.source1),
+        tcg_constant_i32(write), tcg_constant_i64(insn->address),
+        tcg_constant_i64(insn->raw), tcg_constant_i32(insn->slot));
 }
 
 void ia64_gen_check_nat_register(const Ia64Instruction *insn, uint8_t reg)
 {
     ia64_gen_check_nat_consumption(insn, reg, 0, IA64_NAT_ACCESS);
 }
-
 
 /*
  * IA-64 acquire/release completers are one-way ordering constraints.
@@ -3573,12 +3486,9 @@ void ia64_gen_memory_release(const Ia64Instruction *insn)
     }
 }
 
-bool ia64_gen_fill_st1_cloop(DisasContext *ctx,
-                             const Ia64Instruction *insn,
-                             uint64_t target,
-                             TCGLabel *l_nobr,
-                             bool record_iipa,
-                             bool track_psr_suppression)
+bool ia64_gen_fill_st1_cloop(DisasContext *ctx, const Ia64Instruction *insn,
+                             uint64_t target, TCGLabel *l_nobr,
+                             bool record_iipa, bool track_psr_suppression)
 {
     TCGv_i64 taken;
 
@@ -3603,8 +3513,7 @@ bool ia64_gen_fill_st1_cloop(DisasContext *ctx,
                               ia64_gr_src(ctx->branch.cloop_fill_st1_source),
                               tcg_constant_i32(ctx->memory.mmu_idx),
                               tcg_constant_i32(IA64_CLOOP_FILL_ST1_MAX));
-    ia64_gen_note_stacked_gr_write(insn,
-                                   ctx->branch.cloop_fill_st1_base);
+    ia64_gen_note_stacked_gr_write(insn, ctx->branch.cloop_fill_st1_base);
     ia64_gen_force_ri_tracked(ctx, insn->slot);
 
     tcg_gen_brcondi_i64(TCG_COND_EQ, taken, 0, l_nobr);
@@ -3613,11 +3522,8 @@ bool ia64_gen_fill_st1_cloop(DisasContext *ctx,
     return true;
 }
 
-
-void ia64_gen_check_branch(DisasContext *ctx, TCGv_i64 failed,
-                           uint64_t target,
-                           uint64_t completed_ip,
-                           bool record_iipa,
+void ia64_gen_check_branch(DisasContext *ctx, TCGv_i64 failed, uint64_t target,
+                           uint64_t completed_ip, bool record_iipa,
                            bool track_psr_suppression)
 {
     TCGLabel *l_done = gen_new_label();
@@ -3633,9 +3539,6 @@ void ia64_gen_sync_ip_for_helper(const Ia64Instruction *insn)
     tcg_gen_movi_i64(cpu_ip, ia64_ip_bundle_addr(insn->address));
     ia64_gen_set_fault_slot(insn->slot);
 }
-
-
-
 
 static uint32_t ia64_fp_reg_set(uint8_t reg)
 {
@@ -3682,8 +3585,8 @@ static uint32_t ia64_insn_fp_read_sets(const Ia64Instruction *insn)
         return ia64_fp_reg_set(insn->operands.common.source1);
 
     case IA64_OP_CHK_S:
-        return insn->check_fp ?
-            ia64_fp_reg_set(insn->operands.common.source1) : 0;
+        return insn->check_fp ? ia64_fp_reg_set(insn->operands.common.source1)
+                              : 0;
 
     case IA64_OP_CHK_A:
     case IA64_OP_CHK_A_CLR:
@@ -3848,8 +3751,7 @@ static uint32_t ia64_insn_fp_write_sets(const Ia64Instruction *insn)
 
 static bool ia64_insn_writes_fp_pair(const Ia64Instruction *insn)
 {
-    return insn->opcode == IA64_OP_LDFP8 ||
-           insn->opcode == IA64_OP_LDFPD ||
+    return insn->opcode == IA64_OP_LDFP8 || insn->opcode == IA64_OP_LDFPD ||
            insn->opcode == IA64_OP_LDFPS;
 }
 
@@ -3872,8 +3774,8 @@ static IA64TranslationFRFormat ia64_known_fr_format(const DisasContext *ctx,
     return reg <= 1 ? IA64_FR_FORMAT_BINARY : ctx->fp.format[reg];
 }
 
-static IA64TranslationFRFormat ia64_fp_result_format(
-    const DisasContext *ctx, const Ia64Instruction *insn)
+static IA64TranslationFRFormat
+ia64_fp_result_format(const DisasContext *ctx, const Ia64Instruction *insn)
 {
     const IA64CommonOperands *op = &insn->operands.common;
 
@@ -3937,8 +3839,8 @@ static IA64TranslationFRFormat ia64_fp_result_format(
 }
 
 static void ia64_update_fp_written_state(DisasContext *ctx,
-                                          const Ia64Instruction *insn,
-                                          bool unconditional)
+                                         const Ia64Instruction *insn,
+                                         bool unconditional)
 {
     uint32_t written = ia64_insn_fp_write_sets(insn);
     IA64TranslationFRFormat format;
@@ -3952,8 +3854,7 @@ static void ia64_update_fp_written_state(DisasContext *ctx,
     for (unsigned i = 0; i < (ia64_insn_writes_fp_pair(insn) ? 2 : 1); i++) {
         unsigned reg = regs[i];
 
-        if (unconditional &&
-            !(insn->fp_load_check && ctx->memory.full_alat)) {
+        if (unconditional && !(insn->fp_load_check && ctx->memory.full_alat)) {
             ctx->fp.format[reg] = format;
         } else if (ctx->fp.format[reg] != format) {
             ctx->fp.format[reg] = IA64_FR_FORMAT_UNKNOWN;
@@ -3965,8 +3866,7 @@ static void ia64_update_fp_written_state(DisasContext *ctx,
     }
 }
 
-static uint64_t ia64_insn_disabled_fp_isr_flags(
-    const Ia64Instruction *insn)
+static uint64_t ia64_insn_disabled_fp_isr_flags(const Ia64Instruction *insn)
 {
     /* ISR.R/W describe the instruction's memory access, not its FP operands. */
     switch (insn->opcode) {
@@ -3978,8 +3878,7 @@ static uint64_t ia64_insn_disabled_fp_isr_flags(
     case IA64_OP_LDFP8:
     case IA64_OP_LDFPD:
     case IA64_OP_LDFPS:
-        return IA64_ISR_R |
-               (insn->fp_load_speculative ? IA64_ISR_SP : 0);
+        return IA64_ISR_R | (insn->fp_load_speculative ? IA64_ISR_SP : 0);
 
     case IA64_OP_STFD:
     case IA64_OP_STFS:
@@ -3994,8 +3893,8 @@ static uint64_t ia64_insn_disabled_fp_isr_flags(
 }
 
 static void ia64_gen_check_disabled_fp(DisasContext *ctx,
-                                        const Ia64Instruction *insn,
-                                        uint32_t sets, bool unconditional)
+                                       const Ia64Instruction *insn,
+                                       uint32_t sets, bool unconditional)
 {
     uint64_t disabled_mask;
     uint64_t isr_flags;
@@ -4015,8 +3914,8 @@ static void ia64_gen_check_disabled_fp(DisasContext *ctx,
     done = gen_new_label();
     disabled = tcg_temp_new_i64();
     isr = tcg_temp_new_i64();
-    disabled_mask = ((sets & 1) ? IA64_PSR_DFL : 0) |
-                    ((sets & 2) ? IA64_PSR_DFH : 0);
+    disabled_mask =
+        ((sets & 1) ? IA64_PSR_DFL : 0) | ((sets & 2) ? IA64_PSR_DFH : 0);
     isr_flags = ia64_insn_disabled_fp_isr_flags(insn);
 
     tcg_gen_andi_i64(disabled, cpu_psr, disabled_mask);
@@ -4026,8 +3925,8 @@ static void ia64_gen_check_disabled_fp(DisasContext *ctx,
         tcg_gen_ori_i64(isr, isr, isr_flags);
     }
     tcg_gen_st_i64(isr, tcg_env, offsetof(CPUIA64State, cr_isr));
-    ia64_gen_raise_exception(IA64_EXCP_DISABLED_FP, insn->address,
-                             0, insn->slot);
+    ia64_gen_raise_exception(IA64_EXCP_DISABLED_FP, insn->address, 0,
+                             insn->slot);
     gen_set_label(done);
     if (unconditional) {
         ctx->fp.enabled_sets |= sets;
@@ -4035,7 +3934,7 @@ static void ia64_gen_check_disabled_fp(DisasContext *ctx,
 }
 
 static void ia64_gen_sync_rotating_fr(DisasContext *ctx, uint32_t sets,
-                                       bool unconditional)
+                                      bool unconditional)
 {
     TCGv_i32 current;
     TCGv_i32 materialized;
@@ -4048,11 +3947,9 @@ static void ia64_gen_sync_rotating_fr(DisasContext *ctx, uint32_t sets,
     current = tcg_temp_new_i32();
     materialized = tcg_temp_new_i32();
     done = gen_new_label();
-    tcg_gen_ld8u_i32(current, tcg_env,
-                     offsetof(CPUIA64State, cfm_rrb_fr));
+    tcg_gen_ld8u_i32(current, tcg_env, offsetof(CPUIA64State, cfm_rrb_fr));
     tcg_gen_ld8u_i32(materialized, tcg_env,
-                     offsetof(CPUIA64State,
-                              fp.rotating_fr_materialized_rrb));
+                     offsetof(CPUIA64State, fp.rotating_fr_materialized_rrb));
     tcg_gen_brcond_i32(TCG_COND_EQ, current, materialized, done);
     gen_helper_sync_rotating_fr(tcg_env);
     gen_set_label(done);
@@ -4075,8 +3972,7 @@ static bool ia64_insn_needs_16byte_atomics(const Ia64Instruction *insn)
 }
 
 /* Optional integer instructions advertised by CPUID[4].cz and .x2. */
-static uint64_t ia64_insn_required_integer_feature(
-    const Ia64Instruction *insn)
+static uint64_t ia64_insn_required_integer_feature(const Ia64Instruction *insn)
 {
     switch (insn->opcode) {
     case IA64_OP_CLZ:
@@ -4091,8 +3987,9 @@ static uint64_t ia64_insn_required_integer_feature(
 
 static IA64GeneratorKind ia64_insn_generator(const Ia64Instruction *insn)
 {
-    return (unsigned)insn->opcode < IA64_OP_COUNT ?
-           ia64_opcode_properties[insn->opcode].generator : IA64_GENERATOR_NONE;
+    return (unsigned)insn->opcode < IA64_OP_COUNT
+               ? ia64_opcode_properties[insn->opcode].generator
+               : IA64_GENERATOR_NONE;
 }
 
 static IA64GenResult ia64_gen_dispatch(DisasContext *ctx,
@@ -4129,9 +4026,9 @@ typedef enum IA64PrepareResult {
     IA64_PREPARE_NORETURN,
 } IA64PrepareResult;
 
-static IA64PrepareResult ia64_gen_prepare_insn(
-    DisasContext *ctx, const Ia64Instruction *insn,
-    TCGLabel **predicate_skip)
+static IA64PrepareResult ia64_gen_prepare_insn(DisasContext *ctx,
+                                               const Ia64Instruction *insn,
+                                               TCGLabel **predicate_skip)
 {
     IA64KnownPredicate qp_known;
     TCGLabel *skip;
@@ -4145,13 +4042,12 @@ static IA64PrepareResult ia64_gen_prepare_insn(
         if (qatomic_fetch_inc(&invalid_logs) < 128) {
             qemu_log_mask(LOG_GUEST_ERROR,
                           "ia64 invalid insn ip=0x%016" PRIx64
-                          " slot=%u unit=%u class=%u raw=0x%010" PRIx64
-                          "\n",
+                          " slot=%u unit=%u class=%u raw=0x%010" PRIx64 "\n",
                           insn->address, insn->slot, insn->unit,
                           insn->encoding_class, insn->raw);
         }
-        ia64_gen_raise_exception(IA64_EXCP_ILLEGAL, insn->address,
-                                  insn->raw, insn->slot);
+        ia64_gen_raise_exception(IA64_EXCP_ILLEGAL, insn->address, insn->raw,
+                                 insn->slot);
         return IA64_PREPARE_NORETURN;
     }
 
@@ -4165,9 +4061,8 @@ static IA64PrepareResult ia64_gen_prepare_insn(
     } else {
         qp_value = cpu_pr[insn->qp];
     }
-    if ((insn->compare_unc ||
-         (insn->clear_p2_before_predicate &&
-          insn->qp == insn->operands.common.auxiliary2)) &&
+    if ((insn->compare_unc || (insn->clear_p2_before_predicate &&
+                               insn->qp == insn->operands.common.auxiliary2)) &&
         insn->qp != 0) {
         TCGv_i64 saved_qp = tcg_temp_new_i64();
 
@@ -4175,13 +4070,13 @@ static IA64PrepareResult ia64_gen_prepare_insn(
         qp_value = saved_qp;
     }
     if (insn->compare_unc && ia64_compare_has_equal_targets(insn)) {
-        ia64_gen_raise_exception(IA64_EXCP_ILLEGAL, insn->address,
-                                  insn->raw, insn->slot);
+        ia64_gen_raise_exception(IA64_EXCP_ILLEGAL, insn->address, insn->raw,
+                                 insn->slot);
         return IA64_PREPARE_NORETURN;
     }
     if (insn->opcode == IA64_OP_ALLOC && insn->qp != 0) {
-        ia64_gen_raise_exception(IA64_EXCP_ILLEGAL, insn->address,
-                                  insn->raw, insn->slot);
+        ia64_gen_raise_exception(IA64_EXCP_ILLEGAL, insn->address, insn->raw,
+                                 insn->slot);
         return IA64_PREPARE_NORETURN;
     }
     ia64_gen_clear_unc_compare_targets(ctx, insn, qp_value, qp_known);
@@ -4208,8 +4103,8 @@ static IA64PrepareResult ia64_gen_prepare_insn(
     if ((insn->opcode == IA64_OP_BRL_COND ||
          insn->opcode == IA64_OP_BRL_CALL) &&
         !(ia64_env_cpu_class(ctx->env)->cpuid_features & IA64_CPUID4_LB)) {
-        ia64_gen_raise_exception(IA64_EXCP_ILLEGAL, insn->address,
-                                 insn->raw, insn->slot);
+        ia64_gen_raise_exception(IA64_EXCP_ILLEGAL, insn->address, insn->raw,
+                                 insn->slot);
         return IA64_PREPARE_NORETURN;
     }
     if (ia64_current_insn_cannot_execute(ctx, insn)) {
@@ -4223,8 +4118,8 @@ static IA64PrepareResult ia64_gen_prepare_insn(
                       "ia64 illegal placement ip=0x%016" PRIx64
                       " slot=%u opcode=%u raw=0x%010" PRIx64 "\n",
                       insn->address, insn->slot, insn->opcode, insn->raw);
-        ia64_gen_raise_exception(IA64_EXCP_ILLEGAL, insn->address,
-                                  insn->raw, insn->slot);
+        ia64_gen_raise_exception(IA64_EXCP_ILLEGAL, insn->address, insn->raw,
+                                 insn->slot);
         if (skip == NULL) {
             return IA64_PREPARE_NORETURN;
         }
@@ -4234,8 +4129,8 @@ static IA64PrepareResult ia64_gen_prepare_insn(
     if (insn->reserved_field) {
         tcg_gen_st_i64(tcg_constant_i64(0x30), tcg_env,
                        offsetof(CPUIA64State, cr_isr));
-        ia64_gen_raise_exception(IA64_EXCP_RESERVED_REG_FIELD,
-                                  insn->address, insn->raw, insn->slot);
+        ia64_gen_raise_exception(IA64_EXCP_RESERVED_REG_FIELD, insn->address,
+                                 insn->raw, insn->slot);
         if (skip == NULL) {
             return IA64_PREPARE_NORETURN;
         }
@@ -4246,8 +4141,8 @@ static IA64PrepareResult ia64_gen_prepare_insn(
     required_feature = ia64_insn_required_integer_feature(insn);
     if (required_feature != 0 &&
         !(ia64_env_cpu_class(ctx->env)->cpuid_features & required_feature)) {
-        ia64_gen_raise_exception(IA64_EXCP_ILLEGAL, insn->address,
-                                  insn->raw, insn->slot);
+        ia64_gen_raise_exception(IA64_EXCP_ILLEGAL, insn->address, insn->raw,
+                                 insn->slot);
         if (skip == NULL) {
             return IA64_PREPARE_NORETURN;
         }
@@ -4260,8 +4155,8 @@ static IA64PrepareResult ia64_gen_prepare_insn(
          * The encoding is reserved on a model that clears CPUID[4].ao, so
          * refuse it the same way an unimplemented opcode is refused.
          */
-        ia64_gen_raise_exception(IA64_EXCP_ILLEGAL, insn->address,
-                                  insn->raw, insn->slot);
+        ia64_gen_raise_exception(IA64_EXCP_ILLEGAL, insn->address, insn->raw,
+                                 insn->slot);
         if (skip == NULL) {
             return IA64_PREPARE_NORETURN;
         }
@@ -4274,9 +4169,9 @@ static IA64PrepareResult ia64_gen_prepare_insn(
         if (insn->operands.common.destination == 0 ||
             (insn->operands.common.destination >= IA64_STACKED_GR_BASE &&
              insn->operands.common.destination - IA64_STACKED_GR_BASE >=
-             new_sof)) {
+                 new_sof)) {
             ia64_gen_raise_exception(IA64_EXCP_ILLEGAL, insn->address,
-                                      insn->raw, insn->slot);
+                                     insn->raw, insn->slot);
             if (skip == NULL) {
                 return IA64_PREPARE_NORETURN;
             }
@@ -4296,8 +4191,8 @@ static IA64PrepareResult ia64_gen_prepare_insn(
         ia64_gen_check_privileged(insn);
     }
     if (ia64_load_base_update_has_same_target(insn)) {
-        ia64_gen_raise_exception(IA64_EXCP_ILLEGAL, insn->address,
-                                  insn->raw, insn->slot);
+        ia64_gen_raise_exception(IA64_EXCP_ILLEGAL, insn->address, insn->raw,
+                                 insn->slot);
         if (skip == NULL) {
             return IA64_PREPARE_NORETURN;
         }
@@ -4305,8 +4200,8 @@ static IA64PrepareResult ia64_gen_prepare_insn(
         return IA64_PREPARE_COMPLETE;
     }
     if (ia64_compare_has_equal_targets(insn)) {
-        ia64_gen_raise_exception(IA64_EXCP_ILLEGAL, insn->address,
-                                  insn->raw, insn->slot);
+        ia64_gen_raise_exception(IA64_EXCP_ILLEGAL, insn->address, insn->raw,
+                                 insn->slot);
         if (skip == NULL) {
             return IA64_PREPARE_NORETURN;
         }
@@ -4321,7 +4216,7 @@ static IA64PrepareResult ia64_gen_prepare_insn(
 }
 
 static bool ia64_gen_predicated_integer(DisasContext *ctx,
-                                         const Ia64Instruction *insn)
+                                        const Ia64Instruction *insn)
 {
     const IA64IntegerOperands *op = &insn->operands.integer;
     IA64KnownNat old_nat, new_nat;
@@ -4329,8 +4224,8 @@ static bool ia64_gen_predicated_integer(DisasContext *ctx,
     bool immediate;
 
     if (!insn->valid || insn->placement_illegal || insn->reserved_field ||
-        !insn->qp || ia64_predicate_known(ctx, insn->qp) !=
-                     IA64_PREDICATE_UNKNOWN ||
+        !insn->qp ||
+        ia64_predicate_known(ctx, insn->qp) != IA64_PREDICATE_UNKNOWN ||
         !op->destination || op->destination >= IA64_STACKED_GR_BASE ||
         op->source1 >= IA64_STACKED_GR_BASE ||
         op->source2 >= IA64_STACKED_GR_BASE) {
@@ -4392,9 +4287,8 @@ static bool ia64_gen_predicated_integer(DisasContext *ctx,
     default:
         g_assert_not_reached();
     }
-    tcg_gen_movcond_i64(TCG_COND_NE, cpu_gr[op->destination],
-                        cpu_pr[insn->qp], tcg_constant_i64(0), result,
-                        cpu_gr[op->destination]);
+    tcg_gen_movcond_i64(TCG_COND_NE, cpu_gr[op->destination], cpu_pr[insn->qp],
+                        tcg_constant_i64(0), result, cpu_gr[op->destination]);
     old_nat = ia64_nat_known(ctx, op->destination);
     new_nat = ia64_nat_result_known(ctx, insn, old_nat);
     if (new_nat == IA64_NAT_UNKNOWN || new_nat != old_nat) {
@@ -4468,8 +4362,8 @@ bool ia64_gen_insn(DisasContext *ctx, const Ia64Instruction *insn,
     if (insn->opcode != IA64_OP_ILLEGAL) {
         g_assert_not_reached();
     }
-    ia64_gen_raise_exception(IA64_EXCP_ILLEGAL, insn->address,
-                             insn->raw, insn->slot);
+    ia64_gen_raise_exception(IA64_EXCP_ILLEGAL, insn->address, insn->raw,
+                             insn->slot);
     if (skip == NULL) {
         return true;
     }
@@ -4490,12 +4384,13 @@ static void ia64_tr_init_disas_context(DisasContextBase *db, CPUState *cs)
     if (flags & IA64_TB_FLAG_IRQ_DEFER) {
         ctx->base.max_insns = 1;
     }
-    ctx->memory.mmu_idx = (flags & IA64_TB_FLAG_DT) ?
-        MMU_IDX_VIRT_CPL((flags & IA64_TB_FLAG_CPL_MASK) >>
-                         IA64_TB_FLAG_CPL_SHIFT) :
-        MMU_PHYS_IDX;
-    ctx->restart.start_slot = (ctx->base.tb->flags & IA64_TB_FLAG_RI_MASK) >>
-                      IA64_TB_FLAG_RI_SHIFT;
+    ctx->memory.mmu_idx =
+        (flags & IA64_TB_FLAG_DT)
+            ? MMU_IDX_VIRT_CPL((flags & IA64_TB_FLAG_CPL_MASK) >>
+                               IA64_TB_FLAG_CPL_SHIFT)
+            : MMU_PHYS_IDX;
+    ctx->restart.start_slot =
+        (ctx->base.tb->flags & IA64_TB_FLAG_RI_MASK) >> IA64_TB_FLAG_RI_SHIFT;
     if (ctx->restart.start_slot > 2) {
         ctx->restart.start_slot = 0;
     }
@@ -4526,8 +4421,7 @@ static void ia64_tr_init_disas_context(DisasContextBase *db, CPUState *cs)
     ctx->reg.pr_known_one = 1;
     ctx->reg.rse_dirty_known[0] = 0;
     ctx->reg.rse_dirty_known[1] = 0;
-    ctx->reg.cpl = (flags & IA64_TB_FLAG_CPL_MASK) >>
-                   IA64_TB_FLAG_CPL_SHIFT;
+    ctx->reg.cpl = (flags & IA64_TB_FLAG_CPL_MASK) >> IA64_TB_FLAG_CPL_SHIFT;
     ctx->reg.cpl_known = true;
     ctx->restart.instruction_group_start =
         ctx->base.tb->flags & IA64_TB_FLAG_GROUP_START;
@@ -4539,7 +4433,7 @@ static void ia64_tr_tb_start(DisasContextBase *db, CPUState *cs)
 {
     if (db->tb->flags & IA64_TB_FLAG_IRQ_DEFER) {
         tcg_gen_st8_i32(tcg_constant_i32(0), tcg_env,
-                       offsetof(CPUIA64State, exception_state.psr_i_deferred));
+                        offsetof(CPUIA64State, exception_state.psr_i_deferred));
     }
 }
 
@@ -4572,12 +4466,11 @@ static void ia64_gen_check_instruction_debug(DisasContext *ctx,
 static void ia64_gen_snapshot_psr_before_insn(void)
 {
     tcg_gen_st_i64(cpu_psr, tcg_env,
-                   offsetof(CPUIA64State,
-                            exception_state.psr_before_insn));
+                   offsetof(CPUIA64State, exception_state.psr_before_insn));
 }
 
-static void ia64_gen_check_sequential_native_traps(
-    const Ia64Instruction *insn, bool mlx_long)
+static void ia64_gen_check_sequential_native_traps(const Ia64Instruction *insn,
+                                                   bool mlx_long)
 {
     uint64_t target_ip = insn->address;
     uint8_t target_slot = insn->slot + 1;
@@ -4629,7 +4522,7 @@ static void ia64_tr_translate_insn(DisasContextBase *db, CPUState *cs)
         ia64_gen_check_instruction_debug(ctx, bundle_ip,
                                          ctx->restart.start_slot);
         ia64_gen_raise_exception(IA64_EXCP_RESERVED_TEMPLATE, bundle_ip,
-                                  template_code, ctx->restart.start_slot);
+                                 template_code, ctx->restart.start_slot);
         db->is_jmp = DISAS_NORETURN;
         return;
     }
@@ -4671,8 +4564,8 @@ static void ia64_tr_translate_insn(DisasContextBase *db, CPUState *cs)
 
         insn.ctx = ctx;
         ctx->restart.completion_slot = skip_x_slot && slot == 1 ? 2 : slot;
-        stop_after = template_info->stop_after[
-            skip_x_slot && slot == 1 ? 2 : slot];
+        stop_after =
+            template_info->stop_after[skip_x_slot && slot == 1 ? 2 : slot];
         insn.placement_illegal =
             (ia64_insn_must_start_group(&insn) &&
              !ctx->restart.instruction_group_start) ||
@@ -4685,8 +4578,8 @@ static void ia64_tr_translate_insn(DisasContextBase *db, CPUState *cs)
         known_nullified =
             ia64_predicate_nullifies_insn(&insn) &&
             ia64_predicate_known(ctx, insn.qp) == IA64_PREDICATE_ZERO;
-        ctx->memory.direct_chain_nat_safe = known_nullified ||
-            ia64_insn_preserves_all_nat_clear(ctx, &insn);
+        ctx->memory.direct_chain_nat_safe =
+            known_nullified || ia64_insn_preserves_all_nat_clear(ctx, &insn);
         if (!known_nullified && ia64_insn_may_set_psr_ic(&insn)) {
             ctx->restart.track_iipa = true;
         }
@@ -4696,8 +4589,7 @@ static void ia64_tr_translate_insn(DisasContextBase *db, CPUState *cs)
         track_iipa_for_insn = ctx->restart.track_iipa;
         ia64_gen_set_ri_tracked(ctx, slot);
         ia64_gen_check_instruction_debug(ctx, bundle_ip, slot);
-        if (!known_nullified &&
-            ia64_insn_may_modify_native_trap_psr(&insn)) {
+        if (!known_nullified && ia64_insn_may_modify_native_trap_psr(&insn)) {
             ia64_gen_snapshot_psr_before_insn();
             ctx->restart.native_trap_saved_psr = true;
         }
@@ -4705,8 +4597,7 @@ static void ia64_tr_translate_insn(DisasContextBase *db, CPUState *cs)
             !(record_iipa && track_iipa_for_insn) &&
             !ctx->restart.track_psr_suppression) {
             ia64_gen_check_sequential_native_traps(&insn, skip_x_slot);
-            ia64_gen_advance_restart_point(ctx, bundle_ip, slot,
-                                           skip_x_slot);
+            ia64_gen_advance_restart_point(ctx, bundle_ip, slot, skip_x_slot);
             ctx->restart.instruction_group_start =
                 ctx->restart.next_instruction_group_start;
             continue;
@@ -4716,10 +4607,10 @@ static void ia64_tr_translate_insn(DisasContextBase *db, CPUState *cs)
 
             tcg_gen_andi_i64(suppression, cpu_psr,
                              IA64_PSR_FAULT_SUPPRESS_MASK);
-            tcg_gen_st_i64(suppression, tcg_env,
-                           offsetof(CPUIA64State,
-                                    exception_state.
-                                    psr_suppression_before_insn));
+            tcg_gen_st_i64(
+                suppression, tcg_env,
+                offsetof(CPUIA64State,
+                         exception_state.psr_suppression_before_insn));
         }
         if (ia64_gen_insn(ctx, &insn, record_iipa && track_iipa_for_insn)) {
             db->is_jmp = DISAS_NORETURN;
@@ -4771,8 +4662,7 @@ static void ia64_tr_translate_insn(DisasContextBase *db, CPUState *cs)
     }
 }
 
-void ia64_gen_goto_tb_group(DisasContext *ctx, uint64_t dest,
-                            bool group_start)
+void ia64_gen_goto_tb_group(DisasContext *ctx, uint64_t dest, bool group_start)
 {
     uint8_t slot = ctx->branch.goto_tb_slots;
     bool nats_clear = ia64_all_gr_nats_known_clear(ctx);
@@ -4792,9 +4682,10 @@ void ia64_gen_goto_tb_group(DisasContext *ctx, uint64_t dest,
             /* Keep the successor's NaT TB key stable across executions. */
             lookup = gen_new_label();
             tcg_gen_or_i64(nats, cpu_nat[0], cpu_nat[1]);
-            tcg_gen_brcondi_i64(
-                (ctx->base.tb->flags & IA64_TB_FLAG_NAT_CLEAR) ?
-                TCG_COND_NE : TCG_COND_EQ, nats, 0, lookup);
+            tcg_gen_brcondi_i64((ctx->base.tb->flags & IA64_TB_FLAG_NAT_CLEAR)
+                                    ? TCG_COND_NE
+                                    : TCG_COND_EQ,
+                                nats, 0, lookup);
         }
         ctx->branch.goto_tb_slots = slot + 1;
         tcg_gen_goto_tb(slot);
@@ -4858,8 +4749,8 @@ static bool ia64_tr_disas_log(const DisasContextBase *db, CPUState *cs,
     size_t size = translator_st_len(db);
     int start_slot = ctx->restart.start_slot;
 
-    fprintf(logfile, "QEMU-IA64-DECODE: pc=0x%016" PRIx64
-            " size=%zu\n", (uint64_t)db->pc_first, size);
+    fprintf(logfile, "QEMU-IA64-DECODE: pc=0x%016" PRIx64 " size=%zu\n",
+            (uint64_t)db->pc_first, size);
 
     while (size >= 16) {
         uint8_t bundle[16];
@@ -4902,16 +4793,16 @@ static bool ia64_tr_disas_log(const DisasContextBase *db, CPUState *cs,
                 }
 
                 unit = template_info->units[slot];
-                insn = ia64_decode_insn_for_model(
-                    ctx->env, unit, slots[slot], bundle_ip, slot);
+                insn = ia64_decode_insn_for_model(ctx->env, unit, slots[slot],
+                                                  bundle_ip, slot);
                 ia64_apply_mlx_long_fixup(template_code, slots, slot, &insn,
                                           &skip_x_slot);
                 fprintf(logfile,
                         "QEMU-IA64-DECODE: slot=%d unit=%s opcode=%u"
                         " valid=%u qp=%u raw=0x%010" PRIx64 "\n",
                         slot, ia64_unit_log_name(insn.unit),
-                        (unsigned)insn.opcode, insn.valid ? 1 : 0,
-                        insn.qp, insn.raw);
+                        (unsigned)insn.opcode, insn.valid ? 1 : 0, insn.qp,
+                        insn.raw);
             }
         }
 
@@ -4925,75 +4816,63 @@ static bool ia64_tr_disas_log(const DisasContextBase *db, CPUState *cs,
 
 void ia64_translate_init(void)
 {
-    static const char * const gr_names[IA64_GR_COUNT] = {
-        "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",
-        "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
-        "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23",
-        "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31",
-        "r32", "r33", "r34", "r35", "r36", "r37", "r38", "r39",
-        "r40", "r41", "r42", "r43", "r44", "r45", "r46", "r47",
-        "r48", "r49", "r50", "r51", "r52", "r53", "r54", "r55",
-        "r56", "r57", "r58", "r59", "r60", "r61", "r62", "r63",
-        "r64", "r65", "r66", "r67", "r68", "r69", "r70", "r71",
-        "r72", "r73", "r74", "r75", "r76", "r77", "r78", "r79",
-        "r80", "r81", "r82", "r83", "r84", "r85", "r86", "r87",
-        "r88", "r89", "r90", "r91", "r92", "r93", "r94", "r95",
-        "r96", "r97", "r98", "r99", "r100", "r101", "r102", "r103",
-        "r104", "r105", "r106", "r107", "r108", "r109", "r110",
-        "r111", "r112", "r113", "r114", "r115", "r116", "r117",
-        "r118", "r119", "r120", "r121", "r122", "r123", "r124",
-        "r125", "r126", "r127",
+    static const char *const gr_names[IA64_GR_COUNT] = {
+        "r0",   "r1",   "r2",   "r3",   "r4",   "r5",   "r6",   "r7",   "r8",
+        "r9",   "r10",  "r11",  "r12",  "r13",  "r14",  "r15",  "r16",  "r17",
+        "r18",  "r19",  "r20",  "r21",  "r22",  "r23",  "r24",  "r25",  "r26",
+        "r27",  "r28",  "r29",  "r30",  "r31",  "r32",  "r33",  "r34",  "r35",
+        "r36",  "r37",  "r38",  "r39",  "r40",  "r41",  "r42",  "r43",  "r44",
+        "r45",  "r46",  "r47",  "r48",  "r49",  "r50",  "r51",  "r52",  "r53",
+        "r54",  "r55",  "r56",  "r57",  "r58",  "r59",  "r60",  "r61",  "r62",
+        "r63",  "r64",  "r65",  "r66",  "r67",  "r68",  "r69",  "r70",  "r71",
+        "r72",  "r73",  "r74",  "r75",  "r76",  "r77",  "r78",  "r79",  "r80",
+        "r81",  "r82",  "r83",  "r84",  "r85",  "r86",  "r87",  "r88",  "r89",
+        "r90",  "r91",  "r92",  "r93",  "r94",  "r95",  "r96",  "r97",  "r98",
+        "r99",  "r100", "r101", "r102", "r103", "r104", "r105", "r106", "r107",
+        "r108", "r109", "r110", "r111", "r112", "r113", "r114", "r115", "r116",
+        "r117", "r118", "r119", "r120", "r121", "r122", "r123", "r124", "r125",
+        "r126", "r127",
     };
-    static const char * const pr_names[IA64_PR_COUNT] = {
-        "p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7",
-        "p8", "p9", "p10", "p11", "p12", "p13", "p14", "p15",
-        "p16", "p17", "p18", "p19", "p20", "p21", "p22", "p23",
-        "p24", "p25", "p26", "p27", "p28", "p29", "p30", "p31",
-        "p32", "p33", "p34", "p35", "p36", "p37", "p38", "p39",
-        "p40", "p41", "p42", "p43", "p44", "p45", "p46", "p47",
-        "p48", "p49", "p50", "p51", "p52", "p53", "p54", "p55",
-        "p56", "p57", "p58", "p59", "p60", "p61", "p62", "p63",
+    static const char *const pr_names[IA64_PR_COUNT] = {
+        "p0",  "p1",  "p2",  "p3",  "p4",  "p5",  "p6",  "p7",  "p8",  "p9",
+        "p10", "p11", "p12", "p13", "p14", "p15", "p16", "p17", "p18", "p19",
+        "p20", "p21", "p22", "p23", "p24", "p25", "p26", "p27", "p28", "p29",
+        "p30", "p31", "p32", "p33", "p34", "p35", "p36", "p37", "p38", "p39",
+        "p40", "p41", "p42", "p43", "p44", "p45", "p46", "p47", "p48", "p49",
+        "p50", "p51", "p52", "p53", "p54", "p55", "p56", "p57", "p58", "p59",
+        "p60", "p61", "p62", "p63",
     };
-    static const char * const br_names[IA64_BR_COUNT] = {
+    static const char *const br_names[IA64_BR_COUNT] = {
         "b0", "b1", "b2", "b3", "b4", "b5", "b6", "b7",
     };
     int i;
 
     for (i = 0; i < IA64_GR_COUNT; ++i) {
-        cpu_gr[i] = tcg_global_mem_new_i64(tcg_env,
-                                           offsetof(CPUIA64State, gr[i]),
-                                           gr_names[i]);
+        cpu_gr[i] = tcg_global_mem_new_i64(
+            tcg_env, offsetof(CPUIA64State, gr[i]), gr_names[i]);
     }
     for (i = 0; i < IA64_PR_COUNT; ++i) {
-        cpu_pr[i] = tcg_global_mem_new_i64(tcg_env,
-                                           offsetof(CPUIA64State, pr[i]),
-                                           pr_names[i]);
+        cpu_pr[i] = tcg_global_mem_new_i64(
+            tcg_env, offsetof(CPUIA64State, pr[i]), pr_names[i]);
     }
     for (i = 0; i < IA64_BR_COUNT; ++i) {
-        cpu_br[i] = tcg_global_mem_new_i64(tcg_env,
-                                           offsetof(CPUIA64State, br[i]),
-                                           br_names[i]);
+        cpu_br[i] = tcg_global_mem_new_i64(
+            tcg_env, offsetof(CPUIA64State, br[i]), br_names[i]);
     }
     cpu_ip = tcg_global_mem_new_i64(tcg_env, offsetof(CPUIA64State, ip), "ip");
-    cpu_psr = tcg_global_mem_new_i64(tcg_env, offsetof(CPUIA64State, psr),
-                                     "psr");
+    cpu_psr =
+        tcg_global_mem_new_i64(tcg_env, offsetof(CPUIA64State, psr), "psr");
     for (i = 0; i < IA64_FR_COUNT; ++i) {
-        cpu_fr[i] = tcg_global_mem_new_i64(tcg_env,
-                                           offsetof(CPUIA64State, fp.fr[i]),
-                                           "fr");
+        cpu_fr[i] = tcg_global_mem_new_i64(
+            tcg_env, offsetof(CPUIA64State, fp.fr[i]), "fr");
     }
     for (i = 0; i < 2; ++i) {
-        cpu_nat[i] = tcg_global_mem_new_i64(tcg_env,
-                                           offsetof(CPUIA64State, nat[i]),
-                                           "nat");
-        cpu_fr_nat[i] = tcg_global_mem_new_i64(tcg_env,
-                                               offsetof(CPUIA64State,
-                                                        fp.fr_nat[i]),
-                                               "fr_nat");
-        cpu_fr_sig[i] = tcg_global_mem_new_i64(tcg_env,
-                                               offsetof(CPUIA64State,
-                                                        fp.fr_sig[i]),
-                                               "fr_sig");
+        cpu_nat[i] = tcg_global_mem_new_i64(
+            tcg_env, offsetof(CPUIA64State, nat[i]), "nat");
+        cpu_fr_nat[i] = tcg_global_mem_new_i64(
+            tcg_env, offsetof(CPUIA64State, fp.fr_nat[i]), "fr_nat");
+        cpu_fr_sig[i] = tcg_global_mem_new_i64(
+            tcg_env, offsetof(CPUIA64State, fp.fr_sig[i]), "fr_sig");
         cpu_fr_ext_valid[i] = tcg_global_mem_new_i64(
             tcg_env, offsetof(CPUIA64State, fp.fr_ext_valid[i]),
             "fr_ext_valid");
@@ -5008,8 +4887,8 @@ void ia64_translate_init(void)
     ia64_ia32_translate_init();
 }
 
-void ia64_translate_code(CPUState *cs, TranslationBlock *tb,
-                                    int *max_insns, vaddr pc, void *host_pc)
+void ia64_translate_code(CPUState *cs, TranslationBlock *tb, int *max_insns,
+                         vaddr pc, void *host_pc)
 {
     DisasContext ctx = {};
     static const TranslatorOps ia64_tr_ops = {
@@ -5024,7 +4903,7 @@ void ia64_translate_code(CPUState *cs, TranslationBlock *tb,
     if (tb->flags & IA64_TB_FLAG_PSR_IS) {
         ia64_ia32_translate_code(cs, tb, max_insns, pc, host_pc);
     } else {
-        translator_loop(cs, tb, max_insns, pc, host_pc, &ia64_tr_ops,
-                        &ctx.base, TCG_TYPE_VA);
+        translator_loop(cs, tb, max_insns, pc, host_pc, &ia64_tr_ops, &ctx.base,
+                        TCG_TYPE_VA);
     }
 }

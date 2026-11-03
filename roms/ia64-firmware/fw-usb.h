@@ -94,8 +94,7 @@ void usb_dma_barrier(void);
 UINT32 usb_ohci_ed_head(const FW_OHCI_ED *ed);
 UINT32 usb_ohci_ed_tail(const FW_OHCI_ED *ed);
 void usb_ohci_init_td(FW_OHCI_TD *td, UINT32 direction, VOID *buffer,
-                      UINTN length, FW_OHCI_TD *next,
-                      BOOLEAN buffer_rounding);
+                      UINTN length, FW_OHCI_TD *next, BOOLEAN buffer_rounding);
 UINT32 usb_ohci_td_condition_code(const FW_OHCI_TD *td);
 BOOLEAN usb_ohci_controller_present(void);
 BOOLEAN usb_ohci_reset_controller(void);

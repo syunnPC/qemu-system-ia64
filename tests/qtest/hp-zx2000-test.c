@@ -51,18 +51,18 @@ static const struct {
     uint32_t id;
     uint16_t command;
 } zx2000_devices[] = {
-    { 0, PCI_DEVFN(0, 0), IA64_PLATFORM_ONBOARD_GRAPHICS, 1, 16,
-      0x51591002, PCI_COMMAND_IO | PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER },
-    { 2, PCI_DEVFN(1, 0), IA64_PLATFORM_ONBOARD_OHCI, 1, 38,
-      0x00351033, PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER },
-    { 2, PCI_DEVFN(1, 1), IA64_PLATFORM_ONBOARD_OHCI, 2, 39,
-      0x00351033, PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER },
-    { 2, PCI_DEVFN(1, 2), IA64_PLATFORM_ONBOARD_EHCI, 3, 40,
-      0x00e01033, PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER },
-    { 2, PCI_DEVFN(2, 0), IA64_PLATFORM_ONBOARD_IDE, 1, 43,
-      0x06491095, PCI_COMMAND_IO | PCI_COMMAND_MASTER },
-    { 2, PCI_DEVFN(3, 0), IA64_PLATFORM_ONBOARD_NETWORK, 1, 42,
-      0x100e8086, PCI_COMMAND_IO | PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER },
+    { 0, PCI_DEVFN(0, 0), IA64_PLATFORM_ONBOARD_GRAPHICS, 1, 16, 0x51591002,
+      PCI_COMMAND_IO | PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER },
+    { 2, PCI_DEVFN(1, 0), IA64_PLATFORM_ONBOARD_OHCI, 1, 38, 0x00351033,
+      PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER },
+    { 2, PCI_DEVFN(1, 1), IA64_PLATFORM_ONBOARD_OHCI, 2, 39, 0x00351033,
+      PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER },
+    { 2, PCI_DEVFN(1, 2), IA64_PLATFORM_ONBOARD_EHCI, 3, 40, 0x00e01033,
+      PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER },
+    { 2, PCI_DEVFN(2, 0), IA64_PLATFORM_ONBOARD_IDE, 1, 43, 0x06491095,
+      PCI_COMMAND_IO | PCI_COMMAND_MASTER },
+    { 2, PCI_DEVFN(3, 0), IA64_PLATFORM_ONBOARD_NETWORK, 1, 42, 0x100e8086,
+      PCI_COMMAND_IO | PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER },
 };
 
 static QTestState *zx2000_start(const char *options)
@@ -78,7 +78,7 @@ static QTestState *zx2000_start(const char *options)
 }
 
 static uint64_t zx2000_config_select(QTestState *qts, unsigned root,
-                                    unsigned devfn, unsigned reg)
+                                     unsigned devfn, unsigned reg)
 {
     uint64_t base = zx2000_roots[root].config;
 
@@ -88,19 +88,19 @@ static uint64_t zx2000_config_select(QTestState *qts, unsigned root,
 }
 
 static uint32_t zx2000_config_readl(QTestState *qts, unsigned root,
-                                   unsigned devfn, unsigned reg)
+                                    unsigned devfn, unsigned reg)
 {
     return qtest_readl(qts, zx2000_config_select(qts, root, devfn, reg));
 }
 
 static uint16_t zx2000_config_readw(QTestState *qts, unsigned root,
-                                   unsigned devfn, unsigned reg)
+                                    unsigned devfn, unsigned reg)
 {
     return qtest_readw(qts, zx2000_config_select(qts, root, devfn, reg));
 }
 
 static IA64PlatformDescriptor *zx2000_read_descriptor(QTestState *qts,
-                                                     uint8_t *storage)
+                                                      uint8_t *storage)
 {
     IA64PlatformDescriptor *descriptor = (IA64PlatformDescriptor *)storage;
     uint32_t size;
@@ -124,8 +124,7 @@ static IA64PlatformDescriptor *zx2000_read_descriptor(QTestState *qts,
 static void test_hp_zx2000_identity(void)
 {
     QTestState *qts = zx2000_start("");
-    g_autoptr(QDict) response = qtest_qmp(qts,
-                                        "{'execute':'query-machines'}");
+    g_autoptr(QDict) response = qtest_qmp(qts, "{'execute':'query-machines'}");
     QList *machines = qdict_get_qlist(response, "return");
     QListEntry *entry;
     bool found = false;
@@ -148,15 +147,19 @@ static void test_hp_zx2000_identity(void)
 }
 
 static void zx2000_assert_start_fails(const char *option, const char *value,
-                                     const char *message)
+                                      const char *message)
 {
     const char *firmware = g_getenv("QTEST_IA64_FIRMWARE");
     const char *argv[] = {
         qtest_qemu_binary(NULL),
-        "-machine", "hp-zx2000,nvram=none",
-        "-bios", firmware,
-        "-display", "none",
-        option, value,
+        "-machine",
+        "hp-zx2000,nvram=none",
+        "-bios",
+        firmware,
+        "-display",
+        "none",
+        option,
+        value,
         NULL,
     };
     g_autofree char *stderr_text = NULL;
@@ -165,9 +168,8 @@ static void zx2000_assert_start_fails(const char *option, const char *value,
 
     g_assert_nonnull(firmware);
     g_assert_true(g_spawn_sync(NULL, (char **)argv, NULL,
-                               G_SPAWN_STDOUT_TO_DEV_NULL,
-                               NULL, NULL, NULL, &stderr_text,
-                               &status, &error));
+                               G_SPAWN_STDOUT_TO_DEV_NULL, NULL, NULL, NULL,
+                               &stderr_text, &status, &error));
     g_assert_no_error(error);
     g_assert_true(WIFEXITED(status));
     g_assert_cmpint(WEXITSTATUS(status), ==, 1);
@@ -192,12 +194,15 @@ static void test_hp_zx2000_descriptor(void)
     uint8_t storage[IA64_PLATFORM_DESC_MAX_SIZE];
     QTestState *qts = zx2000_start("");
     IA64PlatformDescriptor *descriptor = zx2000_read_descriptor(qts, storage);
-    const IA64PlatformPciRoot *roots = (const IA64PlatformPciRoot *)(
-        storage + le32_to_cpu(descriptor->PciRootOffset));
-    const IA64PlatformIoSapic *sapics = (const IA64PlatformIoSapic *)(
-        storage + le32_to_cpu(descriptor->IoSapicOffset));
-    const IA64PlatformPciRoute *routes = (const IA64PlatformPciRoute *)(
-        storage + le32_to_cpu(descriptor->PciRouteOffset));
+    const IA64PlatformPciRoot *roots =
+        (const IA64PlatformPciRoot *)(storage +
+                                      le32_to_cpu(descriptor->PciRootOffset));
+    const IA64PlatformIoSapic *sapics =
+        (const IA64PlatformIoSapic *)(storage +
+                                      le32_to_cpu(descriptor->IoSapicOffset));
+    const IA64PlatformPciRoute *routes =
+        (const IA64PlatformPciRoute *)(storage +
+                                       le32_to_cpu(descriptor->PciRouteOffset));
     unsigned i;
     unsigned j;
 
@@ -242,13 +247,13 @@ static void test_hp_zx2000_descriptor(void)
         g_assert_cmphex(le32_to_cpu(roots[i].Flags), ==, flags);
         g_assert_cmphex(le64_to_cpu(sapics[i].Base), ==,
                         zx2000_roots[i].config +
-                        IA64_PLATFORM_ZX1_IO_SAPIC_OFFSET);
+                            IA64_PLATFORM_ZX1_IO_SAPIC_OFFSET);
         g_assert_cmpuint(le32_to_cpu(sapics[i].GsiBase), ==,
                          zx2000_roots[i].gsi);
         g_assert_cmpuint(sapics[i].Id, ==, zx2000_roots[i].rope);
-        g_assert_cmphex(qtest_readq(qts, zx2000_roots[i].config +
-                                         HP_ZX1_IOA_FUNCTION_ID), ==,
-                        UINT64_C(0x02b00000122e103c));
+        g_assert_cmphex(
+            qtest_readq(qts, zx2000_roots[i].config + HP_ZX1_IOA_FUNCTION_ID),
+            ==, UINT64_C(0x02b00000122e103c));
     }
 
     g_assert_cmpuint(le32_to_cpu(descriptor->OnboardDeviceCount), ==,
@@ -300,17 +305,17 @@ static void test_hp_zx2000_pci_layout(void)
         root = zx2000_devices[i].root;
         g_assert_cmphex(zx2000_config_readl(qts, root, devfn, 0), ==,
                         zx2000_devices[i].id);
-        g_assert_cmphex(zx2000_config_readw(qts, root, devfn, PCI_COMMAND),
-                        ==, zx2000_devices[i].command);
-        g_assert_cmphex(zx2000_config_readw(qts, root, devfn,
-                                           PCI_INTERRUPT_LINE), ==,
-                        zx2000_devices[i].pin << 8 | zx2000_devices[i].gsi);
+        g_assert_cmphex(zx2000_config_readw(qts, root, devfn, PCI_COMMAND), ==,
+                        zx2000_devices[i].command);
+        g_assert_cmphex(
+            zx2000_config_readw(qts, root, devfn, PCI_INTERRUPT_LINE), ==,
+            zx2000_devices[i].pin << 8 | zx2000_devices[i].gsi);
         bars[i] = zx2000_config_readl(qts, root, devfn, PCI_BASE_ADDRESS_0);
         g_assert_cmphex(bars[i], !=, 0);
     }
-    g_assert_cmphex(zx2000_config_readl(qts, 2, PCI_DEVFN(3, 0),
-                                       PCI_SUBSYSTEM_VENDOR_ID), ==,
-                    0x1274103c);
+    g_assert_cmphex(
+        zx2000_config_readl(qts, 2, PCI_DEVFN(3, 0), PCI_SUBSYSTEM_VENDOR_ID),
+        ==, 0x1274103c);
     for (root = 0; root < G_N_ELEMENTS(zx2000_roots); root++) {
         for (slot = 0; slot < PCI_SLOT_MAX; slot++) {
             bool present = false;
@@ -320,22 +325,25 @@ static void test_hp_zx2000_pci_layout(void)
                            PCI_DEVFN(slot, 0) == zx2000_devices[i].devfn;
             }
             if (!present) {
-                g_assert_cmphex(zx2000_config_readl(qts, root,
-                                                   PCI_DEVFN(slot, 0), 0),
-                                ==, UINT32_MAX);
+                g_assert_cmphex(
+                    zx2000_config_readl(qts, root, PCI_DEVFN(slot, 0), 0), ==,
+                    UINT32_MAX);
             }
         }
     }
     for (i = 0; i < G_N_ELEMENTS(zx2000_devices); i++) {
-        qtest_writel(qts, zx2000_config_select(qts, zx2000_devices[i].root,
-                                               zx2000_devices[i].devfn,
-                                               PCI_BASE_ADDRESS_0), 0);
+        qtest_writel(qts,
+                     zx2000_config_select(qts, zx2000_devices[i].root,
+                                          zx2000_devices[i].devfn,
+                                          PCI_BASE_ADDRESS_0),
+                     0);
     }
     qtest_system_reset(qts);
     for (i = 0; i < G_N_ELEMENTS(zx2000_devices); i++) {
         g_assert_cmphex(zx2000_config_readl(qts, zx2000_devices[i].root,
-                                           zx2000_devices[i].devfn,
-                                           PCI_BASE_ADDRESS_0), ==, bars[i]);
+                                            zx2000_devices[i].devfn,
+                                            PCI_BASE_ADDRESS_0),
+                        ==, bars[i]);
     }
     qtest_quit(qts);
 }
@@ -356,8 +364,10 @@ static void test_hp_zx2000_ram(void)
         QTestState *qts = zx2000_start(sizes[i].option);
         IA64PlatformDescriptor *descriptor =
             zx2000_read_descriptor(qts, storage);
-        const IA64PlatformRamRange *ranges = (const IA64PlatformRamRange *)(
-            storage + le32_to_cpu(descriptor->RamRangeOffset));
+        const IA64PlatformRamRange *ranges =
+            (const IA64PlatformRamRange *)(storage +
+                                           le32_to_cpu(
+                                               descriptor->RamRangeOffset));
         uint64_t low_size = MIN(sizes[i].size, GiB);
 
         g_assert_cmphex(le64_to_cpu(descriptor->RamSize), ==, sizes[i].size);
@@ -386,9 +396,9 @@ static void test_hp_zx2000_ram(void)
 
 static void test_hp_zx2000_storage_defaults(void)
 {
-    QTestState *qts = zx2000_start(
-        "-drive media=disk,file=null-co://,format=raw "
-        "-drive media=cdrom,file=null-co://,format=raw");
+    QTestState *qts =
+        zx2000_start("-drive media=disk,file=null-co://,format=raw "
+                     "-drive media=cdrom,file=null-co://,format=raw");
     g_autoptr(QDict) response = qtest_qmp(qts, "{'execute':'query-block'}");
     QList *blocks = qdict_get_qlist(response, "return");
     QListEntry *entry;
@@ -426,9 +436,9 @@ static void test_hp_zx2000_int10(void)
         if (reset) {
             qtest_system_reset(qts);
         }
-        g_assert_cmphex(qtest_readl(qts, ZX2000_RV100_MMIO_BASE +
-                                    BIOS_4_SCRATCH), ==,
-                        BIOS_4_SCRATCH_CRT1);
+        g_assert_cmphex(
+            qtest_readl(qts, ZX2000_RV100_MMIO_BASE + BIOS_4_SCRATCH), ==,
+            BIOS_4_SCRATCH_CRT1);
         /* The next reset must repeat firmware POST after a guest write. */
         qtest_writel(qts, ZX2000_RV100_MMIO_BASE + BIOS_4_SCRATCH, 0);
         qtest_writew(qts, ax, 0x4f00);
@@ -500,9 +510,11 @@ static void zx2000_assert_cpu_irq(QTestState *qts, uint8_t vector)
         uint64_t irr[4];
 
         g_assert_nonnull(line);
-        g_assert_cmpint(sscanf(line, "SAPIC IRR: %" SCNx64 " %" SCNx64
-                              " %" SCNx64 " %" SCNx64,
-                              &irr[0], &irr[1], &irr[2], &irr[3]), ==, 4);
+        g_assert_cmpint(sscanf(line,
+                               "SAPIC IRR: %" SCNx64 " %" SCNx64 " %" SCNx64
+                               " %" SCNx64,
+                               &irr[0], &irr[1], &irr[2], &irr[3]),
+                        ==, 4);
         if (irr[vector / 64] & BIT_ULL(vector % 64)) {
             return;
         }
@@ -513,18 +525,18 @@ static void zx2000_assert_cpu_irq(QTestState *qts, uint8_t vector)
 
 static void test_hp_zx2000_pdh(void)
 {
-    const uint64_t enable = ZX2000_ACPI_PM_BASE +
-        IA64_PLATFORM_ACPI_PM1_EVT_OFFSET + 2;
-    const uint64_t control = ZX2000_ACPI_PM_BASE +
-        IA64_PLATFORM_ACPI_PM1_CNT_OFFSET;
-    const uint64_t timer = ZX2000_ACPI_PM_BASE +
-        IA64_PLATFORM_ACPI_PM_TMR_OFFSET;
-    const uint64_t io_enable = zx2000_sparse_io_address(
-        IA64_PLATFORM_ACPI_PM1_EVT_OFFSET + 2);
-    const uint64_t io_control = zx2000_sparse_io_address(
-        IA64_PLATFORM_ACPI_PM1_CNT_OFFSET);
-    const uint64_t io_timer = zx2000_sparse_io_address(
-        IA64_PLATFORM_ACPI_PM_TMR_OFFSET);
+    const uint64_t enable =
+        ZX2000_ACPI_PM_BASE + IA64_PLATFORM_ACPI_PM1_EVT_OFFSET + 2;
+    const uint64_t control =
+        ZX2000_ACPI_PM_BASE + IA64_PLATFORM_ACPI_PM1_CNT_OFFSET;
+    const uint64_t timer =
+        ZX2000_ACPI_PM_BASE + IA64_PLATFORM_ACPI_PM_TMR_OFFSET;
+    const uint64_t io_enable =
+        zx2000_sparse_io_address(IA64_PLATFORM_ACPI_PM1_EVT_OFFSET + 2);
+    const uint64_t io_control =
+        zx2000_sparse_io_address(IA64_PLATFORM_ACPI_PM1_CNT_OFFSET);
+    const uint64_t io_timer =
+        zx2000_sparse_io_address(IA64_PLATFORM_ACPI_PM_TMR_OFFSET);
     QTestState *qts = zx2000_start("");
     uint32_t first_timer;
     unsigned i;

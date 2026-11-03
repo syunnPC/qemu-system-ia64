@@ -20,8 +20,7 @@ typedef struct PCIBus PCIBus;
 /* Configuration-space targets are supplied through these callbacks. */
 typedef struct Intel460GXConfigTargetOps {
     uint32_t (*read)(void *opaque, uint16_t offset, unsigned size);
-    void (*write)(void *opaque, uint16_t offset, uint32_t value,
-                  unsigned size);
+    void (*write)(void *opaque, uint16_t offset, uint32_t value, unsigned size);
 } Intel460GXConfigTargetOps;
 
 typedef struct Intel460GXBusRange {
@@ -64,29 +63,24 @@ bool intel_460gx_host_register_chipset_target(
 void intel_460gx_host_set_cbn(Intel460GXHostState *s, uint8_t cbn);
 uint8_t intel_460gx_host_get_cbn(const Intel460GXHostState *s);
 bool intel_460gx_host_set_chipset_present(Intel460GXHostState *s,
-                                           unsigned device, bool present,
-                                           Error **errp);
+                                          unsigned device, bool present,
+                                          Error **errp);
 bool intel_460gx_host_configure_chipset_present(Intel460GXHostState *s,
-                                                 uint32_t present,
-                                                 Error **errp);
-uint32_t intel_460gx_host_get_chipset_present(
-    const Intel460GXHostState *s);
+                                                uint32_t present, Error **errp);
+uint32_t intel_460gx_host_get_chipset_present(const Intel460GXHostState *s);
 
 /*
  * Attach one of eight xXB bus positions (CBN devices 10h..17h).  The supplied
  * bus range is its reset baseline.
  */
 bool intel_460gx_host_attach_downstream_bus(Intel460GXHostState *s,
-                                             unsigned port, PCIBus *bus,
-                                             uint8_t first_bus,
-                                             uint8_t last_bus,
-                                             Error **errp);
+                                            unsigned port, PCIBus *bus,
+                                            uint8_t first_bus, uint8_t last_bus,
+                                            Error **errp);
 
 /* Update an attached xXB from its decoded bus-number state. */
 bool intel_460gx_host_set_downstream_bus_range(Intel460GXHostState *s,
-                                                unsigned port,
-                                                uint8_t first_bus,
-                                                uint8_t last_bus,
-                                                Error **errp);
+                                               unsigned port, uint8_t first_bus,
+                                               uint8_t last_bus, Error **errp);
 
 #endif

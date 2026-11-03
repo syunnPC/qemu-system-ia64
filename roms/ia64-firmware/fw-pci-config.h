@@ -26,8 +26,8 @@ typedef struct FWPciZx1ConfigAccess {
 } FWPciZx1ConfigAccess;
 
 static inline const IA64PlatformPciRoot *
-fw_pci_config_find_unique_root(const IA64PlatformPciRoot *Roots,
-                               UINTN Count, UINT64 Segment, UINT64 Bus)
+fw_pci_config_find_unique_root(const IA64PlatformPciRoot *Roots, UINTN Count,
+                               UINT64 Segment, UINT64 Bus)
 {
     const IA64PlatformPciRoot *match = NULL;
     UINTN i;
@@ -39,8 +39,7 @@ fw_pci_config_find_unique_root(const IA64PlatformPciRoot *Roots,
     for (i = 0; i < Count; i++) {
         const IA64PlatformPciRoot *root = &Roots[i];
 
-        if (root->Segment != Segment || Bus < root->Bus ||
-            Bus > root->BusEnd) {
+        if (root->Segment != Segment || Bus < root->Bus || Bus > root->BusEnd) {
             continue;
         }
         if (match != NULL) {
@@ -51,19 +50,15 @@ fw_pci_config_find_unique_root(const IA64PlatformPciRoot *Roots,
     return match;
 }
 
-static inline BOOLEAN fw_pci_config_request_valid(UINT64 Segment,
-                                                   UINT64 Bus,
-                                                   UINT64 Device,
-                                                   UINT64 Function,
-                                                   UINT64 Offset,
-                                                   UINTN Size,
-                                                   UINT64 ConfigSize)
+static inline BOOLEAN fw_pci_config_request_valid(UINT64 Segment, UINT64 Bus,
+                                                  UINT64 Device,
+                                                  UINT64 Function,
+                                                  UINT64 Offset, UINTN Size,
+                                                  UINT64 ConfigSize)
 {
-    if (Segment > 0xffffU || Bus > 0xffU || Device > 0x1fU ||
-        Function > 7U ||
-        (Size != 1U && Size != 2U && Size != 4U) ||
-        ConfigSize == 0 || Offset >= ConfigSize ||
-        (Offset & (Size - 1U)) != 0) {
+    if (Segment > 0xffffU || Bus > 0xffU || Device > 0x1fU || Function > 7U ||
+        (Size != 1U && Size != 2U && Size != 4U) || ConfigSize == 0 ||
+        Offset >= ConfigSize || (Offset & (Size - 1U)) != 0) {
         return 0;
     }
 
@@ -71,16 +66,14 @@ static inline BOOLEAN fw_pci_config_request_valid(UINT64 Segment,
 }
 
 static inline UINT32 fw_pci_cf8_address(UINT64 Bus, UINT64 Device,
-                                         UINT64 Function, UINT64 Offset)
+                                        UINT64 Function, UINT64 Offset)
 {
-    return 0x80000000U | ((UINT32)Bus << 16) |
-        ((UINT32)Device << 11) | ((UINT32)Function << 8) |
-        ((UINT32)Offset & 0xfcU);
+    return 0x80000000U | ((UINT32)Bus << 16) | ((UINT32)Device << 11) |
+           ((UINT32)Function << 8) | ((UINT32)Offset & 0xfcU);
 }
 
 static inline UINT64 fw_pci_io_config_address(UINT64 Bus, UINT64 Device,
-                                               UINT64 Function,
-                                               UINT32 Offset)
+                                              UINT64 Function, UINT32 Offset)
 {
     UINT64 address = (Function << 8) | (Device << 16) | (Bus << 24);
 
@@ -93,23 +86,22 @@ static inline UINT64 fw_pci_io_config_address(UINT64 Bus, UINT64 Device,
 }
 
 static inline BOOLEAN fw_pci_cf8_request_valid(UINT64 Segment, UINT64 Bus,
-                                                UINT64 Device,
-                                                UINT64 Function,
-                                                UINT64 Offset, UINTN Size)
+                                               UINT64 Device, UINT64 Function,
+                                               UINT64 Offset, UINTN Size)
 {
     return Segment == 0 &&
-        fw_pci_config_request_valid(Segment, Bus, Device, Function, Offset,
-                                    Size, FW_PCI_CF8_CONFIG_SIZE);
+           fw_pci_config_request_valid(Segment, Bus, Device, Function, Offset,
+                                       Size, FW_PCI_CF8_CONFIG_SIZE);
 }
 
 static inline BOOLEAN fw_pci_ecam_address(UINT64 Base, UINT64 Bus,
-                                           UINT64 Device, UINT64 Function,
-                                           UINT64 Offset, UINT64 *Address)
+                                          UINT64 Device, UINT64 Function,
+                                          UINT64 Offset, UINT64 *Address)
 {
     UINT64 delta;
 
-    if (Address == NULL || Bus > 0xffU || Device > 0x1fU ||
-        Function > 7U || Offset >= FW_PCI_ECAM_CONFIG_SIZE) {
+    if (Address == NULL || Bus > 0xffU || Device > 0x1fU || Function > 7U ||
+        Offset >= FW_PCI_ECAM_CONFIG_SIZE) {
         return 0;
     }
     delta = (Bus << 20) | (Device << 15) | (Function << 12) | Offset;
@@ -124,10 +116,11 @@ static inline BOOLEAN fw_pci_ecam_address(UINT64 Base, UINT64 Bus,
  * Resolve a Mercury indirect configuration transaction.  Bus zero selects
  * the root bus; rejected requests leave the output unchanged.
  */
-static inline BOOLEAN fw_pci_zx1_config_prepare(
-    const IA64PlatformPciRoot *Roots, UINTN RootCount, UINT64 Segment,
-    UINT64 Bus, UINT64 Device, UINT64 Function, UINT64 Offset, UINTN Size,
-    FWPciZx1ConfigAccess *Access)
+static inline BOOLEAN
+fw_pci_zx1_config_prepare(const IA64PlatformPciRoot *Roots, UINTN RootCount,
+                          UINT64 Segment, UINT64 Bus, UINT64 Device,
+                          UINT64 Function, UINT64 Offset, UINTN Size,
+                          FWPciZx1ConfigAccess *Access)
 {
     const IA64PlatformPciRoot *root;
     FWPciZx1ConfigAccess result;
@@ -140,33 +133,29 @@ static inline BOOLEAN fw_pci_zx1_config_prepare(
     }
 
     root = fw_pci_config_find_unique_root(Roots, RootCount, Segment, Bus);
-    if (root == NULL ||
-        root->ConfigType != IA64_PLATFORM_PCI_CONFIG_ZX1_LBA ||
+    if (root == NULL || root->ConfigType != IA64_PLATFORM_PCI_CONFIG_ZX1_LBA ||
         root->ConfigBase == 0 ||
-        (root->ConfigBase &
-         (IA64_PLATFORM_ZX1_LBA_CONFIG_SIZE - 1U)) != 0 ||
-        root->ConfigBase >
-            (1ULL << IA64_PLATFORM_ZX6000_PHYS_ADDR_BITS) -
-            IA64_PLATFORM_ZX1_LBA_CONFIG_SIZE) {
+        (root->ConfigBase & (IA64_PLATFORM_ZX1_LBA_CONFIG_SIZE - 1U)) != 0 ||
+        root->ConfigBase > (1ULL << IA64_PLATFORM_ZX6000_PHYS_ADDR_BITS) -
+                               IA64_PLATFORM_ZX1_LBA_CONFIG_SIZE) {
         return 0;
     }
 
     selector_bus = Bus == root->Bus ? 0 : (UINT32)Bus;
     result.Root = root;
-    result.SelectorAddress = root->ConfigBase +
-                             FW_PCI_ZX1_SELECTOR_OFFSET;
-    result.DataAddress = root->ConfigBase + FW_PCI_ZX1_DATA_OFFSET +
-                         (Offset & 3U);
+    result.SelectorAddress = root->ConfigBase + FW_PCI_ZX1_SELECTOR_OFFSET;
+    result.DataAddress =
+        root->ConfigBase + FW_PCI_ZX1_DATA_OFFSET + (Offset & 3U);
     result.Selector = (selector_bus << 16) | ((UINT32)Device << 11) |
-        ((UINT32)Function << 8) | ((UINT32)Offset & 0xfcU);
+                      ((UINT32)Function << 8) | ((UINT32)Offset & 0xfcU);
     *Access = result;
     return 1;
 }
 
-static inline BOOLEAN fw_pci_root_config_decode(
-    UINT64 Address, UINTN Size, UINTN Count, BOOLEAN Fifo,
-    UINT64 ConfigSize, BOOLEAN Extended, UINT64 *Bus, UINT64 *Device,
-    UINT64 *Function, UINT64 *Offset)
+static inline BOOLEAN
+fw_pci_root_config_decode(UINT64 Address, UINTN Size, UINTN Count, BOOLEAN Fifo,
+                          UINT64 ConfigSize, BOOLEAN Extended, UINT64 *Bus,
+                          UINT64 *Device, UINT64 *Function, UINT64 *Offset)
 {
     UINT64 register_offset = Address & 0xffU;
     UINT64 extended_offset = Address >> 32;
@@ -186,8 +175,8 @@ static inline BOOLEAN fw_pci_root_config_decode(
         register_offset = extended_offset;
     }
     *Offset = register_offset;
-    if (!fw_pci_config_request_valid(0, *Bus, *Device, *Function, *Offset,
-                                     Size, ConfigSize)) {
+    if (!fw_pci_config_request_valid(0, *Bus, *Device, *Function, *Offset, Size,
+                                     ConfigSize)) {
         return 0;
     }
     if (Fifo || Count == 0) {
@@ -205,10 +194,8 @@ static inline UINTN fw_pci_cf8_data_port(UINT64 Offset)
     return FW_PCI_CF8_DATA_PORT + (UINTN)(Offset & 3U);
 }
 
-static inline BOOLEAN fw_pci_transfer_buffer_valid(UINTN Buffer,
-                                                    UINTN Count,
-                                                    UINTN Size,
-                                                    BOOLEAN Fill)
+static inline BOOLEAN fw_pci_transfer_buffer_valid(UINTN Buffer, UINTN Count,
+                                                   UINTN Size, BOOLEAN Fill)
 {
     UINTN span;
 
@@ -234,7 +221,7 @@ static inline BOOLEAN fw_pci_io_access_size_valid(UINTN Size)
 
 /* Validate access size, alignment, and count arithmetic before BAR lookup. */
 static inline BOOLEAN fw_pci_access_span_valid(UINT64 Address, UINTN Size,
-                                                UINTN Count, BOOLEAN Fifo)
+                                               UINTN Count, BOOLEAN Fifo)
 {
     UINT64 access_count;
 
@@ -243,8 +230,7 @@ static inline BOOLEAN fw_pci_access_span_valid(UINT64 Address, UINTN Size,
         return 0;
     }
     access_count = Fifo && Count != 0 ? 1U : (UINT64)Count;
-    return access_count == 0 ||
-           access_count <= (~(UINT64)0 - Address) / Size;
+    return access_count == 0 || access_count <= (~(UINT64)0 - Address) / Size;
 }
 
 static inline BOOLEAN fw_pci_aperture_contains(UINT64 Base, UINT64 Length,
@@ -253,8 +239,7 @@ static inline BOOLEAN fw_pci_aperture_contains(UINT64 Base, UINT64 Length,
 {
     UINT64 offset;
 
-    if (Length == 0 ||
-        (Size != 1U && Size != 2U && Size != 4U && Size != 8U) ||
+    if (Length == 0 || (Size != 1U && Size != 2U && Size != 4U && Size != 8U) ||
         (Address & (Size - 1U)) != 0 || Address < Base) {
         return 0;
     }

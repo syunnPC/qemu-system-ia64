@@ -39,18 +39,15 @@ static void bcm5704_qpci_init(QGenericPCIBus *gbus, QTestState *qts)
 static void bcm57xx_assert_identity(QPCIDevice *dev, uint16_t device_id,
                                     uint8_t revision,
                                     uint16_t subsystem_vendor_id,
-                                    uint16_t subsystem_id,
-                                    bool multifunction)
+                                    uint16_t subsystem_id, bool multifunction)
 {
     uint8_t header_type;
 
     g_assert_nonnull(dev);
     g_assert_cmphex(qpci_config_readw(dev, PCI_VENDOR_ID), ==,
                     BCM57XX_PCI_VENDOR_ID);
-    g_assert_cmphex(qpci_config_readw(dev, PCI_DEVICE_ID), ==,
-                    device_id);
-    g_assert_cmphex(qpci_config_readb(dev, PCI_REVISION_ID), ==,
-                    revision);
+    g_assert_cmphex(qpci_config_readw(dev, PCI_DEVICE_ID), ==, device_id);
+    g_assert_cmphex(qpci_config_readb(dev, PCI_REVISION_ID), ==, revision);
     g_assert_cmphex(qpci_config_readw(dev, PCI_CLASS_DEVICE), ==,
                     PCI_CLASS_NETWORK_ETHERNET);
     g_assert_cmphex(qpci_config_readb(dev, PCI_INTERRUPT_PIN), ==, 1);
@@ -69,48 +66,49 @@ static void bcm57xx_assert_identity(QPCIDevice *dev, uint16_t device_id,
     }
 }
 
-static void bcm57xx_assert_config_surface(QPCIDevice *dev,
-                                          uint16_t chiprev_id,
+static void bcm57xx_assert_config_surface(QPCIDevice *dev, uint16_t chiprev_id,
                                           uint32_t pcix_status)
 {
-    g_assert_cmphex(qpci_config_readw(dev, PCI_STATUS) &
-                    PCI_STATUS_CAP_LIST, ==, PCI_STATUS_CAP_LIST);
+    g_assert_cmphex(qpci_config_readw(dev, PCI_STATUS) & PCI_STATUS_CAP_LIST,
+                    ==, PCI_STATUS_CAP_LIST);
     g_assert_cmphex(qpci_config_readb(dev, PCI_CAPABILITY_LIST), ==,
                     BCM57XX_TEST_PCIX_CAP);
-    g_assert_cmphex(qpci_config_readb(dev, BCM57XX_TEST_PCIX_CAP +
-                                     PCI_CAP_LIST_ID), ==, PCI_CAP_ID_PCIX);
-    g_assert_cmphex(qpci_config_readb(dev, BCM57XX_TEST_PCIX_CAP +
-                                     PCI_CAP_LIST_NEXT), ==, 0x48);
+    g_assert_cmphex(
+        qpci_config_readb(dev, BCM57XX_TEST_PCIX_CAP + PCI_CAP_LIST_ID), ==,
+        PCI_CAP_ID_PCIX);
+    g_assert_cmphex(
+        qpci_config_readb(dev, BCM57XX_TEST_PCIX_CAP + PCI_CAP_LIST_NEXT), ==,
+        0x48);
     g_assert_cmphex(qpci_config_readb(dev, 0x48), ==, PCI_CAP_ID_PM);
-    g_assert_cmphex(qpci_config_readw(dev, BCM57XX_TEST_PCIX_CAP +
-                                     PCI_X_CMD), ==, 0);
-    g_assert_cmphex(qpci_config_readl(dev, BCM57XX_TEST_PCIX_CAP +
-                                     PCI_X_STATUS), ==, pcix_status);
+    g_assert_cmphex(qpci_config_readw(dev, BCM57XX_TEST_PCIX_CAP + PCI_X_CMD),
+                    ==, 0);
+    g_assert_cmphex(
+        qpci_config_readl(dev, BCM57XX_TEST_PCIX_CAP + PCI_X_STATUS), ==,
+        pcix_status);
     g_assert_cmphex(qpci_config_readl(dev, BCM57XX_TEST_MISC_HOST_CTRL), ==,
                     (uint32_t)chiprev_id << 16);
 }
 
-static void bcm57xx_mutate_config_surface(QPCIDevice *dev,
-                                          uint16_t chiprev_id,
+static void bcm57xx_mutate_config_surface(QPCIDevice *dev, uint16_t chiprev_id,
                                           uint32_t pcix_status)
 {
     qpci_config_writew(dev, BCM57XX_TEST_PCIX_CAP + PCI_X_CMD, UINT16_MAX);
-    g_assert_cmphex(qpci_config_readw(dev, BCM57XX_TEST_PCIX_CAP +
-                                     PCI_X_CMD), ==,
-                    BCM57XX_TEST_PCIX_COMMAND_RW_MASK);
+    g_assert_cmphex(qpci_config_readw(dev, BCM57XX_TEST_PCIX_CAP + PCI_X_CMD),
+                    ==, BCM57XX_TEST_PCIX_COMMAND_RW_MASK);
 
     qpci_config_writel(dev, BCM57XX_TEST_PCIX_CAP + PCI_X_STATUS, 0);
-    g_assert_cmphex(qpci_config_readl(dev, BCM57XX_TEST_PCIX_CAP +
-                                     PCI_X_STATUS), ==, pcix_status);
-    qpci_config_writel(dev, BCM57XX_TEST_PCIX_CAP + PCI_X_STATUS,
-                       UINT32_MAX);
-    g_assert_cmphex(qpci_config_readl(dev, BCM57XX_TEST_PCIX_CAP +
-                                     PCI_X_STATUS), ==, pcix_status);
+    g_assert_cmphex(
+        qpci_config_readl(dev, BCM57XX_TEST_PCIX_CAP + PCI_X_STATUS), ==,
+        pcix_status);
+    qpci_config_writel(dev, BCM57XX_TEST_PCIX_CAP + PCI_X_STATUS, UINT32_MAX);
+    g_assert_cmphex(
+        qpci_config_readl(dev, BCM57XX_TEST_PCIX_CAP + PCI_X_STATUS), ==,
+        pcix_status);
 
     qpci_config_writel(dev, BCM57XX_TEST_MISC_HOST_CTRL, UINT32_MAX);
     g_assert_cmphex(qpci_config_readl(dev, BCM57XX_TEST_MISC_HOST_CTRL), ==,
                     ((uint32_t)chiprev_id << 16) |
-                    BCM57XX_TEST_MISC_HOST_CTRL_RW_MASK);
+                        BCM57XX_TEST_MISC_HOST_CTRL_RW_MASK);
 }
 
 static uint32_t bcm57xx_probe_rom_size(QPCIDevice *dev)
@@ -154,8 +152,7 @@ static void bcm57xx_assert_apertures(QTestState *qts, QPCIDevice *dev,
 
     g_assert_cmpuint(bcm57xx_probe_rom_size(dev), ==, BCM57XX_ROM_SIZE);
     saved_rom = qpci_config_readl(dev, PCI_ROM_ADDRESS);
-    qpci_config_writel(dev, PCI_ROM_ADDRESS,
-                       rom_base | PCI_ROM_ADDRESS_ENABLE);
+    qpci_config_writel(dev, PCI_ROM_ADDRESS, rom_base | PCI_ROM_ADDRESS_ENABLE);
     g_assert_cmphex(qtest_readl(qts, rom_base), ==, UINT32_MAX);
     qtest_writel(qts, rom_base, 0x12345678);
     g_assert_cmphex(qtest_readl(qts, rom_base), ==, UINT32_MAX);
@@ -178,12 +175,10 @@ static void test_bcm57xx_enumeration(void)
         "-device bcm5704,bus=pci,addr=8.1,mac=52:54:00:57:04:01");
     bcm5704_qpci_init(&gbus, qts);
 
-    bcm5701 = qpci_device_find(&gbus.bus,
-                               QPCI_DEVFN(BCM5701_TEST_SLOT, 0));
-    bcm57xx_assert_identity(bcm5701, BCM5701_PCI_DEVICE_ID,
-                            BCM5701_PCI_REVISION,
-                            BCM5701_PCI_SUBSYSTEM_VENDOR_ID,
-                            BCM5701_PCI_SUBSYSTEM_ID, false);
+    bcm5701 = qpci_device_find(&gbus.bus, QPCI_DEVFN(BCM5701_TEST_SLOT, 0));
+    bcm57xx_assert_identity(
+        bcm5701, BCM5701_PCI_DEVICE_ID, BCM5701_PCI_REVISION,
+        BCM5701_PCI_SUBSYSTEM_VENDOR_ID, BCM5701_PCI_SUBSYSTEM_ID, false);
     bcm57xx_assert_config_surface(bcm5701, 0x0105, 0);
 
     for (function = 0; function < G_N_ELEMENTS(functions); function++) {
@@ -196,7 +191,7 @@ static void test_bcm57xx_enumeration(void)
         bcm57xx_assert_config_surface(
             functions[function], 0x2100,
             BCM5704_TEST_PCIX_STATUS_CAPS |
-            QPCI_DEVFN(BCM5704_TEST_SLOT, function));
+                QPCI_DEVFN(BCM5704_TEST_SLOT, function));
     }
 
     bcm57xx_assert_apertures(qts, bcm5701, BCM57XX_TEST_ROM_BASE);
@@ -208,14 +203,13 @@ static void test_bcm57xx_enumeration(void)
         bcm57xx_mutate_config_surface(
             functions[function], 0x2100,
             BCM5704_TEST_PCIX_STATUS_CAPS |
-            QPCI_DEVFN(BCM5704_TEST_SLOT, function));
+                QPCI_DEVFN(BCM5704_TEST_SLOT, function));
     }
 
     qtest_system_reset(qts);
-    bcm57xx_assert_identity(bcm5701, BCM5701_PCI_DEVICE_ID,
-                            BCM5701_PCI_REVISION,
-                            BCM5701_PCI_SUBSYSTEM_VENDOR_ID,
-                            BCM5701_PCI_SUBSYSTEM_ID, false);
+    bcm57xx_assert_identity(
+        bcm5701, BCM5701_PCI_DEVICE_ID, BCM5701_PCI_REVISION,
+        BCM5701_PCI_SUBSYSTEM_VENDOR_ID, BCM5701_PCI_SUBSYSTEM_ID, false);
     bcm57xx_assert_config_surface(bcm5701, 0x0105, 0);
     g_free(bcm5701);
     for (function = 0; function < G_N_ELEMENTS(functions); function++) {
@@ -226,7 +220,7 @@ static void test_bcm57xx_enumeration(void)
         bcm57xx_assert_config_surface(
             functions[function], 0x2100,
             BCM5704_TEST_PCIX_STATUS_CAPS |
-            QPCI_DEVFN(BCM5704_TEST_SLOT, function));
+                QPCI_DEVFN(BCM5704_TEST_SLOT, function));
         g_free(functions[function]);
     }
     qtest_quit(qts);
@@ -249,7 +243,8 @@ static void test_bcm57xx_mmio_byteswap(gconstpointer opaque)
     const char *model = opaque;
     g_autofree char *cmd = g_strdup_printf(
         "-machine ia64-vpc,nvram=none -m 4G -nodefaults -bios none -S "
-        "-device %s,bus=pci,addr=7.0", model);
+        "-device %s,bus=pci,addr=7.0",
+        model);
     QTestState *qts = qtest_init(cmd);
     QGenericPCIBus gbus;
     QPCIDevice *dev;
@@ -266,8 +261,8 @@ static void test_bcm57xx_mmio_byteswap(gconstpointer opaque)
 
     /* Enable target byte swapping through PCI configuration space. */
     qpci_config_writel(dev, BCM57XX_TEST_MISC_HOST_CTRL, 0x2be);
-    g_assert_cmphex(qpci_config_readl(dev, BCM57XX_TEST_MISC_HOST_CTRL),
-                    ==, mhcr | 0x2be);
+    g_assert_cmphex(qpci_config_readl(dev, BCM57XX_TEST_MISC_HOST_CTRL), ==,
+                    mhcr | 0x2be);
     g_assert_cmphex(qpci_config_readl(dev, PCI_VENDOR_ID), ==, id);
     g_assert_cmphex(qpci_io_readl(dev, bar, PCI_VENDOR_ID), ==, bswap32(id));
     g_assert_cmphex(qpci_io_readw(dev, bar, 0), ==, bswap16(id >> 16));
@@ -288,8 +283,7 @@ static void test_bcm57xx_mmio_byteswap(gconstpointer opaque)
     qpci_io_writel(dev, bar, 0x8b50, bswap32(0x4b657654));
     g_assert_cmphex(bcm57xx_sram_read(dev, 0xb50), ==, 0x4b657654);
     qpci_io_writel(dev, bar, 0x6804, bswap32(1));
-    g_assert_cmphex(bswap32(qpci_io_readl(dev, bar, 0x8b50)), ==,
-                    ~0x4b657654U);
+    g_assert_cmphex(bswap32(qpci_io_readl(dev, bar, 0x8b50)), ==, ~0x4b657654U);
 
     /* Eight-byte accesses split into DWORDs with their original addresses. */
     qpci_io_writeq(dev, bar, 0x8d00, bswap64(UINT64_C(0x1122334455667788)));
@@ -325,18 +319,18 @@ static void test_bcm57xx_mmio_byteswap(gconstpointer opaque)
 
     /* Writes changing the mode use the byte order in effect before writing. */
     qpci_io_writel(dev, bar, BCM57XX_TEST_MISC_HOST_CTRL, bswap32(0x2ba));
-    g_assert_cmphex(qpci_config_readl(dev, BCM57XX_TEST_MISC_HOST_CTRL),
-                    ==, mhcr | 0x2ba);
+    g_assert_cmphex(qpci_config_readl(dev, BCM57XX_TEST_MISC_HOST_CTRL), ==,
+                    mhcr | 0x2ba);
     g_assert_cmphex(qpci_io_readl(dev, bar, PCI_VENDOR_ID), ==, id);
     qpci_io_writel(dev, bar, BCM57XX_TEST_MISC_HOST_CTRL, 0x2be);
     g_assert_cmphex(qpci_io_readl(dev, bar, PCI_VENDOR_ID), ==, bswap32(id));
     qpci_io_writeb(dev, bar, BCM57XX_TEST_MISC_HOST_CTRL + 3, 0xba);
-    g_assert_cmphex(qpci_config_readl(dev, BCM57XX_TEST_MISC_HOST_CTRL),
-                    ==, mhcr | 0x2ba);
+    g_assert_cmphex(qpci_config_readl(dev, BCM57XX_TEST_MISC_HOST_CTRL), ==,
+                    mhcr | 0x2ba);
 
     qtest_system_reset(qts);
-    g_assert_cmphex(qpci_config_readl(dev, BCM57XX_TEST_MISC_HOST_CTRL),
-                    ==, mhcr);
+    g_assert_cmphex(qpci_config_readl(dev, BCM57XX_TEST_MISC_HOST_CTRL), ==,
+                    mhcr);
     g_free(dev);
     qtest_quit(qts);
 }
@@ -346,7 +340,8 @@ static void test_bcm57xx_partial_w1c(gconstpointer opaque)
     const char *model = opaque;
     QTestState *qts = qtest_initf(
         "-machine ia64-vpc,nvram=none -m 256M -nodefaults -bios none -S "
-        "-device %s,bus=pci,addr=7.0", model);
+        "-device %s,bus=pci,addr=7.0",
+        model);
     QGenericPCIBus gbus;
     QPCIDevice *dev;
     QPCIBar bar;
@@ -478,7 +473,8 @@ static void test_bcm57xx_datapath(gconstpointer opaque)
     const char *model = GPOINTER_TO_INT(opaque) & 2 ? "bcm5704" : "bcm5701";
     g_autofree char *cmd = g_strdup_printf(
         "-machine ia64-vpc,nvram=none -m 4G -nodefaults -bios none -S "
-        "-device %s,bus=pci,addr=7.0,mac=52:54:00:57:01:00", model);
+        "-device %s,bus=pci,addr=7.0,mac=52:54:00:57:01:00",
+        model);
     QTestState *qts = qtest_init(cmd);
     QGenericPCIBus gbus;
     QPCIDevice *dev;
@@ -496,7 +492,7 @@ static void test_bcm57xx_datapath(gconstpointer opaque)
     qpci_device_enable(dev);
     qpci_config_writew(dev, PCI_COMMAND,
                        qpci_config_readw(dev, PCI_COMMAND) |
-                       PCI_COMMAND_MASTER);
+                           PCI_COMMAND_MASTER);
 
     /* PHY identity, link state, and the reset mailbox handshake. */
     g_assert_cmphex(bcm57xx_mii_read(dev, bar, 2), ==, 0x20);
@@ -509,8 +505,8 @@ static void test_bcm57xx_datapath(gconstpointer opaque)
     g_assert_cmphex(bcm57xx_sram_read(dev, 0xc14), ==, 0x484b5254);
     g_assert_cmphex(bcm57xx_sram_read(dev, 0xc18), ==, 0x00570100);
     qpci_io_writel(dev, bar, 0x6838, 0x8200007c);
-    g_assert_cmphex(qpci_io_readl(dev, bar, 0x6838) & 0x42000000,
-                    ==, 0x40000000);
+    g_assert_cmphex(qpci_io_readl(dev, bar, 0x6838) & 0x42000000, ==,
+                    0x40000000);
     g_assert_cmphex(qpci_io_readl(dev, bar, 0x683c), ==, 0x54520000);
     qpci_io_writel(dev, bar, 0x7020, 2);
     g_assert_cmphex(qpci_io_readl(dev, bar, 0x7020) & 0x2200, ==, 0x2200);
@@ -524,8 +520,8 @@ static void test_bcm57xx_datapath(gconstpointer opaque)
     g_assert_cmphex(qpci_config_readw(dev, 0x4c) & 3, ==, 3);
     qpci_config_writew(dev, 0x4c, 0);
 
-    qpci_io_writel(dev, bar, 0x6800, 0x20030 | (word_xor ? 0 : 4) |
-                   (big_endian ? 2 : 0));
+    qpci_io_writel(dev, bar, 0x6800,
+                   0x20030 | (word_xor ? 0 : 4) | (big_endian ? 2 : 0));
     /* Host send ring and host receive return ring, four entries each. */
     bcm57xx_sram_write(dev, 0x100, 0);
     bcm57xx_sram_write(dev, 0x104, txring);
@@ -563,22 +559,23 @@ static void test_bcm57xx_datapath(gconstpointer opaque)
     bcm57xx_desc_address(qts, txring, txbuf, big_endian, !word_xor);
     bcm57xx_desc_word(qts, (txring + 8) ^ word_xor, 20 << 16, big_endian);
     bcm57xx_desc_address(qts, txring + 16, txbuf + 20, big_endian, !word_xor);
-    bcm57xx_desc_word(qts, (txring + 24) ^ word_xor,
-                      (40 << 16) | 4, big_endian);
+    bcm57xx_desc_word(qts, (txring + 24) ^ word_xor, (40 << 16) | 4,
+                      big_endian);
     qpci_io_writel(dev, bar, 0x304, 1);
     g_assert_cmphex(qpci_io_readl(dev, bar, 0x3c80), ==, 0);
     qpci_io_writel(dev, bar, 0x304, 2);
     g_assert_cmphex(qpci_io_readl(dev, bar, 0x3c80), ==, 1);
-    g_assert_cmphex(bcm57xx_read_desc(qts, (status + 16) ^ word_xor,
-                                    big_endian), ==, 0x20001);
+    g_assert_cmphex(
+        bcm57xx_read_desc(qts, (status + 16) ^ word_xor, big_endian), ==,
+        0x20001);
     g_assert_cmphex(bcm57xx_read_desc(qts, (retr + 8) ^ word_xor, big_endian),
                     ==, 64);
     g_assert_cmphex(bcm57xx_read_desc(qts, (retr + 28) ^ word_xor, big_endian),
                     ==, 0xdeadbeef);
     qtest_memread(qts, rxring, desc_addr, sizeof(desc_addr));
     qtest_memread(qts, retr, returned_addr, sizeof(returned_addr));
-    g_assert_cmpmem(returned_addr, sizeof(returned_addr),
-                    desc_addr, sizeof(desc_addr));
+    g_assert_cmpmem(returned_addr, sizeof(returned_addr), desc_addr,
+                    sizeof(desc_addr));
     qtest_memread(qts, rxbuf, received, sizeof(received));
     g_assert_cmpmem(received, sizeof(packet), packet, sizeof(packet));
     g_assert_cmphex(qtest_readb(qts, rxbuf + 64), ==, 0xa5);
@@ -605,12 +602,12 @@ static void test_bcm57xx_datapath(gconstpointer opaque)
     qpci_io_writel(dev, bar, 0x204, ctrl << 24);
     g_assert_cmphex(qpci_config_readl(dev, 0x70) & 2, ==, 2);
     /* Host statistics carry packet and octet counts in high/low pairs. */
-    g_assert_cmphex(bcm57xx_read_desc(qts, 0x180104 ^ word_xor, big_endian),
-                    ==, 60);
-    g_assert_cmphex(bcm57xx_read_desc(qts, 0x180304 ^ word_xor, big_endian),
-                    ==, 60);
-    g_assert_cmphex(bcm57xx_read_desc(qts, 0x1803dc ^ word_xor, big_endian),
-                    ==, 1);
+    g_assert_cmphex(bcm57xx_read_desc(qts, 0x180104 ^ word_xor, big_endian), ==,
+                    60);
+    g_assert_cmphex(bcm57xx_read_desc(qts, 0x180304 ^ word_xor, big_endian), ==,
+                    60);
+    g_assert_cmphex(bcm57xx_read_desc(qts, 0x1803dc ^ word_xor, big_endian), ==,
+                    1);
 
     /* A descriptor exceeding the frame buffer must not DMA beyond it. */
     bcm57xx_desc_address(qts, txring + 32, txbuf, big_endian, !word_xor);
@@ -630,7 +627,8 @@ static void test_bcm57xx_dma_queues(gconstpointer opaque)
     const char *model = GPOINTER_TO_INT(opaque) & 2 ? "bcm5704" : "bcm5701";
     QTestState *qts = qtest_initf(
         "-machine ia64-vpc,nvram=none -m 4G -nodefaults -bios none -S "
-        "-device %s,bus=pci,addr=7.0", model);
+        "-device %s,bus=pci,addr=7.0",
+        model);
     QGenericPCIBus gbus;
     QPCIDevice *dev;
     QPCIBar bar;
@@ -642,12 +640,12 @@ static void test_bcm57xx_dma_queues(gconstpointer opaque)
     qpci_device_enable(dev);
     qpci_config_writew(dev, PCI_COMMAND,
                        qpci_config_readw(dev, PCI_COMMAND) |
-                       PCI_COMMAND_MASTER);
-    qpci_io_writel(dev, bar, 0x6800, 0x30 | (word_xor ? 0 : 4) |
-                   (big_endian ? 2 : 0));
+                           PCI_COMMAND_MASTER);
+    qpci_io_writel(dev, bar, 0x6800,
+                   0x30 | (word_xor ? 0 : 4) | (big_endian ? 2 : 0));
     for (i = 0; i < 256; i += 4) {
-        bcm57xx_desc_word(qts, 0x100000 + (i ^ word_xor),
-                          i ^ 0x12345678, big_endian);
+        bcm57xx_desc_word(qts, 0x100000 + (i ^ word_xor), i ^ 0x12345678,
+                          big_endian);
     }
     bcm57xx_sram_write(dev, 0x2000, 0);
     bcm57xx_sram_write(dev, 0x2004, 0x100000);
@@ -664,8 +662,9 @@ static void test_bcm57xx_dma_queues(gconstpointer opaque)
     qpci_io_writel(dev, bar, 0x5c78, 0x2000);
     g_assert_cmphex(qpci_io_readl(dev, bar, 0x5d08), ==, 0x2000);
     for (i = 0; i < 256; i += 4) {
-        g_assert_cmphex(bcm57xx_read_desc(qts, 0x110000 + (i ^ word_xor),
-                                        big_endian), ==, ~(i ^ 0x12345678));
+        g_assert_cmphex(
+            bcm57xx_read_desc(qts, 0x110000 + (i ^ word_xor), big_endian), ==,
+            ~(i ^ 0x12345678));
     }
     g_free(dev);
     qtest_quit(qts);
@@ -703,7 +702,7 @@ static void test_bcm57xx_tso(void)
     qpci_device_enable(dev);
     qpci_config_writew(dev, PCI_COMMAND,
                        qpci_config_readw(dev, PCI_COMMAND) |
-                       PCI_COMMAND_MASTER);
+                           PCI_COMMAND_MASTER);
     qpci_io_writel(dev, bar, 0x6800, 0x20034);
     for (i = 0; i < 2; i++) {
         bcm57xx_sram_write(dev, 0x100 + i * 16, 0);
@@ -772,11 +771,11 @@ static void test_bcm57xx_tso(void)
         uint32_t sum;
 
         qtest_memread(qts, 0x151000 + i * 0x1000, frame, n + 54);
-        g_assert_cmphex(qtest_readl(qts, 0x120028 + i * 32) & 0xffff,
-                        ==, n + 58);
+        g_assert_cmphex(qtest_readl(qts, 0x120028 + i * 32) & 0xffff, ==,
+                        n + 58);
         g_assert_cmphex(qtest_readl(qts, 0x12003c + i * 32), ==, 0xaa01 + i);
-        g_assert_cmphex(qtest_readl(qts, 0x12002c + i * 32) & 0x7000,
-                        ==, 0x7000);
+        g_assert_cmphex(qtest_readl(qts, 0x12002c + i * 32) & 0x7000, ==,
+                        0x7000);
         g_assert_cmphex(qtest_readl(qts, 0x120030 + i * 32), ==, UINT32_MAX);
         g_assert_cmphex(lduw_be_p(frame + 16), ==, n + 40);
         g_assert_cmphex(lduw_be_p(frame + 18), ==, 0x1000 + i);
@@ -817,9 +816,9 @@ static void test_bcm57xx_rx_coalescing(gconstpointer opaque)
     const uint64_t retr = 0x120000, status = 0x130000;
     const uint64_t txbuf = 0x140000, rxbuf = 0x150000;
     static const uint8_t udp[] = {
-        0x45, 0, 0, 0x20, 0, 0, 0x40, 0, 0x40, 0x11, 0x4e, 0x96,
-        0xc0, 0, 2, 1, 0xc6, 0x33, 0x64, 2,
-        0x04, 0xd2, 0x16, 0x2e, 0, 0x0c, 0x5b, 1, 0xde, 0xad, 0xbe, 0xef,
+        0x45, 0,    0, 0x20, 0,    0,    0x40, 0,    0x40, 0x11, 0x4e,
+        0x96, 0xc0, 0, 2,    1,    0xc6, 0x33, 0x64, 2,    0x04, 0xd2,
+        0x16, 0x2e, 0, 0x0c, 0x5b, 1,    0xde, 0xad, 0xbe, 0xef,
     };
 
     qtest_qmp_assert_success(qts, "{'execute':'cont'}");
@@ -829,7 +828,7 @@ static void test_bcm57xx_rx_coalescing(gconstpointer opaque)
     qpci_device_enable(dev);
     qpci_config_writew(dev, PCI_COMMAND,
                        qpci_config_readw(dev, PCI_COMMAND) |
-                       PCI_COMMAND_MASTER);
+                           PCI_COMMAND_MASTER);
     qpci_io_writel(dev, bar, 0x6800, 0x20034 | (be ? 2 : 0));
     bcm57xx_sram_write(dev, 0x104, txring);
     bcm57xx_sram_write(dev, 0x108, 8 << 16);
@@ -883,18 +882,18 @@ static void test_bcm57xx_rx_coalescing(gconstpointer opaque)
         bcm57xx_desc_word(qts, txring + i * 16 + 8, (length << 16) | 4, be);
         qpci_io_writel(dev, bar, 0x304, i + 1);
         g_assert_cmphex(qpci_io_readl(dev, bar, 0x3c80), ==, i + 1);
-        g_assert_cmphex(bcm57xx_read_desc(qts, retr + i * 32 + 12, be),
-                        ==, flags);
-        g_assert_cmphex(bcm57xx_read_desc(qts, retr + i * 32 + 16, be),
-                        ==, checksum);
+        g_assert_cmphex(bcm57xx_read_desc(qts, retr + i * 32 + 12, be), ==,
+                        flags);
+        g_assert_cmphex(bcm57xx_read_desc(qts, retr + i * 32 + 16, be), ==,
+                        checksum);
         if (i == 0 || i == 4) {
             g_assert_cmphex(qpci_config_readl(dev, 0x70) & 2, ==, 2);
             qtest_clock_step(qts, 99000);
             g_assert_cmphex(qpci_config_readl(dev, 0x70) & 2, ==, 2);
             qtest_clock_step(qts, 1000);
             g_assert_cmphex(qpci_config_readl(dev, 0x70) & 2, ==, 0);
-            g_assert_cmphex(bcm57xx_read_desc(qts, status + 16, be),
-                            ==, ((i + 1) << 16) | (i + 1));
+            g_assert_cmphex(bcm57xx_read_desc(qts, status + 16, be), ==,
+                            ((i + 1) << 16) | (i + 1));
             qpci_io_writel(dev, bar, 0x204, 0);
         } else if (i == 1) {
             g_assert_cmphex(qpci_config_readl(dev, 0x70) & 2, ==, 2);
@@ -918,13 +917,13 @@ int main(int argc, char **argv)
     g_test_init(&argc, &argv, NULL);
     qtest_add_func("/bcm57xx/enumeration", test_bcm57xx_enumeration);
     qtest_add_data_func("/bcm57xx/5701-mmio-byteswap", "bcm5701",
-                       test_bcm57xx_mmio_byteswap);
+                        test_bcm57xx_mmio_byteswap);
     qtest_add_data_func("/bcm57xx/5704-mmio-byteswap", "bcm5704",
-                       test_bcm57xx_mmio_byteswap);
+                        test_bcm57xx_mmio_byteswap);
     qtest_add_data_func("/bcm57xx/5701-partial-w1c", "bcm5701",
-                       test_bcm57xx_partial_w1c);
+                        test_bcm57xx_partial_w1c);
     qtest_add_data_func("/bcm57xx/5704-partial-w1c", "bcm5704",
-                       test_bcm57xx_partial_w1c);
+                        test_bcm57xx_partial_w1c);
     for (unsigned i = 0; i < 8; i++) {
         g_autofree char *name = g_strdup_printf(
             "/bcm57xx/%s-diagnostic-dma-%s%s", i & 2 ? "5704" : "5701",
@@ -950,9 +949,9 @@ int main(int argc, char **argv)
     qtest_add_data_func("/bcm57xx/5704-datapath-be-no-word-swap",
                         GINT_TO_POINTER(7), test_bcm57xx_datapath);
     for (unsigned i = 0; i < 4; i++) {
-        g_autofree char *name = g_strdup_printf(
-            "/bcm57xx/%s-rx-coalescing-%s", i & 2 ? "5704" : "5701",
-            i & 1 ? "be" : "le");
+        g_autofree char *name =
+            g_strdup_printf("/bcm57xx/%s-rx-coalescing-%s",
+                            i & 2 ? "5704" : "5701", i & 1 ? "be" : "le");
         qtest_add_data_func(name, GUINT_TO_POINTER(i),
                             test_bcm57xx_rx_coalescing);
     }

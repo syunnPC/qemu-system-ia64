@@ -16,7 +16,6 @@ __pycache__/
 .sdk
 .stgit-*
 .git-submodule-status
-.clang-format
 .gdb_history
 cscope.*
 tags

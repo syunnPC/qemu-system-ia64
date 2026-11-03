@@ -3614,6 +3614,7 @@ qemu_version_cmd = [find_program('scripts/qemu-version.sh'),
 qemu_version = custom_target('qemu-version.h',
                              output: 'qemu-version.h',
                              command: qemu_version_cmd,
+                             depend_files: files('scripts/git-source-commit.sh'),
                              capture: true,
                              build_by_default: true,
                              build_always_stale: true)

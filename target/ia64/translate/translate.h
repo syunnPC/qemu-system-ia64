@@ -200,12 +200,11 @@ void ia64_gen_qemu_ld_i128(DisasContext *ctx, TCGv_i128 value, TCGv_i64 addr,
                            int mmu_idx, MemOp memop);
 void ia64_gen_qemu_st_i128(DisasContext *ctx, TCGv_i128 value, TCGv_i64 addr,
                            int mmu_idx, MemOp memop);
-void ia64_gen_atomic_xchg_i64(DisasContext *ctx, TCGv_i64 result,
-                              TCGv_i64 addr, TCGv_i64 value, int mmu_idx,
-                              MemOp memop);
+void ia64_gen_atomic_xchg_i64(DisasContext *ctx, TCGv_i64 result, TCGv_i64 addr,
+                              TCGv_i64 value, int mmu_idx, MemOp memop);
 void ia64_gen_atomic_cmpxchg_i64(DisasContext *ctx, TCGv_i64 result,
-                                 TCGv_i64 addr, TCGv_i64 cmp,
-                                 TCGv_i64 value, int mmu_idx, MemOp memop);
+                                 TCGv_i64 addr, TCGv_i64 cmp, TCGv_i64 value,
+                                 int mmu_idx, MemOp memop);
 void ia64_gen_atomic_fetch_add_i64(DisasContext *ctx, TCGv_i64 result,
                                    TCGv_i64 addr, TCGv_i64 value, int mmu_idx,
                                    MemOp memop);
@@ -213,54 +212,51 @@ void ia64_gen_fr_load(DisasContext *ctx, uint8_t reg, TCGv_i64 addr,
                       int mmu_idx, MemOp memop,
                       IA64FPRegisterLoadFormat format);
 void ia64_gen_fr_set_nat(DisasContext *ctx, uint8_t reg);
-void ia64_gen_predicate_test_write(const Ia64Instruction *insn,
-                                   TCGv_i64 cond, TCGv_i64 not_cond);
+void ia64_gen_predicate_test_write(const Ia64Instruction *insn, TCGv_i64 cond,
+                                   TCGv_i64 not_cond);
 void ia64_gen_gr_write_nat_clear(const Ia64Instruction *insn, uint8_t reg,
                                  TCGv_i64 value);
 void ia64_gen_check_nat_register(const Ia64Instruction *insn, uint8_t reg);
-void ia64_gen_check_nat_consumption(const Ia64Instruction *insn,
-                                    uint8_t reg, uint64_t isr_access,
+void ia64_gen_check_nat_consumption(const Ia64Instruction *insn, uint8_t reg,
+                                    uint64_t isr_access,
                                     Ia64NatConsumptionKind kind);
-void ia64_gen_gr_nat_from_1_or_unimplemented_va(
-    const Ia64Instruction *insn, uint8_t dst, uint8_t src,
-    uint8_t impl_va_msb);
+void ia64_gen_gr_nat_from_1_or_unimplemented_va(const Ia64Instruction *insn,
+                                                uint8_t dst, uint8_t src,
+                                                uint8_t impl_va_msb);
 MemOp ia64_data_memop(DisasContext *ctx, MemOp memop);
-void ia64_gen_check_data_debug(DisasContext *ctx,
-                               const Ia64Instruction *insn, TCGv_i64 addr,
-                               uint32_t size, uint64_t isr_access);
+void ia64_gen_check_data_debug(DisasContext *ctx, const Ia64Instruction *insn,
+                               TCGv_i64 addr, uint32_t size,
+                               uint64_t isr_access);
 void ia64_gen_check_alignment_access(DisasContext *ctx,
-                                     const Ia64Instruction *insn,
-                                     TCGv_i64 addr, uint32_t size,
-                                     bool always_fault,
+                                     const Ia64Instruction *insn, TCGv_i64 addr,
+                                     uint32_t size, bool always_fault,
                                      uint64_t isr_access);
 void ia64_gen_check_alignment_model(DisasContext *ctx,
-                                    const Ia64Instruction *insn,
-                                    TCGv_i64 addr, uint32_t debug_size,
-                                    uint32_t datum_size,
+                                    const Ia64Instruction *insn, TCGv_i64 addr,
+                                    uint32_t debug_size, uint32_t datum_size,
                                     uint32_t natural_alignment,
                                     IA64AlignmentClass alignment_class,
                                     uint64_t isr_access);
-void ia64_gen_check_alignment_only(const Ia64Instruction *insn,
-                                   TCGv_i64 addr, uint32_t datum_size,
+void ia64_gen_check_alignment_only(const Ia64Instruction *insn, TCGv_i64 addr,
+                                   uint32_t datum_size,
                                    uint32_t natural_alignment,
                                    IA64AlignmentClass alignment_class,
                                    uint64_t isr_access);
-void ia64_gen_check_alignment(DisasContext *ctx,
-                              const Ia64Instruction *insn, TCGv_i64 addr,
-                              uint32_t size, bool always_fault, bool is_write);
-void ia64_gen_check_fr_nat_consumption(const Ia64Instruction *insn,
-                                       uint8_t reg, uint64_t isr_access);
+void ia64_gen_check_alignment(DisasContext *ctx, const Ia64Instruction *insn,
+                              TCGv_i64 addr, uint32_t size, bool always_fault,
+                              bool is_write);
+void ia64_gen_check_fr_nat_consumption(const Ia64Instruction *insn, uint8_t reg,
+                                       uint64_t isr_access);
 void ia64_gen_memory_acquire(const Ia64Instruction *insn);
 void ia64_gen_memory_release(const Ia64Instruction *insn);
 bool ia64_ar_is_simple(uint32_t ar);
 void ia64_gen_read_simple_ar(TCGv_i64 value, uint32_t ar);
 void ia64_gen_write_simple_ar(uint32_t ar, TCGv_i64 value);
-void ia64_gen_validate_ar_access(const Ia64Instruction *insn,
-                                 TCGv_i64 value, bool write);
+void ia64_gen_validate_ar_access(const Ia64Instruction *insn, TCGv_i64 value,
+                                 bool write);
 bool ia64_ar_access_reads_clock(uint32_t ar_num);
 bool ia64_clock_access_needs_io(const DisasContext *ctx);
-void ia64_gen_validate_cr_access(TCGv_i64 result,
-                                 const Ia64Instruction *insn,
+void ia64_gen_validate_cr_access(TCGv_i64 result, const Ia64Instruction *insn,
                                  TCGv_i64 value, bool write);
 bool ia64_cr_is_read_only(uint32_t cr_num);
 bool ia64_cr_write_reads_clock(uint32_t cr_num);
@@ -270,10 +266,10 @@ void ia64_gen_check_native_traps(TCGv_i64 target_ip, uint8_t target_slot,
                                  uint64_t source_ip, uint8_t source_slot,
                                  TCGv_i32 conditions, uint64_t base_isr,
                                  TCGv_i64 trap_psr);
-void ia64_gen_check_register_index(const Ia64Instruction *insn,
-                                   TCGv_i64 index, uint32_t count);
-void ia64_gen_check_reserved_bits(const Ia64Instruction *insn,
-                                  TCGv_i64 value, uint64_t allowed);
+void ia64_gen_check_register_index(const Ia64Instruction *insn, TCGv_i64 index,
+                                   uint32_t count);
+void ia64_gen_check_reserved_bits(const Ia64Instruction *insn, TCGv_i64 value,
+                                  uint64_t allowed);
 void ia64_gen_write_user_mask(TCGv_i64 value);
 void ia64_gen_exit_to_completed(DisasContext *ctx, uint64_t ip,
                                 uint64_t completed_ip, bool record_iipa,
@@ -297,73 +293,59 @@ void ia64_gen_set_ri_tracked(DisasContext *ctx, uint8_t slot);
 void ia64_gen_clear_ri(void);
 void ia64_gen_save_fault_slot_for_exit(DisasContext *ctx);
 void ia64_gen_store_instruction_group_start(bool group_start);
-void ia64_gen_goto_tb_group(DisasContext *ctx, uint64_t dest,
-                            bool group_start);
-void ia64_update_nat_known(DisasContext *ctx,
-                           const Ia64Instruction *insn);
+void ia64_gen_goto_tb_group(DisasContext *ctx, uint64_t dest, bool group_start);
+void ia64_update_nat_known(DisasContext *ctx, const Ia64Instruction *insn);
 bool ia64_gen_insn(DisasContext *ctx, const Ia64Instruction *insn,
                    bool record_iipa);
 void ia64_gen_check_privileged(const Ia64Instruction *insn);
 void ia64_gen_check_virtualization(const Ia64Instruction *insn);
 void ia64_gen_check_cover_virtualization(const Ia64Instruction *insn);
-void ia64_gen_check_branch(DisasContext *ctx, TCGv_i64 failed,
-                           uint64_t target, uint64_t completed_ip,
-                           bool record_iipa,
+void ia64_gen_check_branch(DisasContext *ctx, TCGv_i64 failed, uint64_t target,
+                           uint64_t completed_ip, bool record_iipa,
                            bool track_psr_suppression);
 bool ia64_is_pal_proc_break(CPUIA64State *env, uint64_t address);
-bool ia64_is_firmware_debug_break(CPUIA64State *env,
-                                   uint64_t address, uint64_t imm);
+bool ia64_is_firmware_debug_break(CPUIA64State *env, uint64_t address,
+                                  uint64_t imm);
 
 bool ia64_gen_completed_direct_branch(DisasContext *ctx, TCGLabel *skip,
-                                      uint64_t target,
-                                      uint64_t completed_ip,
+                                      uint64_t target, uint64_t completed_ip,
                                       bool record_iipa,
                                       bool track_psr_suppression);
 void ia64_gen_lookup_tcg_completed(DisasContext *ctx, TCGv_i64 ip,
                                    uint64_t completed_ip, bool record_iipa,
                                    bool track_psr_suppression);
 void ia64_gen_lookup_or_exit(DisasContext *ctx);
-bool ia64_gen_fill_st1_cloop(DisasContext *ctx,
-                             const Ia64Instruction *insn,
+bool ia64_gen_fill_st1_cloop(DisasContext *ctx, const Ia64Instruction *insn,
                              uint64_t target, TCGLabel *l_nobr,
-                             bool record_iipa,
-                             bool track_psr_suppression);
+                             bool record_iipa, bool track_psr_suppression);
 bool ia64_gen_self_counted_loop(DisasContext *ctx, uint64_t target,
                                 uint64_t completed_ip, bool record_iipa,
                                 bool track_psr_suppression);
 void ia64_gen_goto_completed(DisasContext *ctx, uint64_t ip,
                              uint64_t completed_ip, bool record_iipa,
                              bool track_psr_suppression);
-void ia64_gen_lookup_current_completed(DisasContext *ctx,
-                                       uint64_t completed_ip,
+void ia64_gen_lookup_current_completed(DisasContext *ctx, uint64_t completed_ip,
                                        bool record_iipa,
                                        bool track_psr_suppression,
                                        TCGv_i32 trap_conditions,
                                        bool skip_native_traps);
-IA64GenResult ia64_gen_complete_branch(
-    DisasContext *ctx, TCGLabel *skip,
-    const IA64BranchCompletion *completion);
+IA64GenResult ia64_gen_complete_branch(DisasContext *ctx, TCGLabel *skip,
+                                       const IA64BranchCompletion *completion);
 
-IA64GenResult ia64_gen_branch(DisasContext *ctx,
-                              const Ia64Instruction *insn,
+IA64GenResult ia64_gen_branch(DisasContext *ctx, const Ia64Instruction *insn,
                               TCGLabel *skip, bool record_iipa,
                               bool track_psr_suppression);
-IA64GenResult ia64_gen_integer(DisasContext *ctx,
-                               const Ia64Instruction *insn);
-IA64GenResult ia64_gen_system(DisasContext *ctx,
-                              const Ia64Instruction *insn,
+IA64GenResult ia64_gen_integer(DisasContext *ctx, const Ia64Instruction *insn);
+IA64GenResult ia64_gen_system(DisasContext *ctx, const Ia64Instruction *insn,
                               TCGLabel *skip, bool record_iipa,
                               bool track_psr_suppression);
-IA64GenResult ia64_gen_memory(DisasContext *ctx,
-                              const Ia64Instruction *insn,
+IA64GenResult ia64_gen_memory(DisasContext *ctx, const Ia64Instruction *insn,
                               TCGLabel *skip, bool record_iipa,
                               bool track_psr_suppression);
-IA64GenResult ia64_gen_fp(DisasContext *ctx,
-                          const Ia64Instruction *insn);
-IA64GenResult ia64_gen_simd(DisasContext *ctx,
-                            const Ia64Instruction *insn);
-void ia64_translate_code(CPUState *cs, TranslationBlock *tb,
-                         int *max_insns, vaddr pc, void *host_pc);
+IA64GenResult ia64_gen_fp(DisasContext *ctx, const Ia64Instruction *insn);
+IA64GenResult ia64_gen_simd(DisasContext *ctx, const Ia64Instruction *insn);
+void ia64_translate_code(CPUState *cs, TranslationBlock *tb, int *max_insns,
+                         vaddr pc, void *host_pc);
 void ia64_translate_init(void);
 
 #endif /* TARGET_IA64_TRANSLATE_TRANSLATE_H */

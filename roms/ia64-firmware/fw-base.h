@@ -11,42 +11,42 @@
 #ifndef IA64_FIRMWARE_FW_BASE_H
 #define IA64_FIRMWARE_FW_BASE_H
 
-typedef __UINT8_TYPE__   uint8_t;
-typedef __INT8_TYPE__    int8_t;
-typedef __UINT16_TYPE__  uint16_t;
-typedef __INT16_TYPE__   int16_t;
-typedef __UINT32_TYPE__  uint32_t;
-typedef __INT32_TYPE__   int32_t;
-typedef __UINT64_TYPE__  uint64_t;
-typedef __INT64_TYPE__   int64_t;
-typedef __SIZE_TYPE__    size_t;
+typedef __UINT8_TYPE__ uint8_t;
+typedef __INT8_TYPE__ int8_t;
+typedef __UINT16_TYPE__ uint16_t;
+typedef __INT16_TYPE__ int16_t;
+typedef __UINT32_TYPE__ uint32_t;
+typedef __INT32_TYPE__ int32_t;
+typedef __UINT64_TYPE__ uint64_t;
+typedef __INT64_TYPE__ int64_t;
+typedef __SIZE_TYPE__ size_t;
 
 #define NULL ((void *)0)
 #define FW_ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 
-typedef uint8_t     BOOLEAN;
-typedef int8_t      INT8;
-typedef uint8_t     UINT8;
-typedef char        CHAR8;
-typedef int16_t     INT16;
-typedef uint16_t    UINT16;
-typedef int32_t     INT32;
-typedef uint32_t    UINT32;
-typedef int64_t     INT64;
-typedef uint64_t    UINT64;
-typedef int64_t     INTN;
-typedef uint64_t    UINTN;
-typedef INTN        EFI_EXCEPTION_TYPE;
-typedef uint16_t    CHAR16;
-typedef void        VOID;
+typedef uint8_t BOOLEAN;
+typedef int8_t INT8;
+typedef uint8_t UINT8;
+typedef char CHAR8;
+typedef int16_t INT16;
+typedef uint16_t UINT16;
+typedef int32_t INT32;
+typedef uint32_t UINT32;
+typedef int64_t INT64;
+typedef uint64_t UINT64;
+typedef int64_t INTN;
+typedef uint64_t UINTN;
+typedef INTN EFI_EXCEPTION_TYPE;
+typedef uint16_t CHAR16;
+typedef void VOID;
 
-typedef uint64_t    EFI_PHYSICAL_ADDRESS;
-typedef uint64_t    EFI_VIRTUAL_ADDRESS;
-typedef void       *EFI_HANDLE;
-typedef UINTN       EFI_STATUS;
-typedef VOID       *EFI_EVENT;
+typedef uint64_t EFI_PHYSICAL_ADDRESS;
+typedef uint64_t EFI_VIRTUAL_ADDRESS;
+typedef void *EFI_HANDLE;
+typedef UINTN EFI_STATUS;
+typedef VOID *EFI_EVENT;
 typedef VOID (*EFI_EVENT_NOTIFY)(EFI_EVENT event, VOID *context);
-typedef UINTN       EFI_TPL;
+typedef UINTN EFI_TPL;
 
 typedef enum {
     AllocateAnyPages,

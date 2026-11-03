@@ -31,8 +31,7 @@ static bool test_direct_route(const HPSBARoutingVariant *variant,
 }
 
 static bool test_invalid_direct_route(const HPSBARoutingVariant *variant,
-                                      uint64_t route,
-                                      unsigned int *root_index)
+                                      uint64_t route, unsigned int *root_index)
 {
     (void)route;
     *root_index = variant->root_count;
@@ -119,10 +118,8 @@ static void test_variant_rejects_bad_topology(void)
 static void test_variant_allows_bundled_root(void)
 {
     static const HPSBARopeMap bundled[] = {
-        { .rope = 0, .root = 0 },
-        { .rope = 1, .root = 1 },
-        { .rope = 4, .root = 2 },
-        { .rope = 5, .root = 2 },
+        { .rope = 0, .root = 0 }, { .rope = 1, .root = 1 },
+        { .rope = 4, .root = 2 }, { .rope = 5, .root = 2 },
         { .rope = 6, .root = 3 },
     };
     HPSBARoutingVariant variant = test_variant;
@@ -144,15 +141,13 @@ static void test_rope_lookup(void)
     g_assert_true(hp_sba_routing_root_for_rope(&test_variant, 4, &value));
     g_assert_cmpuint(value, ==, 2);
 
-    g_assert_true(hp_sba_routing_rope_for_root(&test_variant, 3, 0,
-                                               &value));
+    g_assert_true(hp_sba_routing_rope_for_root(&test_variant, 3, 0, &value));
     g_assert_cmpuint(value, ==, 6);
 
     value = 0xa5;
     g_assert_false(hp_sba_routing_root_for_rope(&test_variant, 2, &value));
     g_assert_cmpuint(value, ==, 0xa5);
-    g_assert_false(hp_sba_routing_rope_for_root(&test_variant, 2, 1,
-                                                &value));
+    g_assert_false(hp_sba_routing_rope_for_root(&test_variant, 2, 1, &value));
     g_assert_cmpuint(value, ==, 0xa5);
 }
 
@@ -166,7 +161,7 @@ static void test_direct_route_lookup(void)
     g_assert_true(hp_sba_routing_direct_root(&variant, 5, &root));
     g_assert_cmpuint(root, ==, 1);
     g_assert_true(hp_sba_routing_direct_root(
-                      &variant, UINT64_C(0x1234567800000007), &root));
+        &variant, UINT64_C(0x1234567800000007), &root));
     g_assert_cmpuint(root, ==, 3);
 
     variant.direct_route_lookup = test_invalid_direct_route;
@@ -197,17 +192,13 @@ static void test_reg64_little_endian(void)
     uint64_t reg = UINT64_C(0x1122334455667788);
     uint64_t value = 0;
 
-    g_assert_true(hp_sba_reg64_access_covers_low32(
-                      DEVICE_LITTLE_ENDIAN, 0, 4));
-    g_assert_false(hp_sba_reg64_access_covers_low32(
-                       DEVICE_LITTLE_ENDIAN, 4, 4));
-    g_assert_true(hp_sba_reg64_access_covers_low32(
-                      DEVICE_LITTLE_ENDIAN, 0, 8));
-    g_assert_true(hp_sba_reg64_read(DEVICE_LITTLE_ENDIAN, reg, 0, 4,
-                                    &value));
+    g_assert_true(hp_sba_reg64_access_covers_low32(DEVICE_LITTLE_ENDIAN, 0, 4));
+    g_assert_false(
+        hp_sba_reg64_access_covers_low32(DEVICE_LITTLE_ENDIAN, 4, 4));
+    g_assert_true(hp_sba_reg64_access_covers_low32(DEVICE_LITTLE_ENDIAN, 0, 8));
+    g_assert_true(hp_sba_reg64_read(DEVICE_LITTLE_ENDIAN, reg, 0, 4, &value));
     g_assert_cmphex(value, ==, UINT32_C(0x55667788));
-    g_assert_true(hp_sba_reg64_read(DEVICE_LITTLE_ENDIAN, reg, 4, 4,
-                                    &value));
+    g_assert_true(hp_sba_reg64_read(DEVICE_LITTLE_ENDIAN, reg, 4, 4, &value));
     g_assert_cmphex(value, ==, UINT32_C(0x11223344));
     g_assert_true(hp_sba_reg64_write(DEVICE_LITTLE_ENDIAN, &reg, 4, 4,
                                      UINT32_C(0xaabbccdd)));
@@ -219,17 +210,12 @@ static void test_reg64_big_endian(void)
     uint64_t reg = UINT64_C(0x1122334455667788);
     uint64_t value = 0;
 
-    g_assert_false(hp_sba_reg64_access_covers_low32(
-                       DEVICE_BIG_ENDIAN, 0, 4));
-    g_assert_true(hp_sba_reg64_access_covers_low32(
-                      DEVICE_BIG_ENDIAN, 4, 4));
-    g_assert_true(hp_sba_reg64_access_covers_low32(
-                      DEVICE_BIG_ENDIAN, 0, 8));
-    g_assert_true(hp_sba_reg64_read(DEVICE_BIG_ENDIAN, reg, 0, 4,
-                                    &value));
+    g_assert_false(hp_sba_reg64_access_covers_low32(DEVICE_BIG_ENDIAN, 0, 4));
+    g_assert_true(hp_sba_reg64_access_covers_low32(DEVICE_BIG_ENDIAN, 4, 4));
+    g_assert_true(hp_sba_reg64_access_covers_low32(DEVICE_BIG_ENDIAN, 0, 8));
+    g_assert_true(hp_sba_reg64_read(DEVICE_BIG_ENDIAN, reg, 0, 4, &value));
     g_assert_cmphex(value, ==, UINT32_C(0x11223344));
-    g_assert_true(hp_sba_reg64_read(DEVICE_BIG_ENDIAN, reg, 4, 4,
-                                    &value));
+    g_assert_true(hp_sba_reg64_read(DEVICE_BIG_ENDIAN, reg, 4, 4, &value));
     g_assert_cmphex(value, ==, UINT32_C(0x55667788));
     g_assert_true(hp_sba_reg64_write(DEVICE_BIG_ENDIAN, &reg, 0, 4,
                                      UINT32_C(0xaabbccdd)));
@@ -241,18 +227,17 @@ static void test_reg64_invalid_unchanged(void)
     uint64_t reg = UINT64_C(0x1122334455667788);
     uint64_t value = UINT64_C(0xa5a5a5a5a5a5a5a5);
 
-    g_assert_false(hp_sba_reg64_read(DEVICE_LITTLE_ENDIAN, reg, 1, 4,
-                                     &value));
+    g_assert_false(hp_sba_reg64_read(DEVICE_LITTLE_ENDIAN, reg, 1, 4, &value));
     g_assert_cmphex(value, ==, UINT64_C(0xa5a5a5a5a5a5a5a5));
-    g_assert_false(hp_sba_reg64_write(DEVICE_LITTLE_ENDIAN, &reg, 4, 8,
-                                      UINT64_MAX));
+    g_assert_false(
+        hp_sba_reg64_write(DEVICE_LITTLE_ENDIAN, &reg, 4, 8, UINT64_MAX));
     g_assert_cmphex(reg, ==, UINT64_C(0x1122334455667788));
     g_assert_false(hp_sba_reg64_write(0, &reg, 0, 4, 0));
     g_assert_cmphex(reg, ==, UINT64_C(0x1122334455667788));
-    g_assert_false(hp_sba_reg64_access_covers_low32(
-                       DEVICE_LITTLE_ENDIAN, 1, 4));
-    g_assert_false(hp_sba_reg64_access_covers_low32(
-                       DEVICE_LITTLE_ENDIAN, 4, 8));
+    g_assert_false(
+        hp_sba_reg64_access_covers_low32(DEVICE_LITTLE_ENDIAN, 1, 4));
+    g_assert_false(
+        hp_sba_reg64_access_covers_low32(DEVICE_LITTLE_ENDIAN, 4, 8));
     g_assert_false(hp_sba_reg64_access_covers_low32(0, 0, 4));
 }
 
@@ -264,8 +249,7 @@ int main(int argc, char **argv)
                     test_variant_rejects_bad_topology);
     g_test_add_func("/hp-sba-routing/variant/allows-bundled-root",
                     test_variant_allows_bundled_root);
-    g_test_add_func("/hp-sba-routing/variant/rope-lookup",
-                    test_rope_lookup);
+    g_test_add_func("/hp-sba-routing/variant/rope-lookup", test_rope_lookup);
     g_test_add_func("/hp-sba-routing/variant/direct-route",
                     test_direct_route_lookup);
     g_test_add_func("/hp-sba-routing/variant/callbacks", test_callbacks);

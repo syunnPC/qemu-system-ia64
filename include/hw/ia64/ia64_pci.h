@@ -59,24 +59,21 @@ typedef struct IA64PCIHostConfig {
 } IA64PCIHostConfig;
 
 int ia64_pci_route_intx_gsi(uint8_t devfn, int irq_num);
-int ia64_pci_host_route_intx_gsi(const IA64PCIState *host,
-                                 uint8_t devfn, int irq_num);
+int ia64_pci_host_route_intx_gsi(const IA64PCIState *host, uint8_t devfn,
+                                 int irq_num);
 PCIBus *ia64_pci_host_bus(IA64PCIState *host);
 MemoryRegion *ia64_pci_host_memory(IA64PCIState *host);
 MemoryRegion *ia64_pci_host_io(IA64PCIState *host);
 bool ia64_pci_host_configure(IA64PCIState *host,
-                             const IA64PCIHostConfig *config,
-                             Error **errp);
+                             const IA64PCIHostConfig *config, Error **errp);
 bool ia64_pcie_host_set_fault_notifier(IA64PCIState *host,
                                        IA64ChipsetFaultNotify notify,
                                        void *opaque, Error **errp);
 void ia64_pci_host_get_config(const IA64PCIState *host,
                               IA64PCIHostConfig *config);
-bool ia64_pci_host_attach_iommu(IA64PCIState *host,
-                                const PCIIOMMUOps *ops, void *opaque,
-                                Error **errp);
-bool ia64_pci_host_detach_iommu(IA64PCIState *host,
-                                const PCIIOMMUOps *ops, void *opaque,
-                                Error **errp);
+bool ia64_pci_host_attach_iommu(IA64PCIState *host, const PCIIOMMUOps *ops,
+                                void *opaque, Error **errp);
+bool ia64_pci_host_detach_iommu(IA64PCIState *host, const PCIIOMMUOps *ops,
+                                void *opaque, Error **errp);
 
 #endif

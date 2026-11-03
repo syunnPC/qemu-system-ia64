@@ -29,8 +29,8 @@ static uint32_t ia64_loader_ldl(const uint8_t *p)
 
 static uint64_t ia64_loader_ldq(const uint8_t *p)
 {
-    return (uint64_t)ia64_loader_ldl(p) |
-           (uint64_t)ia64_loader_ldl(p + 4) << 32;
+    return (uint64_t)ia64_loader_ldl(p) | (uint64_t)ia64_loader_ldl(p + 4)
+                                              << 32;
 }
 
 static bool ia64_loader_range_valid(size_t image_size, size_t offset,
@@ -59,8 +59,7 @@ bool ia64_loader_parse_pe_plabel(const void *image, size_t image_size,
 
     pe_offset = ia64_loader_ldl(bytes + IA64_MZ_PE_OFFSET);
     if (pe_offset < IA64_MZ_HEADER_SIZE ||
-        !ia64_loader_range_valid(image_size, pe_offset,
-                                 IA64_PE_HEADER_SIZE)) {
+        !ia64_loader_range_valid(image_size, pe_offset, IA64_PE_HEADER_SIZE)) {
         return false;
     }
 
@@ -72,8 +71,7 @@ bool ia64_loader_parse_pe_plabel(const void *image, size_t image_size,
 
     optional_size = ia64_loader_lduw(pe + IA64_PE_OPTIONAL_SIZE_OFFSET);
     if (optional_size < IA64_PE_OPTIONAL_MIN_SIZE ||
-        !ia64_loader_range_valid(image_size,
-                                 pe_offset + IA64_PE_HEADER_SIZE,
+        !ia64_loader_range_valid(image_size, pe_offset + IA64_PE_HEADER_SIZE,
                                  optional_size)) {
         return false;
     }
@@ -85,8 +83,7 @@ bool ia64_loader_parse_pe_plabel(const void *image, size_t image_size,
 
     entry_rva = ia64_loader_ldl(optional + IA64_PE_OPTIONAL_ENTRY);
     if (entry_rva == 0 ||
-        !ia64_loader_range_valid(image_size, entry_rva,
-                                 IA64_PLABEL_SIZE)) {
+        !ia64_loader_range_valid(image_size, entry_rva, IA64_PLABEL_SIZE)) {
         return false;
     }
 

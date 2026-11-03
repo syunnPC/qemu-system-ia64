@@ -19,7 +19,7 @@ static void check_layout(uint64_t base)
         sum += buf[offset];
     }
     g_assert_cmpuint(sum & 255, ==, 0);
-    for (offset = 48; offset < FW_DMAR_SIZE; ) {
+    for (offset = 48; offset < FW_DMAR_SIZE;) {
         unsigned length = lduw_le_p(buf + offset + 2);
         g_assert_cmpuint(lduw_le_p(buf + offset), ==, 0);
         g_assert_cmpuint(length, >=, 16);

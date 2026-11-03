@@ -81,8 +81,7 @@ static uint64_t ioa_access_data(uint64_t offset, unsigned int size,
     return (value & ioa_low_mask(size)) << ((offset & 7) * 8);
 }
 
-static uint64_t ioa_extract(uint64_t offset, unsigned int size,
-                            uint64_t value)
+static uint64_t ioa_extract(uint64_t offset, unsigned int size, uint64_t value)
 {
     return (value >> ((offset & 7) * 8)) & ioa_low_mask(size);
 }
@@ -98,8 +97,9 @@ static void ioa_latch_write(uint64_t *latch, uint64_t writable,
 static unsigned int ioa_external_inputs(const HPZX1IOARegs *s)
 {
     /* AGP provides seven interrupt inputs; PCI and PCI-X provide ten. */
-    return s->reset_config.mode == HP_ZX1_IOA_MODE_AGP ? 7 :
-           HP_ZX1_IOA_EXTERNAL_INPUTS;
+    return s->reset_config.mode == HP_ZX1_IOA_MODE_AGP
+               ? 7
+               : HP_ZX1_IOA_EXTERNAL_INPUTS;
 }
 
 static unsigned int ioa_rte_low(unsigned int entry)
@@ -119,8 +119,7 @@ static void ioa_function_reset(HPZX1IOARegs *s)
     }
 }
 
-static bool ioa_deliver_entry(HPZX1IOARegs *s, unsigned int entry,
-                              bool level)
+static bool ioa_deliver_entry(HPZX1IOARegs *s, unsigned int entry, bool level)
 {
     HPIOSAPICMessage message;
     uint32_t bit = 1U << entry;
@@ -150,10 +149,8 @@ static bool ioa_reevaluate_level(HPZX1IOARegs *s, unsigned int input)
     uint32_t bit = 1U << input;
     uint32_t low = s->sapic_regs[ioa_rte_low(input)];
 
-    if (!(s->sapic_asserted & bit) ||
-        !(low & HP_IO_SAPIC_RTE_TRIGGER) ||
-        (low & HP_IO_SAPIC_RTE_MASK) ||
-        (s->sapic_in_service & bit)) {
+    if (!(s->sapic_asserted & bit) || !(low & HP_IO_SAPIC_RTE_TRIGGER) ||
+        (low & HP_IO_SAPIC_RTE_MASK) || (s->sapic_in_service & bit)) {
         return false;
     }
     return ioa_deliver_entry(s, input, true);
@@ -192,17 +189,15 @@ static void ioa_eoi(HPZX1IOARegs *s, uint64_t value)
         uint32_t low = s->sapic_regs[ioa_rte_low(input)];
 
         if ((low & HP_IO_SAPIC_RTE_VECTOR) == vector &&
-            (low & HP_IO_SAPIC_RTE_TRIGGER) &&
-            !(low & HP_IO_SAPIC_RTE_MASK) &&
+            (low & HP_IO_SAPIC_RTE_TRIGGER) && !(low & HP_IO_SAPIC_RTE_MASK) &&
             (s->sapic_asserted & bit)) {
             delivery.entries[delivery.count++] = input;
         }
     }
 
     hp_io_sapic_eoi(&hp_io_sapic_zx1_policy, s->sapic_regs,
-                    G_N_ELEMENTS(s->sapic_regs), &s->sapic_in_service,
-                    value, s->sapic_asserted, ioa_forward_eoi_delivery,
-                    &delivery);
+                    G_N_ELEMENTS(s->sapic_regs), &s->sapic_in_service, value,
+                    s->sapic_asserted, ioa_forward_eoi_delivery, &delivery);
 }
 
 static void ioa_forward_software_delivery(void *opaque,
@@ -221,12 +216,11 @@ static void ioa_forward_software_delivery(void *opaque,
 static bool ioa_sapic_direct(uint64_t base)
 {
     return base == HP_ZX1_IOA_IOREGSEL || base == HP_ZX1_IOA_IOWIN ||
-           base == HP_ZX1_IOA_IOEOI ||
-           base == HP_ZX1_IOA_SOFTWARE_INTERRUPT;
+           base == HP_ZX1_IOA_IOEOI || base == HP_ZX1_IOA_SOFTWARE_INTERRUPT;
 }
 
-static bool ioa_sapic_read(HPZX1IOARegs *s, uint64_t offset,
-                           unsigned int size, uint64_t *value)
+static bool ioa_sapic_read(HPZX1IOARegs *s, uint64_t offset, unsigned int size,
+                           uint64_t *value)
 {
     uint64_t base = offset & ~UINT64_C(7);
     uint64_t window = 0;
@@ -245,13 +239,13 @@ static bool ioa_sapic_read(HPZX1IOARegs *s, uint64_t offset,
 
     switch (base) {
     case HP_ZX1_IOA_IOREGSEL:
-        *value = hp_io_sapic_select_read(&hp_io_sapic_zx1_policy,
-                                         s->sapic_selector);
+        *value =
+            hp_io_sapic_select_read(&hp_io_sapic_zx1_policy, s->sapic_selector);
         return true;
     case HP_ZX1_IOA_IOWIN:
-        if (hp_io_sapic_window_read(&hp_io_sapic_zx1_policy,
-                                    s->sapic_selector, s->sapic_regs,
-                                    G_N_ELEMENTS(s->sapic_regs), &window)) {
+        if (hp_io_sapic_window_read(&hp_io_sapic_zx1_policy, s->sapic_selector,
+                                    s->sapic_regs, G_N_ELEMENTS(s->sapic_regs),
+                                    &window)) {
             *value = (uint32_t)window;
         } else {
             *value = 0;
@@ -266,8 +260,8 @@ static bool ioa_sapic_read(HPZX1IOARegs *s, uint64_t offset,
     }
 }
 
-static bool ioa_sapic_write(HPZX1IOARegs *s, uint64_t offset,
-                            unsigned int size, uint64_t value)
+static bool ioa_sapic_write(HPZX1IOARegs *s, uint64_t offset, unsigned int size,
+                            uint64_t value)
 {
     uint64_t base = offset & ~UINT64_C(7);
     uint32_t old_low = 0;
@@ -286,8 +280,8 @@ static bool ioa_sapic_write(HPZX1IOARegs *s, uint64_t offset,
 
     switch (base) {
     case HP_ZX1_IOA_IOREGSEL:
-        hp_io_sapic_select_write(&hp_io_sapic_zx1_policy,
-                                 &s->sapic_selector, value);
+        hp_io_sapic_select_write(&hp_io_sapic_zx1_policy, &s->sapic_selector,
+                                 value);
         return true;
     case HP_ZX1_IOA_IOWIN:
         if (s->sapic_selector >= HP_IO_SAPIC_RTE_BASE &&
@@ -301,9 +295,9 @@ static bool ioa_sapic_write(HPZX1IOARegs *s, uint64_t offset,
         }
 
         /* Unsupported selectors and read-only registers discard writes. */
-        hp_io_sapic_window_write(&hp_io_sapic_zx1_policy,
-                                 s->sapic_selector, s->sapic_regs,
-                                 G_N_ELEMENTS(s->sapic_regs), value);
+        hp_io_sapic_window_write(&hp_io_sapic_zx1_policy, s->sapic_selector,
+                                 s->sapic_regs, G_N_ELEMENTS(s->sapic_regs),
+                                 value);
         if (entry >= ioa_external_inputs(s)) {
             return true;
         }
@@ -319,8 +313,7 @@ static bool ioa_sapic_write(HPZX1IOARegs *s, uint64_t offset,
         ioa_eoi(s, value);
         return true;
     case HP_ZX1_IOA_SOFTWARE_INTERRUPT:
-        hp_io_sapic_software_interrupt(&hp_io_sapic_zx1_policy,
-                                       s->sapic_regs,
+        hp_io_sapic_software_interrupt(&hp_io_sapic_zx1_policy, s->sapic_regs,
                                        G_N_ELEMENTS(s->sapic_regs),
                                        ioa_forward_software_delivery, s);
         return true;
@@ -368,16 +361,15 @@ static void ioa_log_config_abort(HPZX1IOARegs *s, uint32_t address)
                 bus_address |= 1U << (device + 16);
             }
         }
-        s->outbound_error_address = HP_ZX1_IOA_OUTBOUND_CONFIG_CYCLE |
-                                    bus_address;
+        s->outbound_error_address =
+            HP_ZX1_IOA_OUTBOUND_CONFIG_CYCLE | bus_address;
     }
     if (status & HP_ZX1_IOA_ERROR_UNC) {
         status |= HP_ZX1_IOA_ERROR_UNC_OV;
     }
     status |= HP_ZX1_IOA_ERROR_UNC;
     /* OV describes repeats of the highest severity, not of any error. */
-    if (!(status & HP_ZX1_IOA_ERROR_FE) &&
-        (status & HP_ZX1_IOA_ERROR_UNC_OV)) {
+    if (!(status & HP_ZX1_IOA_ERROR_FE) && (status & HP_ZX1_IOA_ERROR_UNC_OV)) {
         status |= HP_ZX1_IOA_ERROR_OV;
     }
     s->error_status = status;
@@ -464,8 +456,7 @@ static bool ioa_config_data_write(HPZX1IOARegs *s, uint64_t offset,
     return true;
 }
 
-bool hp_zx1_ioa_regs_init(HPZX1IOARegs *s,
-                          const HPZX1IOARegsConfig *config)
+bool hp_zx1_ioa_regs_init(HPZX1IOARegs *s, const HPZX1IOARegsConfig *config)
 {
     HPZX1IOARegsConfig reset_config;
     unsigned int ropes;
@@ -473,8 +464,7 @@ bool hp_zx1_ioa_regs_init(HPZX1IOARegs *s,
     bool agp_mode;
     bool dual_rope;
 
-    if (!s || !config ||
-        (unsigned int)config->mode > HP_ZX1_IOA_MODE_AGP ||
+    if (!s || !config || (unsigned int)config->mode > HP_ZX1_IOA_MODE_AGP ||
         config->secondary_bus > config->subordinate_bus) {
         return false;
     }
@@ -485,8 +475,7 @@ bool hp_zx1_ioa_regs_init(HPZX1IOARegs *s,
     }
 
     agp_mode = config->bus_mode_reset & HP_ZX1_IOA_BUS_MODE_AGP;
-    dual_rope = !(config->bus_mode_reset &
-                  HP_ZX1_IOA_BUS_MODE_ROPE_2X_L);
+    dual_rope = !(config->bus_mode_reset & HP_ZX1_IOA_BUS_MODE_ROPE_2X_L);
     bus_operation = config->bus_mode_reset & HP_ZX1_IOA_BUS_MODE_BUS_MASK;
     if (agp_mode != (config->mode == HP_ZX1_IOA_MODE_AGP) ||
         dual_rope != (ropes == 2) ||
@@ -495,8 +484,7 @@ bool hp_zx1_ioa_regs_init(HPZX1IOARegs *s,
         (config->mode == HP_ZX1_IOA_MODE_PCIX && bus_operation == 0) ||
         (config->slave_control_reset_straps &
          HP_ZX1_IOA_SLAVE_CONTROL_VISIBLE) ||
-        (config->error_configuration_reset_straps &
-         IOA_ERROR_CONFIG_SMART)) {
+        (config->error_configuration_reset_straps & IOA_ERROR_CONFIG_SMART)) {
         return false;
     }
 
@@ -543,8 +531,7 @@ void hp_zx1_ioa_regs_reset(HPZX1IOARegs *s)
     s->bus_mode = s->reset_config.bus_mode_reset;
     s->slave_control = s->reset_config.slave_control_reset_straps |
                        HP_ZX1_IOA_SLAVE_CONTROL_RESET;
-    s->error_configuration =
-        s->reset_config.error_configuration_reset_straps;
+    s->error_configuration = s->reset_config.error_configuration_reset_straps;
     s->error_status = 0;
     s->outbound_error_address = 0;
 
@@ -555,8 +542,8 @@ void hp_zx1_ioa_regs_reset(HPZX1IOARegs *s)
                       &s->sapic_in_service, 0);
 }
 
-bool hp_zx1_ioa_regs_read(HPZX1IOARegs *s, uint64_t offset,
-                          unsigned int size, uint64_t *value)
+bool hp_zx1_ioa_regs_read(HPZX1IOARegs *s, uint64_t offset, unsigned int size,
+                          uint64_t *value)
 {
     uint64_t base;
     uint64_t reg = 0;
@@ -576,20 +563,19 @@ bool hp_zx1_ioa_regs_read(HPZX1IOARegs *s, uint64_t offset,
 
     switch (base) {
     case HP_ZX1_IOA_FUNCTION_ID:
-        reg = HP_ZX1_IOA_VENDOR_ID |
-              ((uint64_t)HP_ZX1_IOA_DEVICE_ID << 16) |
+        reg = HP_ZX1_IOA_VENDOR_ID | ((uint64_t)HP_ZX1_IOA_DEVICE_ID << 16) |
               ((uint64_t)s->pci_command << 32) |
               ((uint64_t)s->pci_status << 48);
         break;
     case HP_ZX1_IOA_FUNCTION_CLASS:
-        reg = HP_ZX1_IOA_REVISION |
-              ((uint64_t)HP_ZX1_IOA_CLASS_CODE << 8) |
+        reg = HP_ZX1_IOA_REVISION | ((uint64_t)HP_ZX1_IOA_CLASS_CODE << 8) |
               ((uint64_t)s->cache_line_size << 32) |
               ((uint64_t)s->latency_timer << 40);
         break;
     case HP_ZX1_IOA_CAPABILITIES_POINTER:
-        reg = (uint64_t)(s->reset_config.mode == HP_ZX1_IOA_MODE_AGP ?
-                         0x60 : 0xa0) << 32;
+        reg = (uint64_t)(s->reset_config.mode == HP_ZX1_IOA_MODE_AGP ? 0x60
+                                                                     : 0xa0)
+              << 32;
         break;
     case HP_ZX1_IOA_CONFIG_ADDRESS:
         reg = s->config_address;
@@ -612,8 +598,7 @@ bool hp_zx1_ioa_regs_read(HPZX1IOARegs *s, uint64_t offset,
         break;
     case HP_ZX1_IOA_PCIX_CAPABILITY:
         if (s->reset_config.mode != HP_ZX1_IOA_MODE_AGP) {
-            reg = IOA_PCIX_CAPABILITY_ID |
-                  ((uint64_t)s->pcix_command << 16) |
+            reg = IOA_PCIX_CAPABILITY_ID | ((uint64_t)s->pcix_command << 16) |
                   ((uint64_t)s->pcix_status << 32);
         }
         break;
@@ -684,8 +669,8 @@ bool hp_zx1_ioa_regs_read(HPZX1IOARegs *s, uint64_t offset,
     return true;
 }
 
-bool hp_zx1_ioa_regs_write(HPZX1IOARegs *s, uint64_t offset,
-                           unsigned int size, uint64_t value)
+bool hp_zx1_ioa_regs_write(HPZX1IOARegs *s, uint64_t offset, unsigned int size,
+                           uint64_t value)
 {
     uint64_t base;
     uint64_t mask;
@@ -713,10 +698,10 @@ bool hp_zx1_ioa_regs_write(HPZX1IOARegs *s, uint64_t offset,
     switch (base) {
     case HP_ZX1_IOA_FUNCTION_ID:
         field_mask = (mask >> 32) & HP_ZX1_IOA_PCI_COMMAND_MASK;
-        s->pci_command = (s->pci_command & ~field_mask) |
-                         ((data >> 32) & field_mask);
-        s->pci_status &= ~((data >> 48) & (mask >> 48) &
-                           HP_ZX1_IOA_PCI_STATUS_W1C);
+        s->pci_command =
+            (s->pci_command & ~field_mask) | ((data >> 32) & field_mask);
+        s->pci_status &=
+            ~((data >> 48) & (mask >> 48) & HP_ZX1_IOA_PCI_STATUS_W1C);
         break;
     case HP_ZX1_IOA_FUNCTION_CLASS:
         latch = ((uint64_t)s->cache_line_size << 32) |
@@ -754,22 +739,21 @@ bool hp_zx1_ioa_regs_write(HPZX1IOARegs *s, uint64_t offset,
     case HP_ZX1_IOA_PCIX_CAPABILITY:
         if (s->reset_config.mode != HP_ZX1_IOA_MODE_AGP) {
             field_mask = (mask >> 16) & IOA_PCIX_COMMAND_WRITABLE;
-            s->pcix_command = (s->pcix_command & ~field_mask) |
-                              ((data >> 16) & field_mask);
-            s->pcix_status &= ~((data >> 32) & (mask >> 32) &
-                                HP_ZX1_IOA_PCIX_STATUS_W1C);
+            s->pcix_command =
+                (s->pcix_command & ~field_mask) | ((data >> 16) & field_mask);
+            s->pcix_status &=
+                ~((data >> 32) & (mask >> 32) & HP_ZX1_IOA_PCIX_STATUS_W1C);
         }
         break;
     case HP_ZX1_IOA_STATUS_CONTROL:
         latch = s->status_control;
         old_clear_enable = latch & HP_ZX1_IOA_SIC_CLEAR_ENABLE;
-        ioa_latch_write(&latch, IOA_SIC_LATCH_MASK &
-                        ~HP_ZX1_IOA_SIC_CLEAR_LOG, mask, data);
+        ioa_latch_write(&latch, IOA_SIC_LATCH_MASK & ~HP_ZX1_IOA_SIC_CLEAR_LOG,
+                        mask, data);
         if (mask & HP_ZX1_IOA_SIC_CLEAR_LOG) {
             /* A CE=CL=1 write clears CL and latches CE. */
             if ((data & HP_ZX1_IOA_SIC_CLEAR_LOG) &&
-                !(data & HP_ZX1_IOA_SIC_CLEAR_ENABLE) &&
-                old_clear_enable) {
+                !(data & HP_ZX1_IOA_SIC_CLEAR_ENABLE) && old_clear_enable) {
                 latch |= HP_ZX1_IOA_SIC_CLEAR_LOG;
             } else {
                 latch &= ~HP_ZX1_IOA_SIC_CLEAR_LOG;
@@ -790,60 +774,58 @@ bool hp_zx1_ioa_regs_write(HPZX1IOARegs *s, uint64_t offset,
         }
         break;
     case HP_ZX1_IOA_LMMIO_BASE:
-        ioa_latch_write(&s->lmmio_base, HP_ZX1_IOA_LMMIO_BASE_WRITABLE,
-                        mask, data);
+        ioa_latch_write(&s->lmmio_base, HP_ZX1_IOA_LMMIO_BASE_WRITABLE, mask,
+                        data);
         break;
     case HP_ZX1_IOA_LMMIO_MASK:
-        ioa_latch_write(&s->lmmio_mask, HP_ZX1_IOA_LMMIO_MASK_WRITABLE,
-                        mask, data);
+        ioa_latch_write(&s->lmmio_mask, HP_ZX1_IOA_LMMIO_MASK_WRITABLE, mask,
+                        data);
         break;
     case HP_ZX1_IOA_GMMIO_BASE:
-        ioa_latch_write(&s->gmmio_base, HP_ZX1_IOA_GMMIO_BASE_WRITABLE,
-                        mask, data);
+        ioa_latch_write(&s->gmmio_base, HP_ZX1_IOA_GMMIO_BASE_WRITABLE, mask,
+                        data);
         break;
     case HP_ZX1_IOA_GMMIO_MASK:
-        ioa_latch_write(&s->gmmio_mask, HP_ZX1_IOA_GMMIO_MASK_WRITABLE,
-                        mask, data);
+        ioa_latch_write(&s->gmmio_mask, HP_ZX1_IOA_GMMIO_MASK_WRITABLE, mask,
+                        data);
         break;
     case HP_ZX1_IOA_WLMMIO_BASE:
-        ioa_latch_write(&s->wlmmio_base, HP_ZX1_IOA_WLMMIO_BASE_WRITABLE,
-                        mask, data);
+        ioa_latch_write(&s->wlmmio_base, HP_ZX1_IOA_WLMMIO_BASE_WRITABLE, mask,
+                        data);
         break;
     case HP_ZX1_IOA_WLMMIO_MASK:
-        ioa_latch_write(&s->wlmmio_mask, HP_ZX1_IOA_WLMMIO_MASK_WRITABLE,
-                        mask, data);
+        ioa_latch_write(&s->wlmmio_mask, HP_ZX1_IOA_WLMMIO_MASK_WRITABLE, mask,
+                        data);
         break;
     case HP_ZX1_IOA_WGMMIO_BASE:
-        ioa_latch_write(&s->wgmmio_base, HP_ZX1_IOA_WGMMIO_BASE_WRITABLE,
-                        mask, data);
+        ioa_latch_write(&s->wgmmio_base, HP_ZX1_IOA_WGMMIO_BASE_WRITABLE, mask,
+                        data);
         break;
     case HP_ZX1_IOA_WGMMIO_MASK:
-        ioa_latch_write(&s->wgmmio_mask, HP_ZX1_IOA_WGMMIO_MASK_WRITABLE,
-                        mask, data);
+        ioa_latch_write(&s->wgmmio_mask, HP_ZX1_IOA_WGMMIO_MASK_WRITABLE, mask,
+                        data);
         break;
     case HP_ZX1_IOA_ELMMIO_BASE:
-        ioa_latch_write(&s->elmmio_base, HP_ZX1_IOA_ELMMIO_BASE_WRITABLE,
-                        mask, data);
+        ioa_latch_write(&s->elmmio_base, HP_ZX1_IOA_ELMMIO_BASE_WRITABLE, mask,
+                        data);
         break;
     case HP_ZX1_IOA_ELMMIO_MASK:
-        ioa_latch_write(&s->elmmio_mask, HP_ZX1_IOA_ELMMIO_MASK_WRITABLE,
-                        mask, data);
+        ioa_latch_write(&s->elmmio_mask, HP_ZX1_IOA_ELMMIO_MASK_WRITABLE, mask,
+                        data);
         break;
     case HP_ZX1_IOA_SLAVE_CONTROL:
-        ioa_latch_write(&s->slave_control,
-                        HP_ZX1_IOA_SLAVE_CONTROL_VISIBLE, mask, data);
+        ioa_latch_write(&s->slave_control, HP_ZX1_IOA_SLAVE_CONTROL_VISIBLE,
+                        mask, data);
         break;
     case HP_ZX1_IOA_MSI_BASE:
-        ioa_latch_write(&s->msi_base, HP_ZX1_IOA_MSI_BASE_WRITABLE,
-                        mask, data);
+        ioa_latch_write(&s->msi_base, HP_ZX1_IOA_MSI_BASE_WRITABLE, mask, data);
         break;
     case HP_ZX1_IOA_MSI_MASK:
-        ioa_latch_write(&s->msi_mask, HP_ZX1_IOA_MSI_MASK_WRITABLE,
-                        mask, data);
+        ioa_latch_write(&s->msi_mask, HP_ZX1_IOA_MSI_MASK_WRITABLE, mask, data);
         break;
     case HP_ZX1_IOA_BUS_MODE:
-        ioa_latch_write(&s->bus_mode, HP_ZX1_IOA_BUS_MODE_SAFE_WRITE,
-                        mask, data);
+        ioa_latch_write(&s->bus_mode, HP_ZX1_IOA_BUS_MODE_SAFE_WRITE, mask,
+                        data);
         break;
     case HP_ZX1_IOA_ERROR_CONFIGURATION:
         latch = s->error_configuration;

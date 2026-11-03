@@ -88,14 +88,12 @@ struct HPZX1IOAState {
 
 static unsigned int hp_zx1_ioa_external_inputs(const HPZX1IOAState *s)
 {
-    return s->baseline.mode == HP_ZX1_IOA_MODE_AGP ?
-           IOA_AGP_EXTERNAL_INPUTS :
-           HP_ZX1_IOA_EXTERNAL_INPUTS;
+    return s->baseline.mode == HP_ZX1_IOA_MODE_AGP ? IOA_AGP_EXTERNAL_INPUTS
+                                                   : HP_ZX1_IOA_EXTERNAL_INPUTS;
 }
 
 static HPZX1IOARegsConfig hp_zx1_ioa_regs_config(HPZX1IOAState *s);
-static void hp_zx1_ioa_deliver(void *opaque,
-                               const HPIOSAPICMessage *message);
+static void hp_zx1_ioa_deliver(void *opaque, const HPIOSAPICMessage *message);
 
 static void hp_zx1_ioa_update_msi_window(HPZX1IOAState *s)
 {
@@ -138,16 +136,14 @@ static MemTxResult hp_zx1_ioa_msi_write(void *opaque, hwaddr addr,
 
     if (size != 4 || (addr & 3) || !s->msi_dma_root ||
         addr > UINT64_MAX - s->msi_window_base) {
-        hp_zx1_ioa_regs_report_fault(&s->regs,
-                                     HP_ZX1_IOA_FAULT_MSI_DECODE,
+        hp_zx1_ioa_regs_report_fault(&s->regs, HP_ZX1_IOA_FAULT_MSI_DECODE,
                                      s->msi_window_base + addr, value);
         return MEMTX_DECODE_ERROR;
     }
 
     address = s->msi_window_base + addr;
     if (!hp_zx1_ioa_regs_msi_contains(&s->regs, address)) {
-        hp_zx1_ioa_regs_report_fault(&s->regs,
-                                     HP_ZX1_IOA_FAULT_MSI_DECODE,
+        hp_zx1_ioa_regs_report_fault(&s->regs, HP_ZX1_IOA_FAULT_MSI_DECODE,
                                      address, value);
         return MEMTX_DECODE_ERROR;
     }
@@ -236,8 +232,7 @@ static bool hp_zx1_ioa_config_write(void *opaque, uint32_t address,
     return true;
 }
 
-static void hp_zx1_ioa_deliver(void *opaque,
-                               const HPIOSAPICMessage *message)
+static void hp_zx1_ioa_deliver(void *opaque, const HPIOSAPICMessage *message)
 {
     HPZX1IOAState *s = opaque;
 
@@ -253,8 +248,7 @@ static HPZX1IOARegsConfig hp_zx1_ioa_regs_config(HPZX1IOAState *s)
         .subordinate_bus = s->baseline.subordinate_bus,
         .pci_reset_asserted = s->baseline.pci_reset_asserted,
         .bus_mode_reset = s->baseline.bus_mode_reset,
-        .slave_control_reset_straps =
-            s->baseline.slave_control_reset_straps,
+        .slave_control_reset_straps = s->baseline.slave_control_reset_straps,
         .error_configuration_reset_straps =
             s->baseline.error_configuration_reset_straps,
         .config_read = hp_zx1_ioa_config_read,
@@ -304,14 +298,12 @@ bool hp_zx1_ioa_setup(HPZX1IOAState *s, const HPZX1IOASetup *setup,
         .subordinate_bus = setup->subordinate_bus,
         .pci_reset_asserted = setup->pci_reset_asserted,
         .bus_mode_reset = setup->bus_mode_reset,
-        .slave_control_reset_straps =
-            setup->slave_control_reset_straps,
+        .slave_control_reset_straps = setup->slave_control_reset_straps,
         .error_configuration_reset_straps =
             setup->error_configuration_reset_straps,
     };
-    inputs = setup->mode == HP_ZX1_IOA_MODE_AGP ?
-             IOA_AGP_EXTERNAL_INPUTS :
-             HP_ZX1_IOA_EXTERNAL_INPUTS;
+    inputs = setup->mode == HP_ZX1_IOA_MODE_AGP ? IOA_AGP_EXTERNAL_INPUTS
+                                                : HP_ZX1_IOA_EXTERNAL_INPUTS;
     for (slot = 0; slot < PCI_SLOT_MAX; slot++) {
         uint32_t packed = 0;
 
@@ -321,8 +313,8 @@ bool hp_zx1_ioa_setup(HPZX1IOAState *s, const HPZX1IOASetup *setup,
             if (input >= inputs) {
                 error_setg(errp,
                            "Mercury INTx route slot %u pin %u uses input "
-                           "%u (mode limit %u)", slot, pin, input,
-                           inputs - 1);
+                           "%u (mode limit %u)",
+                           slot, pin, input, inputs - 1);
                 return false;
             }
             packed |= (uint32_t)input << (pin * 8);
@@ -351,31 +343,27 @@ bool hp_zx1_ioa_setup(HPZX1IOAState *s, const HPZX1IOASetup *setup,
     return true;
 }
 
-static MemTxResult hp_zx1_ioa_read(void *opaque, hwaddr addr,
-                                   uint64_t *data, unsigned int size,
-                                   MemTxAttrs attrs)
+static MemTxResult hp_zx1_ioa_read(void *opaque, hwaddr addr, uint64_t *data,
+                                   unsigned int size, MemTxAttrs attrs)
 {
     HPZX1IOAState *s = opaque;
 
     if (!hp_zx1_ioa_regs_read(&s->regs, addr, size, data)) {
         *data = 0;
-        hp_zx1_ioa_regs_report_fault(&s->regs,
-                                     HP_ZX1_IOA_FAULT_CSR_DECODE,
+        hp_zx1_ioa_regs_report_fault(&s->regs, HP_ZX1_IOA_FAULT_CSR_DECODE,
                                      addr, 0);
         return MEMTX_DECODE_ERROR;
     }
     return MEMTX_OK;
 }
 
-static MemTxResult hp_zx1_ioa_write(void *opaque, hwaddr addr,
-                                    uint64_t value, unsigned int size,
-                                    MemTxAttrs attrs)
+static MemTxResult hp_zx1_ioa_write(void *opaque, hwaddr addr, uint64_t value,
+                                    unsigned int size, MemTxAttrs attrs)
 {
     HPZX1IOAState *s = opaque;
 
     if (!hp_zx1_ioa_regs_write(&s->regs, addr, size, value)) {
-        hp_zx1_ioa_regs_report_fault(&s->regs,
-                                     HP_ZX1_IOA_FAULT_CSR_DECODE,
+        hp_zx1_ioa_regs_report_fault(&s->regs, HP_ZX1_IOA_FAULT_CSR_DECODE,
                                      addr, value);
         return MEMTX_DECODE_ERROR;
     }
@@ -387,8 +375,7 @@ static MemTxResult hp_zx1_ioa_write(void *opaque, hwaddr addr,
 
     /* RF assertion resets the subordinate PCI hierarchy, not the wrapper. */
     if (addr == HP_ZX1_IOA_STATUS_CONTROL &&
-        (value & HP_ZX1_IOA_SIC_RESET_FUNCTION) &&
-        PCI_HOST_BRIDGE(s)->bus) {
+        (value & HP_ZX1_IOA_SIC_RESET_FUNCTION) && PCI_HOST_BRIDGE(s)->bus) {
         bus_cold_reset(BUS(PCI_HOST_BRIDGE(s)->bus));
     }
     return MEMTX_OK;
@@ -470,8 +457,8 @@ static bool hp_zx1_ioa_latch_valid(uint64_t value, uint64_t writable,
                                    Error **errp)
 {
     if ((value & ~(writable | fixed)) || (value & fixed) != fixed) {
-        error_setg(errp, "Mercury migration has invalid %s 0x%016" PRIx64,
-                   name, value);
+        error_setg(errp, "Mercury migration has invalid %s 0x%016" PRIx64, name,
+                   value);
         return false;
     }
     return true;
@@ -496,7 +483,8 @@ static bool hp_zx1_ioa_sapic_valid(const HPZX1IOAState *s, Error **errp)
         if (regs->sapic_regs[index]) {
             error_setg(errp,
                        "Mercury migration has data in read-only SAPIC "
-                       "register %u", index);
+                       "register %u",
+                       index);
             return false;
         }
     }
@@ -504,25 +492,25 @@ static bool hp_zx1_ioa_sapic_valid(const HPZX1IOAState *s, Error **errp)
     for (entry = 0; entry < hp_io_sapic_zx1_policy.entry_count; entry++) {
         uint32_t bit = 1U << entry;
         uint64_t low = regs->sapic_regs[HP_IO_SAPIC_RTE_BASE + 2 * entry];
-        uint64_t high =
-            regs->sapic_regs[HP_IO_SAPIC_RTE_BASE + 2 * entry + 1];
+        uint64_t high = regs->sapic_regs[HP_IO_SAPIC_RTE_BASE + 2 * entry + 1];
 
         if (low & ~(uint64_t)IOA_SAPIC_RTE_LOW_PERSISTENT) {
             error_setg(errp,
                        "Mercury migration has invalid SAPIC RTE %u low "
-                       "0x%016" PRIx64, entry, low);
+                       "0x%016" PRIx64,
+                       entry, low);
             return false;
         }
         if (high & ~(uint64_t)IOA_SAPIC_RTE_HIGH_PERSISTENT) {
             error_setg(errp,
                        "Mercury migration has invalid SAPIC RTE %u high "
-                       "0x%016" PRIx64, entry, high);
+                       "0x%016" PRIx64,
+                       entry, high);
             return false;
         }
         if ((regs->sapic_in_service & bit) &&
             !(low & HP_IO_SAPIC_RTE_TRIGGER)) {
-            error_setg(errp,
-                       "Mercury migration has edge RTE %u in service",
+            error_setg(errp, "Mercury migration has edge RTE %u in service",
                        entry);
             return false;
         }
@@ -536,10 +524,10 @@ static bool hp_zx1_ioa_post_load(void *opaque, int version_id, Error **errp)
     HPZX1IOARegs *regs = &s->regs;
     PCIBus *bus = PCI_HOST_BRIDGE(s)->bus;
     HPZX1IOARegsConfig config;
-    uint16_t pci_status_allowed = HP_ZX1_IOA_PCI_STATUS_RESET |
-                                  HP_ZX1_IOA_PCI_STATUS_W1C;
-    uint32_t pcix_status_allowed = IOA_PCIX_STATUS_RESET |
-                                   HP_ZX1_IOA_PCIX_STATUS_W1C;
+    uint16_t pci_status_allowed =
+        HP_ZX1_IOA_PCI_STATUS_RESET | HP_ZX1_IOA_PCI_STATUS_W1C;
+    uint32_t pcix_status_allowed =
+        IOA_PCIX_STATUS_RESET | HP_ZX1_IOA_PCIX_STATUS_W1C;
 
     if (!s->setup_done || !bus || !s->deliver ||
         pci_bus_num(bus) != s->baseline.secondary_bus ||
@@ -560,14 +548,12 @@ static bool hp_zx1_ioa_post_load(void *opaque, int version_id, Error **errp)
         (regs->pcix_command & ~IOA_PCIX_COMMAND_WRITABLE) ||
         (s->baseline.mode == HP_ZX1_IOA_MODE_AGP && regs->pcix_command) ||
         (regs->pcix_status & ~pcix_status_allowed) ||
-        (regs->pcix_status & IOA_PCIX_STATUS_RESET) !=
-            IOA_PCIX_STATUS_RESET) {
+        (regs->pcix_status & IOA_PCIX_STATUS_RESET) != IOA_PCIX_STATUS_RESET) {
         error_setg(errp, "Mercury migration has invalid AGP/PCI-X state");
         return false;
     }
     if ((regs->arbitration_mask & ~IOA_ARBITRATION_MASK_WRITABLE) ||
-        (!(s->baseline.bus_mode_reset &
-           HP_ZX1_IOA_BUS_MODE_SIX_MASTERS) &&
+        (!(s->baseline.bus_mode_reset & HP_ZX1_IOA_BUS_MODE_SIX_MASTERS) &&
          (regs->arbitration_mask & IOA_ARBITRATION_MASK_F)) ||
         (regs->status_control & ~IOA_SIC_LATCH_MASK) ||
         ((regs->status_control & HP_ZX1_IOA_SIC_CLEAR_LOG) &&
@@ -576,47 +562,39 @@ static bool hp_zx1_ioa_post_load(void *opaque, int version_id, Error **errp)
         return false;
     }
 
-    if (!hp_zx1_ioa_latch_valid(regs->lmmio_base,
-                                HP_ZX1_IOA_LMMIO_BASE_WRITABLE,
-                                HP_ZX1_IOA_LMMIO_BASE_RESET,
-                                "LMMIO base", errp) ||
-        !hp_zx1_ioa_latch_valid(regs->lmmio_mask,
-                                HP_ZX1_IOA_LMMIO_MASK_WRITABLE,
-                                HP_ZX1_IOA_LMMIO_MASK_RESET,
-                                "LMMIO mask", errp) ||
+    if (!hp_zx1_ioa_latch_valid(
+            regs->lmmio_base, HP_ZX1_IOA_LMMIO_BASE_WRITABLE,
+            HP_ZX1_IOA_LMMIO_BASE_RESET, "LMMIO base", errp) ||
+        !hp_zx1_ioa_latch_valid(
+            regs->lmmio_mask, HP_ZX1_IOA_LMMIO_MASK_WRITABLE,
+            HP_ZX1_IOA_LMMIO_MASK_RESET, "LMMIO mask", errp) ||
         !hp_zx1_ioa_latch_valid(regs->gmmio_base,
-                                HP_ZX1_IOA_GMMIO_BASE_WRITABLE, 0,
-                                "GMMIO base", errp) ||
+                                HP_ZX1_IOA_GMMIO_BASE_WRITABLE, 0, "GMMIO base",
+                                errp) ||
         !hp_zx1_ioa_latch_valid(regs->gmmio_mask,
-                                HP_ZX1_IOA_GMMIO_MASK_WRITABLE, 0,
-                                "GMMIO mask", errp) ||
-        !hp_zx1_ioa_latch_valid(regs->wlmmio_base,
-                                HP_ZX1_IOA_WLMMIO_BASE_WRITABLE,
-                                HP_ZX1_IOA_WLMMIO_BASE_RESET,
-                                "WLMMIO base", errp) ||
-        !hp_zx1_ioa_latch_valid(regs->wlmmio_mask,
-                                HP_ZX1_IOA_WLMMIO_MASK_WRITABLE,
-                                HP_ZX1_IOA_WLMMIO_MASK_RESET,
-                                "WLMMIO mask", errp) ||
+                                HP_ZX1_IOA_GMMIO_MASK_WRITABLE, 0, "GMMIO mask",
+                                errp) ||
+        !hp_zx1_ioa_latch_valid(
+            regs->wlmmio_base, HP_ZX1_IOA_WLMMIO_BASE_WRITABLE,
+            HP_ZX1_IOA_WLMMIO_BASE_RESET, "WLMMIO base", errp) ||
+        !hp_zx1_ioa_latch_valid(
+            regs->wlmmio_mask, HP_ZX1_IOA_WLMMIO_MASK_WRITABLE,
+            HP_ZX1_IOA_WLMMIO_MASK_RESET, "WLMMIO mask", errp) ||
         !hp_zx1_ioa_latch_valid(regs->wgmmio_base,
                                 HP_ZX1_IOA_WGMMIO_BASE_WRITABLE, 0,
                                 "WGMMIO base", errp) ||
         !hp_zx1_ioa_latch_valid(regs->wgmmio_mask,
                                 HP_ZX1_IOA_WGMMIO_MASK_WRITABLE, 0,
                                 "WGMMIO mask", errp) ||
-        !hp_zx1_ioa_latch_valid(regs->elmmio_base,
-                                HP_ZX1_IOA_ELMMIO_BASE_WRITABLE,
-                                HP_ZX1_IOA_ELMMIO_BASE_RESET,
-                                "ELMMIO base", errp) ||
-        !hp_zx1_ioa_latch_valid(regs->elmmio_mask,
-                                HP_ZX1_IOA_ELMMIO_MASK_WRITABLE,
-                                HP_ZX1_IOA_ELMMIO_MASK_RESET,
-                                "ELMMIO mask", errp) ||
-        !hp_zx1_ioa_latch_valid(regs->msi_base,
-                                HP_ZX1_IOA_MSI_BASE_WRITABLE, 0,
+        !hp_zx1_ioa_latch_valid(
+            regs->elmmio_base, HP_ZX1_IOA_ELMMIO_BASE_WRITABLE,
+            HP_ZX1_IOA_ELMMIO_BASE_RESET, "ELMMIO base", errp) ||
+        !hp_zx1_ioa_latch_valid(
+            regs->elmmio_mask, HP_ZX1_IOA_ELMMIO_MASK_WRITABLE,
+            HP_ZX1_IOA_ELMMIO_MASK_RESET, "ELMMIO mask", errp) ||
+        !hp_zx1_ioa_latch_valid(regs->msi_base, HP_ZX1_IOA_MSI_BASE_WRITABLE, 0,
                                 "MSI base", errp) ||
-        !hp_zx1_ioa_latch_valid(regs->msi_mask,
-                                HP_ZX1_IOA_MSI_MASK_WRITABLE, 0,
+        !hp_zx1_ioa_latch_valid(regs->msi_mask, HP_ZX1_IOA_MSI_MASK_WRITABLE, 0,
                                 "MSI mask", errp)) {
         return false;
     }
@@ -651,10 +629,9 @@ static const VMStateDescription vmstate_hp_zx1_ioa_route = {
     .name = TYPE_HP_ZX1_IOA "/intx-route",
     .version_id = 2,
     .minimum_version_id = 2,
-    .fields = (const VMStateField[]) {
-        VMSTATE_UINT32_EQUAL(packed, HPZX1IOARoute),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) { VMSTATE_UINT32_EQUAL(packed, HPZX1IOARoute),
+                                 VMSTATE_END_OF_LIST() },
 };
 
 static const VMStateDescription vmstate_hp_zx1_ioa = {
@@ -662,60 +639,60 @@ static const VMStateDescription vmstate_hp_zx1_ioa = {
     .version_id = 2,
     .minimum_version_id = 2,
     .post_load_errp = hp_zx1_ioa_post_load,
-    .fields = (const VMStateField[]) {
-        /* Reject migration between differently wired board instances. */
-        VMSTATE_UINT8_EQUAL(baseline.mode, HPZX1IOAState),
-        VMSTATE_UINT8_EQUAL(baseline.rope_mask, HPZX1IOAState),
-        VMSTATE_UINT8_EQUAL(baseline.secondary_bus, HPZX1IOAState),
-        VMSTATE_UINT8_EQUAL(baseline.subordinate_bus, HPZX1IOAState),
-        VMSTATE_UINT8_EQUAL(baseline.pci_reset_asserted, HPZX1IOAState),
-        VMSTATE_UINT64_EQUAL(baseline.bus_mode_reset, HPZX1IOAState),
-        VMSTATE_UINT64_EQUAL(baseline.slave_control_reset_straps,
-                             HPZX1IOAState),
-        VMSTATE_UINT32_EQUAL(baseline.error_configuration_reset_straps,
-                             HPZX1IOAState),
-        VMSTATE_STRUCT_ARRAY(baseline.intx_route, HPZX1IOAState,
-                             PCI_SLOT_MAX, 1, vmstate_hp_zx1_ioa_route,
-                             HPZX1IOARoute),
+    .fields =
+        (const VMStateField[]) {
+            /* Reject migration between differently wired board instances. */
+            VMSTATE_UINT8_EQUAL(baseline.mode, HPZX1IOAState),
+            VMSTATE_UINT8_EQUAL(baseline.rope_mask, HPZX1IOAState),
+            VMSTATE_UINT8_EQUAL(baseline.secondary_bus, HPZX1IOAState),
+            VMSTATE_UINT8_EQUAL(baseline.subordinate_bus, HPZX1IOAState),
+            VMSTATE_UINT8_EQUAL(baseline.pci_reset_asserted, HPZX1IOAState),
+            VMSTATE_UINT64_EQUAL(baseline.bus_mode_reset, HPZX1IOAState),
+            VMSTATE_UINT64_EQUAL(baseline.slave_control_reset_straps,
+                                 HPZX1IOAState),
+            VMSTATE_UINT32_EQUAL(baseline.error_configuration_reset_straps,
+                                 HPZX1IOAState),
+            VMSTATE_STRUCT_ARRAY(baseline.intx_route, HPZX1IOAState,
+                                 PCI_SLOT_MAX, 1, vmstate_hp_zx1_ioa_route,
+                                 HPZX1IOARoute),
 
-        VMSTATE_UINT16(regs.pci_command, HPZX1IOAState),
-        VMSTATE_UINT16(regs.pci_status, HPZX1IOAState),
-        VMSTATE_UINT8(regs.latency_timer, HPZX1IOAState),
-        VMSTATE_UINT8(regs.cache_line_size, HPZX1IOAState),
-        VMSTATE_UINT32(regs.config_address, HPZX1IOAState),
-        VMSTATE_UINT16(regs.bus_number, HPZX1IOAState),
-        VMSTATE_UINT32(regs.agp_command, HPZX1IOAState),
-        VMSTATE_UINT16(regs.pcix_command, HPZX1IOAState),
-        VMSTATE_UINT32(regs.pcix_status, HPZX1IOAState),
-        VMSTATE_UINT32(regs.arbitration_mask, HPZX1IOAState),
-        VMSTATE_UINT32(regs.status_control, HPZX1IOAState),
-        VMSTATE_BOOL(regs.pci_reset_asserted, HPZX1IOAState),
+            VMSTATE_UINT16(regs.pci_command, HPZX1IOAState),
+            VMSTATE_UINT16(regs.pci_status, HPZX1IOAState),
+            VMSTATE_UINT8(regs.latency_timer, HPZX1IOAState),
+            VMSTATE_UINT8(regs.cache_line_size, HPZX1IOAState),
+            VMSTATE_UINT32(regs.config_address, HPZX1IOAState),
+            VMSTATE_UINT16(regs.bus_number, HPZX1IOAState),
+            VMSTATE_UINT32(regs.agp_command, HPZX1IOAState),
+            VMSTATE_UINT16(regs.pcix_command, HPZX1IOAState),
+            VMSTATE_UINT32(regs.pcix_status, HPZX1IOAState),
+            VMSTATE_UINT32(regs.arbitration_mask, HPZX1IOAState),
+            VMSTATE_UINT32(regs.status_control, HPZX1IOAState),
+            VMSTATE_BOOL(regs.pci_reset_asserted, HPZX1IOAState),
 
-        VMSTATE_UINT64(regs.lmmio_base, HPZX1IOAState),
-        VMSTATE_UINT64(regs.lmmio_mask, HPZX1IOAState),
-        VMSTATE_UINT64(regs.gmmio_base, HPZX1IOAState),
-        VMSTATE_UINT64(regs.gmmio_mask, HPZX1IOAState),
-        VMSTATE_UINT64(regs.wlmmio_base, HPZX1IOAState),
-        VMSTATE_UINT64(regs.wlmmio_mask, HPZX1IOAState),
-        VMSTATE_UINT64(regs.wgmmio_base, HPZX1IOAState),
-        VMSTATE_UINT64(regs.wgmmio_mask, HPZX1IOAState),
-        VMSTATE_UINT64(regs.elmmio_base, HPZX1IOAState),
-        VMSTATE_UINT64(regs.elmmio_mask, HPZX1IOAState),
-        VMSTATE_UINT64(regs.msi_base, HPZX1IOAState),
-        VMSTATE_UINT64(regs.msi_mask, HPZX1IOAState),
-        VMSTATE_UINT64(regs.bus_mode, HPZX1IOAState),
-        VMSTATE_UINT64(regs.slave_control, HPZX1IOAState),
-        VMSTATE_UINT32(regs.error_configuration, HPZX1IOAState),
-        VMSTATE_UINT64(regs.error_status, HPZX1IOAState),
-        VMSTATE_UINT64(regs.outbound_error_address, HPZX1IOAState),
+            VMSTATE_UINT64(regs.lmmio_base, HPZX1IOAState),
+            VMSTATE_UINT64(regs.lmmio_mask, HPZX1IOAState),
+            VMSTATE_UINT64(regs.gmmio_base, HPZX1IOAState),
+            VMSTATE_UINT64(regs.gmmio_mask, HPZX1IOAState),
+            VMSTATE_UINT64(regs.wlmmio_base, HPZX1IOAState),
+            VMSTATE_UINT64(regs.wlmmio_mask, HPZX1IOAState),
+            VMSTATE_UINT64(regs.wgmmio_base, HPZX1IOAState),
+            VMSTATE_UINT64(regs.wgmmio_mask, HPZX1IOAState),
+            VMSTATE_UINT64(regs.elmmio_base, HPZX1IOAState),
+            VMSTATE_UINT64(regs.elmmio_mask, HPZX1IOAState),
+            VMSTATE_UINT64(regs.msi_base, HPZX1IOAState),
+            VMSTATE_UINT64(regs.msi_mask, HPZX1IOAState),
+            VMSTATE_UINT64(regs.bus_mode, HPZX1IOAState),
+            VMSTATE_UINT64(regs.slave_control, HPZX1IOAState),
+            VMSTATE_UINT32(regs.error_configuration, HPZX1IOAState),
+            VMSTATE_UINT64(regs.error_status, HPZX1IOAState),
+            VMSTATE_UINT64(regs.outbound_error_address, HPZX1IOAState),
 
-        VMSTATE_UINT32(regs.sapic_selector, HPZX1IOAState),
-        VMSTATE_UINT32(regs.sapic_in_service, HPZX1IOAState),
-        VMSTATE_UINT32(regs.sapic_asserted, HPZX1IOAState),
-        VMSTATE_UINT64_ARRAY(regs.sapic_regs, HPZX1IOAState,
-                             HP_IO_SAPIC_ZX1_REG_COUNT),
-        VMSTATE_END_OF_LIST()
-    },
+            VMSTATE_UINT32(regs.sapic_selector, HPZX1IOAState),
+            VMSTATE_UINT32(regs.sapic_in_service, HPZX1IOAState),
+            VMSTATE_UINT32(regs.sapic_asserted, HPZX1IOAState),
+            VMSTATE_UINT64_ARRAY(regs.sapic_regs, HPZX1IOAState,
+                                 HP_IO_SAPIC_ZX1_REG_COUNT),
+            VMSTATE_END_OF_LIST() },
 };
 
 static void hp_zx1_ioa_realize(DeviceState *dev, Error **errp)
@@ -732,9 +709,8 @@ static void hp_zx1_ioa_realize(DeviceState *dev, Error **errp)
     snprintf(s->root_bus_name, sizeof(s->root_bus_name), "pci.%x",
              s->baseline.secondary_bus);
     bus = pci_register_root_bus(dev, s->root_bus_name, hp_zx1_ioa_set_irq,
-                                hp_zx1_ioa_map_irq, s, &s->pci_mem,
-                                &s->pci_io, PCI_DEVFN(0, 0),
-                                hp_zx1_ioa_external_inputs(s),
+                                hp_zx1_ioa_map_irq, s, &s->pci_mem, &s->pci_io,
+                                PCI_DEVFN(0, 0), hp_zx1_ioa_external_inputs(s),
                                 TYPE_HP_ZX1_IOA_BUS);
     HP_ZX1_IOA_BUS(bus)->first_bus = s->baseline.secondary_bus;
     host->bus = bus;
@@ -769,8 +745,8 @@ static void hp_zx1_ioa_init(Object *obj)
 {
     HPZX1IOAState *s = HP_ZX1_IOA(obj);
 
-    memory_region_init_io(&s->csr, obj, &hp_zx1_ioa_ops, s,
-                          TYPE_HP_ZX1_IOA, HP_ZX1_IOA_CONFIG_APERTURE_SIZE);
+    memory_region_init_io(&s->csr, obj, &hp_zx1_ioa_ops, s, TYPE_HP_ZX1_IOA,
+                          HP_ZX1_IOA_CONFIG_APERTURE_SIZE);
     memory_region_init(&s->pci_mem, obj, TYPE_HP_ZX1_IOA ".pci-mem",
                        UINT64_MAX);
     memory_region_init(&s->pci_io, obj, TYPE_HP_ZX1_IOA ".pci-io",
@@ -779,8 +755,7 @@ static void hp_zx1_ioa_init(Object *obj)
                           TYPE_HP_ZX1_IOA ".msi", 1);
     memory_region_set_enabled(&s->msi, false);
     sysbus_init_mmio(SYS_BUS_DEVICE(s), &s->csr);
-    qdev_init_gpio_in_named(DEVICE(s), hp_zx1_ioa_set_irq,
-                            HP_ZX1_IOA_GPIO_INTX,
+    qdev_init_gpio_in_named(DEVICE(s), hp_zx1_ioa_set_irq, HP_ZX1_IOA_GPIO_INTX,
                             HP_ZX1_IOA_EXTERNAL_INPUTS);
 }
 
@@ -816,8 +791,8 @@ static void hp_zx1_ioa_register_types(void)
 
 type_init(hp_zx1_ioa_register_types)
 
-bool hp_zx1_ioa_attach_msi_window(HPZX1IOAState *s,
-                                  MemoryRegion *dma_root, Error **errp)
+    bool hp_zx1_ioa_attach_msi_window(HPZX1IOAState *s, MemoryRegion *dma_root,
+                                      Error **errp)
 {
     if (!s || !dma_root) {
         error_setg(errp,
@@ -826,9 +801,8 @@ bool hp_zx1_ioa_attach_msi_window(HPZX1IOAState *s,
     }
     if (!s->setup_done || !qdev_is_realized(DEVICE(s)) ||
         !PCI_HOST_BRIDGE(s)->bus) {
-        error_setg(errp,
-                   "Mercury must be configured and realized before MSI "
-                   "attachment");
+        error_setg(errp, "Mercury must be configured and realized before MSI "
+                         "attachment");
         return false;
     }
     if (s->msi_dma_root || memory_region_is_mapped(&s->msi)) {
@@ -851,8 +825,7 @@ bool hp_zx1_ioa_attach_msi_window(HPZX1IOAState *s,
     return true;
 }
 
-void hp_zx1_ioa_detach_msi_window(HPZX1IOAState *s,
-                                  MemoryRegion *dma_root)
+void hp_zx1_ioa_detach_msi_window(HPZX1IOAState *s, MemoryRegion *dma_root)
 {
     g_assert(s && dma_root);
     g_assert(s->msi_dma_root == dma_root);

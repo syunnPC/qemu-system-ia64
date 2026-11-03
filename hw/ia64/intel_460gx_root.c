@@ -44,7 +44,7 @@ static int intel_460gx_root_bus_num(PCIBus *bus)
 }
 
 static void intel_460gx_root_bus_class_init(ObjectClass *klass,
-                                             const void *data)
+                                            const void *data)
 {
     PCIBusClass *pbc = PCI_BUS_CLASS(klass);
 
@@ -59,10 +59,10 @@ static const TypeInfo intel_460gx_root_bus_type_info = {
 };
 
 PCIBus *intel_460gx_numbered_root_bus_register(
-    PCIHostState *host, const char *name,
-    pci_set_irq_fn set_irq, pci_map_irq_fn map_irq, void *irq_opaque,
-    MemoryRegion *mem, MemoryRegion *io, uint8_t devfn_min, int nirq,
-    uint8_t first_bus, Error **errp)
+    PCIHostState *host, const char *name, pci_set_irq_fn set_irq,
+    pci_map_irq_fn map_irq, void *irq_opaque, MemoryRegion *mem,
+    MemoryRegion *io, uint8_t devfn_min, int nirq, uint8_t first_bus,
+    Error **errp)
 {
     PCIBus *bus;
 
@@ -80,8 +80,7 @@ PCIBus *intel_460gx_numbered_root_bus_register(
         return NULL;
     }
     if (set_irq == NULL || map_irq == NULL || nirq <= 0) {
-        error_setg(errp,
-                   "460GX numbered PCI root requires interrupt routing");
+        error_setg(errp, "460GX numbered PCI root requires interrupt routing");
         return NULL;
     }
 
@@ -93,8 +92,7 @@ PCIBus *intel_460gx_numbered_root_bus_register(
     return bus;
 }
 
-void intel_460gx_numbered_root_bus_set_number(PCIBus *bus,
-                                               uint8_t first_bus)
+void intel_460gx_numbered_root_bus_set_number(PCIBus *bus, uint8_t first_bus)
 {
     if (bus && object_dynamic_cast(OBJECT(bus), TYPE_INTEL_460GX_ROOT_BUS)) {
         INTEL_460GX_ROOT_BUS(bus)->first_bus = first_bus;
@@ -149,12 +147,12 @@ static void intel_460gx_root_host_realize(DeviceState *dev, Error **errp)
 
     snprintf(s->root_bus_path, sizeof(s->root_bus_path), "0000:%02x",
              first_bus);
-    bus_name = first_bus ? g_strdup_printf("pci.%u", first_bus) :
-                           g_strdup("pci");
+    bus_name =
+        first_bus ? g_strdup_printf("pci.%u", first_bus) : g_strdup("pci");
     intel_460gx_numbered_root_bus_register(
         host, bus_name, intel_460gx_root_set_irq, intel_460gx_root_map_irq, s,
-        &s->pci_mem, &s->pci_io, PCI_DEVFN(0, 0), PCI_NUM_PINS,
-        first_bus, errp);
+        &s->pci_mem, &s->pci_io, PCI_DEVFN(0, 0), PCI_NUM_PINS, first_bus,
+        errp);
 }
 
 static void intel_460gx_root_host_unrealize(DeviceState *dev)
@@ -180,21 +178,20 @@ static const VMStateDescription vmstate_intel_460gx_root_host = {
     .name = TYPE_INTEL_460GX_ROOT_HOST,
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (const VMStateField[]) {
-        /* The root number is immutable board wiring. */
-        VMSTATE_UINT16_EQUAL(initial_first_bus, Intel460GXRootHostState),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) {
+            /* The root number is immutable board wiring. */
+            VMSTATE_UINT16_EQUAL(initial_first_bus, Intel460GXRootHostState),
+            VMSTATE_END_OF_LIST() },
 };
 
 static const Property intel_460gx_root_host_properties[] = {
-    DEFINE_PROP_UINT16(INTEL_460GX_ROOT_PROP_FIRST_BUS,
-                       Intel460GXRootHostState, initial_first_bus,
-                       UINT16_MAX),
+    DEFINE_PROP_UINT16(INTEL_460GX_ROOT_PROP_FIRST_BUS, Intel460GXRootHostState,
+                       initial_first_bus, UINT16_MAX),
 };
 
 static void intel_460gx_root_host_class_init(ObjectClass *klass,
-                                              const void *data)
+                                             const void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
     PCIHostBridgeClass *hc = PCI_HOST_BRIDGE_CLASS(klass);
@@ -224,7 +221,7 @@ static void intel_460gx_root_register_types(void)
 }
 type_init(intel_460gx_root_register_types)
 
-PCIBus *intel_460gx_root_host_bus(Intel460GXRootHostState *s)
+    PCIBus *intel_460gx_root_host_bus(Intel460GXRootHostState *s)
 {
     return PCI_HOST_BRIDGE(s)->bus;
 }

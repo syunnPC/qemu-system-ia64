@@ -82,18 +82,18 @@ static const VMStateDescription vmstate_rtc_bank1 = {
     .name = TYPE_IA64_I2000_RTC_BANK1,
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (const VMStateField[]) {
-        VMSTATE_UINT16_EQUAL(iobase, IA64I2000RTCBank1State),
-        VMSTATE_UINT8(index, IA64I2000RTCBank1State),
-        VMSTATE_UINT8_ARRAY(data, IA64I2000RTCBank1State,
-                            IA64_I2000_RTC_BANK1_SIZE),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) {
+            VMSTATE_UINT16_EQUAL(iobase, IA64I2000RTCBank1State),
+            VMSTATE_UINT8(index, IA64I2000RTCBank1State),
+            VMSTATE_UINT8_ARRAY(data, IA64I2000RTCBank1State,
+                                IA64_I2000_RTC_BANK1_SIZE),
+            VMSTATE_END_OF_LIST() },
 };
 
 static const Property rtc_bank1_properties[] = {
-    DEFINE_PROP_UINT16(IA64_I2000_RTC_BANK1_PROP_IOBASE,
-                       IA64I2000RTCBank1State, iobase, 0x72),
+    DEFINE_PROP_UINT16(IA64_I2000_RTC_BANK1_PROP_IOBASE, IA64I2000RTCBank1State,
+                       iobase, 0x72),
 };
 
 static void rtc_bank1_class_init(ObjectClass *klass, const void *data)

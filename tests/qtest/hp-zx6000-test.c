@@ -142,8 +142,7 @@ static void zx6000_assert_ppm_pixel(const char *filename, unsigned width,
     g_assert_cmpuint(maximum, ==, 255);
     g_assert_cmpuint(x, <, width);
     g_assert_cmpuint(y, <, height);
-    g_assert_cmpuint(length - (end - contents), >,
-                     (gsize)width * height * 3);
+    g_assert_cmpuint(length - (end - contents), >, (gsize)width * height * 3);
     g_assert_true(g_ascii_isspace(*end));
     if (*end++ == '\r' && *end == '\n') {
         end++;
@@ -171,15 +170,13 @@ static const uint32_t zx6000_gsi_base[] = {
 };
 
 static const uint64_t zx6000_cpu_mmio_base[] = {
-    UINT64_C(0x80000000), UINT64_C(0x88000000),
-    UINT64_C(0x90000000), UINT64_C(0x98000000),
-    UINT64_C(0xa0000000), UINT64_C(0xb0000000),
+    UINT64_C(0x80000000), UINT64_C(0x88000000), UINT64_C(0x90000000),
+    UINT64_C(0x98000000), UINT64_C(0xa0000000), UINT64_C(0xb0000000),
 };
 
 static const uint64_t zx6000_mmio_size[] = {
-    UINT64_C(0x08000000), UINT64_C(0x08000000),
-    UINT64_C(0x08000000), UINT64_C(0x08000000),
-    UINT64_C(0x10000000), UINT64_C(0x08000000),
+    UINT64_C(0x08000000), UINT64_C(0x08000000), UINT64_C(0x08000000),
+    UINT64_C(0x08000000), UINT64_C(0x10000000), UINT64_C(0x08000000),
 };
 
 static QTestState *zx6000_start(void)
@@ -206,8 +203,8 @@ static QTestState *zx6000_start_with_options(const char *machine_options,
                                              const char *options)
 {
     const char *firmware = g_getenv(TEST_FIRMWARE_ENV);
-    const char *nvram_options = strstr(machine_options, "nvram=") ?
-        "" : ",nvram=none";
+    const char *nvram_options =
+        strstr(machine_options, "nvram=") ? "" : ",nvram=none";
 
     g_assert_nonnull(firmware);
     return qtest_initf("-machine hp-zx6000%s%s -m 2G -smp 1 -S "
@@ -217,18 +214,15 @@ static QTestState *zx6000_start_with_options(const char *machine_options,
 
 static void zx6000_i82550_eeprom_set_lines(QTestState *qts, uint8_t lines)
 {
-    qtest_writew(qts, ZX6000_I82550_MMIO_BASE + ZX6000_E100_SCB_EEPROM,
-                 lines);
+    qtest_writew(qts, ZX6000_I82550_MMIO_BASE + ZX6000_E100_SCB_EEPROM, lines);
 }
 
 static void zx6000_i82550_eeprom_clock_out(QTestState *qts, bool bit)
 {
-    uint8_t lines = ZX6000_E100_EEPROM_CS |
-                    (bit ? ZX6000_E100_EEPROM_DI : 0);
+    uint8_t lines = ZX6000_E100_EEPROM_CS | (bit ? ZX6000_E100_EEPROM_DI : 0);
 
     zx6000_i82550_eeprom_set_lines(qts, lines);
-    zx6000_i82550_eeprom_set_lines(qts,
-                                   lines | ZX6000_E100_EEPROM_SK);
+    zx6000_i82550_eeprom_set_lines(qts, lines | ZX6000_E100_EEPROM_SK);
     zx6000_i82550_eeprom_set_lines(qts, lines);
 }
 
@@ -237,17 +231,16 @@ static bool zx6000_i82550_eeprom_clock_in(QTestState *qts)
     bool bit;
 
     zx6000_i82550_eeprom_set_lines(qts, ZX6000_E100_EEPROM_CS);
-    zx6000_i82550_eeprom_set_lines(
-        qts, ZX6000_E100_EEPROM_CS | ZX6000_E100_EEPROM_SK);
-    bit = qtest_readw(qts,
-                      ZX6000_I82550_MMIO_BASE + ZX6000_E100_SCB_EEPROM) &
+    zx6000_i82550_eeprom_set_lines(qts, ZX6000_E100_EEPROM_CS |
+                                            ZX6000_E100_EEPROM_SK);
+    bit = qtest_readw(qts, ZX6000_I82550_MMIO_BASE + ZX6000_E100_SCB_EEPROM) &
           ZX6000_E100_EEPROM_DO;
     zx6000_i82550_eeprom_set_lines(qts, ZX6000_E100_EEPROM_CS);
     return bit;
 }
 
 static uint16_t zx6000_i82550_eeprom_read_word(QTestState *qts,
-                                                unsigned address)
+                                               unsigned address)
 {
     uint16_t value = 0;
     int bit;
@@ -257,10 +250,10 @@ static uint16_t zx6000_i82550_eeprom_read_word(QTestState *qts,
     zx6000_i82550_eeprom_set_lines(qts, ZX6000_E100_EEPROM_CS);
     zx6000_i82550_eeprom_clock_out(qts, false);
     zx6000_i82550_eeprom_clock_out(qts, true);
-    zx6000_i82550_eeprom_clock_out(
-        qts, ZX6000_E100_EEPROM_OPCODE_READ & BIT(1));
-    zx6000_i82550_eeprom_clock_out(
-        qts, ZX6000_E100_EEPROM_OPCODE_READ & BIT(0));
+    zx6000_i82550_eeprom_clock_out(qts,
+                                   ZX6000_E100_EEPROM_OPCODE_READ & BIT(1));
+    zx6000_i82550_eeprom_clock_out(qts,
+                                   ZX6000_E100_EEPROM_OPCODE_READ & BIT(0));
     for (bit = ZX6000_E100_EEPROM_ADDRESS_BITS - 1; bit >= 0; bit--) {
         zx6000_i82550_eeprom_clock_out(qts, address & BIT(bit));
     }
@@ -286,8 +279,7 @@ static void zx6000_assert_block_devices(QTestState *qts,
                                         const char *const *expected,
                                         size_t expected_count)
 {
-    g_autoptr(QDict) response = qtest_qmp(
-        qts, "{'execute':'query-block'}");
+    g_autoptr(QDict) response = qtest_qmp(qts, "{'execute':'query-block'}");
     QList *blocks = qdict_get_qlist(response, "return");
     size_t i;
 
@@ -309,11 +301,11 @@ static void zx6000_assert_block_devices(QTestState *qts,
 }
 
 static unsigned int zx6000_count_unattached_children(QTestState *qts,
-                                                      const char *qom_type)
+                                                     const char *qom_type)
 {
-    g_autoptr(QDict) response = qtest_qmp(
-        qts, "{'execute':'qom-list','arguments':"
-             " {'path':'/machine/unattached'}}");
+    g_autoptr(QDict) response =
+        qtest_qmp(qts, "{'execute':'qom-list','arguments':"
+                       " {'path':'/machine/unattached'}}");
     g_autofree char *child_type = g_strdup_printf("child<%s>", qom_type);
     QList *children = qdict_get_qlist(response, "return");
     QListEntry *entry;
@@ -329,12 +321,11 @@ static unsigned int zx6000_count_unattached_children(QTestState *qts,
     return count;
 }
 
-static char *zx6000_find_unattached_child(QTestState *qts,
-                                          const char *qom_type)
+static char *zx6000_find_unattached_child(QTestState *qts, const char *qom_type)
 {
-    g_autoptr(QDict) response = qtest_qmp(
-        qts, "{'execute':'qom-list','arguments':"
-             " {'path':'/machine/unattached'}}");
+    g_autoptr(QDict) response =
+        qtest_qmp(qts, "{'execute':'qom-list','arguments':"
+                       " {'path':'/machine/unattached'}}");
     g_autofree char *child_type = g_strdup_printf("child<%s>", qom_type);
     QList *children = qdict_get_qlist(response, "return");
     QListEntry *entry;
@@ -370,17 +361,20 @@ static bool zx6000_qom_has_child(QTestState *qts, const char *name,
     return false;
 }
 
-static void zx6000_assert_start_fails(const char *option,
-                                      const char *value,
+static void zx6000_assert_start_fails(const char *option, const char *value,
                                       const char *message)
 {
     const char *firmware = g_getenv(TEST_FIRMWARE_ENV);
     const char *argv[] = {
         qtest_qemu_binary(NULL),
-        "-machine", "hp-zx6000,nvram=none",
-        "-bios", firmware,
-        option, value,
-        "-display", "none",
+        "-machine",
+        "hp-zx6000,nvram=none",
+        "-bios",
+        firmware,
+        option,
+        value,
+        "-display",
+        "none",
         NULL,
     };
     g_autofree char *stderr_text = NULL;
@@ -389,9 +383,8 @@ static void zx6000_assert_start_fails(const char *option,
 
     g_assert_nonnull(firmware);
     g_assert_true(g_spawn_sync(NULL, (char **)argv, NULL,
-                               G_SPAWN_STDOUT_TO_DEV_NULL,
-                               NULL, NULL, NULL, &stderr_text,
-                               &wait_status, &error));
+                               G_SPAWN_STDOUT_TO_DEV_NULL, NULL, NULL, NULL,
+                               &stderr_text, &wait_status, &error));
     g_assert_no_error(error);
     g_assert_true(WIFEXITED(wait_status));
     g_assert_cmpint(WEXITSTATUS(wait_status), ==, 1);
@@ -399,21 +392,27 @@ static void zx6000_assert_start_fails(const char *option,
 }
 
 static void zx6000_assert_nvram_start_fails(const char *path,
-                                             const char *message)
+                                            const char *message)
 {
     const char *firmware = g_getenv(TEST_FIRMWARE_ENV);
-    g_autofree char *machine =
-        g_strdup_printf("hp-zx6000,nvram=%s", path);
+    g_autofree char *machine = g_strdup_printf("hp-zx6000,nvram=%s", path);
     const char *argv[] = {
         qtest_qemu_binary(NULL),
-        "-machine", machine,
-        "-m", "512M",
-        "-smp", "1",
-        "-bios", firmware,
+        "-machine",
+        machine,
+        "-m",
+        "512M",
+        "-smp",
+        "1",
+        "-bios",
+        firmware,
         "-S",
-        "-display", "none",
-        "-serial", "none",
-        "-net", "none",
+        "-display",
+        "none",
+        "-serial",
+        "none",
+        "-net",
+        "none",
         NULL,
     };
     g_autofree char *stderr_text = NULL;
@@ -422,9 +421,8 @@ static void zx6000_assert_nvram_start_fails(const char *path,
 
     g_assert_nonnull(firmware);
     g_assert_true(g_spawn_sync(NULL, (char **)argv, NULL,
-                               G_SPAWN_STDOUT_TO_DEV_NULL,
-                               NULL, NULL, NULL, &stderr_text,
-                               &wait_status, &error));
+                               G_SPAWN_STDOUT_TO_DEV_NULL, NULL, NULL, NULL,
+                               &stderr_text, &wait_status, &error));
     g_assert_no_error(error);
     g_assert_true(WIFEXITED(wait_status));
     g_assert_cmpint(WEXITSTATUS(wait_status), ==, 1);
@@ -434,8 +432,7 @@ static void zx6000_assert_nvram_start_fails(const char *path,
 static void test_hp_zx6000_machine_identity(void)
 {
     QTestState *qts = zx6000_start();
-    g_autoptr(QDict) response = qtest_qmp(
-        qts, "{'execute':'query-machines'}");
+    g_autoptr(QDict) response = qtest_qmp(qts, "{'execute':'query-machines'}");
     QList *machines = qdict_get_qlist(response, "return");
     QListEntry *entry;
     bool found = false;
@@ -472,11 +469,12 @@ static void test_hp_zx6000_constraints(void)
 static void test_hp_zx6000_storage_defaults(void)
 {
     static const char *const automatic[] = {
-        "scsi0-hd0", "ide0-cd0",
+        "scsi0-hd0",
+        "ide0-cd0",
     };
     static const char *const explicit_topology[] = {
-        "ide0-hd0", "ide0-cd1", "ide1-cd0", "ide1-hd1",
-        "scsi0-cd6", "scsi1-hd6",
+        "ide0-hd0", "ide0-cd1",  "ide1-cd0",
+        "ide1-hd1", "scsi0-cd6", "scsi1-hd6",
     };
     static const char *const cdrom_shortcut[] = {
         "ide1-cd0",
@@ -515,81 +513,72 @@ static void test_hp_zx6000_mpt_doorbell(void)
     uint32_t doorbell;
     unsigned int reply_words = 0;
 
-    qtest_writel(qts,
-                 ZX6000_LSI0_MMIO_BASE + ZX6000_MPT_DOORBELL_OFFSET,
+    qtest_writel(qts, ZX6000_LSI0_MMIO_BASE + ZX6000_MPT_DOORBELL_OFFSET,
                  ZX6000_MPT_HANDSHAKE_IOC_FACTS);
-    g_assert_cmphex(
-        qtest_readl(qts, ZX6000_LSI0_MMIO_BASE +
-                         ZX6000_MPT_INTERRUPT_STATUS_OFFSET) &
-            ZX6000_MPT_DOORBELL_INTERRUPT,
-        ==, ZX6000_MPT_DOORBELL_INTERRUPT);
+    g_assert_cmphex(qtest_readl(qts, ZX6000_LSI0_MMIO_BASE +
+                                         ZX6000_MPT_INTERRUPT_STATUS_OFFSET) &
+                        ZX6000_MPT_DOORBELL_INTERRUPT,
+                    ==, ZX6000_MPT_DOORBELL_INTERRUPT);
     qtest_writel(qts,
-                 ZX6000_LSI0_MMIO_BASE +
-                 ZX6000_MPT_INTERRUPT_STATUS_OFFSET, 0);
+                 ZX6000_LSI0_MMIO_BASE + ZX6000_MPT_INTERRUPT_STATUS_OFFSET, 0);
 
-    qtest_writel(qts,
-                 ZX6000_LSI0_MMIO_BASE + ZX6000_MPT_DOORBELL_OFFSET,
+    qtest_writel(qts, ZX6000_LSI0_MMIO_BASE + ZX6000_MPT_DOORBELL_OFFSET,
                  ZX6000_MPT_IOC_FACTS_REQUEST_WORD0);
-    qtest_writel(qts,
-                 ZX6000_LSI0_MMIO_BASE + ZX6000_MPT_DOORBELL_OFFSET, 0);
-    qtest_writel(qts,
-                 ZX6000_LSI0_MMIO_BASE + ZX6000_MPT_DOORBELL_OFFSET, 0);
+    qtest_writel(qts, ZX6000_LSI0_MMIO_BASE + ZX6000_MPT_DOORBELL_OFFSET, 0);
+    qtest_writel(qts, ZX6000_LSI0_MMIO_BASE + ZX6000_MPT_DOORBELL_OFFSET, 0);
 
     do {
         g_assert_cmphex(
             qtest_readl(qts, ZX6000_LSI0_MMIO_BASE +
-                             ZX6000_MPT_INTERRUPT_STATUS_OFFSET) &
+                                 ZX6000_MPT_INTERRUPT_STATUS_OFFSET) &
                 ZX6000_MPT_DOORBELL_INTERRUPT,
             ==, ZX6000_MPT_DOORBELL_INTERRUPT);
-        doorbell = qtest_readl(
-            qts, ZX6000_LSI0_MMIO_BASE + ZX6000_MPT_DOORBELL_OFFSET);
+        doorbell = qtest_readl(qts, ZX6000_LSI0_MMIO_BASE +
+                                        ZX6000_MPT_DOORBELL_OFFSET);
         if (!(doorbell & ZX6000_MPT_DOORBELL_ACTIVE)) {
             break;
         }
         reply_words++;
-        qtest_writel(qts,
-                     ZX6000_LSI0_MMIO_BASE +
-                     ZX6000_MPT_INTERRUPT_STATUS_OFFSET, 0);
+        qtest_writel(
+            qts, ZX6000_LSI0_MMIO_BASE + ZX6000_MPT_INTERRUPT_STATUS_OFFSET, 0);
     } while (reply_words < 256);
 
     g_assert_cmpuint(reply_words, >, 0);
     g_assert_cmpuint(reply_words, <, 256);
-    g_assert_cmphex(
-        qtest_readl(qts, ZX6000_LSI0_MMIO_BASE +
-                         ZX6000_MPT_INTERRUPT_STATUS_OFFSET) &
-            ZX6000_MPT_DOORBELL_INTERRUPT,
-        ==, ZX6000_MPT_DOORBELL_INTERRUPT);
+    g_assert_cmphex(qtest_readl(qts, ZX6000_LSI0_MMIO_BASE +
+                                         ZX6000_MPT_INTERRUPT_STATUS_OFFSET) &
+                        ZX6000_MPT_DOORBELL_INTERRUPT,
+                    ==, ZX6000_MPT_DOORBELL_INTERRUPT);
     qtest_writel(qts,
-                 ZX6000_LSI0_MMIO_BASE +
-                 ZX6000_MPT_INTERRUPT_STATUS_OFFSET, 0);
-    g_assert_cmphex(
-        qtest_readl(qts, ZX6000_LSI0_MMIO_BASE +
-                         ZX6000_MPT_INTERRUPT_STATUS_OFFSET) &
-            ZX6000_MPT_DOORBELL_INTERRUPT,
-        ==, 0);
+                 ZX6000_LSI0_MMIO_BASE + ZX6000_MPT_INTERRUPT_STATUS_OFFSET, 0);
+    g_assert_cmphex(qtest_readl(qts, ZX6000_LSI0_MMIO_BASE +
+                                         ZX6000_MPT_INTERRUPT_STATUS_OFFSET) &
+                        ZX6000_MPT_DOORBELL_INTERRUPT,
+                    ==, 0);
     qtest_quit(qts);
 }
 
 static void hp_mpt_send_handshake(QTestState *qts, uint64_t base,
-                                   const void *request, size_t size)
+                                  const void *request, size_t size)
 {
     const uint8_t *bytes = request;
     size_t i;
 
     g_assert_cmpuint(size % sizeof(uint32_t), ==, 0);
-    qtest_writel(qts, base + MPI_DOORBELL_OFFSET,
-                 (MPI_FUNCTION_HANDSHAKE << MPI_DOORBELL_FUNCTION_SHIFT) |
-                 ((size / sizeof(uint32_t)) << MPI_DOORBELL_ADD_DWORDS_SHIFT));
+    qtest_writel(
+        qts, base + MPI_DOORBELL_OFFSET,
+        (MPI_FUNCTION_HANDSHAKE << MPI_DOORBELL_FUNCTION_SHIFT) |
+            ((size / sizeof(uint32_t)) << MPI_DOORBELL_ADD_DWORDS_SHIFT));
     g_assert_cmphex(qtest_readl(qts, base + MPI_HOST_INTERRUPT_STATUS_OFFSET) &
-                    MPI_HIS_DOORBELL_INTERRUPT, ==,
-                    MPI_HIS_DOORBELL_INTERRUPT);
+                        MPI_HIS_DOORBELL_INTERRUPT,
+                    ==, MPI_HIS_DOORBELL_INTERRUPT);
     qtest_writel(qts, base + MPI_HOST_INTERRUPT_STATUS_OFFSET, 0);
     for (i = 0; i < size; i += sizeof(uint32_t)) {
         qtest_writel(qts, base + MPI_DOORBELL_OFFSET, ldl_le_p(bytes + i));
     }
     g_assert_cmphex(qtest_readl(qts, base + MPI_HOST_INTERRUPT_STATUS_OFFSET) &
-                    MPI_HIS_DOORBELL_INTERRUPT, ==,
-                    MPI_HIS_DOORBELL_INTERRUPT);
+                        MPI_HIS_DOORBELL_INTERRUPT,
+                    ==, MPI_HIS_DOORBELL_INTERRUPT);
 }
 
 static void hp_mpt_ioc_init(QTestState *qts, uint64_t base)
@@ -613,9 +602,9 @@ static void hp_mpt_ioc_init(QTestState *qts, uint64_t base)
     }
     g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==, MPI_IOCSTATUS_SUCCESS);
     g_assert_cmphex(qtest_readl(qts, base + MPI_DOORBELL_OFFSET) &
-                    (MPI_IOC_STATE_READY | MPI_IOC_STATE_OPERATIONAL |
-                     MPI_IOC_STATE_FAULT | MPI_DOORBELL_ACTIVE), ==,
-                    MPI_IOC_STATE_OPERATIONAL);
+                        (MPI_IOC_STATE_READY | MPI_IOC_STATE_OPERATIONAL |
+                         MPI_IOC_STATE_FAULT | MPI_DOORBELL_ACTIVE),
+                    ==, MPI_IOC_STATE_OPERATIONAL);
     qtest_writel(qts, base + MPI_HOST_INTERRUPT_STATUS_OFFSET, 0);
 }
 
@@ -636,10 +625,10 @@ static void test_hp_zx6000_mpt_reply_queue(void)
 
     for (m = 0; m < ARRAY_SIZE(machines); m++) {
         uint64_t base = machines[m].base;
-        QTestState *qts = qtest_initf(
-            "-machine %s,nvram=none,firmware=none -m 1G -S "
-            "-display none -monitor none -serial none -net none",
-            machines[m].machine);
+        QTestState *qts =
+            qtest_initf("-machine %s,nvram=none,firmware=none -m 1G -S "
+                        "-display none -monitor none -serial none -net none",
+                        machines[m].machine);
 
         hp_mpt_ioc_init(qts, base);
         for (round = 0; round < 2; round++) {
@@ -654,23 +643,24 @@ static void test_hp_zx6000_mpt_reply_queue(void)
                     .MsgContext = cpu_to_le32(i + 1),
                 };
 
-                qtest_memwrite(qts, HP_MPT_REQUEST_ADDRESS,
-                               &request, sizeof(request));
+                qtest_memwrite(qts, HP_MPT_REQUEST_ADDRESS, &request,
+                               sizeof(request));
                 qtest_writel(qts, base + MPI_REQUEST_POST_FIFO_OFFSET,
                              HP_MPT_REQUEST_ADDRESS);
                 qtest_clock_step(qts, 1000000);
             }
             g_assert_cmphex(qtest_readl(qts, base + MPI_DOORBELL_OFFSET) &
-                            (MPI_IOC_STATE_READY | MPI_IOC_STATE_OPERATIONAL |
-                             MPI_IOC_STATE_FAULT), ==,
-                            MPI_IOC_STATE_OPERATIONAL);
+                                (MPI_IOC_STATE_READY |
+                                 MPI_IOC_STATE_OPERATIONAL |
+                                 MPI_IOC_STATE_FAULT),
+                            ==, MPI_IOC_STATE_OPERATIONAL);
             for (i = 0; i < 256; i++) {
                 uint32_t address = HP_MPT_REPLY_ADDRESS + i * 128;
                 MPIMsgIOCFactsReply reply;
 
-                g_assert_cmphex(qtest_readl(qts, base +
-                                            MPI_REPLY_POST_FIFO_OFFSET), ==,
-                                MPI_ADDRESS_REPLY_A_BIT | (address >> 1));
+                g_assert_cmphex(
+                    qtest_readl(qts, base + MPI_REPLY_POST_FIFO_OFFSET), ==,
+                    MPI_ADDRESS_REPLY_A_BIT | (address >> 1));
                 qtest_memread(qts, address, &reply, sizeof(reply));
                 g_assert_cmpuint(le32_to_cpu(reply.MsgContext), ==, i + 1);
                 g_assert_cmpuint(le16_to_cpu(reply.ReplyQueueDepth), ==, 256);
@@ -684,11 +674,11 @@ static void test_hp_zx6000_mpt_reply_queue(void)
             qtest_writel(qts, base + MPI_REPLY_FREE_FIFO_OFFSET,
                          HP_MPT_REPLY_ADDRESS + i * 128);
         }
-        g_assert_cmphex(qtest_readl(qts, base + MPI_DOORBELL_OFFSET) &
-                        (MPI_IOC_STATE_READY | MPI_IOC_STATE_OPERATIONAL |
-                         MPI_IOC_STATE_FAULT | MPI_DOORBELL_DATA_MASK), ==,
-                        MPI_IOC_STATE_FAULT |
-                        MPI_IOCSTATUS_INSUFFICIENT_RESOURCES);
+        g_assert_cmphex(
+            qtest_readl(qts, base + MPI_DOORBELL_OFFSET) &
+                (MPI_IOC_STATE_READY | MPI_IOC_STATE_OPERATIONAL |
+                 MPI_IOC_STATE_FAULT | MPI_DOORBELL_DATA_MASK),
+            ==, MPI_IOC_STATE_FAULT | MPI_IOCSTATUS_INSUFFICIENT_RESOURCES);
         qtest_quit(qts);
     }
 }
@@ -758,22 +748,22 @@ static void test_hp_zx6000_mpt_io_unit_reset(void)
 
             /* Leave a separate handshake in READ state with an unread reply. */
             hp_mpt_send_handshake(qts, base, &request, sizeof(request));
-            g_assert_cmphex(qtest_readl(qts, base +
-                                        MPI_HOST_INTERRUPT_STATUS_OFFSET), ==,
-                            MPI_HIS_DOORBELL_INTERRUPT |
-                            MPI_HIS_REPLY_MESSAGE_INTERRUPT);
+            g_assert_cmphex(
+                qtest_readl(qts, base + MPI_HOST_INTERRUPT_STATUS_OFFSET), ==,
+                MPI_HIS_DOORBELL_INTERRUPT | MPI_HIS_REPLY_MESSAGE_INTERRUPT);
             qtest_writel(qts, base + MPI_DOORBELL_OFFSET,
                          resets[i] << MPI_DOORBELL_FUNCTION_SHIFT);
             g_assert_cmphex(qtest_readl(qts, base + MPI_DOORBELL_OFFSET) &
-                            (MPI_IOC_STATE_READY | MPI_IOC_STATE_OPERATIONAL |
-                             MPI_IOC_STATE_FAULT | MPI_DOORBELL_ACTIVE), ==,
-                            MPI_IOC_STATE_READY);
-            g_assert_cmphex(qtest_readl(qts, base +
-                                        MPI_HOST_INTERRUPT_STATUS_OFFSET), ==,
-                            0);
-            g_assert_cmphex(qtest_readl(qts, base +
-                                        MPI_HOST_INTERRUPT_MASK_OFFSET), ==,
-                            MPI_HIM_RIM);
+                                (MPI_IOC_STATE_READY |
+                                 MPI_IOC_STATE_OPERATIONAL |
+                                 MPI_IOC_STATE_FAULT | MPI_DOORBELL_ACTIVE),
+                            ==, MPI_IOC_STATE_READY);
+            g_assert_cmphex(
+                qtest_readl(qts, base + MPI_HOST_INTERRUPT_STATUS_OFFSET), ==,
+                0);
+            g_assert_cmphex(
+                qtest_readl(qts, base + MPI_HOST_INTERRUPT_MASK_OFFSET), ==,
+                MPI_HIM_RIM);
             g_assert_cmphex(qtest_readl(qts, base + MPI_REPLY_POST_FIFO_OFFSET),
                             ==, UINT32_MAX);
         }
@@ -806,10 +796,10 @@ static void test_hp_mpt_unsupported_message(void)
 
     for (m = 0; m < ARRAY_SIZE(machines); m++) {
         uint64_t base = machines[m].base;
-        QTestState *qts = qtest_initf(
-            "-machine %s,nvram=none,firmware=none -m 1G -S "
-            "-display none -monitor none -serial none -net none",
-            machines[m].machine);
+        QTestState *qts =
+            qtest_initf("-machine %s,nvram=none,firmware=none -m 1G -S "
+                        "-display none -monitor none -serial none -net none",
+                        machines[m].machine);
         MPIDefaultReply reply;
         uint8_t *bytes = (uint8_t *)&reply;
         uint32_t posted = UINT32_MAX;
@@ -827,9 +817,9 @@ static void test_hp_mpt_unsupported_message(void)
         g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==,
                         MPI_IOCSTATUS_INVALID_FUNCTION);
         g_assert_cmphex(qtest_readl(qts, base + MPI_DOORBELL_OFFSET) &
-                        (MPI_IOC_STATE_READY | MPI_IOC_STATE_OPERATIONAL |
-                         MPI_IOC_STATE_FAULT | MPI_DOORBELL_ACTIVE), ==,
-                        MPI_IOC_STATE_READY);
+                            (MPI_IOC_STATE_READY | MPI_IOC_STATE_OPERATIONAL |
+                             MPI_IOC_STATE_FAULT | MPI_DOORBELL_ACTIVE),
+                        ==, MPI_IOC_STATE_READY);
         qtest_writel(qts, base + MPI_HOST_INTERRUPT_STATUS_OFFSET, 0);
         hp_mpt_ioc_init(qts, base);
 
@@ -850,11 +840,11 @@ static void test_hp_mpt_unsupported_message(void)
         g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==,
                         MPI_IOCSTATUS_INVALID_FUNCTION);
         g_assert_cmphex(qtest_readl(qts, base + MPI_DOORBELL_OFFSET) &
-                        (MPI_IOC_STATE_READY | MPI_IOC_STATE_OPERATIONAL |
-                         MPI_IOC_STATE_FAULT | MPI_DOORBELL_ACTIVE), ==,
-                        MPI_IOC_STATE_OPERATIONAL);
-        g_assert_cmphex(qtest_readl(qts, base + MPI_REPLY_POST_FIFO_OFFSET),
-                        ==, UINT32_MAX);
+                            (MPI_IOC_STATE_READY | MPI_IOC_STATE_OPERATIONAL |
+                             MPI_IOC_STATE_FAULT | MPI_DOORBELL_ACTIVE),
+                        ==, MPI_IOC_STATE_OPERATIONAL);
+        g_assert_cmphex(qtest_readl(qts, base + MPI_REPLY_POST_FIFO_OFFSET), ==,
+                        UINT32_MAX);
         hp_mpt_post_facts(qts, base);
         qtest_quit(qts);
     }
@@ -873,17 +863,18 @@ static void test_hp_mpt_toolbox_clean(void)
 
     for (m = 0; m < ARRAY_SIZE(machines); m++) {
         uint64_t base = machines[m].base;
-        QTestState *qts = qtest_initf(
-            "-machine %s,nvram=none,firmware=none -m 1G -S "
-            "-display none -monitor none -serial none -net none",
-            machines[m].machine);
+        QTestState *qts =
+            qtest_initf("-machine %s,nvram=none,firmware=none -m 1G -S "
+                        "-display none -monitor none -serial none -net none",
+                        machines[m].machine);
         MPIMsgToolboxClean request = {
             .Tool = MPI_TOOLBOX_CLEAN_TOOL,
             .Function = MPI_FUNCTION_TOOLBOX,
             .MsgContext = cpu_to_le32(0x87654321),
             .Flags = cpu_to_le32(MPI_TOOLBOX_CLEAN_NVSRAM |
-                MPI_TOOLBOX_CLEAN_BOOTLOADER | MPI_TOOLBOX_CLEAN_FW_BACKUP |
-                MPI_TOOLBOX_CLEAN_OTHER_PERSIST_PAGES),
+                                 MPI_TOOLBOX_CLEAN_BOOTLOADER |
+                                 MPI_TOOLBOX_CLEAN_FW_BACKUP |
+                                 MPI_TOOLBOX_CLEAN_OTHER_PERSIST_PAGES),
         };
         unsigned c;
 
@@ -910,8 +901,8 @@ static void test_hp_mpt_toolbox_clean(void)
             g_assert_cmphex(reply.Function, ==, MPI_FUNCTION_TOOLBOX);
             g_assert_cmphex(le32_to_cpu(reply.MsgContext), ==, 0x87654321);
             g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==,
-                            c ? MPI_IOCSTATUS_INVALID_FIELD :
-                                MPI_IOCSTATUS_SUCCESS);
+                            c ? MPI_IOCSTATUS_INVALID_FIELD
+                              : MPI_IOCSTATUS_SUCCESS);
         }
         hp_mpt_ioc_init(qts, base);
         hp_mpt_post_facts(qts, base);
@@ -932,10 +923,10 @@ static void test_hp_mpt_sas_control(void)
 
     for (m = 0; m < ARRAY_SIZE(machines); m++) {
         uint64_t base = machines[m].base;
-        QTestState *qts = qtest_initf(
-            "-machine %s,nvram=none,firmware=none -m 1G -S "
-            "-display none -monitor none -serial none -net none",
-            machines[m].machine);
+        QTestState *qts =
+            qtest_initf("-machine %s,nvram=none,firmware=none -m 1G -S "
+                        "-display none -monitor none -serial none -net none",
+                        machines[m].machine);
         MPIMsgSASIOUnitControl request = {
             .Operation = MPI_SAS_OP_CLEAR_NOT_PRESENT,
             .Function = MPI_FUNCTION_SAS_IO_UNIT_CONTROL,
@@ -950,31 +941,33 @@ static void test_hp_mpt_sas_control(void)
             MPIDefaultReply reply;
             unsigned i;
 
-            request.Operation = c == 0 ? MPI_SAS_OP_CLEAR_NOT_PRESENT :
-                                c == 1 ? MPI_SAS_OP_CLEAR_ALL_PERSISTENT : 0xff;
+            request.Operation = c == 0   ? MPI_SAS_OP_CLEAR_NOT_PRESENT
+                                : c == 1 ? MPI_SAS_OP_CLEAR_ALL_PERSISTENT
+                                         : 0xff;
             if (c == 1) {
                 uint32_t posted = UINT32_MAX;
 
-                qtest_memwrite(qts, HP_MPT_REQUEST_ADDRESS,
-                               &request, sizeof(request));
+                qtest_memwrite(qts, HP_MPT_REQUEST_ADDRESS, &request,
+                               sizeof(request));
                 qtest_writel(qts, base + MPI_REPLY_FREE_FIFO_OFFSET,
                              HP_MPT_REPLY_ADDRESS);
                 qtest_writel(qts, base + MPI_REQUEST_POST_FIFO_OFFSET,
                              HP_MPT_REQUEST_ADDRESS);
                 for (i = 0; i < 100 && posted == UINT32_MAX; i++) {
-                    posted = qtest_readl(qts,
-                                         base + MPI_REPLY_POST_FIFO_OFFSET);
+                    posted =
+                        qtest_readl(qts, base + MPI_REPLY_POST_FIFO_OFFSET);
                 }
-                g_assert_cmphex(posted, ==, MPI_ADDRESS_REPLY_A_BIT |
-                                (HP_MPT_REPLY_ADDRESS >> 1));
+                g_assert_cmphex(posted, ==,
+                                MPI_ADDRESS_REPLY_A_BIT |
+                                    (HP_MPT_REPLY_ADDRESS >> 1));
                 qtest_memread(qts, HP_MPT_REPLY_ADDRESS, &reply, sizeof(reply));
             } else {
                 hp_mpt_send_handshake(qts, base, &request, sizeof(request));
                 for (i = 0; i < sizeof(reply); i += 2) {
                     stw_le_p((uint8_t *)&reply + i,
                              qtest_readl(qts, base + MPI_DOORBELL_OFFSET));
-                    qtest_writel(qts,
-                                 base + MPI_HOST_INTERRUPT_STATUS_OFFSET, 0);
+                    qtest_writel(qts, base + MPI_HOST_INTERRUPT_STATUS_OFFSET,
+                                 0);
                 }
                 qtest_readl(qts, base + MPI_DOORBELL_OFFSET);
                 qtest_writel(qts, base + MPI_HOST_INTERRUPT_STATUS_OFFSET, 0);
@@ -986,9 +979,9 @@ static void test_hp_mpt_sas_control(void)
             g_assert_cmphex(reply.Function, ==, request.Function);
             g_assert_cmphex(reply.MsgContext, ==, request.MsgContext);
             g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==,
-                            !m ? MPI_IOCSTATUS_INVALID_FUNCTION :
-                            c == 2 ? MPI_IOCSTATUS_INVALID_FIELD :
-                                     MPI_IOCSTATUS_SUCCESS);
+                            !m       ? MPI_IOCSTATUS_INVALID_FUNCTION
+                            : c == 2 ? MPI_IOCSTATUS_INVALID_FIELD
+                                     : MPI_IOCSTATUS_SUCCESS);
         }
         hp_mpt_post_facts(qts, base);
         qtest_quit(qts);
@@ -996,7 +989,7 @@ static void test_hp_mpt_sas_control(void)
 }
 
 static MPIMsgFWUploadReply hp_mpt_fw_upload(QTestState *qts, uint64_t base,
-                                           const MPIMsgFWUpload *request)
+                                            const MPIMsgFWUpload *request)
 {
     MPIMsgFWUploadReply reply;
     uint8_t *bytes = (uint8_t *)&reply;
@@ -1040,9 +1033,9 @@ static void test_hp_mpt_device_page_header(void)
         .PageBufferSGE.FlagsLength = cpu_to_le32(0xd1000040),
         .PageBufferSGE.u.Address32 = cpu_to_le32(0x40000),
     };
-    QTestState *qts = qtest_init(
-        "-machine hp-rx2660,nvram=none,firmware=none -m 1G -S "
-        "-display none -monitor none -serial none -net none");
+    QTestState *qts =
+        qtest_init("-machine hp-rx2660,nvram=none,firmware=none -m 1G -S "
+                   "-display none -monitor none -serial none -net none");
     unsigned number, i;
 
     /* Format discovery does not require an attached device or perform DMA. */
@@ -1077,8 +1070,7 @@ static void test_hp_mpt_device_page_header(void)
         g_assert_cmpuint(reply.PageNumber, ==, pages[number].number);
         g_assert_cmpuint(le16_to_cpu(reply.ExtPageLength), ==,
                          pages[number].length);
-        g_assert_cmphex(reply.ExtPageType, ==,
-                        pages[number].type);
+        g_assert_cmphex(reply.ExtPageType, ==, pages[number].type);
         g_assert_cmphex(reply.PageType, ==, MPI_CONFIG_PAGETYPE_EXTENDED);
         g_assert_cmphex(qtest_readq(qts, 0x40000), ==,
                         UINT64_C(0xa5a5a5a5a5a5a5a5));
@@ -1166,13 +1158,14 @@ static void test_hp_mpt_no_data_command(void)
         if (posted & MPI_ADDRESS_REPLY_A_BIT) {
             MPIMsgSCSIIOReply reply;
 
-            g_assert_cmphex(posted, ==, MPI_ADDRESS_REPLY_A_BIT |
-                            (HP_MPT_REPLY_ADDRESS >> 1));
+            g_assert_cmphex(posted, ==,
+                            MPI_ADDRESS_REPLY_A_BIT |
+                                (HP_MPT_REPLY_ADDRESS >> 1));
             qtest_memread(qts, HP_MPT_REPLY_ADDRESS, &reply, sizeof(reply));
             g_assert_cmphex(le16_to_cpu(reply.IOCStatus), !=,
                             MPI_IOCSTATUS_INVALID_SGL);
-            g_assert_cmphex(reply.SCSIState & MPI_SCSI_STATE_NO_SCSI_STATUS,
-                            ==, 0);
+            g_assert_cmphex(reply.SCSIState & MPI_SCSI_STATE_NO_SCSI_STATUS, ==,
+                            0);
         } else {
             g_assert_cmphex(posted, ==, le32_to_cpu(request.MsgContext));
         }
@@ -1219,17 +1212,17 @@ static void test_hp_mpt_no_data_response(void)
                 .MsgContext = cpu_to_le32(0x12345678),
                 .Control = cpu_to_le32(commands[c].control),
                 .CDB = { commands[c].opcode },
-                .DataLength = cpu_to_le32(commands[c].control ==
-                                          MPI_SCSIIO_CONTROL_NODATATRANSFER ?
-                                          0 : 64),
+                .DataLength = cpu_to_le32(
+                    commands[c].control == MPI_SCSIIO_CONTROL_NODATATRANSFER
+                        ? 0
+                        : 64),
                 .SenseBufferLowAddr = cpu_to_le32(0x60000),
             };
             MPISGEntry sge = {
-                .FlagsLength = cpu_to_le32(
-                    MPI_SGE_FLAGS_SIMPLE_ELEMENT |
-                    MPI_SGE_FLAGS_LAST_ELEMENT |
-                    MPI_SGE_FLAGS_END_OF_BUFFER |
-                    MPI_SGE_FLAGS_END_OF_LIST | 64),
+                .FlagsLength = cpu_to_le32(MPI_SGE_FLAGS_SIMPLE_ELEMENT |
+                                           MPI_SGE_FLAGS_LAST_ELEMENT |
+                                           MPI_SGE_FLAGS_END_OF_BUFFER |
+                                           MPI_SGE_FLAGS_END_OF_LIST | 64),
                 .u.Address32 = cpu_to_le32(0x70000),
             };
             MPIMsgSCSIIOReply reply;
@@ -1243,10 +1236,10 @@ static void test_hp_mpt_no_data_response(void)
             memset(expected, 0xa5, sizeof(expected));
             qtest_memset(qts, 0x60000, 0, sizeof(sense));
             qtest_memwrite(qts, 0x70000, expected, sizeof(expected));
-            qtest_memwrite(qts, HP_MPT_REQUEST_ADDRESS,
-                          &request, sizeof(request));
-            qtest_memwrite(qts, HP_MPT_REQUEST_ADDRESS + sizeof(request),
-                          &sge, sizeof(sge));
+            qtest_memwrite(qts, HP_MPT_REQUEST_ADDRESS, &request,
+                           sizeof(request));
+            qtest_memwrite(qts, HP_MPT_REQUEST_ADDRESS + sizeof(request), &sge,
+                           sizeof(sge));
             qtest_writel(qts, base + MPI_REPLY_FREE_FIFO_OFFSET,
                          HP_MPT_REPLY_ADDRESS);
             qtest_writel(qts, base + MPI_REQUEST_POST_FIFO_OFFSET,
@@ -1254,21 +1247,21 @@ static void test_hp_mpt_no_data_response(void)
             for (i = 0; i < 100 && posted == UINT32_MAX; i++) {
                 posted = qtest_readl(qts, base + MPI_REPLY_POST_FIFO_OFFSET);
             }
-            g_assert_cmphex(posted, ==, MPI_ADDRESS_REPLY_A_BIT |
-                            (HP_MPT_REPLY_ADDRESS >> 1));
+            g_assert_cmphex(posted, ==,
+                            MPI_ADDRESS_REPLY_A_BIT |
+                                (HP_MPT_REPLY_ADDRESS >> 1));
             qtest_memread(qts, HP_MPT_REPLY_ADDRESS, &reply, sizeof(reply));
-            g_assert_cmphex(reply.SCSIState & MPI_SCSI_STATE_NO_SCSI_STATUS,
-                            ==, 0);
+            g_assert_cmphex(reply.SCSIState & MPI_SCSI_STATE_NO_SCSI_STATUS, ==,
+                            0);
             g_assert_cmphex(reply.SCSIStatus, ==, commands[c].status);
             g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==,
-                            commands[c].status == GOOD ?
-                            MPI_IOCSTATUS_SCSI_DATA_UNDERRUN :
-                            MPI_IOCSTATUS_SUCCESS);
+                            commands[c].status == GOOD
+                                ? MPI_IOCSTATUS_SCSI_DATA_UNDERRUN
+                                : MPI_IOCSTATUS_SUCCESS);
             g_assert_cmpuint(le32_to_cpu(reply.TransferCount), ==, 0);
             if (commands[c].status == CHECK_CONDITION) {
-                g_assert_cmphex(reply.SCSIState &
-                                MPI_SCSI_STATE_AUTOSENSE_VALID,
-                                !=, 0);
+                g_assert_cmphex(
+                    reply.SCSIState & MPI_SCSI_STATE_AUTOSENSE_VALID, !=, 0);
                 g_assert_cmpuint(le32_to_cpu(reply.SenseCount), >=, 14);
                 qtest_memread(qts, 0x60000, sense, sizeof(sense));
                 g_assert_cmphex(sense[2] & 0xf, ==, ILLEGAL_REQUEST);
@@ -1336,11 +1329,10 @@ static void test_hp_mpt_lun_address(void)
                 .SenseBufferLowAddr = cpu_to_le32(0x60000),
             };
             MPISGEntry sge = {
-                .FlagsLength = cpu_to_le32(
-                    MPI_SGE_FLAGS_SIMPLE_ELEMENT |
-                    MPI_SGE_FLAGS_LAST_ELEMENT |
-                    MPI_SGE_FLAGS_END_OF_BUFFER |
-                    MPI_SGE_FLAGS_END_OF_LIST | 36),
+                .FlagsLength = cpu_to_le32(MPI_SGE_FLAGS_SIMPLE_ELEMENT |
+                                           MPI_SGE_FLAGS_LAST_ELEMENT |
+                                           MPI_SGE_FLAGS_END_OF_BUFFER |
+                                           MPI_SGE_FLAGS_END_OF_LIST | 36),
                 .u.Address32 = cpu_to_le32(0x70000),
             };
             MPIMsgSCSITaskMgmt task = {
@@ -1356,10 +1348,10 @@ static void test_hp_mpt_lun_address(void)
 
             memcpy(request.LUN, cases[c].lun, sizeof(request.LUN));
             qtest_memset(qts, 0x70000, 0xa5, sizeof(data));
-            qtest_memwrite(qts, HP_MPT_REQUEST_ADDRESS,
-                          &request, sizeof(request));
-            qtest_memwrite(qts, HP_MPT_REQUEST_ADDRESS + sizeof(request),
-                          &sge, sizeof(sge));
+            qtest_memwrite(qts, HP_MPT_REQUEST_ADDRESS, &request,
+                           sizeof(request));
+            qtest_memwrite(qts, HP_MPT_REQUEST_ADDRESS + sizeof(request), &sge,
+                           sizeof(sge));
             qtest_writel(qts, base + MPI_REPLY_FREE_FIFO_OFFSET,
                          HP_MPT_REPLY_ADDRESS);
             qtest_writel(qts, base + MPI_REQUEST_POST_FIFO_OFFSET,
@@ -1379,8 +1371,9 @@ static void test_hp_mpt_lun_address(void)
             for (i = 0; i < 100 && posted == UINT32_MAX; i++) {
                 posted = qtest_readl(qts, base + MPI_REPLY_POST_FIFO_OFFSET);
             }
-            g_assert_cmphex(posted, ==, MPI_ADDRESS_REPLY_A_BIT |
-                            (HP_MPT_REPLY_ADDRESS >> 1));
+            g_assert_cmphex(posted, ==,
+                            MPI_ADDRESS_REPLY_A_BIT |
+                                (HP_MPT_REPLY_ADDRESS >> 1));
             qtest_memread(qts, HP_MPT_REPLY_ADDRESS, &reply, sizeof(reply));
             g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==,
                             MPI_IOCSTATUS_SUCCESS);
@@ -1394,7 +1387,7 @@ static void test_hp_mpt_lun_address(void)
 }
 
 static MPIMsgSEPReply hp_mpt_sep(QTestState *qts, uint64_t base,
-                                const MPIMsgSEP *request)
+                                 const MPIMsgSEP *request)
 {
     MPIMsgSEPReply reply;
     uint32_t posted = UINT32_MAX;
@@ -1421,8 +1414,8 @@ static void hp_mpt_indicator(QTestState *qts, uint64_t base, bool write,
 {
     MPIMsgSEP request = {
         .Function = MPI_FUNCTION_SCSI_ENCLOSURE_PROCESSOR,
-        .Action = write ? MPI_SEP_ACTION_WRITE_STATUS :
-                          MPI_SEP_ACTION_READ_STATUS,
+        .Action =
+            write ? MPI_SEP_ACTION_WRITE_STATUS : MPI_SEP_ACTION_READ_STATUS,
         .Flags = MPI_SEP_ENCLOSURE_SLOT_ADDRESS,
         .MsgContext = cpu_to_le32(0x12345678),
         .Slot = cpu_to_le16(3),
@@ -1440,19 +1433,19 @@ static void hp_mpt_indicator(QTestState *qts, uint64_t base, bool write,
 static void test_hp_mpt_enclosure(void)
 {
     uint64_t base = UINT64_C(0xa0470000);
-    QTestState *qts = qtest_init(
-        "-machine hp-rx2660,nvram=none,firmware=none -m 1G -S "
-        "-display none -monitor none -serial none -net none "
-        "-blockdev driver=null-co,node-name=target,size=67108864 "
-        "-device scsi-hd,drive=target,scsi-id=3");
+    QTestState *qts =
+        qtest_init("-machine hp-rx2660,nvram=none,firmware=none -m 1G -S "
+                   "-display none -monitor none -serial none -net none "
+                   "-blockdev driver=null-co,node-name=target,size=67108864 "
+                   "-device scsi-hd,drive=target,scsi-id=3");
     MPIMsgSEP request = {
         .Function = MPI_FUNCTION_SCSI_ENCLOSURE_PROCESSOR,
         .Action = MPI_SEP_ACTION_READ_STATUS,
         .TargetID = 3,
     };
     MPIMsgSEPReply reply;
-    uint32_t status = MPI_SEP_SLOTSTATUS_IDENTIFY_REQUEST |
-                      MPI_SEP_SLOTSTATUS_DEV_FAULTY;
+    uint32_t status =
+        MPI_SEP_SLOTSTATUS_IDENTIFY_REQUEST | MPI_SEP_SLOTSTATUS_DEV_FAULTY;
 
     hp_mpt_ioc_init(qts, base);
     hp_mpt_indicator(qts, base, false, 0);
@@ -1486,17 +1479,17 @@ static void test_hp_mpt_enclosure(void)
 
 static void test_hp_mpt_sas_topology(void)
 {
-    QTestState *qts = qtest_init(
-        "-machine hp-rx2660,nvram=none,firmware=none -m 1G -S "
-        "-display none -monitor none -serial none -net none "
-        "-blockdev driver=null-co,node-name=target,size=67108864 "
-        "-device scsi-hd,drive=target,scsi-id=3");
+    QTestState *qts =
+        qtest_init("-machine hp-rx2660,nvram=none,firmware=none -m 1G -S "
+                   "-display none -monitor none -serial none -net none "
+                   "-blockdev driver=null-co,node-name=target,size=67108864 "
+                   "-device scsi-hd,drive=target,scsi-id=3");
     uint8_t unit[144], phy[36], target[36], parent[36], enclosure[40];
     unsigned offset = 16 + 3 * 16;
     uint16_t target_handle, parent_handle;
 
-    hp_mpt_read_ext_page(qts, MPI_CONFIG_EXTPAGETYPE_SAS_IO_UNIT,
-                         0, 0, unit, sizeof(unit));
+    hp_mpt_read_ext_page(qts, MPI_CONFIG_EXTPAGETYPE_SAS_IO_UNIT, 0, 0, unit,
+                         sizeof(unit));
     target_handle = lduw_le_p(unit + offset + 8);
     parent_handle = lduw_le_p(unit + offset + 10);
     g_assert_cmpuint(target_handle, >, 0);
@@ -1504,16 +1497,16 @@ static void test_hp_mpt_sas_topology(void)
     g_assert_cmpuint(target_handle, !=, parent_handle);
     g_assert_cmphex(ldl_le_p(unit + offset + 4), ==, 0x41);
 
-    hp_mpt_read_ext_page(qts, MPI_CONFIG_EXTPAGETYPE_SAS_PHY,
-                         0, 3, phy, sizeof(phy));
+    hp_mpt_read_ext_page(qts, MPI_CONFIG_EXTPAGETYPE_SAS_PHY, 0, 3, phy,
+                         sizeof(phy));
     g_assert_cmpuint(lduw_le_p(phy + 8), ==, parent_handle);
     g_assert_cmpuint(lduw_le_p(phy + 20), ==, target_handle);
     g_assert_cmphex(ldl_le_p(phy + 24), ==, 0xc01);
     g_assert_cmphex(phy[30], ==, 1);
     g_assert_cmphex(ldl_le_p(phy + 32), ==, 9);
 
-    hp_mpt_read_ext_page(qts, MPI_CONFIG_EXTPAGETYPE_SAS_DEVICE,
-                         0, 0x20000000 | target_handle, target, sizeof(target));
+    hp_mpt_read_ext_page(qts, MPI_CONFIG_EXTPAGETYPE_SAS_DEVICE, 0,
+                         0x20000000 | target_handle, target, sizeof(target));
     g_assert_cmpuint(lduw_le_p(target + 20), ==, parent_handle);
     g_assert_cmpuint(lduw_le_p(target + 24), ==, target_handle);
     g_assert_cmpuint(target[26], ==, 3);
@@ -1524,32 +1517,30 @@ static void test_hp_mpt_sas_topology(void)
     g_assert_cmpuint(lduw_le_p(target + 8), ==, 3);
     g_assert_cmpuint(lduw_le_p(target + 10), !=, 0);
 
-    hp_mpt_read_ext_page(qts, MPI_CONFIG_EXTPAGETYPE_ENCLOSURE,
-                         0, 0xffff, enclosure, sizeof(enclosure));
-    g_assert_cmpuint(lduw_le_p(enclosure + 22), ==,
-                    lduw_le_p(target + 10));
+    hp_mpt_read_ext_page(qts, MPI_CONFIG_EXTPAGETYPE_ENCLOSURE, 0, 0xffff,
+                         enclosure, sizeof(enclosure));
+    g_assert_cmpuint(lduw_le_p(enclosure + 22), ==, lduw_le_p(target + 10));
     g_assert_cmpuint(lduw_le_p(enclosure + 24), ==, 8);
     g_assert_cmpuint(lduw_le_p(enclosure + 26), ==, 0);
     g_assert_cmphex(lduw_le_p(enclosure + 20), ==, 0x12);
     g_assert_cmphex(ldq_le_p(enclosure + 12), ==, ldq_le_p(phy + 12) - 3);
     g_assert_cmpuint(enclosure[28], ==, 0);
     g_assert_cmpuint(enclosure[29], ==, 0);
-    hp_mpt_read_ext_page(qts, MPI_CONFIG_EXTPAGETYPE_ENCLOSURE,
-                         0, 0x10000000 | lduw_le_p(target + 10),
-                         enclosure, sizeof(enclosure));
-    g_assert_cmpuint(lduw_le_p(enclosure + 22), ==,
-                    lduw_le_p(target + 10));
+    hp_mpt_read_ext_page(qts, MPI_CONFIG_EXTPAGETYPE_ENCLOSURE, 0,
+                         0x10000000 | lduw_le_p(target + 10), enclosure,
+                         sizeof(enclosure));
+    g_assert_cmpuint(lduw_le_p(enclosure + 22), ==, lduw_le_p(target + 10));
 
-    hp_mpt_read_ext_page(qts, MPI_CONFIG_EXTPAGETYPE_SAS_DEVICE,
-                         0, 0x20000000 | parent_handle, parent, sizeof(parent));
+    hp_mpt_read_ext_page(qts, MPI_CONFIG_EXTPAGETYPE_SAS_DEVICE, 0,
+                         0x20000000 | parent_handle, parent, sizeof(parent));
     g_assert_cmpuint(lduw_le_p(parent + 20), ==, 0);
     g_assert_cmpuint(lduw_le_p(parent + 24), ==, parent_handle);
     g_assert_cmphex(ldq_le_p(parent + 12), ==, ldq_le_p(phy + 12));
     g_assert_cmphex(ldl_le_p(parent + 28), ==, 0x41);
     g_assert_cmphex(lduw_le_p(parent + 32), ==, 1);
     g_assert_cmpuint(lduw_le_p(parent + 10), ==, 0);
-    hp_mpt_read_ext_page(qts, MPI_CONFIG_EXTPAGETYPE_SAS_PHY,
-                         0, 2, phy, sizeof(phy));
+    hp_mpt_read_ext_page(qts, MPI_CONFIG_EXTPAGETYPE_SAS_PHY, 0, 2, phy,
+                         sizeof(phy));
     g_assert_cmpuint(lduw_le_p(phy + 20), ==, 0);
     g_assert_cmphex(ldl_le_p(phy + 24), ==, 0);
     g_assert_cmphex(phy[30], ==, 1);
@@ -1558,7 +1549,7 @@ static void test_hp_mpt_sas_topology(void)
 }
 
 static uint16_t hp_mpt_fw_download(QTestState *qts, uint64_t base,
-                                    const MPIMsgFWDownload *request)
+                                   const MPIMsgFWDownload *request)
 {
     MPIDefaultReply reply;
     unsigned i;
@@ -1584,8 +1575,10 @@ static uint16_t hp_mpt_config_transfer(QTestState *qts, uint64_t base,
 {
     bool io_unit = type == MPI_CONFIG_PAGETYPE_IO_UNIT;
     bool extended = type > MPI_CONFIG_PAGETYPE_MASK;
-    size_t length = extended ? (number == 1 ? 116 : 20) :
-                    io_unit ? 8 : number == 1 ? 260 : 112;
+    size_t length = extended      ? (number == 1 ? 116 : 20)
+                    : io_unit     ? 8
+                    : number == 1 ? 260
+                                  : 112;
     MPIMsgConfig request = {
         .Action = action,
         .Function = MPI_FUNCTION_CONFIG,
@@ -1600,8 +1593,10 @@ static uint16_t hp_mpt_config_transfer(QTestState *qts, uint64_t base,
                  action == MPI_CONFIG_ACTION_PAGE_WRITE_CURRENT;
     unsigned i;
 
-    page[0] = extended ? (number == 1 ? 7 : 6) :
-              io_unit ? 2 : number == 1 ? 0 : 5;
+    page[0] = extended      ? (number == 1 ? 7 : 6)
+              : io_unit     ? 2
+              : number == 1 ? 0
+                            : 5;
     page[1] = extended ? 0 : length / 4;
     page[2] = number;
     page[3] = MPI_CONFIG_PAGEATTR_PERSISTENT | request.PageType;
@@ -1636,12 +1631,13 @@ static uint16_t hp_mpt_config_transfer(QTestState *qts, uint64_t base,
 }
 
 static void hp_mpt_manufacturing_transfer(QTestState *qts, uint64_t base,
-                                         unsigned number, uint8_t action,
-                                         uint8_t *buffer)
+                                          unsigned number, uint8_t action,
+                                          uint8_t *buffer)
 {
-    g_assert_cmphex(hp_mpt_config_transfer(
-        qts, base, MPI_CONFIG_PAGETYPE_MANUFACTURING, number, action, buffer),
-        ==, MPI_IOCSTATUS_SUCCESS);
+    g_assert_cmphex(hp_mpt_config_transfer(qts, base,
+                                           MPI_CONFIG_PAGETYPE_MANUFACTURING,
+                                           number, action, buffer),
+                    ==, MPI_IOCSTATUS_SUCCESS);
 }
 
 static void hp_mpt_sas_auto_ports(QTestState *qts, uint64_t base, bool write)
@@ -1650,60 +1646,61 @@ static void hp_mpt_sas_auto_ports(QTestState *qts, uint64_t base, bool write)
     uint8_t mapping[16];
     unsigned i;
 
-    g_assert_cmphex(hp_mpt_config_transfer(
-        qts, base, MPI_CONFIG_EXTPAGETYPE_SAS_IO_UNIT, 1,
-        MPI_CONFIG_ACTION_PAGE_READ_CURRENT, data), ==, MPI_IOCSTATUS_SUCCESS);
+    g_assert_cmphex(
+        hp_mpt_config_transfer(qts, base, MPI_CONFIG_EXTPAGETYPE_SAS_IO_UNIT, 1,
+                               MPI_CONFIG_ACTION_PAGE_READ_CURRENT, data),
+        ==, MPI_IOCSTATUS_SUCCESS);
     if (write) {
         for (i = 0; i < 8; i++) {
             data[16 + i * 12] = 0;
             data[17 + i * 12] = 1;
         }
         g_assert_cmphex(hp_mpt_config_transfer(
-            qts, base, MPI_CONFIG_EXTPAGETYPE_SAS_IO_UNIT, 1,
-            MPI_CONFIG_ACTION_PAGE_WRITE_CURRENT, data),
-            ==, MPI_IOCSTATUS_SUCCESS);
+                            qts, base, MPI_CONFIG_EXTPAGETYPE_SAS_IO_UNIT, 1,
+                            MPI_CONFIG_ACTION_PAGE_WRITE_CURRENT, data),
+                        ==, MPI_IOCSTATUS_SUCCESS);
         g_assert_cmphex(hp_mpt_config_transfer(
-            qts, base, MPI_CONFIG_EXTPAGETYPE_SAS_IO_UNIT, 1,
-            MPI_CONFIG_ACTION_PAGE_WRITE_NVRAM, data),
-            ==, MPI_IOCSTATUS_SUCCESS);
+                            qts, base, MPI_CONFIG_EXTPAGETYPE_SAS_IO_UNIT, 1,
+                            MPI_CONFIG_ACTION_PAGE_WRITE_NVRAM, data),
+                        ==, MPI_IOCSTATUS_SUCCESS);
         data[17] = 0x80;
         g_assert_cmphex(hp_mpt_config_transfer(
-            qts, base, MPI_CONFIG_EXTPAGETYPE_SAS_IO_UNIT, 1,
-            MPI_CONFIG_ACTION_PAGE_WRITE_CURRENT, data),
-            ==, MPI_IOCSTATUS_CONFIG_INVALID_DATA);
+                            qts, base, MPI_CONFIG_EXTPAGETYPE_SAS_IO_UNIT, 1,
+                            MPI_CONFIG_ACTION_PAGE_WRITE_CURRENT, data),
+                        ==, MPI_IOCSTATUS_CONFIG_INVALID_DATA);
         g_assert_cmphex(hp_mpt_config_transfer(
-            qts, base, MPI_CONFIG_EXTPAGETYPE_SAS_IO_UNIT, 1,
-            MPI_CONFIG_ACTION_PAGE_READ_CURRENT, data),
-            ==, MPI_IOCSTATUS_SUCCESS);
+                            qts, base, MPI_CONFIG_EXTPAGETYPE_SAS_IO_UNIT, 1,
+                            MPI_CONFIG_ACTION_PAGE_READ_CURRENT, data),
+                        ==, MPI_IOCSTATUS_SUCCESS);
     }
     for (i = 0; i < 8; i++) {
         g_assert_cmpuint(data[16 + i * 12], ==, i);
         g_assert_cmpuint(data[17 + i * 12], ==, 1);
     }
-    g_assert_cmphex(hp_mpt_config_transfer(
-        qts, base, MPI_CONFIG_EXTPAGETYPE_SAS_IO_UNIT, 2,
-        MPI_CONFIG_ACTION_PAGE_READ_CURRENT, mapping),
+    g_assert_cmphex(
+        hp_mpt_config_transfer(qts, base, MPI_CONFIG_EXTPAGETYPE_SAS_IO_UNIT, 2,
+                               MPI_CONFIG_ACTION_PAGE_READ_CURRENT, mapping),
         ==, MPI_IOCSTATUS_SUCCESS);
     if (write) {
         memset(mapping + 8, 0xff, 8);
         mapping[13] = 0x30;
         g_assert_cmphex(hp_mpt_config_transfer(
-            qts, base, MPI_CONFIG_EXTPAGETYPE_SAS_IO_UNIT, 2,
-            MPI_CONFIG_ACTION_PAGE_WRITE_CURRENT, mapping),
-            ==, MPI_IOCSTATUS_SUCCESS);
+                            qts, base, MPI_CONFIG_EXTPAGETYPE_SAS_IO_UNIT, 2,
+                            MPI_CONFIG_ACTION_PAGE_WRITE_CURRENT, mapping),
+                        ==, MPI_IOCSTATUS_SUCCESS);
         g_assert_cmphex(hp_mpt_config_transfer(
-            qts, base, MPI_CONFIG_EXTPAGETYPE_SAS_IO_UNIT, 2,
-            MPI_CONFIG_ACTION_PAGE_WRITE_NVRAM, mapping),
-            ==, MPI_IOCSTATUS_SUCCESS);
+                            qts, base, MPI_CONFIG_EXTPAGETYPE_SAS_IO_UNIT, 2,
+                            MPI_CONFIG_ACTION_PAGE_WRITE_NVRAM, mapping),
+                        ==, MPI_IOCSTATUS_SUCCESS);
         mapping[13] = 0x02;
         g_assert_cmphex(hp_mpt_config_transfer(
-            qts, base, MPI_CONFIG_EXTPAGETYPE_SAS_IO_UNIT, 2,
-            MPI_CONFIG_ACTION_PAGE_WRITE_CURRENT, mapping),
-            ==, MPI_IOCSTATUS_CONFIG_INVALID_DATA);
+                            qts, base, MPI_CONFIG_EXTPAGETYPE_SAS_IO_UNIT, 2,
+                            MPI_CONFIG_ACTION_PAGE_WRITE_CURRENT, mapping),
+                        ==, MPI_IOCSTATUS_CONFIG_INVALID_DATA);
         g_assert_cmphex(hp_mpt_config_transfer(
-            qts, base, MPI_CONFIG_EXTPAGETYPE_SAS_IO_UNIT, 2,
-            MPI_CONFIG_ACTION_PAGE_READ_CURRENT, mapping),
-            ==, MPI_IOCSTATUS_SUCCESS);
+                            qts, base, MPI_CONFIG_EXTPAGETYPE_SAS_IO_UNIT, 2,
+                            MPI_CONFIG_ACTION_PAGE_READ_CURRENT, mapping),
+                        ==, MPI_IOCSTATUS_SUCCESS);
     }
     g_assert_cmpuint(mapping[13], ==, 0x30);
     g_assert_cmpuint(lduw_le_p(mapping + 8), ==, 0);
@@ -1713,8 +1710,8 @@ static void hp_mpt_sas_auto_ports(QTestState *qts, uint64_t base, bool write)
     {
         uint8_t enclosure[40];
 
-        hp_mpt_read_ext_page(qts, MPI_CONFIG_EXTPAGETYPE_ENCLOSURE,
-                             0, 0xffff, enclosure, sizeof(enclosure));
+        hp_mpt_read_ext_page(qts, MPI_CONFIG_EXTPAGETYPE_ENCLOSURE, 0, 0xffff,
+                             enclosure, sizeof(enclosure));
         g_assert_cmpuint(lduw_le_p(enclosure + 26), ==, 1);
     }
 }
@@ -1766,13 +1763,13 @@ static void test_hp_mpt_fw_download(void)
             disk = g_build_filename(directory, "snapshot.qcow2", NULL);
             g_assert_true(mkimg(disk, "qcow2", 16));
             quoted_disk = g_shell_quote(disk);
-            disk_args = g_strdup_printf(
-                "-drive file=%s,format=qcow2,if=none", quoted_disk);
+            disk_args = g_strdup_printf("-drive file=%s,format=qcow2,if=none",
+                                        quoted_disk);
         }
-        qts = qtest_initf(
-            "-machine %s,nvram=none,firmware=none -m 2G -S "
-            "-display none -monitor none -serial none -net none %s",
-            machines[m].machine, disk_args ? disk_args : "");
+        qts =
+            qtest_initf("-machine %s,nvram=none,firmware=none -m 2G -S "
+                        "-display none -monitor none -serial none -net none %s",
+                        machines[m].machine, disk_args ? disk_args : "");
         hp_mpt_ioc_init(qts, base);
         if (disk) {
             response = qtest_hmp(qts, "savevm factory");
@@ -1801,37 +1798,33 @@ static void test_hp_mpt_fw_download(void)
             vpd[i] = i;
         }
         hp_mpt_manufacturing_transfer(qts, base, 1,
-                                     MPI_CONFIG_ACTION_PAGE_WRITE_NVRAM,
-                                     vpd);
-        hp_mpt_manufacturing_transfer(qts, base, 1,
-                                     MPI_CONFIG_ACTION_PAGE_WRITE_CURRENT,
-                                     vpd);
+                                      MPI_CONFIG_ACTION_PAGE_WRITE_NVRAM, vpd);
+        hp_mpt_manufacturing_transfer(
+            qts, base, 1, MPI_CONFIG_ACTION_PAGE_WRITE_CURRENT, vpd);
         hp_mpt_manufacturing_transfer(qts, base, 4,
-                                     MPI_CONFIG_ACTION_PAGE_WRITE_CURRENT,
-                                     current_settings);
-        hp_mpt_manufacturing_transfer(qts, base, 4,
-                                     MPI_CONFIG_ACTION_PAGE_WRITE_NVRAM,
-                                     settings);
-        hp_mpt_manufacturing_transfer(qts, base, 4,
-                                     MPI_CONFIG_ACTION_PAGE_READ_CURRENT,
-                                     actual_settings);
-        g_assert_cmpmem(actual_settings, sizeof(settings),
-                        current_settings, sizeof(settings));
+                                      MPI_CONFIG_ACTION_PAGE_WRITE_CURRENT,
+                                      current_settings);
+        hp_mpt_manufacturing_transfer(
+            qts, base, 4, MPI_CONFIG_ACTION_PAGE_WRITE_NVRAM, settings);
+        hp_mpt_manufacturing_transfer(
+            qts, base, 4, MPI_CONFIG_ACTION_PAGE_READ_CURRENT, actual_settings);
+        g_assert_cmpmem(actual_settings, sizeof(settings), current_settings,
+                        sizeof(settings));
         stl_le_p(io_flags, m ? MPI_IOUNITPAGE1_SINGLE_FUNCTION |
-                               MPI_IOUNITPAGE1_SATA_WRITE_CACHE_DISABLE :
-                               MPI_IOUNITPAGE1_MULTI_FUNCTION);
+                                   MPI_IOUNITPAGE1_SATA_WRITE_CACHE_DISABLE
+                             : MPI_IOUNITPAGE1_MULTI_FUNCTION);
         g_assert_cmphex(hp_mpt_config_transfer(
-            qts, base, MPI_CONFIG_PAGETYPE_IO_UNIT, 1,
-            MPI_CONFIG_ACTION_PAGE_WRITE_CURRENT, io_flags),
-            ==, MPI_IOCSTATUS_SUCCESS);
+                            qts, base, MPI_CONFIG_PAGETYPE_IO_UNIT, 1,
+                            MPI_CONFIG_ACTION_PAGE_WRITE_CURRENT, io_flags),
+                        ==, MPI_IOCSTATUS_SUCCESS);
         g_assert_cmphex(hp_mpt_config_transfer(
-            qts, base, MPI_CONFIG_PAGETYPE_IO_UNIT, 1,
-            MPI_CONFIG_ACTION_PAGE_WRITE_NVRAM, io_flags),
-            ==, MPI_IOCSTATUS_SUCCESS);
+                            qts, base, MPI_CONFIG_PAGETYPE_IO_UNIT, 1,
+                            MPI_CONFIG_ACTION_PAGE_WRITE_NVRAM, io_flags),
+                        ==, MPI_IOCSTATUS_SUCCESS);
         if (m) {
             hp_mpt_sas_auto_ports(qts, base, true);
             hp_mpt_indicator(qts, base, true,
-                              MPI_SEP_SLOTSTATUS_IDENTIFY_REQUEST);
+                             MPI_SEP_SLOTSTATUS_IDENTIFY_REQUEST);
         }
         if (disk) {
             response = qtest_hmp(qts, "savevm programmed");
@@ -1859,34 +1852,32 @@ static void test_hp_mpt_fw_download(void)
         hp_mpt_fw_upload(qts, base, &request);
         qtest_memread(qts, address, actual, size);
         g_assert_cmpmem(actual, size, image, size);
-        hp_mpt_manufacturing_transfer(qts, base, 1,
-                                     MPI_CONFIG_ACTION_PAGE_READ_NVRAM,
-                                     actual_vpd);
+        hp_mpt_manufacturing_transfer(
+            qts, base, 1, MPI_CONFIG_ACTION_PAGE_READ_NVRAM, actual_vpd);
         g_assert_cmpmem(actual_vpd, sizeof(vpd), vpd, sizeof(vpd));
-        hp_mpt_manufacturing_transfer(qts, base, 4,
-                                     MPI_CONFIG_ACTION_PAGE_READ_NVRAM,
-                                     actual_settings);
-        g_assert_cmpmem(actual_settings, sizeof(settings),
-                        settings, sizeof(settings));
-        g_assert_cmphex(hp_mpt_config_transfer(
-            qts, base, MPI_CONFIG_PAGETYPE_IO_UNIT, 1,
-            MPI_CONFIG_ACTION_PAGE_READ_CURRENT, actual_io_flags),
+        hp_mpt_manufacturing_transfer(
+            qts, base, 4, MPI_CONFIG_ACTION_PAGE_READ_NVRAM, actual_settings);
+        g_assert_cmpmem(actual_settings, sizeof(settings), settings,
+                        sizeof(settings));
+        g_assert_cmphex(
+            hp_mpt_config_transfer(qts, base, MPI_CONFIG_PAGETYPE_IO_UNIT, 1,
+                                   MPI_CONFIG_ACTION_PAGE_READ_CURRENT,
+                                   actual_io_flags),
             ==, MPI_IOCSTATUS_SUCCESS);
-        g_assert_cmpmem(actual_io_flags, sizeof(io_flags),
-                        io_flags, sizeof(io_flags));
+        g_assert_cmpmem(actual_io_flags, sizeof(io_flags), io_flags,
+                        sizeof(io_flags));
         actual_io_flags[0] ^= MPI_IOUNITPAGE1_SINGLE_FUNCTION;
-        g_assert_cmphex(hp_mpt_config_transfer(
-            qts, base, MPI_CONFIG_PAGETYPE_IO_UNIT, 1,
-            MPI_CONFIG_ACTION_PAGE_WRITE_CURRENT, actual_io_flags),
+        g_assert_cmphex(
+            hp_mpt_config_transfer(qts, base, MPI_CONFIG_PAGETYPE_IO_UNIT, 1,
+                                   MPI_CONFIG_ACTION_PAGE_WRITE_CURRENT,
+                                   actual_io_flags),
             ==, MPI_IOCSTATUS_CONFIG_INVALID_DATA);
-        hp_mpt_manufacturing_transfer(qts, base, 4,
-                                     MPI_CONFIG_ACTION_PAGE_READ_CURRENT,
-                                     actual_settings);
-        g_assert_cmpmem(actual_settings, sizeof(settings),
-                        settings, sizeof(settings));
-        hp_mpt_manufacturing_transfer(qts, base, 1,
-                                     MPI_CONFIG_ACTION_PAGE_READ_DEFAULT,
-                                     actual_vpd);
+        hp_mpt_manufacturing_transfer(
+            qts, base, 4, MPI_CONFIG_ACTION_PAGE_READ_CURRENT, actual_settings);
+        g_assert_cmpmem(actual_settings, sizeof(settings), settings,
+                        sizeof(settings));
+        hp_mpt_manufacturing_transfer(
+            qts, base, 1, MPI_CONFIG_ACTION_PAGE_READ_DEFAULT, actual_vpd);
         g_assert_cmpmem(actual_vpd, sizeof(vpd), empty_vpd, sizeof(vpd));
 
         if (disk) {
@@ -1895,9 +1886,8 @@ static void test_hp_mpt_fw_download(void)
             g_clear_pointer(&response, g_free);
             hp_mpt_fw_upload(qts, base, &request);
             g_assert_cmphex(qtest_readl(qts, address + 0x24), ==, 0x01329200);
-            hp_mpt_manufacturing_transfer(qts, base, 1,
-                                         MPI_CONFIG_ACTION_PAGE_READ_NVRAM,
-                                         actual_vpd);
+            hp_mpt_manufacturing_transfer(
+                qts, base, 1, MPI_CONFIG_ACTION_PAGE_READ_NVRAM, actual_vpd);
             g_assert_cmpmem(actual_vpd, sizeof(vpd), empty_vpd, sizeof(vpd));
             if (m) {
                 hp_mpt_indicator(qts, base, false, 0);
@@ -1908,30 +1898,30 @@ static void test_hp_mpt_fw_download(void)
             hp_mpt_fw_upload(qts, base, &request);
             qtest_memread(qts, address, actual, size);
             g_assert_cmpmem(actual, size, image, size);
-            hp_mpt_manufacturing_transfer(qts, base, 1,
-                                         MPI_CONFIG_ACTION_PAGE_READ_CURRENT,
-                                         actual_vpd);
+            hp_mpt_manufacturing_transfer(
+                qts, base, 1, MPI_CONFIG_ACTION_PAGE_READ_CURRENT, actual_vpd);
             g_assert_cmpmem(actual_vpd, sizeof(vpd), vpd, sizeof(vpd));
             hp_mpt_manufacturing_transfer(qts, base, 4,
-                                         MPI_CONFIG_ACTION_PAGE_READ_NVRAM,
-                                         actual_settings);
-            g_assert_cmpmem(actual_settings, sizeof(settings),
-                            settings, sizeof(settings));
+                                          MPI_CONFIG_ACTION_PAGE_READ_NVRAM,
+                                          actual_settings);
+            g_assert_cmpmem(actual_settings, sizeof(settings), settings,
+                            sizeof(settings));
             hp_mpt_manufacturing_transfer(qts, base, 4,
-                                         MPI_CONFIG_ACTION_PAGE_READ_CURRENT,
-                                         actual_settings);
-            g_assert_cmpmem(actual_settings, sizeof(settings),
-                            current_settings, sizeof(settings));
-            g_assert_cmphex(hp_mpt_config_transfer(
-                qts, base, MPI_CONFIG_PAGETYPE_IO_UNIT, 1,
-                MPI_CONFIG_ACTION_PAGE_READ_NVRAM, actual_io_flags),
+                                          MPI_CONFIG_ACTION_PAGE_READ_CURRENT,
+                                          actual_settings);
+            g_assert_cmpmem(actual_settings, sizeof(settings), current_settings,
+                            sizeof(settings));
+            g_assert_cmphex(
+                hp_mpt_config_transfer(qts, base, MPI_CONFIG_PAGETYPE_IO_UNIT,
+                                       1, MPI_CONFIG_ACTION_PAGE_READ_NVRAM,
+                                       actual_io_flags),
                 ==, MPI_IOCSTATUS_SUCCESS);
-            g_assert_cmpmem(actual_io_flags, sizeof(io_flags),
-                            io_flags, sizeof(io_flags));
+            g_assert_cmpmem(actual_io_flags, sizeof(io_flags), io_flags,
+                            sizeof(io_flags));
             if (m) {
                 hp_mpt_sas_auto_ports(qts, base, false);
                 hp_mpt_indicator(qts, base, false,
-                                  MPI_SEP_SLOTSTATUS_IDENTIFY_REQUEST);
+                                 MPI_SEP_SLOTSTATUS_IDENTIFY_REQUEST);
             }
         }
         qtest_quit(qts);
@@ -1958,10 +1948,10 @@ static void test_hp_mpt_fw_upload(void)
     for (m = 0; m < ARRAY_SIZE(machines); m++) {
         uint64_t base = machines[m].base;
         unsigned image_size = machines[m].image_size;
-        QTestState *qts = qtest_initf(
-            "-machine %s,nvram=none,firmware=none -m 2G -S "
-            "-display none -monitor none -serial none -net none",
-            machines[m].machine);
+        QTestState *qts =
+            qtest_initf("-machine %s,nvram=none,firmware=none -m 2G -S "
+                        "-display none -monitor none -serial none -net none",
+                        machines[m].machine);
         MPIMsgFWUpload request = {
             .Function = MPI_FUNCTION_FW_UPLOAD,
             .MsgContext = cpu_to_le32(0x12345678),
@@ -1974,14 +1964,13 @@ static void test_hp_mpt_fw_upload(void)
         hp_mpt_ioc_init(qts, base);
         for (mode = 0; mode < 2; mode++) {
             uint64_t address = mode ? UINT64_C(0x100040000) : 0x40000;
-            uint32_t flags = MPI_SGE_FLAGS_SIMPLE_ELEMENT |
-                             MPI_SGE_FLAGS_LAST_ELEMENT |
-                             MPI_SGE_FLAGS_END_OF_BUFFER |
-                             MPI_SGE_FLAGS_END_OF_LIST;
+            uint32_t flags =
+                MPI_SGE_FLAGS_SIMPLE_ELEMENT | MPI_SGE_FLAGS_LAST_ELEMENT |
+                MPI_SGE_FLAGS_END_OF_BUFFER | MPI_SGE_FLAGS_END_OF_LIST;
             uint32_t checksum = 0;
 
-            request.ImageType = mode ? MPI_FW_UPLOAD_ITYPE_FW_FLASH :
-                                       MPI_FW_UPLOAD_ITYPE_FW_IOC_MEM;
+            request.ImageType = mode ? MPI_FW_UPLOAD_ITYPE_FW_FLASH
+                                     : MPI_FW_UPLOAD_ITYPE_FW_IOC_MEM;
             if (mode) {
                 flags |= MPI_SGE_FLAGS_64_BIT_ADDRESSING;
                 request.SGL.u.Address64 = cpu_to_le64(address);
@@ -2057,8 +2046,8 @@ static void test_hp_mpt_fw_upload(void)
         qtest_memread(qts, UINT64_C(0x100040000), image, sizeof(image));
         g_assert_cmphex(ldl_le_p(image), ==, 0x01329200);
         g_assert_cmphex((uint32_t)ldl_le_p(image + 12), ==, 0xa5a5a5a5);
-        g_assert_cmphex(qtest_readl(qts, base + MPI_REPLY_POST_FIFO_OFFSET),
-                        ==, UINT32_MAX);
+        g_assert_cmphex(qtest_readl(qts, base + MPI_REPLY_POST_FIFO_OFFSET), ==,
+                        UINT32_MAX);
 
         request.TC.ImageOffset = cpu_to_le32(image_size + 4);
         request.TC.ImageSize = cpu_to_le32(4);
@@ -2067,7 +2056,7 @@ static void test_hp_mpt_fw_upload(void)
                         MPI_IOCSTATUS_INVALID_FIELD);
         request.TC.ImageOffset = 0;
         request.SGL.FlagsLength = cpu_to_le32(MPI_SGE_FLAGS_HOST_TO_IOC |
-                                             MPI_SGE_FLAGS_SIMPLE_ELEMENT | 4);
+                                              MPI_SGE_FLAGS_SIMPLE_ELEMENT | 4);
         reply = hp_mpt_fw_upload(qts, base, &request);
         g_assert_cmphex(le16_to_cpu(reply.IOCStatus), ==,
                         MPI_IOCSTATUS_INVALID_SGL);
@@ -2097,9 +2086,7 @@ static void zx6000_config_select(QTestState *qts, unsigned int root,
 
     g_assert_cmpuint(root, <, HP_ZX6000_PCI_ROOT_COUNT);
     selector = (uint64_t)devfn << 8 | (reg & 0xfc);
-    qtest_writeq(qts,
-                 HP_ZX6000_IOA_ADDRESS(root) +
-                 HP_ZX1_IOA_CONFIG_ADDRESS,
+    qtest_writeq(qts, HP_ZX6000_IOA_ADDRESS(root) + HP_ZX1_IOA_CONFIG_ADDRESS,
                  selector);
 }
 
@@ -2107,33 +2094,29 @@ static uint8_t zx6000_config_readb(QTestState *qts, unsigned int root,
                                    unsigned int devfn, unsigned int reg)
 {
     zx6000_config_select(qts, root, devfn, reg);
-    return qtest_readb(qts,
-                       HP_ZX6000_IOA_ADDRESS(root) +
-                       HP_ZX1_IOA_CONFIG_DATA + (reg & 3));
+    return qtest_readb(qts, HP_ZX6000_IOA_ADDRESS(root) +
+                                HP_ZX1_IOA_CONFIG_DATA + (reg & 3));
 }
 
 static uint16_t zx6000_config_readw(QTestState *qts, unsigned int root,
                                     unsigned int devfn, unsigned int reg)
 {
     zx6000_config_select(qts, root, devfn, reg);
-    return qtest_readw(qts,
-                       HP_ZX6000_IOA_ADDRESS(root) +
-                       HP_ZX1_IOA_CONFIG_DATA + (reg & 3));
+    return qtest_readw(qts, HP_ZX6000_IOA_ADDRESS(root) +
+                                HP_ZX1_IOA_CONFIG_DATA + (reg & 3));
 }
 
 static uint32_t zx6000_config_readl(QTestState *qts, unsigned int root,
                                     unsigned int devfn, unsigned int reg)
 {
     zx6000_config_select(qts, root, devfn, reg);
-    return qtest_readl(qts,
-                       HP_ZX6000_IOA_ADDRESS(root) +
-                       HP_ZX1_IOA_CONFIG_DATA + (reg & 3));
+    return qtest_readl(qts, HP_ZX6000_IOA_ADDRESS(root) +
+                                HP_ZX1_IOA_CONFIG_DATA + (reg & 3));
 }
 
 static uint64_t zx6000_sparse_io_address(uint16_t port)
 {
-    return ZX6000_SPARSE_IO_BASE +
-        ((uint64_t)(port >> 2) << 12) + (port & 3U);
+    return ZX6000_SPARSE_IO_BASE + ((uint64_t)(port >> 2) << 12) + (port & 3U);
 }
 
 static uint8_t zx6000_inb(QTestState *qts, uint16_t port)
@@ -2156,8 +2139,7 @@ static void zx6000_outw(QTestState *qts, uint16_t port, uint16_t value)
     qtest_writew(qts, zx6000_sparse_io_address(port), value);
 }
 
-static uint8_t zx6000_vga_indexed_read(QTestState *qts,
-                                       uint16_t index_port,
+static uint8_t zx6000_vga_indexed_read(QTestState *qts, uint16_t index_port,
                                        uint16_t data_port, uint8_t index)
 {
     zx6000_outb(qts, index_port, index);
@@ -2185,8 +2167,8 @@ static void zx6000_assert_int10_rom(QTestState *qts)
     qtest_memread(qts, ZX6000_INT10_ROM_BASE, rom, sizeof(rom));
     qtest_memread(qts, ZX6000_RV100_ROM_BASE, pci_rom, sizeof(pci_rom));
     g_assert_cmpmem(pci_rom, sizeof(pci_rom), rom, sizeof(rom));
-    g_assert_cmphex(qtest_readl(qts, ZX6000_RV100_ROM_BASE + sizeof(rom)),
-                    ==, UINT32_MAX);
+    g_assert_cmphex(qtest_readl(qts, ZX6000_RV100_ROM_BASE + sizeof(rom)), ==,
+                    UINT32_MAX);
     g_assert_cmphex(lduw_le_p(rom), ==, 0xaa55);
     g_assert_cmpuint(rom[2] * 512U, ==, sizeof(rom));
     g_assert_cmphex(rom[3], !=, 0xcb);
@@ -2195,10 +2177,9 @@ static void zx6000_assert_int10_rom(QTestState *qts)
     g_assert_cmpmem(rom + pcir, 4, "PCIR", 4);
     g_assert_cmphex(lduw_le_p(rom + pcir + 4), ==, 0x1002);
     g_assert_cmphex(lduw_le_p(rom + pcir + 6), ==, 0x5159);
-    g_assert_cmpuint(lduw_le_p(rom + pcir + 0x10) * 512U, ==,
-                     sizeof(rom));
-    g_assert_cmpmem(rom + ZX6000_INT10_ATI_SIGNATURE_OFFSET, 10,
-                    "761295520", 10);
+    g_assert_cmpuint(lduw_le_p(rom + pcir + 0x10) * 512U, ==, sizeof(rom));
+    g_assert_cmpmem(rom + ZX6000_INT10_ATI_SIGNATURE_OFFSET, 10, "761295520",
+                    10);
     ati_header = lduw_le_p(rom + 0x48);
     g_assert_cmphex(ati_header, ==, ZX6000_INT10_ATI_HEADER_OFFSET);
     g_assert_cmphex(rom[ati_header], ==, 8);
@@ -2228,8 +2209,8 @@ static void zx6000_assert_int10_rom(QTestState *qts)
     g_assert_cmphex(lduw_le_p(rom + ati_header + 0x50), ==,
                     ZX6000_INT10_ATI_CONNECTOR_OFFSET);
     g_assert_cmpmem(rom + ZX6000_INT10_ATI_CONNECTOR_OFFSET,
-                    ZX6000_INT10_ATI_CONNECTOR_SIZE,
-                    expected_connector, sizeof(expected_connector));
+                    ZX6000_INT10_ATI_CONNECTOR_SIZE, expected_connector,
+                    sizeof(expected_connector));
     g_assert_cmphex(lduw_le_p(rom + ati_header + 0x48), ==,
                     ZX6000_INT10_ATI_MEM_CONFIG_OFFSET);
     expected_mem[0] = 3;
@@ -2239,8 +2220,7 @@ static void zx6000_assert_int10_rom(QTestState *qts)
     expected_mem[6] = 1;
     expected_mem[8] = 0xff;
     g_assert_cmpmem(rom + ZX6000_INT10_ATI_MEM_CONFIG_OFFSET - 3,
-                    sizeof(expected_mem), expected_mem,
-                    sizeof(expected_mem));
+                    sizeof(expected_mem), expected_mem, sizeof(expected_mem));
     ati_pll = lduw_le_p(rom + ati_header + 0x30);
     g_assert_cmphex(ati_pll, ==, ZX6000_INT10_ATI_PLL_OFFSET);
     g_assert_cmphex(rom[ati_pll], ==, 0x0a);
@@ -2257,8 +2237,7 @@ static void zx6000_assert_int10_rom(QTestState *qts)
         size_t offset = ati_pll + clock_fields[i];
 
         g_assert_cmpuint(lduw_le_p(rom + offset), ==, 2700);
-        g_assert_cmpuint(lduw_le_p(rom + offset + 2), ==,
-                         i == 0 ? 60 : 27);
+        g_assert_cmpuint(lduw_le_p(rom + offset + 2), ==, i == 0 ? 60 : 27);
         g_assert_cmpuint(ldl_le_p(rom + offset + 4), ==,
                          i == 0 ? 12000 : 20000);
         g_assert_cmpuint(ldl_le_p(rom + offset + 8), ==,
@@ -2274,7 +2253,7 @@ static void zx6000_assert_int10_rom(QTestState *qts)
 
     /* ROM clock tables and PLL registers describe the same clocks. */
     qtest_writeb(qts, ZX6000_RV100_MMIO_BASE + CLOCK_CNTL_INDEX,
-                  R100_M_SPLL_REF_FB_DIV);
+                 R100_M_SPLL_REF_FB_DIV);
     clock_divisors = qtest_readl(qts, ZX6000_RV100_MMIO_BASE + CLOCK_CNTL_DATA);
     g_assert_cmpuint(clock_divisors & 0xff, ==,
                      lduw_le_p(rom + ati_pll + 0x1c));
@@ -2283,12 +2262,12 @@ static void zx6000_assert_int10_rom(QTestState *qts)
         uint32_t reference = lduw_le_p(rom + ati_pll + 0x26 - i * 12);
 
         qtest_writeb(qts, ZX6000_RV100_MMIO_BASE + CLOCK_CNTL_INDEX,
-                      i ? R100_SCLK_CNTL : R100_MCLK_CNTL);
-        g_assert_cmphex(qtest_readl(qts, ZX6000_RV100_MMIO_BASE +
-                                    CLOCK_CNTL_DATA) & 7, ==, 2);
-        g_assert_cmpuint(2 * reference * feedback /
-                         (clock_divisors & 0xff) / 2, ==,
-                         lduw_le_p(rom + ati_pll + 8 + i * 2));
+                     i ? R100_SCLK_CNTL : R100_MCLK_CNTL);
+        g_assert_cmphex(
+            qtest_readl(qts, ZX6000_RV100_MMIO_BASE + CLOCK_CNTL_DATA) & 7, ==,
+            2);
+        g_assert_cmpuint(2 * reference * feedback / (clock_divisors & 0xff) / 2,
+                         ==, lduw_le_p(rom + ati_pll + 8 + i * 2));
     }
     qtest_writeb(qts, ZX6000_RV100_MMIO_BASE + CLOCK_CNTL_INDEX, 0);
 
@@ -2297,8 +2276,7 @@ static void zx6000_assert_int10_rom(QTestState *qts)
 
     qtest_memread(qts, ZX6000_INT10_VECTOR_ADDR, vector, sizeof(vector));
     g_assert_cmphex(lduw_le_p(vector), ==, ZX6000_INT10_HANDLER_OFFSET);
-    g_assert_cmphex(lduw_le_p(vector + 2), ==,
-                    ZX6000_INT10_ROM_BASE >> 4);
+    g_assert_cmphex(lduw_le_p(vector + 2), ==, ZX6000_INT10_ROM_BASE >> 4);
 }
 
 static void zx6000_int10_write_request(QTestState *qts,
@@ -2313,8 +2291,7 @@ static void zx6000_int10_write_request(QTestState *qts,
         zx6000_outw(qts, ZX6000_INT10_IO_BASE + i * 2, values[i]);
     }
     if (regs->input_signature != 0) {
-        zx6000_outw(qts, ZX6000_INT10_IO_DATA,
-                    (uint16_t)regs->input_signature);
+        zx6000_outw(qts, ZX6000_INT10_IO_DATA, (uint16_t)regs->input_signature);
         zx6000_outw(qts, ZX6000_INT10_IO_DATA,
                     (uint16_t)(regs->input_signature >> 16));
     }
@@ -2331,8 +2308,7 @@ static void zx6000_int10_read_result(QTestState *qts,
     regs->es = zx6000_inw(qts, ZX6000_INT10_IO_BASE + 10);
 }
 
-static size_t zx6000_int10_call(QTestState *qts,
-                                ZX6000Int10Registers *regs,
+static size_t zx6000_int10_call(QTestState *qts, ZX6000Int10Registers *regs,
                                 uint8_t *response, size_t response_size)
 {
     size_t word_count;
@@ -2343,8 +2319,7 @@ static size_t zx6000_int10_call(QTestState *qts,
     word_count = zx6000_inw(qts, ZX6000_INT10_IO_EXEC);
     g_assert_cmpuint(word_count * 2, <=, response_size);
     for (i = 0; i < word_count; i++) {
-        stw_le_p(response + i * 2,
-                 zx6000_inw(qts, ZX6000_INT10_IO_DATA));
+        stw_le_p(response + i * 2, zx6000_inw(qts, ZX6000_INT10_IO_DATA));
     }
     zx6000_int10_read_result(qts, regs);
     return word_count * 2;
@@ -2363,29 +2338,28 @@ static void zx6000_assert_mode12(QTestState *qts, bool no_clear)
     zx6000_outw(qts, ZX6000_VBE_INDEX_PORT, ZX6000_VBE_ENABLE_INDEX);
     g_assert_cmphex(zx6000_inw(qts, ZX6000_VBE_DATA_PORT), ==, 0);
     g_assert_cmphex(zx6000_inb(qts, ZX6000_VGA_MISC_READ_PORT), ==, 0xe3);
-    g_assert_cmphex(zx6000_vga_indexed_read(
-                        qts, ZX6000_VGA_SEQ_INDEX_PORT,
-                        ZX6000_VGA_SEQ_DATA_PORT, 2), ==, 0x0f);
-    g_assert_cmphex(zx6000_vga_indexed_read(
-                        qts, ZX6000_VGA_SEQ_INDEX_PORT,
-                        ZX6000_VGA_SEQ_DATA_PORT, 4), ==, 0x06);
-    g_assert_cmphex(zx6000_vga_indexed_read(
-                        qts, ZX6000_VGA_CRTC_INDEX_PORT,
-                        ZX6000_VGA_CRTC_DATA_PORT, 1), ==, 0x4f);
-    g_assert_cmphex(zx6000_vga_indexed_read(
-                        qts, ZX6000_VGA_CRTC_INDEX_PORT,
-                        ZX6000_VGA_CRTC_DATA_PORT, 0x12), ==, 0xdf);
-    g_assert_cmphex(zx6000_vga_indexed_read(
-                        qts, ZX6000_VGA_CRTC_INDEX_PORT,
-                        ZX6000_VGA_CRTC_DATA_PORT, 0x13), ==, 0x28);
-    g_assert_cmphex(zx6000_vga_indexed_read(
-                        qts, ZX6000_VGA_GFX_INDEX_PORT,
-                        ZX6000_VGA_GFX_DATA_PORT, 6), ==, 0x05);
+    g_assert_cmphex(zx6000_vga_indexed_read(qts, ZX6000_VGA_SEQ_INDEX_PORT,
+                                            ZX6000_VGA_SEQ_DATA_PORT, 2),
+                    ==, 0x0f);
+    g_assert_cmphex(zx6000_vga_indexed_read(qts, ZX6000_VGA_SEQ_INDEX_PORT,
+                                            ZX6000_VGA_SEQ_DATA_PORT, 4),
+                    ==, 0x06);
+    g_assert_cmphex(zx6000_vga_indexed_read(qts, ZX6000_VGA_CRTC_INDEX_PORT,
+                                            ZX6000_VGA_CRTC_DATA_PORT, 1),
+                    ==, 0x4f);
+    g_assert_cmphex(zx6000_vga_indexed_read(qts, ZX6000_VGA_CRTC_INDEX_PORT,
+                                            ZX6000_VGA_CRTC_DATA_PORT, 0x12),
+                    ==, 0xdf);
+    g_assert_cmphex(zx6000_vga_indexed_read(qts, ZX6000_VGA_CRTC_INDEX_PORT,
+                                            ZX6000_VGA_CRTC_DATA_PORT, 0x13),
+                    ==, 0x28);
+    g_assert_cmphex(zx6000_vga_indexed_read(qts, ZX6000_VGA_GFX_INDEX_PORT,
+                                            ZX6000_VGA_GFX_DATA_PORT, 6),
+                    ==, 0x05);
 
     g_assert_cmphex(qtest_readb(qts, ZX6000_BDA_VIDEO_MODE), ==, 0x12);
     g_assert_cmphex(qtest_readw(qts, ZX6000_BDA_VIDEO_COLUMNS), ==, 80);
-    g_assert_cmphex(qtest_readw(qts, ZX6000_BDA_VIDEO_PAGE_SIZE), ==,
-                    0xa000);
+    g_assert_cmphex(qtest_readw(qts, ZX6000_BDA_VIDEO_PAGE_SIZE), ==, 0xa000);
     g_assert_cmphex(qtest_readw(qts, ZX6000_BDA_VIDEO_PAGE_START), ==, 0);
     g_assert_cmphex(qtest_readb(qts, ZX6000_BDA_VIDEO_ROWS), ==, 29);
     g_assert_cmphex(qtest_readw(qts, ZX6000_BDA_CHARACTER_HEIGHT), ==, 16);
@@ -2398,9 +2372,8 @@ static uint32_t zx6000_int10_far_to_linear(uint32_t pointer)
     return (pointer >> 16) * 16 + (pointer & 0xffff);
 }
 
-static bool zx6000_int10_mode_list_contains(QTestState *qts,
-                                             uint32_t address,
-                                             uint16_t expected)
+static bool zx6000_int10_mode_list_contains(QTestState *qts, uint32_t address,
+                                            uint16_t expected)
 {
     size_t i;
 
@@ -2437,8 +2410,8 @@ static void zx6000_assert_int10_vbe(QTestState *qts)
     g_assert_cmpmem(response, 4, "VESA", 4);
     memory_size = (uint32_t)lduw_le_p(response + 18) * (64 * KiB);
     modes = zx6000_int10_far_to_linear(ldl_le_p(response + 14));
-    g_assert_cmphex(modes, ==, ZX6000_INT10_ROM_BASE +
-                    ZX6000_INT10_MODE_LIST_OFFSET);
+    g_assert_cmphex(modes, ==,
+                    ZX6000_INT10_ROM_BASE + ZX6000_INT10_MODE_LIST_OFFSET);
     g_assert_true(zx6000_int10_mode_list_contains(qts, modes, 0x111));
 
     regs = (ZX6000Int10Registers) {
@@ -2511,8 +2484,7 @@ static void zx6000_assert_int10_vbe(QTestState *qts)
     g_assert_cmphex(regs.bx, ==, 3232);
     g_assert_cmphex(regs.cx, ==, 808);
 
-    max_width = MIN((uint32_t)VBE_DISPI_MAX_XRES,
-                    memory_size / 600 / 4) & ~7U;
+    max_width = MIN((uint32_t)VBE_DISPI_MAX_XRES, memory_size / 600 / 4) & ~7U;
     regs = (ZX6000Int10Registers) {
         .ax = 0x4f06,
         .bx = 3,
@@ -2530,10 +2502,9 @@ static void zx6000_config_writew(QTestState *qts, unsigned int root,
                                  uint16_t value)
 {
     zx6000_config_select(qts, root, devfn, reg);
-    qtest_writew(qts,
-                 HP_ZX6000_IOA_ADDRESS(root) +
-                 HP_ZX1_IOA_CONFIG_DATA + (reg & 3),
-                 value);
+    qtest_writew(
+        qts, HP_ZX6000_IOA_ADDRESS(root) + HP_ZX1_IOA_CONFIG_DATA + (reg & 3),
+        value);
 }
 
 static void zx6000_config_writel(QTestState *qts, unsigned int root,
@@ -2541,10 +2512,9 @@ static void zx6000_config_writel(QTestState *qts, unsigned int root,
                                  uint32_t value)
 {
     zx6000_config_select(qts, root, devfn, reg);
-    qtest_writel(qts,
-                 HP_ZX6000_IOA_ADDRESS(root) +
-                 HP_ZX1_IOA_CONFIG_DATA + (reg & 3),
-                 value);
+    qtest_writel(
+        qts, HP_ZX6000_IOA_ADDRESS(root) + HP_ZX1_IOA_CONFIG_DATA + (reg & 3),
+        value);
 }
 
 static void zx6000_assert_device(QTestState *qts, unsigned int root,
@@ -2563,29 +2533,27 @@ static void zx6000_assert_rv100(QTestState *qts)
 
     zx6000_assert_device(qts, 4, devfn, 0x1002, 0x5159,
                          PCI_COMMAND_IO | PCI_COMMAND_MEMORY |
-                         PCI_COMMAND_MASTER);
-    g_assert_cmphex(zx6000_config_readw(
-                        qts, 4, devfn, PCI_CLASS_DEVICE), ==, 0x0300);
-    g_assert_cmphex(zx6000_config_readl(
-                        qts, 4, devfn, PCI_SUBSYSTEM_VENDOR_ID), ==,
-                    0x1292103c);
-    g_assert_cmphex(zx6000_config_readl(
-                        qts, 4, devfn, PCI_BASE_ADDRESS_0), ==, 0xa0000008);
-    g_assert_cmphex(zx6000_config_readl(
-                        qts, 4, devfn, PCI_BASE_ADDRESS_1), ==, 0x8001);
-    g_assert_cmphex(zx6000_config_readl(
-                        qts, 4, devfn, PCI_BASE_ADDRESS_2), ==, 0xa8000000);
-    g_assert_cmphex(qtest_readl(qts, ZX6000_RV100_MMIO_BASE +
-                                    ZX6000_RV100_CNFG_MEMSIZE), ==,
-                    ZX6000_RV100_VRAM_SIZE);
-    g_assert_cmphex(zx6000_config_readl(
-                        qts, 4, devfn, PCI_ROM_ADDRESS), ==,
+                             PCI_COMMAND_MASTER);
+    g_assert_cmphex(zx6000_config_readw(qts, 4, devfn, PCI_CLASS_DEVICE), ==,
+                    0x0300);
+    g_assert_cmphex(zx6000_config_readl(qts, 4, devfn, PCI_SUBSYSTEM_VENDOR_ID),
+                    ==, 0x1292103c);
+    g_assert_cmphex(zx6000_config_readl(qts, 4, devfn, PCI_BASE_ADDRESS_0), ==,
+                    0xa0000008);
+    g_assert_cmphex(zx6000_config_readl(qts, 4, devfn, PCI_BASE_ADDRESS_1), ==,
+                    0x8001);
+    g_assert_cmphex(zx6000_config_readl(qts, 4, devfn, PCI_BASE_ADDRESS_2), ==,
+                    0xa8000000);
+    g_assert_cmphex(
+        qtest_readl(qts, ZX6000_RV100_MMIO_BASE + ZX6000_RV100_CNFG_MEMSIZE),
+        ==, ZX6000_RV100_VRAM_SIZE);
+    g_assert_cmphex(zx6000_config_readl(qts, 4, devfn, PCI_ROM_ADDRESS), ==,
                     ZX6000_RV100_ROM_BASE | PCI_ROM_ADDRESS_ENABLE);
     g_assert_cmphex(qtest_readw(qts, ZX6000_RV100_ROM_BASE), ==, 0xaa55);
-    g_assert_cmphex(zx6000_config_readb(
-                        qts, 4, devfn, PCI_INTERRUPT_LINE), ==, 64);
-    g_assert_cmphex(zx6000_config_readb(
-                        qts, 4, devfn, PCI_INTERRUPT_PIN), ==, 1);
+    g_assert_cmphex(zx6000_config_readb(qts, 4, devfn, PCI_INTERRUPT_LINE), ==,
+                    64);
+    g_assert_cmphex(zx6000_config_readb(qts, 4, devfn, PCI_INTERRUPT_PIN), ==,
+                    1);
 }
 
 static void test_hp_zx6000_descriptor(void)
@@ -2607,8 +2575,7 @@ static void test_hp_zx6000_descriptor(void)
         { 0x20, 2, 0, 29 }, /* BCM5701 */
     };
     uint8_t storage[IA64_PLATFORM_DESC_MAX_SIZE] = { 0 };
-    IA64PlatformDescriptor *descriptor =
-        (IA64PlatformDescriptor *)storage;
+    IA64PlatformDescriptor *descriptor = (IA64PlatformDescriptor *)storage;
     const IA64PlatformRamRange *ram;
     const IA64PlatformPciRoot *roots;
     const IA64PlatformIoSapic *sapics;
@@ -2618,8 +2585,7 @@ static void test_hp_zx6000_descriptor(void)
     unsigned int root;
     unsigned int route;
 
-    qtest_memread(qts, ZX6000_DESCRIPTOR_GPA, storage,
-                  sizeof(*descriptor));
+    qtest_memread(qts, ZX6000_DESCRIPTOR_GPA, storage, sizeof(*descriptor));
     total_size = le32_to_cpu(descriptor->TotalSize);
     g_assert_cmpuint(total_size, <=, sizeof(storage));
     qtest_memread(qts, ZX6000_DESCRIPTOR_GPA, storage, total_size);
@@ -2652,17 +2618,20 @@ static void test_hp_zx6000_descriptor(void)
     }
     g_assert_cmpuint(zx6000_checksum(storage, total_size), ==, 0);
 
-    ram = (const IA64PlatformRamRange *)(
-        storage + le32_to_cpu(descriptor->RamRangeOffset));
+    ram =
+        (const IA64PlatformRamRange *)(storage +
+                                       le32_to_cpu(descriptor->RamRangeOffset));
     g_assert_cmphex(le64_to_cpu(ram[0].Base), ==, 0);
     g_assert_cmphex(le64_to_cpu(ram[0].Size), ==, ZX6000_LOW_RAM_SIZE);
     g_assert_cmphex(le64_to_cpu(ram[1].Base), ==, ZX6000_HIGH_RAM_BASE);
     g_assert_cmphex(le64_to_cpu(ram[1].Size), ==, ZX6000_LOW_RAM_SIZE);
 
-    roots = (const IA64PlatformPciRoot *)(
-        storage + le32_to_cpu(descriptor->PciRootOffset));
-    sapics = (const IA64PlatformIoSapic *)(
-        storage + le32_to_cpu(descriptor->IoSapicOffset));
+    roots =
+        (const IA64PlatformPciRoot *)(storage +
+                                      le32_to_cpu(descriptor->PciRootOffset));
+    sapics =
+        (const IA64PlatformIoSapic *)(storage +
+                                      le32_to_cpu(descriptor->IoSapicOffset));
     for (root = 0; root < HP_ZX6000_PCI_ROOT_COUNT; root++) {
         g_assert_cmpuint(roots[root].Bus, ==, zx6000_first_bus[root]);
         g_assert_cmpuint(roots[root].BusEnd, ==, zx6000_last_bus[root]);
@@ -2675,45 +2644,41 @@ static void test_hp_zx6000_descriptor(void)
                         zx6000_cpu_mmio_base[root]);
         g_assert_cmphex(le64_to_cpu(roots[root].Mmio32Size), ==,
                         zx6000_mmio_size[root]);
-        g_assert_cmphex(
-            le64_to_cpu(roots[root].Mmio32TranslationOffset), ==,
-            0);
+        g_assert_cmphex(le64_to_cpu(roots[root].Mmio32TranslationOffset), ==,
+                        0);
         g_assert_cmphex(le32_to_cpu(roots[root].Flags), ==,
                         IA64_PLATFORM_PCI_ROOT_FLAG_IDENTITY_DMA |
-                        IA64_PLATFORM_PCI_ROOT_FLAG_SPARSE_IO |
-                        (root == ZX6000_AGP_ROOT ?
-                         IA64_PLATFORM_PCI_ROOT_FLAG_AGP |
-                         IA64_PLATFORM_PCI_ROOT_FLAG_VGA_LEGACY : 0));
-        g_assert_cmphex(
-            le64_to_cpu(roots[root].IoTranslationOffset), ==,
-            ZX6000_SPARSE_IO_BASE);
+                            IA64_PLATFORM_PCI_ROOT_FLAG_SPARSE_IO |
+                            (root == ZX6000_AGP_ROOT
+                                 ? IA64_PLATFORM_PCI_ROOT_FLAG_AGP |
+                                       IA64_PLATFORM_PCI_ROOT_FLAG_VGA_LEGACY
+                                 : 0));
+        g_assert_cmphex(le64_to_cpu(roots[root].IoTranslationOffset), ==,
+                        ZX6000_SPARSE_IO_BASE);
         g_assert_cmphex(le64_to_cpu(roots[root].DmaBase), ==, 0);
         g_assert_cmphex(le64_to_cpu(roots[root].DmaSize), ==,
                         ZX6000_LOW_RAM_SIZE);
-        g_assert_cmpuint(le32_to_cpu(roots[root].Rope), ==,
-                         zx6000_rope[root]);
+        g_assert_cmpuint(le32_to_cpu(roots[root].Rope), ==, zx6000_rope[root]);
         g_assert_cmphex(le64_to_cpu(sapics[root].Base), ==,
                         HP_ZX6000_IOA_ADDRESS(root) +
-                        IA64_PLATFORM_ZX1_IO_SAPIC_OFFSET);
+                            IA64_PLATFORM_ZX1_IO_SAPIC_OFFSET);
         g_assert_cmpuint(le32_to_cpu(sapics[root].GsiBase), ==,
                          zx6000_gsi_base[root]);
         g_assert_cmpuint(sapics[root].Id, ==, zx6000_rope[root]);
-        g_assert_cmphex(qtest_readq(
-                            qts, HP_ZX6000_IOA_ADDRESS(root) +
-                            HP_ZX1_IOA_FUNCTION_ID), ==,
-                        UINT64_C(0x02b00000122e103c));
+        g_assert_cmphex(qtest_readq(qts, HP_ZX6000_IOA_ADDRESS(root) +
+                                             HP_ZX1_IOA_FUNCTION_ID),
+                        ==, UINT64_C(0x02b00000122e103c));
     }
 
-    routes = (const IA64PlatformPciRoute *)(
-        storage + le32_to_cpu(descriptor->PciRouteOffset));
+    routes =
+        (const IA64PlatformPciRoute *)(storage +
+                                       le32_to_cpu(descriptor->PciRouteOffset));
     for (route = 0; route < G_N_ELEMENTS(expected_routes); route++) {
         g_assert_cmpuint(le16_to_cpu(routes[route].Segment), ==, 0);
-        g_assert_cmpuint(routes[route].Bus, ==,
-                         expected_routes[route].bus);
+        g_assert_cmpuint(routes[route].Bus, ==, expected_routes[route].bus);
         g_assert_cmpuint(routes[route].Device, ==,
                          expected_routes[route].device);
-        g_assert_cmpuint(routes[route].Pin, ==,
-                         expected_routes[route].pin);
+        g_assert_cmpuint(routes[route].Pin, ==, expected_routes[route].pin);
         g_assert_cmpuint(le32_to_cpu(routes[route].Gsi), ==,
                          expected_routes[route].gsi);
     }
@@ -2723,31 +2688,31 @@ static void test_hp_zx6000_descriptor(void)
 
 static void test_hp_zx6000_acpi_pm(void)
 {
-    const uint64_t event_enable = ZX6000_ACPI_PM_BASE +
-        IA64_PLATFORM_ACPI_PM1_EVT_OFFSET + 2U;
-    const uint64_t control = ZX6000_ACPI_PM_BASE +
-        IA64_PLATFORM_ACPI_PM1_CNT_OFFSET;
-    const uint64_t timer = ZX6000_ACPI_PM_BASE +
-        IA64_PLATFORM_ACPI_PM_TMR_OFFSET;
-    const uint64_t gpe_status = ZX6000_ACPI_PM_BASE +
-        IA64_PLATFORM_ACPI_GPE0_STS_OFFSET;
-    const uint64_t gpe_enable = ZX6000_ACPI_PM_BASE +
-        IA64_PLATFORM_ACPI_GPE0_EN_OFFSET;
-    const uint64_t io_event_enable = zx6000_sparse_io_address(
-        IA64_PLATFORM_ACPI_PM1_EVT_OFFSET + 2U);
-    const uint64_t io_control = zx6000_sparse_io_address(
-        IA64_PLATFORM_ACPI_PM1_CNT_OFFSET);
-    const uint64_t io_timer = zx6000_sparse_io_address(
-        IA64_PLATFORM_ACPI_PM_TMR_OFFSET);
-    const uint64_t io_gpe_status = zx6000_sparse_io_address(
-        IA64_PLATFORM_ACPI_GPE0_STS_OFFSET);
-    const uint64_t io_gpe_enable = zx6000_sparse_io_address(
-        IA64_PLATFORM_ACPI_GPE0_EN_OFFSET);
+    const uint64_t event_enable =
+        ZX6000_ACPI_PM_BASE + IA64_PLATFORM_ACPI_PM1_EVT_OFFSET + 2U;
+    const uint64_t control =
+        ZX6000_ACPI_PM_BASE + IA64_PLATFORM_ACPI_PM1_CNT_OFFSET;
+    const uint64_t timer =
+        ZX6000_ACPI_PM_BASE + IA64_PLATFORM_ACPI_PM_TMR_OFFSET;
+    const uint64_t gpe_status =
+        ZX6000_ACPI_PM_BASE + IA64_PLATFORM_ACPI_GPE0_STS_OFFSET;
+    const uint64_t gpe_enable =
+        ZX6000_ACPI_PM_BASE + IA64_PLATFORM_ACPI_GPE0_EN_OFFSET;
+    const uint64_t io_event_enable =
+        zx6000_sparse_io_address(IA64_PLATFORM_ACPI_PM1_EVT_OFFSET + 2U);
+    const uint64_t io_control =
+        zx6000_sparse_io_address(IA64_PLATFORM_ACPI_PM1_CNT_OFFSET);
+    const uint64_t io_timer =
+        zx6000_sparse_io_address(IA64_PLATFORM_ACPI_PM_TMR_OFFSET);
+    const uint64_t io_gpe_status =
+        zx6000_sparse_io_address(IA64_PLATFORM_ACPI_GPE0_STS_OFFSET);
+    const uint64_t io_gpe_enable =
+        zx6000_sparse_io_address(IA64_PLATFORM_ACPI_GPE0_EN_OFFSET);
     QTestState *qts = zx6000_start();
     uint32_t first_timer;
 
-    g_assert_cmphex(qtest_readw(qts, control) & ACPI_BITMASK_SCI_ENABLE,
-                    ==, ACPI_BITMASK_SCI_ENABLE);
+    g_assert_cmphex(qtest_readw(qts, control) & ACPI_BITMASK_SCI_ENABLE, ==,
+                    ACPI_BITMASK_SCI_ENABLE);
     g_assert_cmphex(qtest_readw(qts, io_control), ==,
                     qtest_readw(qts, control));
     qtest_writew(qts, io_event_enable, ACPI_BITMASK_POWER_BUTTON_ENABLE);
@@ -2759,19 +2724,17 @@ static void test_hp_zx6000_acpi_pm(void)
     first_timer = qtest_readl(qts, io_timer);
     qtest_clock_step(qts, NANOSECONDS_PER_SECOND / 1000U);
     g_assert_cmphex(qtest_readl(qts, io_timer), !=, first_timer);
-    g_assert_cmphex(qtest_readl(qts, timer), ==,
-                    qtest_readl(qts, io_timer));
+    g_assert_cmphex(qtest_readl(qts, timer), ==, qtest_readl(qts, io_timer));
 
     qtest_writew(qts, io_control, 0);
     g_assert_cmphex(qtest_readw(qts, control), ==, 0);
     qtest_writel(qts, io_gpe_enable, UINT32_C(0xa55aa55a));
-    g_assert_cmphex(qtest_readl(qts, gpe_enable), ==,
-                    UINT32_C(0xa55aa55a));
+    g_assert_cmphex(qtest_readl(qts, gpe_enable), ==, UINT32_C(0xa55aa55a));
     g_assert_cmphex(qtest_readl(qts, gpe_status), ==, 0);
     g_assert_cmphex(qtest_readl(qts, io_gpe_status), ==, 0);
     qtest_system_reset(qts);
-    g_assert_cmphex(qtest_readw(qts, control) & ACPI_BITMASK_SCI_ENABLE,
-                    ==, ACPI_BITMASK_SCI_ENABLE);
+    g_assert_cmphex(qtest_readw(qts, control) & ACPI_BITMASK_SCI_ENABLE, ==,
+                    ACPI_BITMASK_SCI_ENABLE);
     g_assert_cmphex(qtest_readw(qts, event_enable), ==, 0);
     g_assert_cmphex(qtest_readl(qts, gpe_enable), ==, 0);
     g_assert_cmphex(qtest_readw(qts, io_event_enable), ==, 0);
@@ -2787,45 +2750,58 @@ static void test_hp_zx6000_pci_layout(void)
 
     zx6000_assert_device(qts, 0, PCI_DEVFN(2, 0), 0x1095, 0x0649,
                          PCI_COMMAND_IO | PCI_COMMAND_MASTER);
-    g_assert_cmphex(zx6000_config_readl(qts, 0, PCI_DEVFN(2, 0),
-                                        PCI_BASE_ADDRESS_0), ==, 0xd59);
-    g_assert_cmphex(zx6000_config_readl(qts, 0, PCI_DEVFN(2, 0),
-                                        PCI_BASE_ADDRESS_1), ==, 0xd65);
-    g_assert_cmphex(zx6000_config_readl(qts, 0, PCI_DEVFN(2, 0),
-                                        PCI_BASE_ADDRESS_2), ==, 0xd51);
-    g_assert_cmphex(zx6000_config_readl(qts, 0, PCI_DEVFN(2, 0),
-                                        PCI_BASE_ADDRESS_3), ==, 0xd61);
-    g_assert_cmphex(zx6000_config_readl(qts, 0, PCI_DEVFN(2, 0),
-                                        PCI_BASE_ADDRESS_4), ==, 0xd41);
-    g_assert_cmphex(zx6000_config_readb(qts, 0, PCI_DEVFN(2, 0),
-                                        ZX6000_CMD649_CNTRL), ==, 0xec);
-    g_assert_cmphex(zx6000_config_readb(qts, 0, PCI_DEVFN(2, 0),
-                                        ZX6000_CMD649_BMIDECSR), ==, 0x01);
+    g_assert_cmphex(
+        zx6000_config_readl(qts, 0, PCI_DEVFN(2, 0), PCI_BASE_ADDRESS_0), ==,
+        0xd59);
+    g_assert_cmphex(
+        zx6000_config_readl(qts, 0, PCI_DEVFN(2, 0), PCI_BASE_ADDRESS_1), ==,
+        0xd65);
+    g_assert_cmphex(
+        zx6000_config_readl(qts, 0, PCI_DEVFN(2, 0), PCI_BASE_ADDRESS_2), ==,
+        0xd51);
+    g_assert_cmphex(
+        zx6000_config_readl(qts, 0, PCI_DEVFN(2, 0), PCI_BASE_ADDRESS_3), ==,
+        0xd61);
+    g_assert_cmphex(
+        zx6000_config_readl(qts, 0, PCI_DEVFN(2, 0), PCI_BASE_ADDRESS_4), ==,
+        0xd41);
+    g_assert_cmphex(
+        zx6000_config_readb(qts, 0, PCI_DEVFN(2, 0), ZX6000_CMD649_CNTRL), ==,
+        0xec);
+    g_assert_cmphex(
+        zx6000_config_readb(qts, 0, PCI_DEVFN(2, 0), ZX6000_CMD649_BMIDECSR),
+        ==, 0x01);
 
     zx6000_assert_device(qts, 0, PCI_DEVFN(3, 0), 0x8086, 0x1229,
                          PCI_COMMAND_IO | PCI_COMMAND_MEMORY |
-                         PCI_COMMAND_MASTER);
-    g_assert_cmphex(zx6000_config_readb(qts, 0, PCI_DEVFN(3, 0),
-                                        PCI_REVISION_ID), ==, 0x0d);
-    g_assert_cmphex(zx6000_config_readl(qts, 0, PCI_DEVFN(3, 0),
-                                        PCI_SUBSYSTEM_VENDOR_ID), ==,
-                    0x1274103c);
-    g_assert_cmphex(zx6000_config_readw(qts, 0, PCI_DEVFN(3, 0),
-                                        PCI_INTERRUPT_LINE), ==, 0x0114);
-    g_assert_cmphex(zx6000_config_readl(qts, 0, PCI_DEVFN(3, 0),
-                                        PCI_BASE_ADDRESS_0), ==, 0x80020000);
-    g_assert_cmphex(zx6000_config_readl(qts, 0, PCI_DEVFN(3, 0),
-                                        PCI_BASE_ADDRESS_1), ==, 0xd01);
-    g_assert_cmphex(zx6000_config_readl(qts, 0, PCI_DEVFN(3, 0),
-                                        PCI_BASE_ADDRESS_2), ==, 0x80040000);
-    zx6000_config_writel(qts, 0, PCI_DEVFN(3, 0),
-                         PCI_BASE_ADDRESS_2, UINT32_MAX);
-    g_assert_cmphex(zx6000_config_readl(qts, 0, PCI_DEVFN(3, 0),
-                                        PCI_BASE_ADDRESS_2), ==, 0xfffe0000);
-    zx6000_config_writel(qts, 0, PCI_DEVFN(3, 0),
-                         PCI_BASE_ADDRESS_2, 0x80040000);
-    g_assert_cmphex(zx6000_config_readl(qts, 0, PCI_DEVFN(3, 0),
-                                        PCI_ROM_ADDRESS), ==, 0);
+                             PCI_COMMAND_MASTER);
+    g_assert_cmphex(
+        zx6000_config_readb(qts, 0, PCI_DEVFN(3, 0), PCI_REVISION_ID), ==,
+        0x0d);
+    g_assert_cmphex(
+        zx6000_config_readl(qts, 0, PCI_DEVFN(3, 0), PCI_SUBSYSTEM_VENDOR_ID),
+        ==, 0x1274103c);
+    g_assert_cmphex(
+        zx6000_config_readw(qts, 0, PCI_DEVFN(3, 0), PCI_INTERRUPT_LINE), ==,
+        0x0114);
+    g_assert_cmphex(
+        zx6000_config_readl(qts, 0, PCI_DEVFN(3, 0), PCI_BASE_ADDRESS_0), ==,
+        0x80020000);
+    g_assert_cmphex(
+        zx6000_config_readl(qts, 0, PCI_DEVFN(3, 0), PCI_BASE_ADDRESS_1), ==,
+        0xd01);
+    g_assert_cmphex(
+        zx6000_config_readl(qts, 0, PCI_DEVFN(3, 0), PCI_BASE_ADDRESS_2), ==,
+        0x80040000);
+    zx6000_config_writel(qts, 0, PCI_DEVFN(3, 0), PCI_BASE_ADDRESS_2,
+                         UINT32_MAX);
+    g_assert_cmphex(
+        zx6000_config_readl(qts, 0, PCI_DEVFN(3, 0), PCI_BASE_ADDRESS_2), ==,
+        0xfffe0000);
+    zx6000_config_writel(qts, 0, PCI_DEVFN(3, 0), PCI_BASE_ADDRESS_2,
+                         0x80040000);
+    g_assert_cmphex(
+        zx6000_config_readl(qts, 0, PCI_DEVFN(3, 0), PCI_ROM_ADDRESS), ==, 0);
     g_assert_cmphex(zx6000_i82550_eeprom_read_word(qts, 3), ==, 0x0203);
     g_assert_cmphex(zx6000_i82550_eeprom_read_word(qts, 5), ==, 0x0201);
     g_assert_cmphex(zx6000_i82550_eeprom_read_word(qts, 6), ==, 0x4701);
@@ -2840,75 +2816,99 @@ static void test_hp_zx6000_pci_layout(void)
                          PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
     zx6000_assert_device(qts, 0, PCI_DEVFN(1, 2), 0x1033, 0x00e0,
                          PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
-    g_assert_cmphex(zx6000_config_readb(qts, 0, PCI_DEVFN(1, 0),
-                                        PCI_REVISION_ID), ==, 0x41);
-    g_assert_cmphex(zx6000_config_readb(qts, 0, PCI_DEVFN(1, 1),
-                                        PCI_REVISION_ID), ==, 0x41);
-    g_assert_cmphex(zx6000_config_readb(qts, 0, PCI_DEVFN(1, 2),
-                                        PCI_REVISION_ID), ==, 0x02);
-    g_assert_cmphex(zx6000_config_readw(qts, 0, PCI_DEVFN(1, 0),
-                                        PCI_INTERRUPT_LINE), ==, 0x0110);
-    g_assert_cmphex(zx6000_config_readw(qts, 0, PCI_DEVFN(1, 1),
-                                        PCI_INTERRUPT_LINE), ==, 0x0211);
-    g_assert_cmphex(zx6000_config_readw(qts, 0, PCI_DEVFN(1, 2),
-                                        PCI_INTERRUPT_LINE), ==, 0x0312);
-    g_assert_cmphex(zx6000_config_readl(qts, 0, PCI_DEVFN(1, 0),
-                                        PCI_BASE_ADDRESS_0), ==, 0x80023000);
-    g_assert_cmphex(zx6000_config_readl(qts, 0, PCI_DEVFN(1, 1),
-                                        PCI_BASE_ADDRESS_0), ==, 0x80022000);
-    g_assert_cmphex(zx6000_config_readl(qts, 0, PCI_DEVFN(1, 2),
-                                        PCI_BASE_ADDRESS_0), ==, 0x80021000);
-    g_assert_cmpuint(qtest_readl(qts, ZX6000_OHCI0_MMIO_BASE +
-                                     ZX6000_OHCI_RH_DESCRIPTOR_A) & 0xff,
-                     ==, 3);
-    g_assert_cmpuint(qtest_readl(qts, ZX6000_OHCI1_MMIO_BASE +
-                                     ZX6000_OHCI_RH_DESCRIPTOR_A) & 0xff,
-                     ==, 2);
-    g_assert_cmpuint(qtest_readb(qts, ZX6000_EHCI_MMIO_BASE +
-                                     ZX6000_EHCI_HCS_PARAMS) & 0xf,
-                     ==, 5);
+    g_assert_cmphex(
+        zx6000_config_readb(qts, 0, PCI_DEVFN(1, 0), PCI_REVISION_ID), ==,
+        0x41);
+    g_assert_cmphex(
+        zx6000_config_readb(qts, 0, PCI_DEVFN(1, 1), PCI_REVISION_ID), ==,
+        0x41);
+    g_assert_cmphex(
+        zx6000_config_readb(qts, 0, PCI_DEVFN(1, 2), PCI_REVISION_ID), ==,
+        0x02);
+    g_assert_cmphex(
+        zx6000_config_readw(qts, 0, PCI_DEVFN(1, 0), PCI_INTERRUPT_LINE), ==,
+        0x0110);
+    g_assert_cmphex(
+        zx6000_config_readw(qts, 0, PCI_DEVFN(1, 1), PCI_INTERRUPT_LINE), ==,
+        0x0211);
+    g_assert_cmphex(
+        zx6000_config_readw(qts, 0, PCI_DEVFN(1, 2), PCI_INTERRUPT_LINE), ==,
+        0x0312);
+    g_assert_cmphex(
+        zx6000_config_readl(qts, 0, PCI_DEVFN(1, 0), PCI_BASE_ADDRESS_0), ==,
+        0x80023000);
+    g_assert_cmphex(
+        zx6000_config_readl(qts, 0, PCI_DEVFN(1, 1), PCI_BASE_ADDRESS_0), ==,
+        0x80022000);
+    g_assert_cmphex(
+        zx6000_config_readl(qts, 0, PCI_DEVFN(1, 2), PCI_BASE_ADDRESS_0), ==,
+        0x80021000);
+    g_assert_cmpuint(
+        qtest_readl(qts, ZX6000_OHCI0_MMIO_BASE + ZX6000_OHCI_RH_DESCRIPTOR_A) &
+            0xff,
+        ==, 3);
+    g_assert_cmpuint(
+        qtest_readl(qts, ZX6000_OHCI1_MMIO_BASE + ZX6000_OHCI_RH_DESCRIPTOR_A) &
+            0xff,
+        ==, 2);
+    g_assert_cmpuint(
+        qtest_readb(qts, ZX6000_EHCI_MMIO_BASE + ZX6000_EHCI_HCS_PARAMS) & 0xf,
+        ==, 5);
 
     zx6000_assert_device(qts, 1, PCI_DEVFN(1, 0), 0x1000, 0x0030,
                          PCI_COMMAND_IO | PCI_COMMAND_MEMORY |
-                         PCI_COMMAND_MASTER);
+                             PCI_COMMAND_MASTER);
     zx6000_assert_device(qts, 1, PCI_DEVFN(1, 1), 0x1000, 0x0030,
                          PCI_COMMAND_IO | PCI_COMMAND_MEMORY |
-                         PCI_COMMAND_MASTER);
-    g_assert_cmphex(zx6000_config_readb(qts, 1, PCI_DEVFN(1, 0),
-                                        PCI_REVISION_ID), ==, 0x07);
-    g_assert_cmphex(zx6000_config_readb(qts, 1, PCI_DEVFN(1, 1),
-                                        PCI_REVISION_ID), ==, 0x07);
-    g_assert_cmphex(zx6000_config_readw(qts, 1, PCI_DEVFN(1, 0),
-                                        PCI_INTERRUPT_LINE), ==, 0x011b);
-    g_assert_cmphex(zx6000_config_readw(qts, 1, PCI_DEVFN(1, 1),
-                                        PCI_INTERRUPT_LINE), ==, 0x021c);
-    g_assert_cmphex(zx6000_config_readl(qts, 1, PCI_DEVFN(1, 0),
-                                        PCI_BASE_ADDRESS_0), ==, 0x2001);
-    g_assert_cmphex(zx6000_config_readl(qts, 1, PCI_DEVFN(1, 0),
-                                        PCI_BASE_ADDRESS_1), ==, 0x88000000);
-    g_assert_cmphex(zx6000_config_readl(qts, 1, PCI_DEVFN(1, 0),
-                                        PCI_BASE_ADDRESS_2), ==, 0x88010000);
-    g_assert_cmphex(zx6000_config_readl(qts, 1, PCI_DEVFN(1, 1),
-                                        PCI_BASE_ADDRESS_0), ==, 0x2101);
-    g_assert_cmphex(zx6000_config_readl(qts, 1, PCI_DEVFN(1, 1),
-                                        PCI_BASE_ADDRESS_1), ==, 0x88004000);
-    g_assert_cmphex(zx6000_config_readl(qts, 1, PCI_DEVFN(1, 1),
-                                        PCI_BASE_ADDRESS_2), ==, 0x88020000);
+                             PCI_COMMAND_MASTER);
+    g_assert_cmphex(
+        zx6000_config_readb(qts, 1, PCI_DEVFN(1, 0), PCI_REVISION_ID), ==,
+        0x07);
+    g_assert_cmphex(
+        zx6000_config_readb(qts, 1, PCI_DEVFN(1, 1), PCI_REVISION_ID), ==,
+        0x07);
+    g_assert_cmphex(
+        zx6000_config_readw(qts, 1, PCI_DEVFN(1, 0), PCI_INTERRUPT_LINE), ==,
+        0x011b);
+    g_assert_cmphex(
+        zx6000_config_readw(qts, 1, PCI_DEVFN(1, 1), PCI_INTERRUPT_LINE), ==,
+        0x021c);
+    g_assert_cmphex(
+        zx6000_config_readl(qts, 1, PCI_DEVFN(1, 0), PCI_BASE_ADDRESS_0), ==,
+        0x2001);
+    g_assert_cmphex(
+        zx6000_config_readl(qts, 1, PCI_DEVFN(1, 0), PCI_BASE_ADDRESS_1), ==,
+        0x88000000);
+    g_assert_cmphex(
+        zx6000_config_readl(qts, 1, PCI_DEVFN(1, 0), PCI_BASE_ADDRESS_2), ==,
+        0x88010000);
+    g_assert_cmphex(
+        zx6000_config_readl(qts, 1, PCI_DEVFN(1, 1), PCI_BASE_ADDRESS_0), ==,
+        0x2101);
+    g_assert_cmphex(
+        zx6000_config_readl(qts, 1, PCI_DEVFN(1, 1), PCI_BASE_ADDRESS_1), ==,
+        0x88004000);
+    g_assert_cmphex(
+        zx6000_config_readl(qts, 1, PCI_DEVFN(1, 1), PCI_BASE_ADDRESS_2), ==,
+        0x88020000);
 
     zx6000_assert_device(qts, 1, PCI_DEVFN(2, 0), 0x14e4, 0x1645,
                          PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
-    g_assert_cmphex(zx6000_config_readb(qts, 1, PCI_DEVFN(2, 0),
-                                        PCI_REVISION_ID), ==, 0x15);
-    g_assert_cmphex(zx6000_config_readl(qts, 1, PCI_DEVFN(2, 0),
-                                        PCI_SUBSYSTEM_VENDOR_ID), ==,
-                    0x12a4103c);
-    g_assert_cmphex(zx6000_config_readl(qts, 1, PCI_DEVFN(2, 0),
-                                        PCI_BASE_ADDRESS_0), ==,
-                    0x88030004);
-    g_assert_cmphex(zx6000_config_readl(qts, 1, PCI_DEVFN(2, 0),
-                                        PCI_BASE_ADDRESS_1), ==, 0);
-    g_assert_cmphex(zx6000_config_readw(qts, 1, PCI_DEVFN(2, 0),
-                                        PCI_INTERRUPT_LINE), ==, 0x011d);
+    g_assert_cmphex(
+        zx6000_config_readb(qts, 1, PCI_DEVFN(2, 0), PCI_REVISION_ID), ==,
+        0x15);
+    g_assert_cmphex(
+        zx6000_config_readl(qts, 1, PCI_DEVFN(2, 0), PCI_SUBSYSTEM_VENDOR_ID),
+        ==, 0x12a4103c);
+    g_assert_cmphex(
+        zx6000_config_readl(qts, 1, PCI_DEVFN(2, 0), PCI_BASE_ADDRESS_0), ==,
+        0x88030004);
+    g_assert_cmphex(
+        zx6000_config_readl(qts, 1, PCI_DEVFN(2, 0), PCI_BASE_ADDRESS_1), ==,
+        0);
+    g_assert_cmphex(
+        zx6000_config_readw(qts, 1, PCI_DEVFN(2, 0), PCI_INTERRUPT_LINE), ==,
+        0x011d);
 
     zx6000_config_writel(qts, 4, PCI_DEVFN(0, 0), PCI_BASE_ADDRESS_0, 0);
     zx6000_config_writel(qts, 4, PCI_DEVFN(0, 0), PCI_BASE_ADDRESS_1, 0);
@@ -2916,15 +2916,16 @@ static void test_hp_zx6000_pci_layout(void)
     zx6000_config_writew(qts, 4, PCI_DEVFN(0, 0), PCI_COMMAND, 0);
     qtest_system_reset(qts);
     zx6000_assert_rv100(qts);
-    g_assert_cmphex(zx6000_config_readl(qts, 1, PCI_DEVFN(1, 1),
-                                        PCI_BASE_ADDRESS_1), ==, 0x88004000);
+    g_assert_cmphex(
+        zx6000_config_readl(qts, 1, PCI_DEVFN(1, 1), PCI_BASE_ADDRESS_1), ==,
+        0x88004000);
     qtest_quit(qts);
 }
 
 static void test_hp_zx6000_custom_vga_rom(void)
 {
-    g_autofree char *path = g_build_filename(
-        g_get_tmp_dir(), "hp-zx6000-vga-rom.XXXXXX", NULL);
+    g_autofree char *path =
+        g_build_filename(g_get_tmp_dir(), "hp-zx6000-vga-rom.XXXXXX", NULL);
     g_autofree char *quoted = NULL;
     g_autofree char *options = NULL;
     g_autoptr(GError) error = NULL;
@@ -2937,12 +2938,13 @@ static void test_hp_zx6000_custom_vga_rom(void)
     close(fd);
     memcpy(rom + 0x60, "Custom ATI ROM", sizeof("Custom ATI ROM"));
     rom[sizeof(rom) - 1] = -zx6000_checksum(rom, sizeof(rom) - 1);
-    g_assert_true(g_file_set_contents(path, (const char *)rom, sizeof(rom),
-                                      &error));
+    g_assert_true(
+        g_file_set_contents(path, (const char *)rom, sizeof(rom), &error));
     g_assert_no_error(error);
     quoted = g_shell_quote(path);
     options = g_strdup_printf("-nodefaults -vga ati "
-                               "-global ati-vga.romfile=%s", quoted);
+                              "-global ati-vga.romfile=%s",
+                              quoted);
     qts = zx6000_start_with_options("", options);
     qtest_memread(qts, ZX6000_RV100_ROM_BASE, actual, sizeof(actual));
     g_assert_cmpmem(actual, sizeof(actual), rom, sizeof(rom));
@@ -2988,21 +2990,20 @@ static void test_hp_zx6000_int10(void)
     uint8_t last_marker[16];
     uint8_t actual[16];
     uint8_t zero[16] = { 0 };
-    uint64_t last = ZX6000_RV100_FB_BASE +
-        ZX6000_VGA_PLANAR_SIZE - sizeof(last_marker);
+    uint64_t last =
+        ZX6000_RV100_FB_BASE + ZX6000_VGA_PLANAR_SIZE - sizeof(last_marker);
     g_autofree char *tmpdir = NULL;
     g_autofree char *ppm = NULL;
     g_autoptr(GError) error = NULL;
-    QTestState *qts = zx6000_start_with_options(
-        "", "-nodefaults -vga ati");
+    QTestState *qts = zx6000_start_with_options("", "-nodefaults -vga ati");
 
     zx6000_assert_int10_rom(qts);
     zx6000_assert_int10_vbe(qts);
 
     memset(first_marker, 0xa5, sizeof(first_marker));
     memset(last_marker, 0x5a, sizeof(last_marker));
-    qtest_memwrite(qts, ZX6000_RV100_FB_BASE,
-                   first_marker, sizeof(first_marker));
+    qtest_memwrite(qts, ZX6000_RV100_FB_BASE, first_marker,
+                   sizeof(first_marker));
     qtest_memwrite(qts, last, last_marker, sizeof(last_marker));
     zx6000_int10_set_mode(qts, 0x0012);
     zx6000_assert_mode12(qts, false);
@@ -3018,35 +3019,33 @@ static void test_hp_zx6000_int10(void)
     ppm = g_build_filename(tmpdir, "mode12.ppm", NULL);
     qtest_qmp_assert_success(qts,
                              "{'execute':'screendump','arguments':"
-                             " {'filename':%s}}", ppm);
-    zx6000_assert_ppm_pixel(ppm, 640, 480, 0, 0,
-                            0xff, 0xff, 0xff);
+                             " {'filename':%s}}",
+                             ppm);
+    zx6000_assert_ppm_pixel(ppm, 640, 480, 0, 0, 0xff, 0xff, 0xff);
     zx6000_assert_ppm_pixel(ppm, 640, 480, 8, 0, 0, 0, 0);
 
-    qtest_memwrite(qts, ZX6000_RV100_FB_BASE,
-                   first_marker, sizeof(first_marker));
+    qtest_memwrite(qts, ZX6000_RV100_FB_BASE, first_marker,
+                   sizeof(first_marker));
     qtest_memwrite(qts, last, last_marker, sizeof(last_marker));
     zx6000_int10_set_mode(qts, 0x0092);
     zx6000_assert_mode12(qts, true);
     qtest_memread(qts, ZX6000_RV100_FB_BASE, actual, sizeof(actual));
-    g_assert_cmpmem(actual, sizeof(actual),
-                    first_marker, sizeof(first_marker));
+    g_assert_cmpmem(actual, sizeof(actual), first_marker, sizeof(first_marker));
     qtest_memread(qts, last, actual, sizeof(actual));
-    g_assert_cmpmem(actual, sizeof(actual),
-                    last_marker, sizeof(last_marker));
+    g_assert_cmpmem(actual, sizeof(actual), last_marker, sizeof(last_marker));
 
     qtest_writeb(qts, ZX6000_INT10_ROM_BASE, 0);
     qtest_writel(qts, ZX6000_INT10_VECTOR_ADDR, 0);
     qtest_writeb(qts, ZX6000_RV100_MMIO_BASE + CLOCK_CNTL_INDEX,
-                  PLL_WR_EN | R100_M_SPLL_REF_FB_DIV);
+                 PLL_WR_EN | R100_M_SPLL_REF_FB_DIV);
     qtest_writel(qts, ZX6000_RV100_MMIO_BASE + CLOCK_CNTL_DATA, 0);
     zx6000_outw(qts, ZX6000_INT10_IO_BASE, 0xffff);
     qtest_system_reset(qts);
     zx6000_assert_int10_rom(qts);
     g_assert_cmphex(zx6000_inw(qts, ZX6000_INT10_IO_BASE), ==, 0);
 
-    qtest_memwrite(qts, ZX6000_RV100_FB_BASE,
-                   first_marker, sizeof(first_marker));
+    qtest_memwrite(qts, ZX6000_RV100_FB_BASE, first_marker,
+                   sizeof(first_marker));
     qtest_memwrite(qts, last, last_marker, sizeof(last_marker));
     zx6000_int10_set_mode(qts, 0x0012);
     zx6000_assert_mode12(qts, false);
@@ -3082,11 +3081,11 @@ static void test_hp_zx6000_int10_vram(void)
         if (!qtest_has_machine(configurations[i].machine)) {
             continue;
         }
-        qts = qtest_initf(
-            "-machine %s,nvram=none,firmware=none -m 1G -S "
-            "-nodefaults -display none -serial none -monitor none "
-            "-net none -vga ati -global ati-vga.vgamem_mb=%u",
-            configurations[i].machine, configurations[i].memory_mb);
+        qts =
+            qtest_initf("-machine %s,nvram=none,firmware=none -m 1G -S "
+                        "-nodefaults -display none -serial none -monitor none "
+                        "-net none -vga ati -global ati-vga.vgamem_mb=%u",
+                        configurations[i].machine, configurations[i].memory_mb);
 
         for (unsigned reset = 0; reset < 2; reset++) {
             uint16_t header, table;
@@ -3099,10 +3098,10 @@ static void test_hp_zx6000_int10_vram(void)
             table = qtest_readw(qts, ZX6000_INT10_ROM_BASE + header + 0x48);
             g_assert_cmpuint(table, >, 0);
             g_assert_cmpuint(table, <, ZX6000_INT10_ROM_SIZE);
-            g_assert_cmpuint(qtest_readb(qts, ZX6000_INT10_ROM_BASE +
-                                         table - 1), ==, 1);
-            decoded_size = qtest_readb(qts, ZX6000_INT10_ROM_BASE + table) *
-                           (2 * MiB);
+            g_assert_cmpuint(
+                qtest_readb(qts, ZX6000_INT10_ROM_BASE + table - 1), ==, 1);
+            decoded_size =
+                qtest_readb(qts, ZX6000_INT10_ROM_BASE + table) * (2 * MiB);
             g_assert_cmpuint(decoded_size, ==, memory_size);
             g_assert_cmpuint(qtest_readl(qts, mmio + CNFG_MEMSIZE), ==,
                              decoded_size);
@@ -3209,9 +3208,7 @@ static void test_hp_zx6000_nvram_backing_file(void)
     qts = zx6000_start_with_options(machine_options, "-nodefaults");
     g_assert_false(g_file_test(path, G_FILE_TEST_EXISTS));
     qtest_writeb(qts, ZX6000_NVRAM_BASE, 0x3c);
-    qtest_writeq(qts,
-                 ZX6000_NVRAM_BASE +
-                     HP_ZX6000_PDH_NVRAM_COMMIT_OFFSET,
+    qtest_writeq(qts, ZX6000_NVRAM_BASE + HP_ZX6000_PDH_NVRAM_COMMIT_OFFSET,
                  HP_ZX6000_PDH_NVRAM_COMMIT_MAGIC);
     qtest_quit(qts);
 
@@ -3220,8 +3217,8 @@ static void test_hp_zx6000_nvram_backing_file(void)
     g_assert_cmpuint(length, ==, HP_ZX6000_PDH_NVRAM_SIZE);
     g_assert_cmphex((uint8_t)contents[0], ==, 0x3c);
     zero_tail = g_malloc0(HP_ZX6000_PDH_NVRAM_SIZE - 1U);
-    g_assert_cmpmem(contents + 1, HP_ZX6000_PDH_NVRAM_SIZE - 1U,
-                    zero_tail, HP_ZX6000_PDH_NVRAM_SIZE - 1U);
+    g_assert_cmpmem(contents + 1, HP_ZX6000_PDH_NVRAM_SIZE - 1U, zero_tail,
+                    HP_ZX6000_PDH_NVRAM_SIZE - 1U);
     g_clear_pointer(&contents, g_free);
 
     /* An empty file remains empty until the guest commits NVRAM. */
@@ -3233,9 +3230,7 @@ static void test_hp_zx6000_nvram_backing_file(void)
     g_assert_cmpuint(length, ==, 0);
     g_clear_pointer(&contents, g_free);
     qtest_writeb(qts, ZX6000_NVRAM_BASE, 0x96);
-    qtest_writeq(qts,
-                 ZX6000_NVRAM_BASE +
-                     HP_ZX6000_PDH_NVRAM_COMMIT_OFFSET,
+    qtest_writeq(qts, ZX6000_NVRAM_BASE + HP_ZX6000_PDH_NVRAM_COMMIT_OFFSET,
                  HP_ZX6000_PDH_NVRAM_COMMIT_MAGIC);
     qtest_quit(qts);
 
@@ -3247,28 +3242,24 @@ static void test_hp_zx6000_nvram_backing_file(void)
 
     /* A legacy 64 KiB file must remain 64 KiB across load and commit. */
     memset(initial, 0x5a, ZX6000_NVRAM_PREFIX_SIZE);
-    g_assert_true(g_file_set_contents(path, initial,
-                                      ZX6000_NVRAM_PREFIX_SIZE, &error));
+    g_assert_true(
+        g_file_set_contents(path, initial, ZX6000_NVRAM_PREFIX_SIZE, &error));
     g_assert_no_error(error);
     qts = zx6000_start_with_options(machine_options, "-nodefaults");
     g_assert_cmphex(qtest_readb(qts, ZX6000_NVRAM_BASE), ==, 0x5a);
-    g_assert_cmphex(qtest_readb(qts,
-                               ZX6000_NVRAM_BASE +
-                               ZX6000_NVRAM_PREFIX_SIZE), ==, 0);
+    g_assert_cmphex(
+        qtest_readb(qts, ZX6000_NVRAM_BASE + ZX6000_NVRAM_PREFIX_SIZE), ==, 0);
     g_assert_true(g_file_get_contents(path, &contents, &length, &error));
     g_assert_no_error(error);
     g_assert_cmpuint(length, ==, ZX6000_NVRAM_PREFIX_SIZE);
-    g_assert_cmpmem(contents, ZX6000_NVRAM_PREFIX_SIZE,
-                    initial, ZX6000_NVRAM_PREFIX_SIZE);
+    g_assert_cmpmem(contents, ZX6000_NVRAM_PREFIX_SIZE, initial,
+                    ZX6000_NVRAM_PREFIX_SIZE);
     g_clear_pointer(&contents, g_free);
 
     qtest_writeb(qts, ZX6000_NVRAM_BASE + 0x80, 0xa5);
-    qtest_writeb(qts,
-                 ZX6000_NVRAM_BASE + ZX6000_NVRAM_PREFIX_SIZE + 0x80,
+    qtest_writeb(qts, ZX6000_NVRAM_BASE + ZX6000_NVRAM_PREFIX_SIZE + 0x80,
                  0xc3);
-    qtest_writeq(qts,
-                 ZX6000_NVRAM_BASE +
-                     HP_ZX6000_PDH_NVRAM_COMMIT_OFFSET,
+    qtest_writeq(qts, ZX6000_NVRAM_BASE + HP_ZX6000_PDH_NVRAM_COMMIT_OFFSET,
                  HP_ZX6000_PDH_NVRAM_COMMIT_MAGIC);
     qtest_quit(qts);
 
@@ -3276,37 +3267,33 @@ static void test_hp_zx6000_nvram_backing_file(void)
     g_assert_true(g_file_get_contents(path, &contents, &length, &error));
     g_assert_no_error(error);
     g_assert_cmpuint(length, ==, ZX6000_NVRAM_PREFIX_SIZE);
-    g_assert_cmpmem(contents, ZX6000_NVRAM_PREFIX_SIZE,
-                    initial, ZX6000_NVRAM_PREFIX_SIZE);
+    g_assert_cmpmem(contents, ZX6000_NVRAM_PREFIX_SIZE, initial,
+                    ZX6000_NVRAM_PREFIX_SIZE);
     g_clear_pointer(&contents, g_free);
 
     qts = zx6000_start_with_options(machine_options, "-nodefaults");
     g_assert_cmphex(qtest_readb(qts, ZX6000_NVRAM_BASE + 0x80), ==, 0xa5);
-    g_assert_cmphex(qtest_readb(
-                        qts, ZX6000_NVRAM_BASE +
-                             ZX6000_NVRAM_PREFIX_SIZE + 0x80), ==, 0);
+    g_assert_cmphex(
+        qtest_readb(qts, ZX6000_NVRAM_BASE + ZX6000_NVRAM_PREFIX_SIZE + 0x80),
+        ==, 0);
     qtest_quit(qts);
 
     oversized = g_malloc0(ZX6000_NVRAM_PREFIX_SIZE + 1U);
     memset(oversized, 0x7d, ZX6000_NVRAM_PREFIX_SIZE + 1U);
     g_assert_true(g_file_set_contents(path, oversized,
-                                      ZX6000_NVRAM_PREFIX_SIZE + 1U,
-                                      &error));
+                                      ZX6000_NVRAM_PREFIX_SIZE + 1U, &error));
     g_assert_no_error(error);
-    zx6000_assert_nvram_start_fails(
-        path, "must be 65536 or 524288 bytes");
+    zx6000_assert_nvram_start_fails(path, "must be 65536 or 524288 bytes");
     g_assert_true(g_file_get_contents(path, &contents, &length, &error));
     g_assert_no_error(error);
     g_assert_cmpuint(length, ==, ZX6000_NVRAM_PREFIX_SIZE + 1U);
-    g_assert_cmpmem(contents, length, oversized,
-                    ZX6000_NVRAM_PREFIX_SIZE + 1U);
+    g_assert_cmpmem(contents, length, oversized, ZX6000_NVRAM_PREFIX_SIZE + 1U);
     g_clear_pointer(&contents, g_free);
     g_clear_pointer(&oversized, g_free);
 
     oversized = g_malloc0(HP_ZX6000_PDH_NVRAM_SIZE + 1);
     g_assert_true(g_file_set_contents(path, oversized,
-                                      HP_ZX6000_PDH_NVRAM_SIZE + 1,
-                                      &error));
+                                      HP_ZX6000_PDH_NVRAM_SIZE + 1, &error));
     g_assert_no_error(error);
     zx6000_assert_nvram_start_fails(path, "maximum is 524288 bytes");
 
@@ -3322,8 +3309,7 @@ int main(int argc, char **argv)
     qtest_add_func("/hp-zx6000/constraints", test_hp_zx6000_constraints);
     qtest_add_func("/hp-zx6000/storage-defaults",
                    test_hp_zx6000_storage_defaults);
-    qtest_add_func("/hp-zx6000/mpt-doorbell",
-                   test_hp_zx6000_mpt_doorbell);
+    qtest_add_func("/hp-zx6000/mpt-doorbell", test_hp_zx6000_mpt_doorbell);
     qtest_add_func("/hp-zx6000/mpt-reply-queue",
                    test_hp_zx6000_mpt_reply_queue);
     qtest_add_func("/hp-zx6000/mpt-io-unit-reset",
@@ -3339,15 +3325,14 @@ int main(int argc, char **argv)
     qtest_add_func("/hp-zx6000/mpt-sas-topology", test_hp_mpt_sas_topology);
     qtest_add_func("/hp-zx6000/mpt-enclosure", test_hp_mpt_enclosure);
     qtest_add_func("/hp-zx6000/mpt-no-data-command",
-                    test_hp_mpt_no_data_command);
+                   test_hp_mpt_no_data_command);
     qtest_add_func("/hp-zx6000/mpt-no-data-response",
-                    test_hp_mpt_no_data_response);
+                   test_hp_mpt_no_data_response);
     qtest_add_func("/hp-zx6000/mpt-lun-address", test_hp_mpt_lun_address);
     qtest_add_func("/hp-zx6000/descriptor", test_hp_zx6000_descriptor);
     qtest_add_func("/hp-zx6000/acpi-pm", test_hp_zx6000_acpi_pm);
     qtest_add_func("/hp-zx6000/pci-layout", test_hp_zx6000_pci_layout);
-    qtest_add_func("/hp-zx6000/vga-legacy-io",
-                   test_hp_zx6000_vga_legacy_io);
+    qtest_add_func("/hp-zx6000/vga-legacy-io", test_hp_zx6000_vga_legacy_io);
     qtest_add_func("/hp-zx6000/int10", test_hp_zx6000_int10);
     qtest_add_func("/hp-zx6000/int10-vram", test_hp_zx6000_int10_vram);
     qtest_add_func("/hp-zx6000/custom-vga-rom", test_hp_zx6000_custom_vga_rom);
@@ -3355,8 +3340,7 @@ int main(int argc, char **argv)
                    test_hp_zx6000_default_usb_input);
     qtest_add_func("/hp-zx6000/graphics-options",
                    test_hp_zx6000_graphics_options);
-    qtest_add_func("/hp-zx6000/ram-and-nvram",
-                   test_hp_zx6000_ram_and_nvram);
+    qtest_add_func("/hp-zx6000/ram-and-nvram", test_hp_zx6000_ram_and_nvram);
     qtest_add_func("/hp-zx6000/nvram/backing-file",
                    test_hp_zx6000_nvram_backing_file);
     return g_test_run();

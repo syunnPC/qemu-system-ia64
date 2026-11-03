@@ -245,8 +245,7 @@ static inline uint8_t ia64_rsc_pl(uint64_t rsc)
 static inline bool ia64_cfm_frame_fields_valid(uint32_t sof, uint32_t sol,
                                                uint32_t sor)
 {
-    return sof <= IA64_STACKED_GR_COUNT && sol <= sof &&
-           (sor << 3) <= sof;
+    return sof <= IA64_STACKED_GR_COUNT && sol <= sof && (sor << 3) <= sof;
 }
 
 /* ---- PFS field definitions ---- */
@@ -558,8 +557,9 @@ static inline uint8_t ia64_tlb_effective_perm(uint8_t ar, uint8_t pl,
         if (access_level > pl) {
             return 0;
         }
-        return access_level == 0 || access_level < pl ?
-               (IA64_TLB_R | IA64_TLB_W) : IA64_TLB_R;
+        return access_level == 0 || access_level < pl
+                   ? (IA64_TLB_R | IA64_TLB_W)
+                   : IA64_TLB_R;
     case 5:
         if (access_level > pl) {
             return 0;
@@ -569,8 +569,9 @@ static inline uint8_t ia64_tlb_effective_perm(uint8_t ar, uint8_t pl,
         if (access_level > pl) {
             return 0;
         }
-        return access_level != 0 && access_level == pl ?
-               IA64_TLB_ALL : (IA64_TLB_R | IA64_TLB_W);
+        return access_level != 0 && access_level == pl
+                   ? IA64_TLB_ALL
+                   : (IA64_TLB_R | IA64_TLB_W);
     case 7:
         return access_level == 0 ? (IA64_TLB_R | IA64_TLB_X) : IA64_TLB_X;
     default:
@@ -583,10 +584,10 @@ static inline uint8_t ia64_tlb_effective_perm(uint8_t ar, uint8_t pl,
 
 typedef struct IA64AlatEntry {
     uint64_t phys_addr;
-    uint8_t  size;
-    uint8_t  reg;
-    bool     fp;
-    bool     valid;
+    uint8_t size;
+    uint8_t reg;
+    bool fp;
+    bool valid;
 } IA64AlatEntry;
 
 /* ---- Exception type enum (internal IDs, not IVT vectors) ---- */
@@ -640,13 +641,13 @@ extern const uint16_t ia64_ivt_vectors[IA64_EXCP_MAX];
 
 static inline IA64Exception
 ia64_pte_exception_for_access_masked(uint64_t pte, uint8_t perm, uint8_t needed,
-                                    bool is_ifetch, bool is_write,
-                                    uint64_t psr, uint64_t deferred)
+                                     bool is_ifetch, bool is_write,
+                                     uint64_t psr, uint64_t deferred)
 {
-    IA64Exception access = is_ifetch ? IA64_EXCP_INST_ACCESS :
-                                      IA64_EXCP_DATA_ACCESS;
-    IA64Exception accessed = is_ifetch ? IA64_EXCP_INST_ACCESS_BIT :
-                                        IA64_EXCP_DATA_ACCESS_BIT;
+    IA64Exception access =
+        is_ifetch ? IA64_EXCP_INST_ACCESS : IA64_EXCP_DATA_ACCESS;
+    IA64Exception accessed =
+        is_ifetch ? IA64_EXCP_INST_ACCESS_BIT : IA64_EXCP_DATA_ACCESS_BIT;
 
     if (!(pte & IA64_PTE_PRESENT)) {
         return IA64_EXCP_PAGE_NOT_PRESENT;
@@ -666,8 +667,7 @@ ia64_pte_exception_for_access_masked(uint64_t pte, uint8_t perm, uint8_t needed,
             return IA64_EXCP_INST_ACCESS_BIT;
         }
     } else {
-        if (is_write && !(pte & IA64_PTE_DIRTY) &&
-            !(psr & IA64_PSR_DA) &&
+        if (is_write && !(pte & IA64_PTE_DIRTY) && !(psr & IA64_PSR_DA) &&
             !(deferred & (1ULL << IA64_EXCP_DATA_DIRTY))) {
             return IA64_EXCP_DATA_DIRTY;
         }
@@ -685,7 +685,7 @@ ia64_pte_exception_for_access(uint64_t pte, uint8_t perm, uint8_t needed,
                               bool is_ifetch, bool is_write, uint64_t psr)
 {
     return ia64_pte_exception_for_access_masked(pte, perm, needed, is_ifetch,
-                                               is_write, psr, 0);
+                                                is_write, psr, 0);
 }
 
 /* ---- TLB entry ---- */
@@ -695,12 +695,12 @@ typedef struct IA64TlbEntry {
     uint64_t ps;
     uint64_t page_mask;
     uint64_t pte;
-    uint8_t  perm;
-    uint8_t  ar;
-    uint8_t  pl;
-    uint8_t  valid;
-    uint8_t  is_tr;
-    uint8_t  pending_purge;
+    uint8_t perm;
+    uint8_t ar;
+    uint8_t pl;
+    uint8_t valid;
+    uint8_t is_tr;
+    uint8_t pending_purge;
     uint32_t rid;
     uint32_t key;
     uint16_t slot;
@@ -834,8 +834,7 @@ typedef enum IA64AlignmentClass {
      (((uint32_t)(natural) & 0xffU) << IA64_ALIGNMENT_NATURAL_SHIFT) |   \
      (((uint32_t)(cls) & 0xffU) << IA64_ALIGNMENT_CLASS_SHIFT))
 
-static inline IA64MemorySpeculation
-ia64_pte_memory_speculation(uint64_t pte)
+static inline IA64MemorySpeculation ia64_pte_memory_speculation(uint64_t pte)
 {
     switch ((pte >> 2) & 7) {
     case 0: /* WB */
@@ -855,15 +854,15 @@ static inline bool ia64_tlb_entry_present(const IA64TlbEntry *entry)
 }
 
 static inline void ia64_tlb_entry_translate(const IA64TlbEntry *entry,
-                                            uint64_t va,
-                                            uint8_t access_level,
+                                            uint64_t va, uint8_t access_level,
                                             uint64_t *pa, uint8_t *perm)
 {
     uint64_t page_offset = va & (entry->ps - 1);
 
     *pa = (entry->pa & ~(entry->ps - 1)) | page_offset;
-    *perm = ia64_tlb_entry_present(entry) ?
-            ia64_tlb_effective_perm(entry->ar, entry->pl, access_level) : 0;
+    *perm = ia64_tlb_entry_present(entry)
+                ? ia64_tlb_effective_perm(entry->ar, entry->pl, access_level)
+                : 0;
 }
 
 #include "internals.h"
@@ -998,7 +997,7 @@ typedef struct CPUArchState {
      */
     IA64RSEState rse;
 
-    bool instruction_group_start;  /* next instruction starts a new group */
+    bool instruction_group_start; /* next instruction starts a new group */
 
     IA64AlatState alat_state;
 
@@ -1049,8 +1048,8 @@ static inline bool ia64_key_check_enabled(const CPUIA64State *env,
         return false;
     }
 
-    translation_bit = is_ifetch ? IA64_PSR_IT :
-                      (is_rse ? IA64_PSR_RT : IA64_PSR_DT);
+    translation_bit =
+        is_ifetch ? IA64_PSR_IT : (is_rse ? IA64_PSR_RT : IA64_PSR_DT);
     return env->psr & translation_bit;
 }
 
@@ -1059,9 +1058,10 @@ static inline bool ia64_key_check_enabled(const CPUIA64State *env,
  * probe, whose key checks depend on PSR.pk alone: the probe query is a
  * virtual DTLB lookup even while PSR.dt is 0.
  */
-static inline IA64Exception
-ia64_key_exception_for_key(CPUIA64State *env, uint32_t key,
-                           uint8_t needed, bool is_ifetch)
+static inline IA64Exception ia64_key_exception_for_key(CPUIA64State *env,
+                                                       uint32_t key,
+                                                       uint8_t needed,
+                                                       bool is_ifetch)
 {
     IA64KeyCacheEntry *cached =
         &env->mmu.key_cache[key % ARRAY_SIZE(env->mmu.key_cache)];
@@ -1090,8 +1090,7 @@ ia64_key_exception_for_key(CPUIA64State *env, uint32_t key,
     }
 
     if (!(disable_bits & IA64_PKR_VALID)) {
-        return is_ifetch ? IA64_EXCP_INST_KEY_MISS :
-                           IA64_EXCP_DATA_KEY_MISS;
+        return is_ifetch ? IA64_EXCP_INST_KEY_MISS : IA64_EXCP_DATA_KEY_MISS;
     }
 
     if (((needed & IA64_TLB_R) && (disable_bits & IA64_PKR_RD)) ||
@@ -1104,8 +1103,8 @@ ia64_key_exception_for_key(CPUIA64State *env, uint32_t key,
 }
 
 static inline IA64Exception
-ia64_key_exception_for_access(CPUIA64State *env, uint32_t key,
-                              uint8_t needed, bool is_ifetch, bool is_rse)
+ia64_key_exception_for_access(CPUIA64State *env, uint32_t key, uint8_t needed,
+                              bool is_ifetch, bool is_rse)
 {
     if (!ia64_key_check_enabled(env, is_ifetch, is_rse)) {
         return IA64_EXCP_NONE;
@@ -1114,12 +1113,9 @@ ia64_key_exception_for_access(CPUIA64State *env, uint32_t key,
     return ia64_key_exception_for_key(env, key, needed, is_ifetch);
 }
 
-static inline IA64Exception
-ia64_translation_exception_for_access_masked(CPUIA64State *env, uint64_t pte,
-                                            uint32_t key, uint8_t perm,
-                                            uint8_t needed, bool is_ifetch,
-                                            bool is_write, bool is_rse,
-                                            uint64_t deferred)
+static inline IA64Exception ia64_translation_exception_for_access_masked(
+    CPUIA64State *env, uint64_t pte, uint32_t key, uint8_t perm, uint8_t needed,
+    bool is_ifetch, bool is_write, bool is_rse, uint64_t deferred)
 {
     IA64Exception excp;
 
@@ -1149,28 +1145,24 @@ ia64_translation_exception_for_access_masked(CPUIA64State *env, uint64_t pte,
     }
 
     return ia64_pte_exception_for_access_masked(pte, perm, needed, is_ifetch,
-                                               is_write, env->psr, deferred);
+                                                is_write, env->psr, deferred);
 }
 
-static inline IA64Exception
-ia64_translation_exception_for_access(CPUIA64State *env, uint64_t pte,
-                                      uint32_t key, uint8_t perm,
-                                      uint8_t needed, bool is_ifetch,
-                                      bool is_write, bool is_rse)
+static inline IA64Exception ia64_translation_exception_for_access(
+    CPUIA64State *env, uint64_t pte, uint32_t key, uint8_t perm, uint8_t needed,
+    bool is_ifetch, bool is_write, bool is_rse)
 {
     return ia64_translation_exception_for_access_masked(
         env, pte, key, perm, needed, is_ifetch, is_write, is_rse, 0);
 }
 
 static inline IA64Exception
-ia64_tlb_exception_for_access(CPUIA64State *env,
-                              const IA64TlbEntry *entry, uint8_t perm,
-                              uint8_t needed, bool is_ifetch,
+ia64_tlb_exception_for_access(CPUIA64State *env, const IA64TlbEntry *entry,
+                              uint8_t perm, uint8_t needed, bool is_ifetch,
                               bool is_write, bool is_rse)
 {
-    return ia64_translation_exception_for_access(env, entry->pte, entry->key,
-                                                perm, needed, is_ifetch,
-                                                is_write, is_rse);
+    return ia64_translation_exception_for_access(
+        env, entry->pte, entry->key, perm, needed, is_ifetch, is_write, is_rse);
 }
 
 static inline uint8_t ia64_rr_index(uint64_t va)
@@ -1198,8 +1190,8 @@ static inline bool ia64_tlb_match(const IA64TlbEntry *entry, uint64_t va,
     return ((va ^ entry->va) & entry->page_mask) == 0;
 }
 
-static inline uint32_t
-ia64_merced_dtlb1_lookup_index(uint64_t page, uint32_t rid)
+static inline uint32_t ia64_merced_dtlb1_lookup_index(uint64_t page,
+                                                      uint32_t rid)
 {
     return (page ^ (page >> 17) ^ rid) & (IA64_DTLB1_LOOKUP_SIZE - 1);
 }
@@ -1213,12 +1205,12 @@ static inline QEMU_ALWAYS_INLINE int
 ia64_merced_dtlb1_lookup(CPUIA64State *env, uint64_t va, uint32_t rid)
 {
     uint64_t page = ia64_merced_dtlb1_lookup_page(va);
-    IA64DTlb1Lookup *lookup = &env->mmu.tlb_data_l1_lookup[
-        ia64_merced_dtlb1_lookup_index(page, rid)];
+    IA64DTlb1Lookup *lookup =
+        &env->mmu.tlb_data_l1_lookup[ia64_merced_dtlb1_lookup_index(page, rid)];
     IA64TlbEntry *entry;
 
-    if (!lookup->valid || lookup->page != page ||
-        lookup->rid != rid || lookup->slot >= IA64_DTLB1_MAX) {
+    if (!lookup->valid || lookup->page != page || lookup->rid != rid ||
+        lookup->slot >= IA64_DTLB1_MAX) {
         return -1;
     }
     entry = &env->mmu.tlb_data_l1[lookup->slot];
@@ -1229,8 +1221,8 @@ ia64_merced_dtlb1_lookup(CPUIA64State *env, uint64_t va, uint32_t rid)
     return lookup->slot;
 }
 
-static inline QEMU_ALWAYS_INLINE uint16_t
-ia64_micro_tlb_index(uint64_t va, uint32_t rid)
+static inline QEMU_ALWAYS_INLINE uint16_t ia64_micro_tlb_index(uint64_t va,
+                                                               uint32_t rid)
 {
     uint64_t page = va >> IA64_MICRO_TLB_PAGE_SHIFT;
 
@@ -1243,17 +1235,16 @@ ia64_tlb_find_cached(CPUIA64State *env, uint64_t va, uint32_t rid,
                      bool is_ifetch)
 {
     IA64TlbEntry *tlb = is_ifetch ? env->mmu.tlb_inst : env->mmu.tlb_data;
-    IA64MicroTlbEntry *micro = is_ifetch ? env->mmu.tlb_inst_micro :
-                                           env->mmu.tlb_data_micro;
+    IA64MicroTlbEntry *micro =
+        is_ifetch ? env->mmu.tlb_inst_micro : env->mmu.tlb_data_micro;
     IA64MicroTlbEntry *cached = &micro[ia64_micro_tlb_index(va, rid)];
-    uint32_t generation = is_ifetch ? env->mmu.tlb_inst_generation :
-                                      env->mmu.tlb_data_generation;
-    uint16_t tlb_count = is_ifetch ? env->mmu.tlb_inst_count :
-                                     env->mmu.tlb_data_count;
+    uint32_t generation =
+        is_ifetch ? env->mmu.tlb_inst_generation : env->mmu.tlb_data_generation;
+    uint16_t tlb_count =
+        is_ifetch ? env->mmu.tlb_inst_count : env->mmu.tlb_data_count;
 
     if (cached->valid && cached->generation == generation &&
-        cached->rid == rid &&
-        ((va ^ cached->va) & cached->page_mask) == 0) {
+        cached->rid == rid && ((va ^ cached->va) & cached->page_mask) == 0) {
         if (cached->slot < tlb_count &&
             cached->slot_generation == tlb[cached->slot].micro_generation) {
             return &tlb[cached->slot];
@@ -1261,8 +1252,8 @@ ia64_tlb_find_cached(CPUIA64State *env, uint64_t va, uint32_t rid,
     }
 
     /* Keep the direct-hit path unchanged; probe victims only on collision. */
-    IA64MicroTlbEntry *victims = is_ifetch ? env->mmu.tlb_inst_victim :
-                                             env->mmu.tlb_data_victim;
+    IA64MicroTlbEntry *victims =
+        is_ifetch ? env->mmu.tlb_inst_victim : env->mmu.tlb_data_victim;
     for (unsigned i = 0; i < IA64_MICRO_TLB_VICTIM_SIZE; i++) {
         IA64MicroTlbEntry *victim = &victims[i];
 
@@ -1350,8 +1341,8 @@ static inline uint64_t ia64_region_itir(const CPUIA64State *env, uint64_t va)
     uint64_t rr = env->rr[ia64_rr_index(va)];
 
     return (rr & (IA64_ITIR_PS_MASK << IA64_ITIR_PS_SHIFT)) |
-           (((rr & IA64_RR_RID_MASK) >> IA64_RR_RID_SHIFT) <<
-            IA64_ITIR_KEY_SHIFT);
+           (((rr & IA64_RR_RID_MASK) >> IA64_RR_RID_SHIFT)
+            << IA64_ITIR_KEY_SHIFT);
 }
 
 static inline bool ia64_sal_boot_environment_active(const CPUIA64State *env)
@@ -1366,8 +1357,7 @@ static inline bool ia64_data_nested_tlb_active(const CPUIA64State *env)
 }
 
 static inline bool ia64_vhpt_config_valid(const CPUIA64State *env,
-                                          uint8_t *size,
-                                          bool *long_format)
+                                          uint8_t *size, bool *long_format)
 {
     uint64_t pta = env->cr_pta;
 
@@ -1385,8 +1375,7 @@ static inline bool ia64_vhpt_config_valid(const CPUIA64State *env,
 
 static inline bool ia64_vhpt_walker_enabled(const CPUIA64State *env,
                                             uint64_t va, bool is_ifetch,
-                                            bool is_rse,
-                                            uint8_t *size,
+                                            bool is_rse, uint8_t *size,
                                             bool *long_format)
 {
     if (!(env->cr_pta & IA64_PTA_VE)) {
@@ -1398,13 +1387,11 @@ static inline bool ia64_vhpt_walker_enabled(const CPUIA64State *env,
     if (!(env->rr[ia64_rr_index(va)] & IA64_RR_VE)) {
         return false;
     }
-    if (!(env->psr & IA64_PSR_DT) ||
-        (is_rse && !(env->psr & IA64_PSR_RT))) {
+    if (!(env->psr & IA64_PSR_DT) || (is_rse && !(env->psr & IA64_PSR_RT))) {
         return false;
     }
-    if (is_ifetch &&
-        (env->psr & (IA64_PSR_IT | IA64_PSR_IC)) !=
-        (IA64_PSR_IT | IA64_PSR_IC)) {
+    if (is_ifetch && (env->psr & (IA64_PSR_IT | IA64_PSR_IC)) !=
+                         (IA64_PSR_IT | IA64_PSR_IC)) {
         return false;
     }
     return true;
@@ -1412,11 +1399,9 @@ static inline bool ia64_vhpt_walker_enabled(const CPUIA64State *env,
 
 static inline bool ia64_exception_initializes_iha(int excp)
 {
-    return excp != IA64_EXCP_ALT_ITLB &&
-           excp != IA64_EXCP_ALT_DTLB &&
+    return excp != IA64_EXCP_ALT_ITLB && excp != IA64_EXCP_ALT_DTLB &&
            excp != IA64_EXCP_DATA_NESTED_TLB &&
-           excp != IA64_EXCP_INST_KEY_MISS &&
-           excp != IA64_EXCP_DATA_KEY_MISS &&
+           excp != IA64_EXCP_INST_KEY_MISS && excp != IA64_EXCP_DATA_KEY_MISS &&
            excp != IA64_EXCP_KEY_PERMISSION;
 }
 
@@ -1426,17 +1411,14 @@ bool ia64_vhpt_walk(CPUIA64State *env, uint64_t va, uint32_t rid,
 bool ia64_vhpt_walk_full(CPUIA64State *env, uint64_t va, uint32_t rid,
                          bool is_ifetch, bool is_rse, uint8_t access_level,
                          uint64_t *pa, uint8_t *perm, uint64_t *pte,
-                         uint32_t *key,
-                         const IA64TlbEntry **installed_entry);
-bool ia64_vhpt_pte_not_present(CPUIA64State *env, uint64_t va,
-                               bool is_ifetch, bool is_rse,
-                               uint64_t *entry_va);
-bool ia64_vhpt_entry_accessible(CPUIA64State *env, uint64_t va,
-                                bool is_ifetch, bool is_rse,
-                                uint64_t *entry_va);
+                         uint32_t *key, const IA64TlbEntry **installed_entry);
+bool ia64_vhpt_pte_not_present(CPUIA64State *env, uint64_t va, bool is_ifetch,
+                               bool is_rse, uint64_t *entry_va);
+bool ia64_vhpt_entry_accessible(CPUIA64State *env, uint64_t va, bool is_ifetch,
+                                bool is_rse, uint64_t *entry_va);
 uint64_t ia64_vhpt_hash_address(CPUIA64State *env, uint64_t va);
-bool ia64_translate_data_access(CPUIA64State *env, uint64_t va,
-                                bool is_write, uint64_t *pa);
+bool ia64_translate_data_access(CPUIA64State *env, uint64_t va, bool is_write,
+                                uint64_t *pa);
 
 void ia64_set_psr(CPUIA64State *env, uint64_t value);
 void ia64_set_psr_bn(CPUIA64State *env, bool bank1);
@@ -1467,8 +1449,8 @@ typedef enum IA64SapicDestinationMode {
 #define IA64_SAPIC_XTP_WRITABLE_MASK \
     (IA64_SAPIC_XTP_DISABLE | IA64_SAPIC_XTP_PRIORITY_MASK)
 
-bool ia64_sapic_deliver(IA64SapicDestinationMode destination_mode,
-                        uint8_t id, uint8_t eid, bool redirect,
+bool ia64_sapic_deliver(IA64SapicDestinationMode destination_mode, uint8_t id,
+                        uint8_t eid, bool redirect,
                         IA64SapicDeliveryMode delivery, uint8_t vector);
 void ia64_sapic_set_xtp(CPUState *cs, uint8_t xtp);
 uint8_t ia64_sapic_get_xtp(CPUState *cs);
@@ -1480,9 +1462,9 @@ bool ia64_sapic_has_pmi(CPUIA64State *env);
 bool ia64_sapic_has_init(CPUIA64State *env);
 int ia64_sapic_accept_pmi(CPUIA64State *env);
 bool ia64_sapic_accept_init(CPUIA64State *env);
-int  ia64_sapic_accept(CPUIA64State *env);
+int ia64_sapic_accept(CPUIA64State *env);
 void ia64_sapic_eoi(CPUIA64State *env);
-int  ia64_sapic_get_ivr(CPUIA64State *env);
+int ia64_sapic_get_ivr(CPUIA64State *env);
 void ia64_itm_update(CPUIA64State *env, uint64_t itm_value);
 void ia64_itc_sync(CPUIA64State *env);
 void ia64_itc_advance_pending_itm(CPUIA64State *env);
@@ -1650,8 +1632,7 @@ struct IA64CPUClass {
     bool is_montecito;
 };
 
-static inline uint64_t
-ia64_cpu_default_io_block_pa(const IA64CPUClass *icc)
+static inline uint64_t ia64_cpu_default_io_block_pa(const IA64CPUClass *icc)
 {
     return (1ULL << icc->phys_addr_bits) - IA64_IO_PORT_SPACE_SIZE;
 }
@@ -1671,7 +1652,7 @@ static inline const IA64FirmwareDebugState *
 ia64_firmware_debug_state_const(const CPUIA64State *env)
 {
     return &ia64_cpu_from_cpu_state(env_cpu((CPUIA64State *)env))
-            ->firmware_debug;
+                ->firmware_debug;
 }
 
 static inline IA64CPUClass *ia64_env_cpu_class(CPUIA64State *env)
@@ -1703,8 +1684,7 @@ static inline uint16_t ia64_cpu_tlb_capacity(const CPUIA64State *env,
     return is_data ? icc->dtlb_entries : icc->itlb_entries;
 }
 
-static inline uint64_t
-ia64_cpu_purge_page_size_mask(const CPUIA64State *env)
+static inline uint64_t ia64_cpu_purge_page_size_mask(const CPUIA64State *env)
 {
     return ia64_env_cpu_class_const(env)->purgeable_page_size_mask;
 }
@@ -1718,8 +1698,8 @@ static inline bool ia64_page_shift_insertable(const CPUIA64State *env,
 
 static inline uint64_t ia64_pkr_key_mask(const CPUIA64State *env)
 {
-    return ((1ULL << ia64_env_cpu_class_const(env)->key_bits) - 1) <<
-           IA64_PKR_KEY_SHIFT;
+    return ((1ULL << ia64_env_cpu_class_const(env)->key_bits) - 1)
+           << IA64_PKR_KEY_SHIFT;
 }
 
 static inline uint64_t ia64_pkr_mask(const CPUIA64State *env)
@@ -1746,8 +1726,7 @@ static inline uint64_t ia64_pa_canonicalize(const CPUIA64State *env,
     return addr & (IA64_PHYS_UC_BIT | implemented_mask);
 }
 
-static inline bool ia64_va_is_implemented(const CPUIA64State *env,
-                                          uint64_t va)
+static inline bool ia64_va_is_implemented(const CPUIA64State *env, uint64_t va)
 {
     uint8_t impl_va_msb = ia64_env_cpu_class_const(env)->impl_va_msb;
 
@@ -1774,8 +1753,7 @@ static inline uint64_t ia64_va_canonicalize(const CPUIA64State *env,
     uint64_t payload = va & implemented_mask;
 
     if (impl_va_msb < 60 && (payload & (1ULL << impl_va_msb))) {
-        payload |= ((1ULL << (60 - impl_va_msb)) - 1) <<
-                   (impl_va_msb + 1);
+        payload |= ((1ULL << (60 - impl_va_msb)) - 1) << (impl_va_msb + 1);
     }
 
     return region | payload;

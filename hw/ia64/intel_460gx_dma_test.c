@@ -52,8 +52,7 @@ struct Intel460GXDMATestHostState {
     bool system_regions_mapped;
 };
 
-static uint64_t intel_460gx_dma_test_pci_target_read(void *opaque,
-                                                     hwaddr addr,
+static uint64_t intel_460gx_dma_test_pci_target_read(void *opaque, hwaddr addr,
                                                      unsigned size)
 {
     uint8_t *bytes = opaque;
@@ -63,10 +62,8 @@ static uint64_t intel_460gx_dma_test_pci_target_read(void *opaque,
     return value;
 }
 
-static void intel_460gx_dma_test_pci_target_write(void *opaque,
-                                                  hwaddr addr,
-                                                  uint64_t value,
-                                                  unsigned size)
+static void intel_460gx_dma_test_pci_target_write(void *opaque, hwaddr addr,
+                                                  uint64_t value, unsigned size)
 {
     uint8_t *bytes = opaque;
 
@@ -100,8 +97,8 @@ static bool test_ranges_overlap(uint64_t first_base, uint64_t first_size,
 static bool test_system_range_is_free(uint64_t base, uint64_t size,
                                       const char *name, Error **errp)
 {
-    MemoryRegionSection section = memory_region_find(get_system_memory(),
-                                                      base, size);
+    MemoryRegionSection section =
+        memory_region_find(get_system_memory(), base, size);
 
     if (!section.mr) {
         return true;
@@ -114,8 +111,8 @@ static bool test_system_range_is_free(uint64_t base, uint64_t size,
     return false;
 }
 
-static bool intel_460gx_dma_test_validate_bases(
-    Intel460GXDMATestHostState *s, Error **errp)
+static bool intel_460gx_dma_test_validate_bases(Intel460GXDMATestHostState *s,
+                                                Error **errp)
 {
     const uint64_t bases[] = {
         s->ecam_base,
@@ -129,7 +126,7 @@ static bool intel_460gx_dma_test_validate_bases(
         INTEL_460GX_DMA_TEST_CONTROL_SIZE,
         INTEL_460GX_DMA_TEST_RAM_SIZE,
     };
-    const char * const names[] = {
+    const char *const names[] = {
         "ECAM",
         "PCI MMIO",
         "control",
@@ -151,23 +148,22 @@ static bool intel_460gx_dma_test_validate_bases(
     }
 
     if (s->mmio_base >= (UINT64_C(1) << 32) ||
-        INTEL_460GX_DMA_TEST_MMIO_SIZE >
-        (UINT64_C(1) << 32) - s->mmio_base) {
-        error_setg(errp,
-                   "460GX DMA test host PCI MMIO window exceeds its 32-bit BAR address space");
+        INTEL_460GX_DMA_TEST_MMIO_SIZE > (UINT64_C(1) << 32) - s->mmio_base) {
+        error_setg(errp, "460GX DMA test host PCI MMIO window exceeds its "
+                         "32-bit BAR address space");
         return false;
     }
 
     for (i = 0; i < ARRAY_SIZE(bases); i++) {
         if (!test_range_valid(bases[i], sizes[i], aligns[i])) {
-            error_setg(errp,
-                       "460GX DMA test host has an invalid or unaligned test window");
+            error_setg(
+                errp,
+                "460GX DMA test host has an invalid or unaligned test window");
             return false;
         }
         for (j = 0; j < i; j++) {
             if (test_ranges_overlap(bases[i], sizes[i], bases[j], sizes[j])) {
-                error_setg(errp,
-                           "460GX DMA host apertures overlap");
+                error_setg(errp, "460GX DMA host apertures overlap");
                 return false;
             }
         }
@@ -179,8 +175,9 @@ static bool intel_460gx_dma_test_validate_bases(
     return true;
 }
 
-static PCIDevice *intel_460gx_dma_test_ecam_device(
-    Intel460GXDMATestHostState *s, hwaddr addr, uint32_t *reg)
+static PCIDevice *
+intel_460gx_dma_test_ecam_device(Intel460GXDMATestHostState *s, hwaddr addr,
+                                 uint32_t *reg)
 {
     PCIHostState *phb = PCI_HOST_BRIDGE(s);
     uint16_t bus = s->first_bus + extract64(addr, 20, 8);
@@ -217,8 +214,8 @@ static void intel_460gx_dma_test_ecam_write(void *opaque, hwaddr addr,
 
     pdev = intel_460gx_dma_test_ecam_device(s, addr, &reg);
     if (pdev) {
-        pci_host_config_write_common(pdev, reg, pci_config_size(pdev),
-                                     value, size);
+        pci_host_config_write_common(pdev, reg, pci_config_size(pdev), value,
+                                     size);
     }
 }
 
@@ -233,8 +230,8 @@ static const MemoryRegionOps intel_460gx_dma_test_ecam_ops = {
     },
 };
 
-static void intel_460gx_dma_test_remove_pci_device(
-    Intel460GXDMATestHostState *s)
+static void
+intel_460gx_dma_test_remove_pci_device(Intel460GXDMATestHostState *s)
 {
     if (!s->testdev) {
         return;
@@ -248,8 +245,8 @@ static void intel_460gx_dma_test_remove_pci_device(
     s->testdev = NULL;
 }
 
-static bool intel_460gx_dma_test_destroy_dma(
-    Intel460GXDMATestHostState *s, Error **errp)
+static bool intel_460gx_dma_test_destroy_dma(Intel460GXDMATestHostState *s,
+                                             Error **errp)
 {
     if (!s->dma) {
         return true;
@@ -270,12 +267,10 @@ static void intel_460gx_dma_test_cleanup_bh(void *opaque)
     switch (s->pending_command) {
     case INTEL_460GX_DMA_TEST_CMD_TRY_ACTIVE_DESTROY:
         if (intel_460gx_dma_test_destroy_dma(s, &local_err)) {
-            s->status =
-                INTEL_460GX_DMA_TEST_STATUS_ACTIVE_DESTROY_UNEXPECTED;
+            s->status = INTEL_460GX_DMA_TEST_STATUS_ACTIVE_DESTROY_UNEXPECTED;
         } else {
             error_free(local_err);
-            s->status =
-                INTEL_460GX_DMA_TEST_STATUS_ACTIVE_DESTROY_REFUSED;
+            s->status = INTEL_460GX_DMA_TEST_STATUS_ACTIVE_DESTROY_REFUSED;
         }
         break;
     case INTEL_460GX_DMA_TEST_CMD_CLEANUP:
@@ -362,8 +357,7 @@ static int intel_460gx_dma_test_map_irq(PCIDevice *pdev, int irq_num)
     return 0;
 }
 
-static void intel_460gx_dma_test_unmap_system(
-    Intel460GXDMATestHostState *s)
+static void intel_460gx_dma_test_unmap_system(Intel460GXDMATestHostState *s)
 {
     if (!s->system_regions_mapped) {
         return;
@@ -394,18 +388,15 @@ static void intel_460gx_dma_test_realize(DeviceState *dev, Error **errp)
                              INTEL_460GX_DMA_TEST_MMIO_SIZE);
     memory_region_init(&s->pci_io, OBJECT(dev),
                        TYPE_INTEL_460GX_DMA_TEST_HOST ".pci-io", 0x10000);
-    memory_region_init_io(&s->pci_target, OBJECT(dev),
-                          &intel_460gx_dma_test_pci_target_ops,
-                          s->pci_target_bytes,
-                          TYPE_INTEL_460GX_DMA_TEST_HOST ".pci-target",
-                          INTEL_460GX_DMA_TEST_PCI_TARGET_SIZE);
-    memory_region_add_subregion(&s->pci_mem,
-                                INTEL_460GX_DMA_TEST_PCI_TARGET_BASE,
-                                &s->pci_target);
+    memory_region_init_io(
+        &s->pci_target, OBJECT(dev), &intel_460gx_dma_test_pci_target_ops,
+        s->pci_target_bytes, TYPE_INTEL_460GX_DMA_TEST_HOST ".pci-target",
+        INTEL_460GX_DMA_TEST_PCI_TARGET_SIZE);
+    memory_region_add_subregion(
+        &s->pci_mem, INTEL_460GX_DMA_TEST_PCI_TARGET_BASE, &s->pci_target);
     s->pci_target_mapped = true;
-    memory_region_init_io(&s->ecam, OBJECT(dev),
-                          &intel_460gx_dma_test_ecam_ops, s,
-                          TYPE_INTEL_460GX_DMA_TEST_HOST ".ecam",
+    memory_region_init_io(&s->ecam, OBJECT(dev), &intel_460gx_dma_test_ecam_ops,
+                          s, TYPE_INTEL_460GX_DMA_TEST_HOST ".ecam",
                           INTEL_460GX_DMA_TEST_ECAM_SIZE);
     memory_region_init_io(&s->control, OBJECT(dev),
                           &intel_460gx_dma_test_control_ops, s,
@@ -429,18 +420,16 @@ static void intel_460gx_dma_test_realize(DeviceState *dev, Error **errp)
     if (s->deny_all) {
         s->dma = intel_460gx_dma_new(0, 0, &local_err);
     } else {
-        s->dma = intel_460gx_dma_new(
-            0, INTEL_460GX_DMA_ADDRESS_LIMIT, &local_err);
-        if (s->dma &&
-            !intel_460gx_dma_add_ram_alias(
-                s->dma, s->iova_base, INTEL_460GX_DMA_TEST_ALIAS_SIZE,
-                &s->test_ram, 0, &local_err)) {
+        s->dma =
+            intel_460gx_dma_new(0, INTEL_460GX_DMA_ADDRESS_LIMIT, &local_err);
+        if (s->dma && !intel_460gx_dma_add_ram_alias(
+                          s->dma, s->iova_base, INTEL_460GX_DMA_TEST_ALIAS_SIZE,
+                          &s->test_ram, 0, &local_err)) {
             goto fail;
         }
-        if (s->dma &&
-            !intel_460gx_dma_add_pci_window_alias(
-                s->dma, s->mmio_base, INTEL_460GX_DMA_TEST_MMIO_SIZE,
-                &s->pci_mem, s->mmio_base, &local_err)) {
+        if (s->dma && !intel_460gx_dma_add_pci_window_alias(
+                          s->dma, s->mmio_base, INTEL_460GX_DMA_TEST_MMIO_SIZE,
+                          &s->pci_mem, s->mmio_base, &local_err)) {
             goto fail;
         }
     }
@@ -453,7 +442,7 @@ static void intel_460gx_dma_test_realize(DeviceState *dev, Error **errp)
     }
 
     s->testdev = pci_new(PCI_DEVFN(INTEL_460GX_DMA_TEST_PCI_SLOT, 0),
-                          TYPE_IOMMU_TESTDEV);
+                         TYPE_IOMMU_TESTDEV);
     if (!qdev_realize(DEVICE(s->testdev), BUS(phb->bus), &local_err)) {
         object_unref(OBJECT(s->testdev));
         s->testdev = NULL;
@@ -466,8 +455,7 @@ static void intel_460gx_dma_test_realize(DeviceState *dev, Error **errp)
                                 &s->pci_mem_window);
     memory_region_add_subregion(get_system_memory(), s->control_base,
                                 &s->control);
-    memory_region_add_subregion(get_system_memory(), s->ram_base,
-                                &s->test_ram);
+    memory_region_add_subregion(get_system_memory(), s->ram_base, &s->test_ram);
     s->system_regions_mapped = true;
     s->status = INTEL_460GX_DMA_TEST_STATUS_IDLE;
     return;
@@ -523,14 +511,14 @@ static const Property intel_460gx_dma_test_properties[] = {
                        mmio_base, UINT64_MAX),
     DEFINE_PROP_UINT64("x-test-control-base", Intel460GXDMATestHostState,
                        control_base, UINT64_MAX),
-    DEFINE_PROP_UINT64("x-test-ram-base", Intel460GXDMATestHostState,
-                       ram_base, UINT64_MAX),
+    DEFINE_PROP_UINT64("x-test-ram-base", Intel460GXDMATestHostState, ram_base,
+                       UINT64_MAX),
     DEFINE_PROP_UINT64("x-test-iova-base", Intel460GXDMATestHostState,
                        iova_base, INTEL_460GX_DMA_TEST_IOVA_BASE),
     DEFINE_PROP_UINT16("x-test-first-bus", Intel460GXDMATestHostState,
                        first_bus, 0),
-    DEFINE_PROP_BOOL("x-test-deny-all", Intel460GXDMATestHostState,
-                     deny_all, false),
+    DEFINE_PROP_BOOL("x-test-deny-all", Intel460GXDMATestHostState, deny_all,
+                     false),
 };
 
 static void intel_460gx_dma_test_class_init(ObjectClass *klass,

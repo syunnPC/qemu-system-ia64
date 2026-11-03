@@ -63,9 +63,8 @@ uint8_t hp_zx1_ioa_root_bus_num(const HPZX1IOAState *s);
 uint8_t hp_zx1_ioa_rope_mask(const HPZX1IOAState *s);
 
 /* Internal MIO-owned DMA frontend lifecycle; the root must still be empty. */
-bool hp_zx1_ioa_attach_msi_window(HPZX1IOAState *s,
-                                  MemoryRegion *dma_root, Error **errp);
-void hp_zx1_ioa_detach_msi_window(HPZX1IOAState *s,
-                                  MemoryRegion *dma_root);
+bool hp_zx1_ioa_attach_msi_window(HPZX1IOAState *s, MemoryRegion *dma_root,
+                                  Error **errp);
+void hp_zx1_ioa_detach_msi_window(HPZX1IOAState *s, MemoryRegion *dma_root);
 
 #endif

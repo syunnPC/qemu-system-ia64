@@ -178,7 +178,8 @@ static const HPI2000RootLayout hp_i2000_roots[] = {
         .io_size = 0x4000,
         .mmio_base = UINT64_C(0x90000000),
         .mmio_size = UINT64_C(0x10000000),
-    }, {
+    },
+    {
         .first_bus = 0x01,
         .last_bus = 0x01,
         .host_port = 2,
@@ -187,7 +188,8 @@ static const HPI2000RootLayout hp_i2000_roots[] = {
         .io_size = 0x4000,
         .mmio_base = UINT64_C(0xa0000000),
         .mmio_size = UINT64_C(0x10000000),
-    }, {
+    },
+    {
         .first_bus = 0x02,
         .last_bus = 0x02,
         .host_port = 3,
@@ -196,7 +198,8 @@ static const HPI2000RootLayout hp_i2000_roots[] = {
         .io_size = 0x4000,
         .mmio_base = UINT64_C(0xb0000000),
         .mmio_size = UINT64_C(0x10000000),
-    }, {
+    },
+    {
         .first_bus = 0x03,
         .last_bus = 0x03,
         .host_port = 4,
@@ -212,16 +215,14 @@ G_STATIC_ASSERT(G_N_ELEMENTS(hp_i2000_roots) == HP_I2000_PCI_ROOT_COUNT);
 
 enum {
     HP_I2000_LOW_RAM_DESCRIPTOR_SIZE =
-        sizeof(IA64PlatformDescriptor) +
-        sizeof(IA64PlatformRamRange) +
+        sizeof(IA64PlatformDescriptor) + sizeof(IA64PlatformRamRange) +
         HP_I2000_PCI_ROOT_COUNT * sizeof(IA64PlatformPciRoot) +
-        sizeof(IA64PlatformIoSapic) +
-        5 * sizeof(IA64PlatformPciRoute) +
+        sizeof(IA64PlatformIoSapic) + 5 * sizeof(IA64PlatformPciRoute) +
         sizeof(IA64PlatformI2000Profile),
 };
 
-static DeviceState *hp_i2000_add_child(HPI2000MachineState *s,
-                                        const char *name, const char *type)
+static DeviceState *hp_i2000_add_child(HPI2000MachineState *s, const char *name,
+                                       const char *type)
 {
     DeviceState *dev = qdev_new(type);
 
@@ -230,13 +231,12 @@ static DeviceState *hp_i2000_add_child(HPI2000MachineState *s,
     return dev;
 }
 
-static bool hp_i2000_chipset_fault(void *opaque,
-                                   const IA64ChipsetFault *fault)
+static bool hp_i2000_chipset_fault(void *opaque, const IA64ChipsetFault *fault)
 {
     HPI2000ChipsetFaultRoute *route = opaque;
 
-    return intel_460gx_chipset_report_expander_fault(
-        route->chipset, route->port, fault);
+    return intel_460gx_chipset_report_expander_fault(route->chipset,
+                                                     route->port, fault);
 }
 
 static bool hp_i2000_nvram_persistent(const HPI2000NvramState *s)
@@ -275,16 +275,14 @@ static void hp_i2000_nvram_commit(HPI2000NvramState *s)
             if (!s->write_warning) {
                 warn_report("refusing to overwrite i2000 NVRAM '%s': "
                             "expected %zu or %zu bytes, found %zu",
-                            s->path,
-                            (size_t)IA64_PLATFORM_MIN_NVRAM_SIZE,
+                            s->path, (size_t)IA64_PLATFORM_MIN_NVRAM_SIZE,
                             sizeof(s->data), (size_t)length);
                 s->write_warning = true;
             }
             return;
         }
     } else if (read_error &&
-               !g_error_matches(read_error, G_FILE_ERROR,
-                                G_FILE_ERROR_NOENT)) {
+               !g_error_matches(read_error, G_FILE_ERROR, G_FILE_ERROR_NOENT)) {
         if (!s->write_warning) {
             warn_report("failed to read i2000 NVRAM '%s' before saving: %s",
                         s->path, read_error->message);
@@ -294,17 +292,16 @@ static void hp_i2000_nvram_commit(HPI2000NvramState *s)
     } else {
         length = sizeof(s->data);
     }
-    if (!g_file_set_contents(s->path, (const char *)s->data,
-                             length, &error) &&
+    if (!g_file_set_contents(s->path, (const char *)s->data, length, &error) &&
         !s->write_warning) {
-        warn_report("failed to save i2000 NVRAM '%s': %s",
-                    s->path, error->message);
+        warn_report("failed to save i2000 NVRAM '%s': %s", s->path,
+                    error->message);
         s->write_warning = true;
     }
 }
 
-static void hp_i2000_nvram_write(void *opaque, hwaddr addr,
-                                 uint64_t value, unsigned int size)
+static void hp_i2000_nvram_write(void *opaque, hwaddr addr, uint64_t value,
+                                 unsigned int size)
 {
     HPI2000NvramState *s = opaque;
     unsigned int i;
@@ -350,23 +347,20 @@ static bool hp_i2000_nvram_load(HPI2000NvramState *s, Error **errp)
         if (g_error_matches(error, G_FILE_ERROR, G_FILE_ERROR_NOENT)) {
             return true;
         }
-        error_setg(errp, "failed to load i2000 NVRAM '%s': %s",
-                   s->path, error->message);
+        error_setg(errp, "failed to load i2000 NVRAM '%s': %s", s->path,
+                   error->message);
         return false;
     }
     if (length == 0) {
         return true;
     }
     if (length > sizeof(s->data)) {
-        error_setg(errp,
-                   "i2000 NVRAM '%s' exceeds %zu bytes",
-                   s->path, sizeof(s->data));
+        error_setg(errp, "i2000 NVRAM '%s' exceeds %zu bytes", s->path,
+                   sizeof(s->data));
         return false;
     }
-    if (length != IA64_PLATFORM_MIN_NVRAM_SIZE &&
-        length != sizeof(s->data)) {
-        error_setg(errp,
-                   "i2000 NVRAM '%s' must be %zu or %zu bytes; found %zu",
+    if (length != IA64_PLATFORM_MIN_NVRAM_SIZE && length != sizeof(s->data)) {
+        error_setg(errp, "i2000 NVRAM '%s' must be %zu or %zu bytes; found %zu",
                    s->path, (size_t)IA64_PLATFORM_MIN_NVRAM_SIZE,
                    sizeof(s->data), (size_t)length);
         return false;
@@ -383,8 +377,7 @@ static void hp_i2000_nvram_realize(DeviceState *dev, Error **errp)
         return;
     }
     memory_region_init_io(&s->mmio, OBJECT(s), &hp_i2000_nvram_ops, s,
-                          TYPE_HP_I2000_NVRAM,
-                          IA64_I2000_PROFILE_NVRAM_SIZE);
+                          TYPE_HP_I2000_NVRAM, IA64_I2000_PROFILE_NVRAM_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(s), &s->mmio);
 }
 
@@ -392,11 +385,10 @@ static const VMStateDescription vmstate_hp_i2000_nvram = {
     .name = TYPE_HP_I2000_NVRAM,
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (const VMStateField[]) {
-        VMSTATE_UINT8_ARRAY(data, HPI2000NvramState,
-                            IA64_I2000_PROFILE_NVRAM_SIZE),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields = (const VMStateField[]) { VMSTATE_UINT8_ARRAY(
+                                           data, HPI2000NvramState,
+                                           IA64_I2000_PROFILE_NVRAM_SIZE),
+                                       VMSTATE_END_OF_LIST() },
 };
 
 static const Property hp_i2000_nvram_properties[] = {
@@ -445,8 +437,7 @@ static void hp_i2000_pci_identity_realize(PCIDevice *pdev, Error **errp)
     }
 }
 
-static void hp_i2000_pci_identity_class_init(ObjectClass *oc,
-                                               const void *data)
+static void hp_i2000_pci_identity_class_init(ObjectClass *oc, const void *data)
 {
     const HPI2000PciIdentity *identity = data;
     DeviceClass *dc = DEVICE_CLASS(oc);
@@ -485,9 +476,8 @@ static const HPI2000PciIdentity hp_i2000_pid_pci_identity = {
     },                                                     \
 }
 
-static const TypeInfo hp_i2000_pid_pci_type =
-    HP_I2000_PCI_IDENTITY_TYPE(TYPE_HP_I2000_PID_PCI,
-                               hp_i2000_pid_pci_identity);
+static const TypeInfo hp_i2000_pid_pci_type = HP_I2000_PCI_IDENTITY_TYPE(
+    TYPE_HP_I2000_PID_PCI, hp_i2000_pid_pci_identity);
 
 static hwaddr hp_i2000_sparse_io_port(hwaddr encoded)
 {
@@ -495,8 +485,8 @@ static hwaddr hp_i2000_sparse_io_port(hwaddr encoded)
 }
 
 static MemTxResult hp_i2000_io_read(AddressSpace *as, hwaddr addr,
-                                     uint64_t *value, unsigned size,
-                                     MemTxAttrs attrs)
+                                    uint64_t *value, unsigned size,
+                                    MemTxAttrs attrs)
 {
     MemTxResult result = MEMTX_DECODE_ERROR;
 
@@ -517,8 +507,8 @@ static MemTxResult hp_i2000_io_read(AddressSpace *as, hwaddr addr,
 }
 
 static MemTxResult hp_i2000_io_write(AddressSpace *as, hwaddr addr,
-                                      uint64_t value, unsigned size,
-                                      MemTxAttrs attrs)
+                                     uint64_t value, unsigned size,
+                                     MemTxAttrs attrs)
 {
     MemTxResult result = MEMTX_DECODE_ERROR;
 
@@ -539,8 +529,7 @@ static MemTxResult hp_i2000_io_write(AddressSpace *as, hwaddr addr,
 }
 
 static AddressSpace *hp_i2000_io_space_for_port(HPI2000MachineState *s,
-                                                 hwaddr port,
-                                                 unsigned size)
+                                                hwaddr port, unsigned size)
 {
     unsigned root;
 
@@ -562,8 +551,8 @@ static bool hp_i2000_is_vga_legacy_io(hwaddr port, unsigned size)
 }
 
 static MemTxResult hp_i2000_sparse_io_read(void *opaque, hwaddr addr,
-                                            uint64_t *value, unsigned size,
-                                            MemTxAttrs attrs)
+                                           uint64_t *value, unsigned size,
+                                           MemTxAttrs attrs)
 {
     HPI2000MachineState *s = opaque;
     hwaddr port = hp_i2000_sparse_io_port(addr);
@@ -576,8 +565,8 @@ static MemTxResult hp_i2000_sparse_io_read(void *opaque, hwaddr addr,
         return hp_i2000_io_read(&s->root_io[0], port, value, size, attrs);
     }
     if (port >= 0xcfc && port < 0xd00 && size <= 0xd00 - port) {
-        return hp_i2000_io_read(&s->host_data_as, port - 0xcfc,
-                                value, size, attrs);
+        return hp_i2000_io_read(&s->host_data_as, port - 0xcfc, value, size,
+                                attrs);
     }
     if (hp_i2000_is_vga_legacy_io(port, size)) {
         return hp_i2000_io_read(&s->root_io[3], port, value, size, attrs);
@@ -592,8 +581,8 @@ static MemTxResult hp_i2000_sparse_io_read(void *opaque, hwaddr addr,
 }
 
 static MemTxResult hp_i2000_sparse_io_write(void *opaque, hwaddr addr,
-                                             uint64_t value, unsigned size,
-                                             MemTxAttrs attrs)
+                                            uint64_t value, unsigned size,
+                                            MemTxAttrs attrs)
 {
     HPI2000MachineState *s = opaque;
     hwaddr port = hp_i2000_sparse_io_port(addr);
@@ -606,16 +595,16 @@ static MemTxResult hp_i2000_sparse_io_write(void *opaque, hwaddr addr,
         return hp_i2000_io_write(&s->root_io[0], port, value, size, attrs);
     }
     if (port >= 0xcfc && port < 0xd00 && size <= 0xd00 - port) {
-        return hp_i2000_io_write(&s->host_data_as, port - 0xcfc,
-                                 value, size, attrs);
+        return hp_i2000_io_write(&s->host_data_as, port - 0xcfc, value, size,
+                                 attrs);
     }
     if (hp_i2000_is_vga_legacy_io(port, size)) {
         return hp_i2000_io_write(&s->root_io[3], port, value, size, attrs);
     }
 
     as = hp_i2000_io_space_for_port(s, port, size);
-    return as ? hp_i2000_io_write(as, port, value, size, attrs) :
-                MEMTX_DECODE_ERROR;
+    return as ? hp_i2000_io_write(as, port, value, size, attrs)
+              : MEMTX_DECODE_ERROR;
 }
 
 static const MemoryRegionOps hp_i2000_sparse_io_ops = {
@@ -635,7 +624,7 @@ static const MemoryRegionOps hp_i2000_sparse_io_ops = {
 };
 
 static uint64_t hp_i2000_subword_cf8_read(void *opaque, hwaddr addr,
-                                         unsigned size)
+                                          unsigned size)
 {
     HPI2000CF8SubwordState *s = opaque;
     uint64_t value = 0;
@@ -648,7 +637,7 @@ static uint64_t hp_i2000_subword_cf8_read(void *opaque, hwaddr addr,
 }
 
 static void hp_i2000_subword_cf8_write(void *opaque, hwaddr addr,
-                                      uint64_t value, unsigned size)
+                                       uint64_t value, unsigned size)
 {
     HPI2000CF8SubwordState *s = opaque;
     unsigned i;
@@ -659,8 +648,8 @@ static void hp_i2000_subword_cf8_write(void *opaque, hwaddr addr,
 }
 
 static bool hp_i2000_subword_cf8_accepts(void *opaque, hwaddr addr,
-                                        unsigned size, bool is_write,
-                                        MemTxAttrs attrs)
+                                         unsigned size, bool is_write,
+                                         MemTxAttrs attrs)
 {
     (void)opaque;
     (void)is_write;
@@ -696,10 +685,9 @@ static const VMStateDescription vmstate_hp_i2000_cf8_subword = {
     .name = TYPE_HP_I2000_CF8_SUBWORD,
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (const VMStateField[]) {
-        VMSTATE_UINT8_ARRAY(bytes, HPI2000CF8SubwordState, 4),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields = (const VMStateField[]) { VMSTATE_UINT8_ARRAY(
+                                           bytes, HPI2000CF8SubwordState, 4),
+                                       VMSTATE_END_OF_LIST() },
 };
 
 static void hp_i2000_cf8_subword_init(Object *obj)
@@ -731,18 +719,16 @@ static const TypeInfo hp_i2000_cf8_subword_type = {
 
 static bool hp_i2000_create_nvram(HPI2000MachineState *s, Error **errp)
 {
-    g_autofree char *nvram_path = ia64_machine_resolve_nvram_path(
-        MACHINE(s), s->nvram_path);
-    DeviceState *dev = hp_i2000_add_child(
-        s, "efi-nvram", TYPE_HP_I2000_NVRAM);
+    g_autofree char *nvram_path =
+        ia64_machine_resolve_nvram_path(MACHINE(s), s->nvram_path);
+    DeviceState *dev = hp_i2000_add_child(s, "efi-nvram", TYPE_HP_I2000_NVRAM);
 
     s->nvram = HP_I2000_NVRAM(dev);
     qdev_prop_set_string(dev, "nvram", nvram_path ?: "none");
     if (!sysbus_realize(SYS_BUS_DEVICE(dev), errp)) {
         return false;
     }
-    sysbus_mmio_map(SYS_BUS_DEVICE(dev), 0,
-                    IA64_I2000_PROFILE_NVRAM_BASE);
+    sysbus_mmio_map(SYS_BUS_DEVICE(dev), 0, IA64_I2000_PROFILE_NVRAM_BASE);
     return true;
 }
 
@@ -755,16 +741,14 @@ static bool hp_i2000_create_chipset(HPI2000MachineState *s, Error **errp)
     s->host = INTEL_460GX_HOST(dev);
     qdev_prop_set_uint16(dev, "x-initial-cbn", HP_I2000_CBN);
     qdev_prop_set_uint32(dev, "x-initial-chipset-present",
-                        intel_460gx_chipset_present_mask(expander_mask));
+                         intel_460gx_chipset_present_mask(expander_mask));
     if (!sysbus_realize(SYS_BUS_DEVICE(dev), errp)) {
         return false;
     }
 
-    address_space_init(&s->host_conf_as,
-                       intel_460gx_host_conf_region(s->host),
+    address_space_init(&s->host_conf_as, intel_460gx_host_conf_region(s->host),
                        "hp-i2000.host-conf");
-    address_space_init(&s->host_data_as,
-                       intel_460gx_host_data_region(s->host),
+    address_space_init(&s->host_data_as, intel_460gx_host_data_region(s->host),
                        "hp-i2000.host-data");
     s->host_spaces_initialized = true;
 
@@ -777,12 +761,10 @@ static bool hp_i2000_create_chipset(HPI2000MachineState *s, Error **errp)
     dev = hp_i2000_add_child(s, "chipset", TYPE_INTEL_460GX_CHIPSET);
     s->chipset = INTEL_460GX_CHIPSET(dev);
     intel_460gx_chipset_set_fault_notify(
-        s->chipset, ia64_ras_hub_report_chipset_fault,
-        HP_IA64_MACHINE(s)->ras);
+        s->chipset, ia64_ras_hub_report_chipset_fault, HP_IA64_MACHINE(s)->ras);
     qdev_prop_set_uint8(dev, INTEL_460GX_CHIPSET_PROP_EXPANDER_MASK,
-                       expander_mask);
-    if (!object_property_set_link(OBJECT(dev),
-                                  INTEL_460GX_CHIPSET_PROP_HOST,
+                        expander_mask);
+    if (!object_property_set_link(OBJECT(dev), INTEL_460GX_CHIPSET_PROP_HOST,
                                   OBJECT(s->host), errp) ||
         !qdev_realize(dev, NULL, errp)) {
         return false;
@@ -790,22 +772,20 @@ static bool hp_i2000_create_chipset(HPI2000MachineState *s, Error **errp)
 
     dev = hp_i2000_add_child(s, "pid", TYPE_INTEL_460GX_PID);
     s->pid = INTEL_460GX_PID(dev);
-    qdev_prop_set_uint8(dev, INTEL_460GX_PID_PROP_INITIAL_ID,
-                       HP_I2000_PID_ID);
+    qdev_prop_set_uint8(dev, INTEL_460GX_PID_PROP_INITIAL_ID, HP_I2000_PID_ID);
     qdev_prop_set_uint32(dev, INTEL_460GX_PID_PROP_LEGACY_PIN,
-                        HP_I2000_PID_LEGACY_PIN);
+                         HP_I2000_PID_LEGACY_PIN);
     return sysbus_realize(SYS_BUS_DEVICE(dev), errp);
 }
 
 static bool hp_i2000_create_root(HPI2000MachineState *s, unsigned root,
-                                  Error **errp)
+                                 Error **errp)
 {
     MachineState *machine = MACHINE(s);
     const HPI2000RootLayout *layout = &hp_i2000_roots[root];
     g_autofree char *child_name = g_strdup_printf("pci-root%u", root);
     g_autofree char *io_name = g_strdup_printf("hp-i2000.root%u-io", root);
-    g_autofree char *mmio_name =
-        g_strdup_printf("hp-i2000.root%u-mmio", root);
+    g_autofree char *mmio_name = g_strdup_printf("hp-i2000.root%u-mmio", root);
     uint64_t low_size = MIN(machine->ram_size, HP_I2000_LOW_RAM_LIMIT);
     uint64_t high_size = machine->ram_size - low_size;
     DeviceState *dev;
@@ -815,19 +795,18 @@ static bool hp_i2000_create_root(HPI2000MachineState *s, unsigned root,
     dev = hp_i2000_add_child(s, child_name, TYPE_INTEL_460GX_ROOT_HOST);
     s->roots[root] = INTEL_460GX_ROOT_HOST(dev);
     qdev_prop_set_uint16(dev, INTEL_460GX_ROOT_PROP_FIRST_BUS,
-                        layout->first_bus);
+                         layout->first_bus);
     if (!sysbus_realize(SYS_BUS_DEVICE(dev), errp)) {
         return false;
     }
     bus = intel_460gx_root_host_bus(s->roots[root]);
-    if (!intel_460gx_host_attach_downstream_bus(
-            s->host, layout->host_port, bus,
-            layout->first_bus, layout->last_bus, errp)) {
+    if (!intel_460gx_host_attach_downstream_bus(s->host, layout->host_port, bus,
+                                                layout->first_bus,
+                                                layout->last_bus, errp)) {
         return false;
     }
     intel_460gx_chipset_set_downstream_reset_range(
-        s->chipset, layout->host_port,
-        layout->first_bus, layout->last_bus);
+        s->chipset, layout->host_port, layout->first_bus, layout->last_bus);
 
     address_space_init(&s->root_io[root],
                        intel_460gx_root_host_io(s->roots[root]), io_name);
@@ -836,28 +815,25 @@ static bool hp_i2000_create_root(HPI2000MachineState *s, unsigned root,
                              intel_460gx_root_host_mem(s->roots[root]),
                              layout->mmio_base, layout->mmio_size);
 
-    s->dma[root] = intel_460gx_dma_new(
-        0, INTEL_460GX_DMA_ADDRESS_LIMIT, errp);
+    s->dma[root] = intel_460gx_dma_new(0, INTEL_460GX_DMA_ADDRESS_LIMIT, errp);
     s->dma_fault_route[root] = (HPI2000ChipsetFaultRoute) {
         .chipset = s->chipset,
         .port = layout->host_port,
     };
     if (s->dma[root]) {
-        intel_460gx_dma_set_fault_notify(
-            s->dma[root], hp_i2000_chipset_fault,
-            &s->dma_fault_route[root]);
+        intel_460gx_dma_set_fault_notify(s->dma[root], hp_i2000_chipset_fault,
+                                         &s->dma_fault_route[root]);
     }
     if (!s->dma[root] ||
-        !intel_460gx_dma_add_ram_alias(s->dma[root], 0, low_size,
-                                       machine->ram, 0, errp) ||
-        (high_size &&
-         !intel_460gx_dma_add_ram_alias(
-             s->dma[root], HP_I2000_HIGH_RAM_BASE, high_size,
-             machine->ram, low_size, errp)) ||
+        !intel_460gx_dma_add_ram_alias(s->dma[root], 0, low_size, machine->ram,
+                                       0, errp) ||
+        (high_size && !intel_460gx_dma_add_ram_alias(
+                          s->dma[root], HP_I2000_HIGH_RAM_BASE, high_size,
+                          machine->ram, low_size, errp)) ||
         !intel_460gx_dma_add_pci_window_alias(
             s->dma[root], layout->mmio_base, layout->mmio_size,
-            intel_460gx_root_host_mem(s->roots[root]),
-            layout->mmio_base, errp) ||
+            intel_460gx_root_host_mem(s->roots[root]), layout->mmio_base,
+            errp) ||
         !intel_460gx_dma_seal(s->dma[root], errp) ||
         !intel_460gx_dma_attach_root(s->dma[root], bus, errp)) {
         return false;
@@ -866,8 +842,7 @@ static bool hp_i2000_create_root(HPI2000MachineState *s, unsigned root,
     for (pin = 0; pin < HP_I2000_PCI_INTX_COUNT; pin++) {
         qdev_connect_gpio_out_named(
             dev, INTEL_460GX_ROOT_GPIO_INTX, pin,
-            qdev_get_gpio_in_named(DEVICE(s->pid),
-                                   INTEL_460GX_PID_GPIO_IRQ,
+            qdev_get_gpio_in_named(DEVICE(s->pid), INTEL_460GX_PID_GPIO_IRQ,
                                    layout->intx_base + pin));
     }
     return true;
@@ -877,9 +852,8 @@ static void hp_i2000_map_chipset(HPI2000MachineState *s)
 {
     unsigned root;
 
-    memory_region_add_subregion(
-        intel_460gx_root_host_io(s->roots[0]), 0xcf8,
-        &s->cf8_subword->io);
+    memory_region_add_subregion(intel_460gx_root_host_io(s->roots[0]), 0xcf8,
+                                &s->cf8_subword->io);
 
     memory_region_transaction_begin();
     memory_region_add_subregion(
@@ -895,8 +869,7 @@ static void hp_i2000_map_chipset(HPI2000MachineState *s)
     memory_region_transaction_commit();
 }
 
-static bool hp_i2000_create_isa_devices(HPI2000MachineState *s,
-                                         Error **errp)
+static bool hp_i2000_create_isa_devices(HPI2000MachineState *s, Error **errp)
 {
     ISABus *isa = intel_82468gx_ifb_isa_bus(s->ifb);
     ISADevice *dev;
@@ -914,10 +887,9 @@ static bool hp_i2000_create_isa_devices(HPI2000MachineState *s,
 
     dev = isa_new(TYPE_LPC47B27_ISA);
     qdev_prop_set_uint16(DEVICE(dev), LPC47B27_ISA_PROP_CONFIG_IOBASE,
-                        HP_I2000_SUPERIO_PORT);
-    qdev_prop_set_uint32(DEVICE(dev),
-                        LPC47B27_ISA_PROP_UART_INPUT_CLOCK_HZ,
-                        HP_I2000_UART_CLOCK_HZ);
+                         HP_I2000_SUPERIO_PORT);
+    qdev_prop_set_uint32(DEVICE(dev), LPC47B27_ISA_PROP_UART_INPUT_CLOCK_HZ,
+                         HP_I2000_UART_CLOCK_HZ);
     chardev = serial_hd(0);
     if (chardev) {
         qdev_prop_set_chr(DEVICE(dev), "chardev", chardev);
@@ -937,8 +909,7 @@ static bool hp_i2000_create_isa_devices(HPI2000MachineState *s,
     return true;
 }
 
-static bool hp_i2000_create_pci_devices(HPI2000MachineState *s,
-                                         Error **errp)
+static bool hp_i2000_create_pci_devices(HPI2000MachineState *s, Error **errp)
 {
     MachineState *machine = MACHINE(s);
     PCIBus *root0 = intel_460gx_root_host_bus(s->roots[0]);
@@ -958,8 +929,8 @@ static bool hp_i2000_create_pci_devices(HPI2000MachineState *s,
     s->vga = pci_vga_new();
     if (s->vga) {
         bool is_ati = object_dynamic_cast(OBJECT(s->vga), TYPE_ATI_VGA);
-        bool is_quadro2 = object_dynamic_cast(OBJECT(s->vga),
-                                              TYPE_NVIDIA_QUADRO2);
+        bool is_quadro2 =
+            object_dynamic_cast(OBJECT(s->vga), TYPE_NVIDIA_QUADRO2);
 
         if (!is_ati && !is_quadro2) {
             error_setg(errp,
@@ -984,22 +955,19 @@ static bool hp_i2000_create_pci_devices(HPI2000MachineState *s,
         }
         memory_region_init_alias(
             &s->vga_legacy, OBJECT(s), "hp-i2000.vga-legacy",
-            intel_460gx_root_host_mem(s->roots[3]),
-            HP_I2000_VGA_LEGACY_BASE, HP_I2000_VGA_LEGACY_SIZE);
+            intel_460gx_root_host_mem(s->roots[3]), HP_I2000_VGA_LEGACY_BASE,
+            HP_I2000_VGA_LEGACY_SIZE);
         memory_region_add_subregion_overlap(
-            get_system_memory(), HP_I2000_VGA_LEGACY_BASE,
-            &s->vga_legacy, 1);
+            get_system_memory(), HP_I2000_VGA_LEGACY_BASE, &s->vga_legacy, 1);
     }
 
-    s->ifb = intel_82468gx_ifb_create(
-        root0, PCI_DEVFN(HP_I2000_IFB_SLOT, 0), errp);
+    s->ifb =
+        intel_82468gx_ifb_create(root0, PCI_DEVFN(HP_I2000_IFB_SLOT, 0), errp);
     if (!s->ifb) {
         return false;
     }
-    for (function = 0; function < INTEL_82468GX_IFB_FUNCTIONS;
-         function++) {
-        PCIDevice *ifb_function = intel_82468gx_ifb_function(
-            s->ifb, function);
+    for (function = 0; function < INTEL_82468GX_IFB_FUNCTIONS; function++) {
+        PCIDevice *ifb_function = intel_82468gx_ifb_function(s->ifb, function);
 
         if (!ifb_function) {
             error_setg(errp, "%s did not create function %u",
@@ -1012,26 +980,24 @@ static bool hp_i2000_create_pci_devices(HPI2000MachineState *s,
     }
     qdev_connect_gpio_out_named(
         DEVICE(s->ifb), INTEL_82468GX_IFB_GPIO_LEGACY, 0,
-        qdev_get_gpio_in_named(DEVICE(s->pid),
-                               INTEL_460GX_PID_GPIO_LEGACY, 0));
+        qdev_get_gpio_in_named(DEVICE(s->pid), INTEL_460GX_PID_GPIO_LEGACY, 0));
     for (irq = 1; irq < ISA_NUM_IRQS; irq++) {
         if (irq == IA64_I2000_PROFILE_ACPI_SCI_IRQ) {
             continue;
         }
         qdev_connect_gpio_out_named(
             DEVICE(s->ifb), INTEL_82468GX_IFB_GPIO_ISA_IRQ, irq,
-            qdev_get_gpio_in_named(DEVICE(s->pid),
-                                   INTEL_460GX_PID_GPIO_IRQ, irq));
+            qdev_get_gpio_in_named(DEVICE(s->pid), INTEL_460GX_PID_GPIO_IRQ,
+                                   irq));
     }
     qdev_connect_gpio_out_named(
         DEVICE(s->ifb), INTEL_82468GX_IFB_GPIO_SCI, 0,
-        qdev_get_gpio_in_named(
-            DEVICE(s->pid), INTEL_460GX_PID_GPIO_IRQ,
-            IA64_I2000_PROFILE_ACPI_SCI_IRQ));
+        qdev_get_gpio_in_named(DEVICE(s->pid), INTEL_460GX_PID_GPIO_IRQ,
+                               IA64_I2000_PROFILE_ACPI_SCI_IRQ));
     machine->usb |= defaults_enabled() && !machine->usb_disabled;
     if (machine->usb && defaults_enabled()) {
-        PCIDevice *usb = intel_82468gx_ifb_function(
-            s->ifb, HP_I2000_IFB_USB_FUNCTION);
+        PCIDevice *usb =
+            intel_82468gx_ifb_function(s->ifb, HP_I2000_IFB_USB_FUNCTION);
         BusState *usb_bus = QLIST_FIRST(&DEVICE(usb)->child_bus);
 
         if (!usb_bus) {
@@ -1053,8 +1019,8 @@ static bool hp_i2000_create_pci_devices(HPI2000MachineState *s,
 
     for (function = 0; function < G_N_ELEMENTS(s->ihpc); function++) {
         g_autofree char *name = g_strdup_printf("ihpc%u", function);
-        DeviceState *ihpc = hp_i2000_add_child(
-            s, name, TYPE_INTEL_82466GX_IHPC);
+        DeviceState *ihpc =
+            hp_i2000_add_child(s, name, TYPE_INTEL_82466GX_IHPC);
 
         s->ihpc[function] = PCI_DEVICE(ihpc);
         qdev_prop_set_int32(ihpc, "addr", PCI_DEVFN(0x0f, 0));
@@ -1062,9 +1028,9 @@ static bool hp_i2000_create_pci_devices(HPI2000MachineState *s,
             .chipset = s->chipset,
             .port = hp_i2000_roots[function + 1].host_port,
         };
-        intel_82466gx_ihpc_set_fault_notify(
-            INTEL_82466GX_IHPC(ihpc), hp_i2000_chipset_fault,
-            &s->ihpc_fault_route[function]);
+        intel_82466gx_ihpc_set_fault_notify(INTEL_82466GX_IHPC(ihpc),
+                                            hp_i2000_chipset_fault,
+                                            &s->ihpc_fault_route[function]);
         if (!qdev_realize(ihpc, BUS(ihpc_root[function]), errp)) {
             object_unparent(OBJECT(ihpc));
             s->ihpc[function] = NULL;
@@ -1091,29 +1057,24 @@ static bool hp_i2000_create_pci_devices(HPI2000MachineState *s,
     s->i82559 = pci_new(PCI_DEVFN(HP_I2000_I82559_SLOT, 0), "i82559c");
     qdev_prop_set_string(DEVICE(s->i82559), "romfile", "");
     qdev_prop_set_uint8(DEVICE(s->i82559), "x-pci-revision", 0x08);
-    qdev_prop_set_uint16(DEVICE(s->i82559),
-                         "x-pci-subsystem-vendor-id", PCI_VENDOR_ID_INTEL);
-    qdev_prop_set_uint16(DEVICE(s->i82559),
-                         "x-pci-subsystem-id", 0x3400);
-    qdev_prop_set_uint16(DEVICE(s->i82559),
-                         "x-eeprom-compatibility", 0x0803);
+    qdev_prop_set_uint16(DEVICE(s->i82559), "x-pci-subsystem-vendor-id",
+                         PCI_VENDOR_ID_INTEL);
+    qdev_prop_set_uint16(DEVICE(s->i82559), "x-pci-subsystem-id", 0x3400);
+    qdev_prop_set_uint16(DEVICE(s->i82559), "x-eeprom-compatibility", 0x0803);
     qemu_configure_nic_device(DEVICE(s->i82559), true, NULL);
     if (!pci_realize_and_unref(s->i82559, root0, errp)) {
         return false;
     }
 
     s->isp12160 = pci_new(
-        PCI_DEVFN(ISP12160_QEMU_I2000_DEVICE,
-                  ISP12160_QEMU_I2000_FUNCTION),
+        PCI_DEVFN(ISP12160_QEMU_I2000_DEVICE, ISP12160_QEMU_I2000_FUNCTION),
         TYPE_ISP12160_SCSI);
     if (!pci_realize_and_unref(s->isp12160, root1, errp)) {
         return false;
     }
-    scsi_bus = qdev_get_child_bus(DEVICE(s->isp12160),
-                                  "isp12160-scsi.0");
+    scsi_bus = qdev_get_child_bus(DEVICE(s->isp12160), "isp12160-scsi.0");
     if (!scsi_bus) {
-        error_setg(errp, "%s did not create its SCSI bus",
-                   TYPE_ISP12160_SCSI);
+        error_setg(errp, "%s did not create its SCSI bus", TYPE_ISP12160_SCSI);
         return false;
     }
     scsi_bus_legacy_handle_cmdline(SCSI_BUS(scsi_bus));
@@ -1122,25 +1083,24 @@ static bool hp_i2000_create_pci_devices(HPI2000MachineState *s,
 
 static void hp_i2000_configure_pci(HPI2000MachineState *s)
 {
-    PCIDevice *ide = intel_82468gx_ifb_function(
-        s->ifb, HP_I2000_IFB_IDE_FUNCTION);
-    PCIDevice *usb = intel_82468gx_ifb_function(
-        s->ifb, HP_I2000_IFB_USB_FUNCTION);
+    PCIDevice *ide =
+        intel_82468gx_ifb_function(s->ifb, HP_I2000_IFB_IDE_FUNCTION);
+    PCIDevice *usb =
+        intel_82468gx_ifb_function(s->ifb, HP_I2000_IFB_USB_FUNCTION);
     static const uint32_t ihpc_bar[] = {
         HP_I2000_IHPC0_MMIO_BAR,
         HP_I2000_IHPC1_MMIO_BAR,
     };
     unsigned int i;
 
-    intel_82468gx_ifb_configure_acpi(
-        s->ifb, IA64_I2000_PROFILE_ACPI_PM_IO_BASE);
+    intel_82468gx_ifb_configure_acpi(s->ifb,
+                                     IA64_I2000_PROFILE_ACPI_PM_IO_BASE);
     if (ide) {
         pci_default_write_config(
             ide, PCI_BASE_ADDRESS_4,
-            IA64_I2000_PROFILE_IDE_BMDMA_PORT |
-            PCI_BASE_ADDRESS_SPACE_IO, 4);
-        pci_default_write_config(
-            ide, PCI_COMMAND, PCI_COMMAND_IO | PCI_COMMAND_MASTER, 2);
+            IA64_I2000_PROFILE_IDE_BMDMA_PORT | PCI_BASE_ADDRESS_SPACE_IO, 4);
+        pci_default_write_config(ide, PCI_COMMAND,
+                                 PCI_COMMAND_IO | PCI_COMMAND_MASTER, 2);
         pci_default_write_config(ide, INTEL_82468GX_IFB_IDETIM_PRIMARY,
                                  INTEL_82468GX_IFB_IDETIM_DECODE, 2);
     }
@@ -1148,19 +1108,18 @@ static void hp_i2000_configure_pci(HPI2000MachineState *s)
         pci_default_write_config(
             usb, PCI_BASE_ADDRESS_4,
             HP_I2000_IFB_USB_IO_BAR | PCI_BASE_ADDRESS_SPACE_IO, 4);
-        pci_default_write_config(
-            usb, PCI_COMMAND, PCI_COMMAND_IO | PCI_COMMAND_MASTER, 2);
-        pci_default_write_config(
-            usb, PCI_INTERRUPT_LINE, HP_I2000_IFB_USB_GSI, 1);
+        pci_default_write_config(usb, PCI_COMMAND,
+                                 PCI_COMMAND_IO | PCI_COMMAND_MASTER, 2);
+        pci_default_write_config(usb, PCI_INTERRUPT_LINE, HP_I2000_IFB_USB_GSI,
+                                 1);
     }
     if (s->audio) {
         pci_default_write_config(s->audio, PCI_BASE_ADDRESS_0,
                                  HP_I2000_CS4281_BA0, 4);
         pci_default_write_config(s->audio, PCI_BASE_ADDRESS_1,
                                  HP_I2000_CS4281_BA1, 4);
-        pci_default_write_config(
-            s->audio, PCI_COMMAND,
-            PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER, 2);
+        pci_default_write_config(s->audio, PCI_COMMAND,
+                                 PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER, 2);
         pci_default_write_config(s->audio, PCI_INTERRUPT_LINE,
                                  HP_I2000_CS4281_GSI, 1);
     }
@@ -1168,10 +1127,10 @@ static void hp_i2000_configure_pci(HPI2000MachineState *s)
         if (!s->ihpc[i]) {
             continue;
         }
-        pci_default_write_config(s->ihpc[i], PCI_BASE_ADDRESS_0,
-                                 ihpc_bar[i], 4);
-        pci_default_write_config(s->ihpc[i], PCI_COMMAND,
-                                 PCI_COMMAND_MEMORY, 2);
+        pci_default_write_config(s->ihpc[i], PCI_BASE_ADDRESS_0, ihpc_bar[i],
+                                 4);
+        pci_default_write_config(s->ihpc[i], PCI_COMMAND, PCI_COMMAND_MEMORY,
+                                 2);
         pci_default_write_config(s->ihpc[i], PCI_INTERRUPT_LINE,
                                  hp_i2000_roots[i + 1].intx_base, 1);
     }
@@ -1199,8 +1158,8 @@ static void hp_i2000_configure_pci(HPI2000MachineState *s)
         pci_default_write_config(
             s->vga, PCI_COMMAND,
             PCI_COMMAND_IO | PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER, 2);
-        pci_default_write_config(s->vga, PCI_INTERRUPT_LINE,
-                                 HP_I2000_VGA_GSI, 1);
+        pci_default_write_config(s->vga, PCI_INTERRUPT_LINE, HP_I2000_VGA_GSI,
+                                 1);
     } else if (s->vga) {
         pci_default_write_config(s->vga, PCI_BASE_ADDRESS_0,
                                  HP_I2000_QUADRO2_MMIO_BAR, 4);
@@ -1209,15 +1168,15 @@ static void hp_i2000_configure_pci(HPI2000MachineState *s)
         pci_default_write_config(
             s->vga, PCI_COMMAND,
             PCI_COMMAND_IO | PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER, 2);
-        pci_default_write_config(s->vga, PCI_INTERRUPT_LINE,
-                                 HP_I2000_VGA_GSI, 1);
+        pci_default_write_config(s->vga, PCI_INTERRUPT_LINE, HP_I2000_VGA_GSI,
+                                 1);
     }
     if (!s->isp12160) {
         return;
     }
-    pci_default_write_config(s->isp12160, PCI_BASE_ADDRESS_0,
-                             HP_I2000_ISP12160_IO_BAR |
-                             PCI_BASE_ADDRESS_SPACE_IO, 4);
+    pci_default_write_config(
+        s->isp12160, PCI_BASE_ADDRESS_0,
+        HP_I2000_ISP12160_IO_BAR | PCI_BASE_ADDRESS_SPACE_IO, 4);
     pci_default_write_config(s->isp12160, PCI_BASE_ADDRESS_1,
                              ISP12160_QEMU_I2000_BAR_ADDRESS, 4);
     pci_default_write_config(s->isp12160, PCI_COMMAND, 0, 2);
@@ -1240,8 +1199,8 @@ static bool hp_i2000_init_int10(HPI2000MachineState *s, Error **errp)
         .vga = s->vga,
         .service_io = intel_460gx_root_host_io(s->roots[0]),
         .vga_io = &s->root_io[3],
-        .framebuffer_base = is_quadro2 ? HP_I2000_QUADRO2_FB_BAR :
-                                        HP_I2000_RAGE128_FB_BAR,
+        .framebuffer_base =
+            is_quadro2 ? HP_I2000_QUADRO2_FB_BAR : HP_I2000_RAGE128_FB_BAR,
         .framebuffer_bar = is_quadro2 ? 1 : 0,
         .mmio_bar = is_quadro2 ? 0 : 2,
         .region_name = "hp-i2000.int10-pci-io",
@@ -1251,8 +1210,8 @@ static bool hp_i2000_init_int10(HPI2000MachineState *s, Error **errp)
 
 static uint64_t hp_i2000_sparse_io_address(uint16_t port)
 {
-    return HP_I2000_LEGACY_IO_BASE +
-        ((uint64_t)(port >> 2) << 12) + (port & 0xfffU);
+    return HP_I2000_LEGACY_IO_BASE + ((uint64_t)(port >> 2) << 12) +
+           (port & 0xfffU);
 }
 
 static void hp_i2000_map_ram(HPI2000MachineState *s)
@@ -1265,17 +1224,17 @@ static void hp_i2000_map_ram(HPI2000MachineState *s)
                              machine->ram, 0, low_size);
     memory_region_add_subregion(get_system_memory(), 0, &s->low_ram);
     if (high_size) {
-        memory_region_init_alias(&s->high_ram, OBJECT(s),
-                                 "hp-i2000.high-ram", machine->ram,
-                                 low_size, high_size);
-        memory_region_add_subregion(get_system_memory(),
-                                    HP_I2000_HIGH_RAM_BASE, &s->high_ram);
+        memory_region_init_alias(&s->high_ram, OBJECT(s), "hp-i2000.high-ram",
+                                 machine->ram, low_size, high_size);
+        memory_region_add_subregion(get_system_memory(), HP_I2000_HIGH_RAM_BASE,
+                                    &s->high_ram);
     }
 }
 
-static void hp_i2000_add_onboard_device(
-    IA64PlatformDescriptor *descriptor, PCIDevice *device, uint8_t type,
-    unsigned int root, uint8_t bar, uint64_t bar_size)
+static void hp_i2000_add_onboard_device(IA64PlatformDescriptor *descriptor,
+                                        PCIDevice *device, uint8_t type,
+                                        unsigned int root, uint8_t bar,
+                                        uint64_t bar_size)
 {
     IA64PlatformOnboardDevice *entry;
     uint32_t count;
@@ -1292,16 +1251,15 @@ static void hp_i2000_add_onboard_device(
     entry->Function = PCI_FUNC(device->devfn);
     entry->Type = type;
     entry->Bar = bar;
-    entry->VendorDeviceId = cpu_to_le32(
-        pci_get_long(device->config + PCI_VENDOR_ID));
-    entry->ClassCode = cpu_to_le32(
-        pci_get_long(device->config + PCI_CLASS_REVISION) >> 8);
+    entry->VendorDeviceId =
+        cpu_to_le32(pci_get_long(device->config + PCI_VENDOR_ID));
+    entry->ClassCode =
+        cpu_to_le32(pci_get_long(device->config + PCI_CLASS_REVISION) >> 8);
     entry->BarSize = cpu_to_le64(bar_size);
     descriptor->OnboardDeviceCount = cpu_to_le32(count + 1U);
 }
 
-static bool hp_i2000_install_descriptor(HPI2000MachineState *s,
-                                         Error **errp)
+static bool hp_i2000_install_descriptor(HPI2000MachineState *s, Error **errp)
 {
     MachineState *machine = MACHINE(s);
     HPIA64MachineState *hp = HP_IA64_MACHINE(s);
@@ -1321,21 +1279,19 @@ static bool hp_i2000_install_descriptor(HPI2000MachineState *s,
         .SocketCount = cpu_to_le32(machine->smp.sockets),
         .CoresPerSocket = cpu_to_le32(machine->smp.cores),
         .ThreadsPerCore = cpu_to_le32(machine->smp.threads),
-        .PhysicalAddressBits = cpu_to_le32(
-            IA64_PLATFORM_I2000_PHYS_ADDR_BITS),
+        .PhysicalAddressBits = cpu_to_le32(IA64_PLATFORM_I2000_PHYS_ADDR_BITS),
         .MaxSockets = cpu_to_le32(2),
         .MaxCoresPerSocket = cpu_to_le32(1),
         .MaxThreadsPerCore = cpu_to_le32(1),
         .MaxPciRoots = cpu_to_le32(HP_I2000_PCI_ROOT_COUNT),
-        .PciRootIdentity = cpu_to_le32(
-            IA64_PLATFORM_PCI_ROOT_IDENTITY_GENERIC),
+        .PciRootIdentity = cpu_to_le32(IA64_PLATFORM_PCI_ROOT_IDENTITY_GENERIC),
         .NumaNodeCount = cpu_to_le32(1),
         .LegacyIoBase = cpu_to_le64(HP_I2000_LEGACY_IO_BASE),
         .LegacyIoSize = cpu_to_le64(HP_I2000_LEGACY_IO_SIZE),
         .LocalSapicBase = cpu_to_le64(HP_I2000_PIB_BASE),
         .LocalSapicSize = cpu_to_le64(HP_I2000_PIB_SIZE),
-        .ConsoleBase = cpu_to_le64(
-            hp_i2000_sparse_io_address(HP_I2000_UART_PORT)),
+        .ConsoleBase =
+            cpu_to_le64(hp_i2000_sparse_io_address(HP_I2000_UART_PORT)),
         .ConsoleRegisterStride = cpu_to_le32(1),
         .ConsoleClockHz = cpu_to_le32(HP_I2000_UART_CLOCK_HZ),
         .NvramBase = cpu_to_le64(IA64_I2000_PROFILE_NVRAM_BASE),
@@ -1347,7 +1303,8 @@ static bool hp_i2000_install_descriptor(HPI2000MachineState *s,
         {
             .Base = cpu_to_le64(0),
             .Size = cpu_to_le64(low_size),
-        }, {
+        },
+        {
             .Base = cpu_to_le64(HP_I2000_HIGH_RAM_BASE),
             .Size = cpu_to_le64(high_size),
         },
@@ -1374,19 +1331,22 @@ static bool hp_i2000_install_descriptor(HPI2000MachineState *s,
             .Device = HP_I2000_I82559_SLOT,
             .Pin = 0,
             .Gsi = cpu_to_le32(HP_I2000_I82559_GSI),
-        }, {
+        },
+        {
             .Segment = cpu_to_le16(0),
             .Bus = hp_i2000_roots[0].first_bus,
             .Device = HP_I2000_CS4281_SLOT,
             .Pin = 0,
             .Gsi = cpu_to_le32(HP_I2000_CS4281_GSI),
-        }, {
+        },
+        {
             .Segment = cpu_to_le16(0),
             .Bus = hp_i2000_roots[0].first_bus,
             .Device = HP_I2000_IFB_SLOT,
             .Pin = HP_I2000_IFB_USB_PIN,
             .Gsi = cpu_to_le32(HP_I2000_IFB_USB_GSI),
-        }, {
+        },
+        {
             .Segment = cpu_to_le16(ISP12160_QEMU_I2000_SEGMENT),
             .Bus = ISP12160_QEMU_I2000_BUS,
             .Device = ISP12160_QEMU_I2000_DEVICE,
@@ -1409,39 +1369,33 @@ static bool hp_i2000_install_descriptor(HPI2000MachineState *s,
     };
     unsigned root;
 
-    header.ConsoleFlags = cpu_to_le32(
-        s->vga ? IA64_PLATFORM_CONSOLE_FLAG_VGA_PRIMARY : 0);
+    header.ConsoleFlags =
+        cpu_to_le32(s->vga ? IA64_PLATFORM_CONSOLE_FLAG_VGA_PRIMARY : 0);
     header.NumaNode[0].ProcessorCount = cpu_to_le32(machine->smp.cpus);
     header.NumaNode[0].RamRangeMask = cpu_to_le32(high_size ? 3U : 1U);
     header.NumaNode[0].Distance[0] = 10;
-    if (s->vga && object_dynamic_cast(OBJECT(s->vga),
-                                      TYPE_NVIDIA_QUADRO2)) {
-        hp_i2000_add_onboard_device(
-            &header, s->vga, IA64_PLATFORM_ONBOARD_GRAPHICS, 3, 1,
-            NVIDIA_QUADRO2_FB_APERTURE_SIZE);
+    if (s->vga && object_dynamic_cast(OBJECT(s->vga), TYPE_NVIDIA_QUADRO2)) {
+        hp_i2000_add_onboard_device(&header, s->vga,
+                                    IA64_PLATFORM_ONBOARD_GRAPHICS, 3, 1,
+                                    NVIDIA_QUADRO2_FB_APERTURE_SIZE);
     } else {
         hp_i2000_add_onboard_device(
-            &header, s->vga, IA64_PLATFORM_ONBOARD_GRAPHICS, 3, 0,
-            64 * MiB);
+            &header, s->vga, IA64_PLATFORM_ONBOARD_GRAPHICS, 3, 0, 64 * MiB);
     }
     hp_i2000_add_onboard_device(
-        &header, intel_82468gx_ifb_function(
-            s->ifb, HP_I2000_IFB_USB_FUNCTION),
+        &header, intel_82468gx_ifb_function(s->ifb, HP_I2000_IFB_USB_FUNCTION),
         IA64_PLATFORM_ONBOARD_UHCI, 0, 4, 0x20);
     hp_i2000_add_onboard_device(
-        &header, intel_82468gx_ifb_function(
-            s->ifb, HP_I2000_IFB_IDE_FUNCTION),
+        &header, intel_82468gx_ifb_function(s->ifb, HP_I2000_IFB_IDE_FUNCTION),
         IA64_PLATFORM_ONBOARD_IDE, 0, 4, 0x10);
-    hp_i2000_add_onboard_device(
-        &header, s->isp12160, IA64_PLATFORM_ONBOARD_SCSI, 1,
-        UINT8_MAX, 0);
-    hp_i2000_add_onboard_device(
-        &header, s->i82559, IA64_PLATFORM_ONBOARD_NETWORK, 0,
-        UINT8_MAX, 0);
+    hp_i2000_add_onboard_device(&header, s->isp12160,
+                                IA64_PLATFORM_ONBOARD_SCSI, 1, UINT8_MAX, 0);
+    hp_i2000_add_onboard_device(&header, s->i82559,
+                                IA64_PLATFORM_ONBOARD_NETWORK, 0, UINT8_MAX, 0);
 
     if (hp_i2000_nvram_persistent(s->nvram)) {
         header.Flags = cpu_to_le32(le32_to_cpu(header.Flags) |
-            IA64_PLATFORM_FLAG_NVRAM_PERSISTENT);
+                                   IA64_PLATFORM_FLAG_NVRAM_PERSISTENT);
     }
 
     for (root = 0; root < HP_I2000_PCI_ROOT_COUNT; root++) {
@@ -1452,8 +1406,7 @@ static bool hp_i2000_install_descriptor(HPI2000MachineState *s,
         roots[root].ConfigType = IA64_PLATFORM_PCI_CONFIG_CF8_CFC;
         roots[root].Flags = cpu_to_le32(
             IA64_PLATFORM_PCI_ROOT_FLAG_IDENTITY_DMA |
-            (root == 3 ?
-             IA64_PLATFORM_PCI_ROOT_FLAG_VGA_LEGACY : 0));
+            (root == 3 ? IA64_PLATFORM_PCI_ROOT_FLAG_VGA_LEGACY : 0));
         roots[root].IoBase = cpu_to_le64(layout->io_base);
         roots[root].IoSize = cpu_to_le64(layout->io_size);
         roots[root].Mmio32Base = cpu_to_le64(layout->mmio_base);
@@ -1464,13 +1417,12 @@ static bool hp_i2000_install_descriptor(HPI2000MachineState *s,
     }
 
     ia64_platform_i2000_profile_init(&profile);
-    if (!hp_ia64_machine_install_platform_descriptor(
-            hp, &header, &arrays, errp)) {
+    if (!hp_ia64_machine_install_platform_descriptor(hp, &header, &arrays,
+                                                     errp)) {
         return false;
     }
     if (hp->firmware_args.descriptor_size !=
-        HP_I2000_LOW_RAM_DESCRIPTOR_SIZE +
-        (high_size ? sizeof(ram[1]) : 0)) {
+        HP_I2000_LOW_RAM_DESCRIPTOR_SIZE + (high_size ? sizeof(ram[1]) : 0)) {
         error_setg(errp, "HP i2000 platform descriptor has size %" PRIu64,
                    hp->firmware_args.descriptor_size);
         return false;
@@ -1479,8 +1431,7 @@ static bool hp_i2000_install_descriptor(HPI2000MachineState *s,
 }
 
 static IA64BootInfo hp_i2000_boot_info(unsigned cpu_index, uint64_t entry,
-                                        uint64_t global_pointer,
-                                        void *opaque)
+                                       uint64_t global_pointer, void *opaque)
 {
     HPI2000MachineState *s = HP_I2000_MACHINE(opaque);
     HPIA64MachineState *hp = HP_IA64_MACHINE(s);
@@ -1493,10 +1444,11 @@ static IA64BootInfo hp_i2000_boot_info(unsigned cpu_index, uint64_t entry,
         .global_pointer = global_pointer,
         .iva = HP_I2000_IVT_BASE,
         .bsp = assist_base + IA64_FW_EARLY_RSE_OFFSET +
-            cpu_index * IA64_FW_EARLY_RSE_SIZE,
-        .stack_pointer = cpu_index == 0 ? low_ram_end - 16 :
-            assist_base + IA64_FW_BOOTSTRAP_STACK_TOP_OFFSET - 16 -
-            cpu_index * IA64_FW_CPU_STACK_SIZE,
+               cpu_index * IA64_FW_EARLY_RSE_SIZE,
+        .stack_pointer =
+            cpu_index == 0 ? low_ram_end - 16
+                           : assist_base + IA64_FW_BOOTSTRAP_STACK_TOP_OFFSET -
+                                 16 - cpu_index * IA64_FW_CPU_STACK_SIZE,
         .rsc = IA64_RSC_MODE,
         .low_ram_size = low_ram_end,
         .io_port_base = HP_I2000_LEGACY_IO_BASE,
@@ -1510,16 +1462,16 @@ static IA64BootInfo hp_i2000_boot_info(unsigned cpu_index, uint64_t entry,
     return info;
 }
 
-static IA64BootInfo hp_i2000_initial_boot_info(unsigned cpu_index,
-                                                void *opaque)
+static IA64BootInfo hp_i2000_initial_boot_info(unsigned cpu_index, void *opaque)
 {
     return hp_i2000_boot_info(cpu_index, HP_I2000_FIRMWARE_BASE,
                               HP_I2000_FIRMWARE_BASE, opaque);
 }
 
-static IA64BootInfo hp_i2000_firmware_boot_info(
-    unsigned cpu_index, uint64_t entry, uint64_t global_pointer,
-    void *opaque)
+static IA64BootInfo hp_i2000_firmware_boot_info(unsigned cpu_index,
+                                                uint64_t entry,
+                                                uint64_t global_pointer,
+                                                void *opaque)
 {
     return hp_i2000_boot_info(cpu_index, entry, global_pointer, opaque);
 }
@@ -1550,24 +1502,21 @@ static bool hp_i2000_build(MachineState *machine, Error **errp)
                    TYPE_HP_I2000_MACHINE);
         return false;
     }
-    if (!machine->ram || memory_region_size(machine->ram) !=
-        machine->ram_size) {
-        error_setg(errp, "%s requires machine RAM",
-                   TYPE_HP_I2000_MACHINE);
+    if (!machine->ram ||
+        memory_region_size(machine->ram) != machine->ram_size) {
+        error_setg(errp, "%s requires machine RAM", TYPE_HP_I2000_MACHINE);
         return false;
     }
 
     hp_i2000_map_ram(s);
-    if (!hp_ia64_machine_create_ras(
-            hp, IA64_RAS_HUB_DEFAULT_BASE, errp)) {
+    if (!hp_ia64_machine_create_ras(hp, IA64_RAS_HUB_DEFAULT_BASE, errp)) {
         return false;
     }
-    ia64_machine_map_pib_with_inta(
-        OBJECT(s), &hp->pib, "hp-i2000.pib",
-        HP_I2000_PIB_BASE, HP_I2000_PIB_SIZE, hp_i2000_pib_inta, s);
+    ia64_machine_map_pib_with_inta(OBJECT(s), &hp->pib, "hp-i2000.pib",
+                                   HP_I2000_PIB_BASE, HP_I2000_PIB_SIZE,
+                                   hp_i2000_pib_inta, s);
 
-    if (!hp_i2000_create_nvram(s, errp) ||
-        !hp_i2000_create_chipset(s, errp)) {
+    if (!hp_i2000_create_nvram(s, errp) || !hp_i2000_create_chipset(s, errp)) {
         return false;
     }
     for (root = 0; root < HP_I2000_PCI_ROOT_COUNT; root++) {
@@ -1584,23 +1533,22 @@ static bool hp_i2000_build(MachineState *machine, Error **errp)
         return false;
     }
 
-    if (!ia64_machine_load_firmware(machine, &hp->firmware,
-                                      MIN(machine->ram_size,
-                                          HP_I2000_LOW_RAM_LIMIT), errp)) {
+    if (!ia64_machine_load_firmware(
+            machine, &hp->firmware,
+            MIN(machine->ram_size, HP_I2000_LOW_RAM_LIMIT), errp)) {
         return false;
     }
     if (!hp_i2000_install_descriptor(s, errp)) {
         return false;
     }
-    cpu_config.firmware_compat_flags =
-        hp->firmware_args.firmware_compat_flags;
+    cpu_config.firmware_compat_flags = hp->firmware_args.firmware_compat_flags;
     if (!ia64_machine_create_cpus(machine, &cpu_config, errp)) {
         return false;
     }
     ia64_machine_init_firmware_notifier(
         &hp->firmware_notifier, machine, hp->firmware.base,
-        hp->firmware.elf ? 0 : hp->firmware.size,
-        hp_i2000_firmware_boot_info, NULL, s);
+        hp->firmware.elf ? 0 : hp->firmware.size, hp_i2000_firmware_boot_info,
+        NULL, s);
     return true;
 }
 
@@ -1639,8 +1587,7 @@ static void hp_i2000_set_nvram(Object *obj, const char *value, Error **errp)
 
     (void)errp;
     g_free(s->nvram_path);
-    s->nvram_path = g_strcmp0(value, "auto") == 0 ?
-                    NULL : g_strdup(value);
+    s->nvram_path = g_strcmp0(value, "auto") == 0 ? NULL : g_strdup(value);
 }
 
 static void hp_i2000_instance_init(Object *obj)

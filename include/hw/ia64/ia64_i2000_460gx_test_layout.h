@@ -93,8 +93,7 @@ typedef struct IA64I2000460GXTestLayout {
 } IA64I2000460GXTestLayout;
 
 /* Populate the fixed 460GX test layout. */
-void ia64_i2000_460gx_test_layout_init(
-    IA64I2000460GXTestLayout *layout);
+void ia64_i2000_460gx_test_layout_init(IA64I2000460GXTestLayout *layout);
 
 /*
  * Validate the fixed addresses and their structural invariants without

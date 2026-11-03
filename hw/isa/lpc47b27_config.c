@@ -16,8 +16,8 @@
 #define LPC47B27_KEYBOARD_MODE_MASK             0xfcU
 
 static LPC47B27ConfigChange lpc47b27_update(uint8_t *reg, uint8_t value,
-                                             uint8_t mask,
-                                             LPC47B27ConfigChange change)
+                                            uint8_t mask,
+                                            LPC47B27ConfigChange change)
 {
     value &= mask;
     if (*reg == value) {
@@ -37,8 +37,7 @@ void lpc47b27_config_reset(LPC47B27ConfigState *state)
     state->parallel_mode = 0x3c;
 }
 
-static uint8_t lpc47b27_config_data_read(
-    const LPC47B27ConfigState *state)
+static uint8_t lpc47b27_config_data_read(const LPC47B27ConfigState *state)
 {
     if (state->index == LPC47B27_CONFIG_CR_LDN) {
         return state->ldn;
@@ -119,8 +118,8 @@ uint8_t lpc47b27_config_read(const LPC47B27ConfigState *state, uint16_t port)
     return 0xff;
 }
 
-static LPC47B27ConfigChange lpc47b27_config_data_write(
-    LPC47B27ConfigState *state, uint8_t value)
+static LPC47B27ConfigChange
+lpc47b27_config_data_write(LPC47B27ConfigState *state, uint8_t value)
 {
     if (state->index == LPC47B27_CONFIG_CR_LDN) {
         return lpc47b27_update(&state->ldn, value, 0xff,
@@ -136,71 +135,70 @@ static LPC47B27ConfigChange lpc47b27_config_data_write(
         switch (state->index) {
         case LPC47B27_CONFIG_CR_ACTIVATE:
             return lpc47b27_update(&state->parallel_activate, value, 1,
-                                  LPC47B27_CONFIG_CHANGE_PARALLEL);
+                                   LPC47B27_CONFIG_CHANGE_PARALLEL);
         case LPC47B27_CONFIG_CR_BASE_MSB:
             return lpc47b27_update(&state->parallel_base_msb, value, 0x0f,
-                                  LPC47B27_CONFIG_CHANGE_PARALLEL);
+                                   LPC47B27_CONFIG_CHANGE_PARALLEL);
         case LPC47B27_CONFIG_CR_BASE_LSB:
             return lpc47b27_update(&state->parallel_base_lsb, value, 0xfc,
-                                  LPC47B27_CONFIG_CHANGE_PARALLEL);
+                                   LPC47B27_CONFIG_CHANGE_PARALLEL);
         case LPC47B27_CONFIG_CR_PRIMARY_IRQ:
             return lpc47b27_update(&state->parallel_irq, value, 0x0f,
-                                  LPC47B27_CONFIG_CHANGE_PARALLEL);
+                                   LPC47B27_CONFIG_CHANGE_PARALLEL);
         case LPC47B27_CONFIG_CR_DMA:
             return lpc47b27_update(&state->parallel_dma, value, 7,
-                                  LPC47B27_CONFIG_CHANGE_PARALLEL);
+                                   LPC47B27_CONFIG_CHANGE_PARALLEL);
         case LPC47B27_CONFIG_CR_MODE:
             return lpc47b27_update(&state->parallel_mode, value, 0xff,
-                                  LPC47B27_CONFIG_CHANGE_PARALLEL);
+                                   LPC47B27_CONFIG_CHANGE_PARALLEL);
         case LPC47B27_CONFIG_CR_MODE2:
             return lpc47b27_update(&state->parallel_mode2, value, 3,
-                                  LPC47B27_CONFIG_CHANGE_PARALLEL);
+                                   LPC47B27_CONFIG_CHANGE_PARALLEL);
         default:
             return LPC47B27_CONFIG_CHANGE_NONE;
         }
     case LPC47B27_CONFIG_LDN_SERIAL1:
         switch (state->index) {
         case LPC47B27_CONFIG_CR_ACTIVATE:
-            return lpc47b27_update(
-                &state->serial1_activate, value, LPC47B27_ACTIVATE_MASK,
-                LPC47B27_CONFIG_CHANGE_UART_ACTIVATE);
+            return lpc47b27_update(&state->serial1_activate, value,
+                                   LPC47B27_ACTIVATE_MASK,
+                                   LPC47B27_CONFIG_CHANGE_UART_ACTIVATE);
         case LPC47B27_CONFIG_CR_BASE_MSB:
-            return lpc47b27_update(
-                &state->serial1_base_msb, value, LPC47B27_BASE_MSB_MASK,
-                LPC47B27_CONFIG_CHANGE_UART_BASE);
+            return lpc47b27_update(&state->serial1_base_msb, value,
+                                   LPC47B27_BASE_MSB_MASK,
+                                   LPC47B27_CONFIG_CHANGE_UART_BASE);
         case LPC47B27_CONFIG_CR_BASE_LSB:
-            return lpc47b27_update(
-                &state->serial1_base_lsb, value, LPC47B27_BASE_LSB_MASK,
-                LPC47B27_CONFIG_CHANGE_UART_BASE);
+            return lpc47b27_update(&state->serial1_base_lsb, value,
+                                   LPC47B27_BASE_LSB_MASK,
+                                   LPC47B27_CONFIG_CHANGE_UART_BASE);
         case LPC47B27_CONFIG_CR_PRIMARY_IRQ:
-            return lpc47b27_update(
-                &state->serial1_irq, value, LPC47B27_IRQ_MASK,
-                LPC47B27_CONFIG_CHANGE_UART_IRQ);
+            return lpc47b27_update(&state->serial1_irq, value,
+                                   LPC47B27_IRQ_MASK,
+                                   LPC47B27_CONFIG_CHANGE_UART_IRQ);
         case LPC47B27_CONFIG_CR_MODE:
-            return lpc47b27_update(
-                &state->serial1_mode, value, LPC47B27_SERIAL1_MODE_MASK,
-                LPC47B27_CONFIG_CHANGE_UART_MODE);
+            return lpc47b27_update(&state->serial1_mode, value,
+                                   LPC47B27_SERIAL1_MODE_MASK,
+                                   LPC47B27_CONFIG_CHANGE_UART_MODE);
         default:
             return LPC47B27_CONFIG_CHANGE_NONE;
         }
     case LPC47B27_CONFIG_LDN_KEYBOARD:
         switch (state->index) {
         case LPC47B27_CONFIG_CR_ACTIVATE:
-            return lpc47b27_update(
-                &state->keyboard_activate, value, LPC47B27_ACTIVATE_MASK,
-                LPC47B27_CONFIG_CHANGE_I8042_ACTIVATE);
+            return lpc47b27_update(&state->keyboard_activate, value,
+                                   LPC47B27_ACTIVATE_MASK,
+                                   LPC47B27_CONFIG_CHANGE_I8042_ACTIVATE);
         case LPC47B27_CONFIG_CR_PRIMARY_IRQ:
-            return lpc47b27_update(
-                &state->keyboard_irq, value, LPC47B27_IRQ_MASK,
-                LPC47B27_CONFIG_CHANGE_I8042_KBD_IRQ);
+            return lpc47b27_update(&state->keyboard_irq, value,
+                                   LPC47B27_IRQ_MASK,
+                                   LPC47B27_CONFIG_CHANGE_I8042_KBD_IRQ);
         case LPC47B27_CONFIG_CR_SECONDARY_IRQ:
-            return lpc47b27_update(
-                &state->mouse_irq, value, LPC47B27_IRQ_MASK,
-                LPC47B27_CONFIG_CHANGE_I8042_MOUSE_IRQ);
+            return lpc47b27_update(&state->mouse_irq, value, LPC47B27_IRQ_MASK,
+                                   LPC47B27_CONFIG_CHANGE_I8042_MOUSE_IRQ);
         case LPC47B27_CONFIG_CR_MODE:
-            return lpc47b27_update(
-                &state->keyboard_mode, value, LPC47B27_KEYBOARD_MODE_MASK,
-                LPC47B27_CONFIG_CHANGE_I8042_MODE);
+            return lpc47b27_update(&state->keyboard_mode, value,
+                                   LPC47B27_KEYBOARD_MODE_MASK,
+                                   LPC47B27_CONFIG_CHANGE_I8042_MODE);
         default:
             return LPC47B27_CONFIG_CHANGE_NONE;
         }
@@ -240,8 +238,7 @@ uint16_t lpc47b27_config_uart_base(const LPC47B27ConfigState *state)
 {
     assert(state);
 
-    return ((uint16_t)state->serial1_base_msb << 8) |
-           state->serial1_base_lsb;
+    return ((uint16_t)state->serial1_base_msb << 8) | state->serial1_base_lsb;
 }
 
 bool lpc47b27_config_uart_base_valid(const LPC47B27ConfigState *state)

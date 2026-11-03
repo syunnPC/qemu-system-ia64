@@ -18,15 +18,22 @@ DEPFILE := ia64-firmware.d
 
 all: $(OUTPUTS)
 
-$(OUTPUTS) &: $(BUILD_SCRIPT) $(MANIFEST) $(SOURCES) firmware_layout.py
+$(OUTPUTS) &: ia64-firmware.commit $(BUILD_SCRIPT) $(MANIFEST) $(SOURCES) \
+	firmware_layout.py
 	AS="$(AS)" CC="$(CC)" LD="$(LD)" OBJCOPY="$(OBJCOPY)" SIZE="$(SIZE)" \
 		PYTHON="$(PYTHON)" \
 		./$(BUILD_SCRIPT) ia64-firmware.bin ia64-firmware.elf \
 		ia64-firmware.map ia64-firmware.sections . $(DEPFILE)
 
+ia64-firmware.commit: FORCE
+	@printf '%s' "$$(sh ../../scripts/git-source-commit.sh ../..)" > $@.tmp
+	@cmp -s $@.tmp $@ && rm -f $@.tmp || mv -f $@.tmp $@
+
+FORCE:
+
 -include $(DEPFILE)
 
 clean:
-	rm -f ia64-fw-*.o ia64-fw-*.o.d $(OUTPUTS) $(DEPFILE)
+	rm -f ia64-fw-*.o ia64-fw-*.o.d $(OUTPUTS) $(DEPFILE) ia64-firmware.commit
 
-.PHONY: all clean
+.PHONY: all clean FORCE

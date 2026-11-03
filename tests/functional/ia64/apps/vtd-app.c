@@ -20,8 +20,8 @@ static UINT32 get_u32(const VOID *Address)
 {
     const UINT8 *p = (const UINT8 *)Address;
 
-    return (UINT32)p[0] | ((UINT32)p[1] << 8) |
-           ((UINT32)p[2] << 16) | ((UINT32)p[3] << 24);
+    return (UINT32)p[0] | ((UINT32)p[1] << 8) | ((UINT32)p[2] << 16) |
+           ((UINT32)p[3] << 24);
 }
 
 static UINT64 get_u64(const VOID *Address)
@@ -41,8 +41,8 @@ static const UINT8 *find_dmar(EFI_SYSTEM_TABLE *SystemTable)
     for (i = 0; i < SystemTable->NumberOfTableEntries; i++) {
         if (ia64_bytes_equal(SystemTable->ConfigurationTable[i].VendorGuid,
                              acpi20_guid, 16)) {
-            rsdp = (const UINT8 *)
-                SystemTable->ConfigurationTable[i].VendorTable;
+            rsdp =
+                (const UINT8 *)SystemTable->ConfigurationTable[i].VendorTable;
         }
     }
     if (rsdp == NULL || !ia64_bytes_equal(rsdp, "RSD PTR ", 8)) {
@@ -91,8 +91,8 @@ static BOOLEAN get_memory_map(EFI_BOOT_SERVICES *Bs, TEST_MEMORY_MAP *Map)
         return 0;
     }
     Map->MapSize += 8U * Map->DescriptorSize;
-    if (Bs->AllocatePool(EfiLoaderData, Map->MapSize,
-                         (VOID **)&Map->Buffer) != EFI_SUCCESS) {
+    if (Bs->AllocatePool(EfiLoaderData, Map->MapSize, (VOID **)&Map->Buffer) !=
+        EFI_SUCCESS) {
         Map->Buffer = NULL;
         return 0;
     }
@@ -103,8 +103,8 @@ static BOOLEAN get_memory_map(EFI_BOOT_SERVICES *Bs, TEST_MEMORY_MAP *Map)
 static const EFI_MEMORY_DESCRIPTOR *descriptor(const TEST_MEMORY_MAP *Map,
                                                UINTN Index)
 {
-    return (const EFI_MEMORY_DESCRIPTOR *)
-        ((const UINT8 *)Map->Buffer + Index * Map->DescriptorSize);
+    return (const EFI_MEMORY_DESCRIPTOR *)((const UINT8 *)Map->Buffer +
+                                           Index * Map->DescriptorSize);
 }
 
 static UINTN descriptor_count(const TEST_MEMORY_MAP *Map)
@@ -137,8 +137,7 @@ static BOOLEAN aperture_described(const TEST_MEMORY_MAP *Map, UINT64 Vtbar)
             continue;
         }
         if (d->Type != EfiMemoryMappedIO ||
-            (d->Attribute & EFI_MEMORY_UC) == 0 ||
-            d->PhysicalStart > Vtbar ||
+            (d->Attribute & EFI_MEMORY_UC) == 0 || d->PhysicalStart > Vtbar ||
             end < Vtbar + TEST_APERTURE_SIZE) {
             return 0;
         }
@@ -167,9 +166,9 @@ static BOOLEAN secondary_bus_visible(EFI_SYSTEM_TABLE *SystemTable)
     UINT32 buses = 0;
     UINT32 id = 0;
 
-    if (SystemTable->BootServices->LocateProtocol(pci_root_guid, NULL,
-                                                  (VOID **)&root) !=
-            EFI_SUCCESS || root == NULL ||
+    if (SystemTable->BootServices->LocateProtocol(
+            pci_root_guid, NULL, (VOID **)&root) != EFI_SUCCESS ||
+        root == NULL ||
         root->Pci.Read(root, EfiPciWidthUint32, (7ULL << 16) | 0x18U, 1,
                        &buses) != EFI_SUCCESS ||
         root->Pci.Read(root, EfiPciWidthUint32, 1ULL << 24, 1, &id) !=

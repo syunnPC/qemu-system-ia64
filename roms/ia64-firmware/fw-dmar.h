@@ -6,7 +6,7 @@
 #define FW_DMAR_SIZE 88U
 
 static inline void fw_dmar_le(unsigned char *p, unsigned long long value,
-                               unsigned size)
+                              unsigned size)
 {
     unsigned i;
     for (i = 0; i < size; i++) {
@@ -15,7 +15,7 @@ static inline void fw_dmar_le(unsigned char *p, unsigned long long value,
 }
 
 static inline int fw_build_dmar(unsigned char *p, unsigned capacity,
-                                 unsigned long long base)
+                                unsigned long long base)
 {
     unsigned i;
     unsigned char sum = 0;
@@ -29,7 +29,10 @@ static inline int fw_build_dmar(unsigned char *p, unsigned capacity,
     for (i = 0; i < FW_DMAR_SIZE; i++) {
         p[i] = 0;
     }
-    p[0] = 'D'; p[1] = 'M'; p[2] = 'A'; p[3] = 'R';
+    p[0] = 'D';
+    p[1] = 'M';
+    p[2] = 'A';
+    p[3] = 'R';
     fw_dmar_le(p + 4, FW_DMAR_SIZE, 4);
     p[8] = 1;
     for (i = 0; i < 6; i++) {
@@ -39,7 +42,10 @@ static inline int fw_build_dmar(unsigned char *p, unsigned capacity,
         p[16 + i] = table[i];
     }
     fw_dmar_le(p + 24, 1, 4);
-    p[28] = 'Q'; p[29] = 'E'; p[30] = 'M'; p[31] = 'U';
+    p[28] = 'Q';
+    p[29] = 'E';
+    p[30] = 'M';
+    p[31] = 'U';
     fw_dmar_le(p + 32, 1, 4);
     p[36] = INTEL_7500_HAW - 1;
     /* IR support flag remains clear until Itanium interrupt remapping works. */

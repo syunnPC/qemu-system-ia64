@@ -76,7 +76,7 @@ static void test_register_types(void)
 
 type_init(test_register_types)
 
-static void test_map_reset(void)
+    static void test_map_reset(void)
 {
     g_assert_null(test_mapped_rom);
     g_assert_null(test_rom_ptr);
@@ -113,7 +113,7 @@ static void test_ram_init(MemoryRegion *mr, const char *name)
 }
 
 static MemoryRegionSection test_make_section(const TestMapSection *map,
-                                              hwaddr addr, uint64_t size)
+                                             hwaddr addr, uint64_t size)
 {
     MemoryRegionSection section = { 0 };
     hwaddr start = MAX(addr, map->base);
@@ -129,8 +129,8 @@ static MemoryRegionSection test_make_section(const TestMapSection *map,
     return section;
 }
 
-MemoryRegionSection memory_region_find(MemoryRegion *mr,
-                                       hwaddr addr, uint64_t size)
+MemoryRegionSection memory_region_find(MemoryRegion *mr, hwaddr addr,
+                                       uint64_t size)
 {
     uint64_t query_end = addr + size;
     size_t i;
@@ -145,10 +145,9 @@ MemoryRegionSection memory_region_find(MemoryRegion *mr,
             .readonly = true,
         };
 
-        if (test_post_add_obstacle &&
-            addr >= test_post_add_obstacle->base &&
-            addr < test_post_add_obstacle->base +
-                   test_post_add_obstacle->size) {
+        if (test_post_add_obstacle && addr >= test_post_add_obstacle->base &&
+            addr <
+                test_post_add_obstacle->base + test_post_add_obstacle->size) {
             return test_make_section(test_post_add_obstacle, addr, size);
         }
         if (test_post_add_obstacle && addr < test_post_add_obstacle->base &&
@@ -194,8 +193,8 @@ bool memory_region_is_protected(const MemoryRegion *mr)
     return false;
 }
 
-bool memory_region_init_rom(MemoryRegion *mr, Object *owner,
-                            const char *name, uint64_t size, Error **errp)
+bool memory_region_init_rom(MemoryRegion *mr, Object *owner, const char *name,
+                            uint64_t size, Error **errp)
 {
     (void)errp;
     g_assert_cmpuint(size, ==, IA64_PLATFORM_DESC_MAX_SIZE);
@@ -220,8 +219,7 @@ void *memory_region_get_ram_ptr(const MemoryRegion *mr)
 }
 
 void memory_region_add_subregion_overlap(MemoryRegion *mr, hwaddr offset,
-                                         MemoryRegion *subregion,
-                                         int priority)
+                                         MemoryRegion *subregion, int priority)
 {
     g_assert_true(mr == &test_sysmem);
     g_assert_null(test_mapped_rom);
@@ -291,10 +289,9 @@ static void test_fixture_init(TestDescriptorFixture *fixture)
     header->Magic = cpu_to_le64(IA64_PLATFORM_DESC_MAGIC);
     header->FormatRevision = cpu_to_le32(IA64_PLATFORM_DESC_REVISION);
     header->PlatformId = cpu_to_le32(IA64_PLATFORM_ID_HP_I2000);
-    header->Flags = cpu_to_le32(IA64_PLATFORM_FLAG_NO_MCFG |
-                                IA64_PLATFORM_FLAG_QEMU_EXTENSION |
-                                IA64_PLATFORM_FLAG_FAMILY_HP_I2000 |
-                                IA64_PLATFORM_FLAG_PCI_CF8);
+    header->Flags = cpu_to_le32(
+        IA64_PLATFORM_FLAG_NO_MCFG | IA64_PLATFORM_FLAG_QEMU_EXTENSION |
+        IA64_PLATFORM_FLAG_FAMILY_HP_I2000 | IA64_PLATFORM_FLAG_PCI_CF8);
     header->RamSize = cpu_to_le64(2 * GiB);
     header->LowRamEnd = cpu_to_le64(1 * GiB);
     header->FirmwareBase = cpu_to_le64(IA64_PLATFORM_FIRMWARE_BASE);
@@ -303,14 +300,14 @@ static void test_fixture_init(TestDescriptorFixture *fixture)
     header->SocketCount = cpu_to_le32(1);
     header->CoresPerSocket = cpu_to_le32(1);
     header->ThreadsPerCore = cpu_to_le32(1);
-    header->PhysicalAddressBits = cpu_to_le32(
-        IA64_PLATFORM_I2000_PHYS_ADDR_BITS);
+    header->PhysicalAddressBits =
+        cpu_to_le32(IA64_PLATFORM_I2000_PHYS_ADDR_BITS);
     header->MaxSockets = cpu_to_le32(2);
     header->MaxCoresPerSocket = cpu_to_le32(1);
     header->MaxThreadsPerCore = cpu_to_le32(1);
     header->MaxPciRoots = cpu_to_le32(1);
-    header->PciRootIdentity = cpu_to_le32(
-        IA64_PLATFORM_PCI_ROOT_IDENTITY_GENERIC);
+    header->PciRootIdentity =
+        cpu_to_le32(IA64_PLATFORM_PCI_ROOT_IDENTITY_GENERIC);
     header->NumaNodeCount = cpu_to_le32(1);
     header->NumaNode[0].ProcessorCount = cpu_to_le32(1);
     header->NumaNode[0].RamRangeMask = cpu_to_le32(3);
@@ -381,14 +378,13 @@ static void test_create_success(void)
     parent = test_parent_new();
 
     device = ia64_platform_desc_device_create(
-        parent, "descriptor", TEST_GPA, &fixture.header, &fixture.arrays,
-        &err);
+        parent, "descriptor", TEST_GPA, &fixture.header, &fixture.arrays, &err);
     g_assert_nonnull(device);
     g_assert_null(err);
     g_assert_cmpint(test_add_count, ==, 1);
 
-    dc = DEVICE_CLASS(object_class_by_name(
-        TYPE_IA64_PLATFORM_DESCRIPTOR_DEVICE));
+    dc = DEVICE_CLASS(
+        object_class_by_name(TYPE_IA64_PLATFORM_DESCRIPTOR_DEVICE));
     g_assert_false(dc->user_creatable);
     g_assert_false(dc->hotpluggable);
     g_assert_nonnull(dc->vmsd);
@@ -408,8 +404,8 @@ static void test_create_success(void)
                      le32_to_cpu(descriptor->TotalSize));
     g_assert_cmphex(args.firmware_compat_flags, ==, 0);
     g_assert_cmpuint(args.platform_id, ==, IA64_PLATFORM_ID_HP_I2000);
-    g_assert_true(ia64_platform_desc_validate(
-        descriptor, args.descriptor_size, args.platform_id, &err));
+    g_assert_true(ia64_platform_desc_validate(descriptor, args.descriptor_size,
+                                              args.platform_id, &err));
     g_assert_null(err);
 
     for (i = args.descriptor_size; i < IA64_PLATFORM_DESC_MAX_SIZE; i++) {
@@ -419,8 +415,9 @@ static void test_create_success(void)
     /* The creator must not retain pointers to caller-owned inputs. */
     fixture.header.PlatformId = cpu_to_le32(IA64_PLATFORM_ID_HP_ZX6000);
     fixture.root.BusEnd = 0xff;
-    stored_root = (IA64PlatformPciRoot *)(test_rom_ptr +
-        le32_to_cpu(descriptor->PciRootOffset));
+    stored_root =
+        (IA64PlatformPciRoot *)(test_rom_ptr +
+                                le32_to_cpu(descriptor->PciRootOffset));
     g_assert_cmpuint(le32_to_cpu(descriptor->PlatformId), ==,
                      IA64_PLATFORM_ID_HP_I2000);
     g_assert_cmpuint(stored_root->BusEnd, ==, 0x0f);
@@ -446,13 +443,13 @@ static void test_invalid_descriptor(void)
     test_ram_init(&ram, "ram");
     test_map_add(TEST_GPA, IA64_PLATFORM_DESC_MAX_SIZE, &ram, false);
     test_fixture_init(&fixture);
-    fixture.header.ConsoleClockHz = cpu_to_le32(
-        IA64_PLATFORM_UART_MIN_CLOCK_HZ - 1U);
+    fixture.header.ConsoleClockHz =
+        cpu_to_le32(IA64_PLATFORM_UART_MIN_CLOCK_HZ - 1U);
     parent = test_parent_new();
 
-    g_assert_null(ia64_platform_desc_device_create(
-        parent, "descriptor", TEST_GPA, &fixture.header, &fixture.arrays,
-        &err));
+    g_assert_null(ia64_platform_desc_device_create(parent, "descriptor",
+                                                   TEST_GPA, &fixture.header,
+                                                   &fixture.arrays, &err));
     g_assert_nonnull(err);
     g_assert_null(object_resolve_path_component(parent, "descriptor"));
     g_assert_cmpint(test_add_count, ==, 0);
@@ -474,9 +471,9 @@ static void test_rootless_parent(void)
     test_fixture_init(&fixture);
     parent = object_new(TYPE_CONTAINER);
 
-    g_assert_null(ia64_platform_desc_device_create(
-        parent, "descriptor", TEST_GPA, &fixture.header, &fixture.arrays,
-        &err));
+    g_assert_null(ia64_platform_desc_device_create(parent, "descriptor",
+                                                   TEST_GPA, &fixture.header,
+                                                   &fixture.arrays, &err));
     g_assert_nonnull(err);
     g_assert_nonnull(strstr(error_get_pretty(err), "QOM tree"));
     g_assert_null(object_resolve_path_component(parent, "descriptor"));
@@ -496,9 +493,9 @@ static void test_unbacked_mapping(void)
     test_fixture_init(&fixture);
     parent = test_parent_new();
 
-    g_assert_null(ia64_platform_desc_device_create(
-        parent, "descriptor", TEST_GPA, &fixture.header, &fixture.arrays,
-        &err));
+    g_assert_null(ia64_platform_desc_device_create(parent, "descriptor",
+                                                   TEST_GPA, &fixture.header,
+                                                   &fixture.arrays, &err));
     g_assert_nonnull(err);
     g_assert_nonnull(strstr(error_get_pretty(err), "no RAM backing"));
     g_assert_null(object_resolve_path_component(parent, "descriptor"));
@@ -513,8 +510,7 @@ static void test_unbacked_mapping(void)
 static void test_efi_unaligned_ram_rejected(void)
 {
     const hwaddr gpa = 1 * GiB - 2 * IA64_PLATFORM_DESC_ALIGNMENT;
-    const uint64_t low_ram_end =
-        1 * GiB - IA64_PLATFORM_DESC_ALIGNMENT;
+    const uint64_t low_ram_end = 1 * GiB - IA64_PLATFORM_DESC_ALIGNMENT;
     TestDescriptorFixture fixture;
     MemoryRegion ram;
     Object *parent;
@@ -554,14 +550,13 @@ static void test_obscured_mapping_rollback(void)
     test_ram_init(&obstacle, "obstacle");
     test_map_add(TEST_GPA, IA64_PLATFORM_DESC_MAX_SIZE, &ram, false);
     test_post_add_obstacle = test_map_add(
-        TEST_GPA + IA64_PLATFORM_DESC_MAX_SIZE / 2, 0x100,
-        &obstacle, false);
+        TEST_GPA + IA64_PLATFORM_DESC_MAX_SIZE / 2, 0x100, &obstacle, false);
     test_fixture_init(&fixture);
     parent = test_parent_new();
 
-    g_assert_null(ia64_platform_desc_device_create(
-        parent, "descriptor", TEST_GPA, &fixture.header, &fixture.arrays,
-        &err));
+    g_assert_null(ia64_platform_desc_device_create(parent, "descriptor",
+                                                   TEST_GPA, &fixture.header,
+                                                   &fixture.arrays, &err));
     g_assert_nonnull(err);
     g_assert_nonnull(strstr(error_get_pretty(err), "obscured"));
     g_assert_null(object_resolve_path_component(parent, "descriptor"));

@@ -24,11 +24,11 @@ typedef struct HPSBARopeMap {
 typedef struct HPSBARoutingVariant HPSBARoutingVariant;
 
 typedef bool (*HPSBADirectRouteLookup)(const HPSBARoutingVariant *variant,
-                                      uint64_t route,
-                                      unsigned int *root_index);
+                                       uint64_t route,
+                                       unsigned int *root_index);
 typedef uint64_t (*HPSBAExtendAddress)(void *opaque, uint64_t address);
 typedef void (*HPSBAInterruptDeliver)(void *opaque, uint64_t address,
-                                     uint32_t data);
+                                      uint32_t data);
 
 struct HPSBARoutingVariant {
     const HPSBARootSpec *roots;
@@ -50,15 +50,12 @@ struct HPSBARoutingVariant {
 
 bool hp_sba_routing_variant_valid(const HPSBARoutingVariant *variant);
 bool hp_sba_routing_root_for_rope(const HPSBARoutingVariant *variant,
-                                  unsigned int rope,
-                                  unsigned int *root_index);
+                                  unsigned int rope, unsigned int *root_index);
 bool hp_sba_routing_rope_for_root(const HPSBARoutingVariant *variant,
-                                  unsigned int root_index,
-                                  unsigned int ordinal,
+                                  unsigned int root_index, unsigned int ordinal,
                                   unsigned int *rope);
 bool hp_sba_routing_direct_root(const HPSBARoutingVariant *variant,
-                                uint64_t route,
-                                unsigned int *root_index);
+                                uint64_t route, unsigned int *root_index);
 
 uint64_t hp_sba_routing_extend_address(const HPSBARoutingVariant *variant,
                                        void *opaque, uint64_t address);

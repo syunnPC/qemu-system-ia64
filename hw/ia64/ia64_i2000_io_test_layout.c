@@ -209,39 +209,36 @@ static bool io_test_port_range_valid(const IA64I2000IoTestIOPortRange *range)
 }
 
 static bool io_test_port_range_contains(const IA64I2000IoTestIOPortRange *outer,
-                                   const IA64I2000IoTestIOPortRange *inner)
+                                        const IA64I2000IoTestIOPortRange *inner)
 {
     return inner->base >= outer->base &&
            io_test_port_end(inner) <= io_test_port_end(outer);
 }
 
 static bool io_test_port_ranges_overlap(const IA64I2000IoTestIOPortRange *a,
-                                   const IA64I2000IoTestIOPortRange *b)
+                                        const IA64I2000IoTestIOPortRange *b)
 {
     return a->base < io_test_port_end(b) && b->base < io_test_port_end(a);
 }
 
 static bool io_test_port_range_matches(const IA64I2000IoTestIOPortRange *a,
-                                  const IA64I2000IoTestIOPortRange *b)
+                                       const IA64I2000IoTestIOPortRange *b)
 {
     return a->base == b->base && a->size == b->size;
 }
 
 static bool io_test_pci_function_matches(const IA64I2000IoTestPCIFunction *a,
-                                    const IA64I2000IoTestPCIFunction *b)
+                                         const IA64I2000IoTestPCIFunction *b)
 {
-    return a->vendor_id == b->vendor_id &&
-           a->device_id == b->device_id &&
+    return a->vendor_id == b->vendor_id && a->device_id == b->device_id &&
            a->class_id == b->class_id &&
            a->subsystem_vendor_id == b->subsystem_vendor_id &&
-           a->subsystem_id == b->subsystem_id &&
-           a->revision == b->revision &&
-           a->prog_if == b->prog_if &&
-           a->function == b->function;
+           a->subsystem_id == b->subsystem_id && a->revision == b->revision &&
+           a->prog_if == b->prog_if && a->function == b->function;
 }
 
 static bool io_test_reserve_irq(bool used[16], uint8_t irq, const char *role,
-                           Error **errp)
+                                Error **errp)
 {
     if (irq >= 16) {
         error_setg(errp, "i2000 I/O test %s IRQ is outside 0..15", role);
@@ -256,13 +253,12 @@ static bool io_test_reserve_irq(bool used[16], uint8_t irq, const char *role,
 }
 
 static bool io_test_validate_pci(const IA64I2000IoTestLayout *layout,
-                            Error **errp)
+                                 Error **errp)
 {
     if (layout->pci_slot >= 32 || layout->pci_function_count != 2 ||
         layout->f0.function >= 8 || layout->f1.function >= 8 ||
         layout->f0.function == layout->f1.function) {
-        error_setg(errp,
-                   "i2000 I/O test PCI multifunction pairing is invalid");
+        error_setg(errp, "i2000 I/O test PCI multifunction pairing is invalid");
         return false;
     }
     if (layout->f0.function != 0 || layout->f1.function != 1) {
@@ -274,10 +270,9 @@ static bool io_test_validate_pci(const IA64I2000IoTestLayout *layout,
         layout->i82559.function >= 8 ||
         (layout->i82559_parent_root == layout->parent_root &&
          layout->i82559_slot == layout->pci_slot) ||
-        layout->i82559_interrupt_pin < 1 ||
-        layout->i82559_interrupt_pin > 4 ||
+        layout->i82559_interrupt_pin < 1 || layout->i82559_interrupt_pin > 4 ||
         layout->i82559_pid_pin != 16 + layout->i82559_parent_root * 4 +
-                                  layout->i82559_interrupt_pin - 1) {
+                                      layout->i82559_interrupt_pin - 1) {
         error_setg(errp,
                    "i2000 I/O test i82559 placement or INTx route is invalid");
         return false;
@@ -290,41 +285,39 @@ static bool io_test_validate_pci(const IA64I2000IoTestLayout *layout,
         !is_power_of_2(layout->i82559_flash_bar_size) ||
         layout->i82559_eeprom_words != 64 ||
         layout->i82559_option_rom_enabled != 0) {
-        error_setg(errp,
-                   "i2000 I/O test i82559 configuration is invalid");
+        error_setg(errp, "i2000 I/O test i82559 configuration is invalid");
         return false;
     }
     if (layout->isp12160_parent_root >= 3 ||
         layout->isp12160_bus != ISP12160_QEMU_I2000_BUS ||
-        layout->isp12160_slot >= 32 ||
-        layout->isp12160.function >= 8 ||
+        layout->isp12160_slot >= 32 || layout->isp12160.function >= 8 ||
         (layout->isp12160_parent_root == layout->parent_root &&
          layout->isp12160_slot == layout->pci_slot) ||
         (layout->isp12160_parent_root == layout->i82559_parent_root &&
          layout->isp12160_slot == layout->i82559_slot) ||
         layout->isp12160_interrupt_pin < 1 ||
         layout->isp12160_interrupt_pin > 4 ||
-        layout->isp12160_pid_pin !=
-            16 + layout->isp12160_parent_root * 4 +
-                 layout->isp12160_interrupt_pin - 1 ||
+        layout->isp12160_pid_pin != 16 + layout->isp12160_parent_root * 4 +
+                                        layout->isp12160_interrupt_pin - 1 ||
         layout->isp12160_io_bar_size == 0 ||
         !is_power_of_2(layout->isp12160_io_bar_size) ||
-        (layout->isp12160_io_bar_base &
-         (layout->isp12160_io_bar_size - 1U)) != 0 ||
+        (layout->isp12160_io_bar_base & (layout->isp12160_io_bar_size - 1U)) !=
+            0 ||
         layout->isp12160_mmio_bar_size == 0 ||
         !is_power_of_2(layout->isp12160_mmio_bar_size) ||
         (layout->isp12160_mmio_bar_base &
          (layout->isp12160_mmio_bar_size - 1U)) != 0 ||
         layout->isp12160_option_rom_enabled != 0) {
-        error_setg(errp,
-                   "i2000 I/O test ISP12160 placement, BAR, or INTx route is invalid");
+        error_setg(
+            errp,
+            "i2000 I/O test ISP12160 placement, BAR, or INTx route is invalid");
         return false;
     }
     return true;
 }
 
 static bool io_test_validate_ports(const IA64I2000IoTestLayout *layout,
-                              Error **errp)
+                                   Error **errp)
 {
     const IoTestPortDecode ports[] = {
         { &layout->parent_cf8, "parent CF8" },
@@ -361,8 +354,7 @@ static bool io_test_validate_ports(const IA64I2000IoTestLayout *layout,
         }
         for (j = 0; j < i; j++) {
             if (io_test_port_ranges_overlap(ports[j].range, ports[i].range)) {
-                error_setg(errp,
-                           "i2000 I/O test %s and %s I/O decodes overlap",
+                error_setg(errp, "i2000 I/O test %s and %s I/O decodes overlap",
                            ports[j].name, ports[i].name);
                 return false;
             }
@@ -374,8 +366,7 @@ static bool io_test_validate_ports(const IA64I2000IoTestLayout *layout,
      * pairs.
      */
     if (io_test_port_end(&layout->i8042_data) >= layout->i8042_command.base) {
-        error_setg(errp,
-                   "i2000 I/O test i8042 ports must be noncontiguous");
+        error_setg(errp, "i2000 I/O test i8042 ports must be noncontiguous");
         return false;
     }
     if (io_test_port_end(&layout->rtc_bank0) != layout->rtc_bank1.base) {
@@ -387,20 +378,20 @@ static bool io_test_validate_ports(const IA64I2000IoTestLayout *layout,
 }
 
 static bool io_test_validate_irqs(const IA64I2000IoTestLayout *layout,
-                             Error **errp)
+                                  Error **errp)
 {
     bool used[16] = { false };
 
     /* IRQ 2 is the PIC cascade; slave IRQs 8..15 remain distinct ISA inputs. */
-    if (!io_test_reserve_irq(used, layout->pic_cascade_irq,
-                             "PIC cascade", errp) ||
+    if (!io_test_reserve_irq(used, layout->pic_cascade_irq, "PIC cascade",
+                             errp) ||
         !io_test_reserve_irq(used, layout->pit_irq, "PIT", errp) ||
-        !io_test_reserve_irq(used, layout->i8042_kbd_irq,
-                             "i8042 keyboard", errp) ||
+        !io_test_reserve_irq(used, layout->i8042_kbd_irq, "i8042 keyboard",
+                             errp) ||
         !io_test_reserve_irq(used, layout->uart_irq, "UART", errp) ||
         !io_test_reserve_irq(used, layout->rtc_irq, "RTC", errp) ||
-        !io_test_reserve_irq(used, layout->i8042_mouse_irq,
-                             "i8042 mouse", errp) ||
+        !io_test_reserve_irq(used, layout->i8042_mouse_irq, "i8042 mouse",
+                             errp) ||
         !io_test_reserve_irq(used, layout->ide_irq, "IDE", errp)) {
         return false;
     }
@@ -408,12 +399,10 @@ static bool io_test_validate_irqs(const IA64I2000IoTestLayout *layout,
         layout->i8042_kbd_irq >= 8 || layout->uart_irq >= 8 ||
         layout->rtc_irq < 8 || layout->i8042_mouse_irq < 8 ||
         layout->ide_irq < 8) {
-        error_setg(errp,
-                   "i2000 I/O test IRQ roles do not match the PIC pair");
+        error_setg(errp, "i2000 I/O test IRQ roles do not match the PIC pair");
         return false;
     }
-    if (layout->pid_legacy_pin >=
-        IA64_I2000_IO_TEST_460GX_LEGACY_PIN_COUNT) {
+    if (layout->pid_legacy_pin >= IA64_I2000_IO_TEST_460GX_LEGACY_PIN_COUNT) {
         error_setg(errp,
                    "i2000 I/O test PID legacy pin is outside its reserve");
         return false;
@@ -421,37 +410,30 @@ static bool io_test_validate_irqs(const IA64I2000IoTestLayout *layout,
     return true;
 }
 
-static bool io_test_layout_is_fixed(
-    const IA64I2000IoTestLayout *layout)
+static bool io_test_layout_is_fixed(const IA64I2000IoTestLayout *layout)
 {
     return layout->parent_root == fixed_layout.parent_root &&
            io_test_port_range_matches(&layout->parent_io,
-                                 &fixed_layout.parent_io) &&
+                                      &fixed_layout.parent_io) &&
            io_test_port_range_matches(&layout->parent_cf8,
-                                 &fixed_layout.parent_cf8) &&
+                                      &fixed_layout.parent_cf8) &&
            io_test_port_range_matches(&layout->parent_cfc,
-                                 &fixed_layout.parent_cfc) &&
+                                      &fixed_layout.parent_cfc) &&
            layout->pci_slot == fixed_layout.pci_slot &&
-           layout->pci_function_count ==
-               fixed_layout.pci_function_count &&
+           layout->pci_function_count == fixed_layout.pci_function_count &&
            io_test_pci_function_matches(&layout->f0, &fixed_layout.f0) &&
            io_test_pci_function_matches(&layout->f1, &fixed_layout.f1) &&
-           layout->i82559_parent_root ==
-               fixed_layout.i82559_parent_root &&
+           layout->i82559_parent_root == fixed_layout.i82559_parent_root &&
            layout->i82559_slot == fixed_layout.i82559_slot &&
-           layout->i82559_interrupt_pin ==
-               fixed_layout.i82559_interrupt_pin &&
+           layout->i82559_interrupt_pin == fixed_layout.i82559_interrupt_pin &&
            layout->i82559_pid_pin == fixed_layout.i82559_pid_pin &&
            io_test_pci_function_matches(&layout->i82559,
-                                   &fixed_layout.i82559) &&
-           layout->i82559_mmio_bar_size ==
-               fixed_layout.i82559_mmio_bar_size &&
-           layout->i82559_io_bar_size ==
-               fixed_layout.i82559_io_bar_size &&
+                                        &fixed_layout.i82559) &&
+           layout->i82559_mmio_bar_size == fixed_layout.i82559_mmio_bar_size &&
+           layout->i82559_io_bar_size == fixed_layout.i82559_io_bar_size &&
            layout->i82559_flash_bar_size ==
                fixed_layout.i82559_flash_bar_size &&
-           layout->i82559_eeprom_words ==
-               fixed_layout.i82559_eeprom_words &&
+           layout->i82559_eeprom_words == fixed_layout.i82559_eeprom_words &&
            layout->i82559_eeprom_checksum ==
                fixed_layout.i82559_eeprom_checksum &&
            layout->i82559_mac_word0 == fixed_layout.i82559_mac_word0 &&
@@ -459,19 +441,16 @@ static bool io_test_layout_is_fixed(
            layout->i82559_mac_word2 == fixed_layout.i82559_mac_word2 &&
            layout->i82559_option_rom_enabled ==
                fixed_layout.i82559_option_rom_enabled &&
-           layout->isp12160_parent_root ==
-               fixed_layout.isp12160_parent_root &&
+           layout->isp12160_parent_root == fixed_layout.isp12160_parent_root &&
            layout->isp12160_bus == fixed_layout.isp12160_bus &&
            layout->isp12160_slot == fixed_layout.isp12160_slot &&
            layout->isp12160_interrupt_pin ==
                fixed_layout.isp12160_interrupt_pin &&
            layout->isp12160_pid_pin == fixed_layout.isp12160_pid_pin &&
            io_test_pci_function_matches(&layout->isp12160,
-                                   &fixed_layout.isp12160) &&
-           layout->isp12160_io_bar_base ==
-               fixed_layout.isp12160_io_bar_base &&
-           layout->isp12160_io_bar_size ==
-               fixed_layout.isp12160_io_bar_size &&
+                                        &fixed_layout.isp12160) &&
+           layout->isp12160_io_bar_base == fixed_layout.isp12160_io_bar_base &&
+           layout->isp12160_io_bar_size == fixed_layout.isp12160_io_bar_size &&
            layout->isp12160_mmio_bar_base ==
                fixed_layout.isp12160_mmio_bar_base &&
            layout->isp12160_mmio_bar_size ==
@@ -479,29 +458,26 @@ static bool io_test_layout_is_fixed(
            layout->isp12160_option_rom_enabled ==
                fixed_layout.isp12160_option_rom_enabled &&
            io_test_port_range_matches(&layout->pic_master,
-                                 &fixed_layout.pic_master) &&
+                                      &fixed_layout.pic_master) &&
            io_test_port_range_matches(&layout->pic_slave,
-                                 &fixed_layout.pic_slave) &&
+                                      &fixed_layout.pic_slave) &&
            io_test_port_range_matches(&layout->elcr_master,
-                                 &fixed_layout.elcr_master) &&
+                                      &fixed_layout.elcr_master) &&
            io_test_port_range_matches(&layout->elcr_slave,
-                                 &fixed_layout.elcr_slave) &&
+                                      &fixed_layout.elcr_slave) &&
            layout->pic_cascade_irq == fixed_layout.pic_cascade_irq &&
            layout->pid_legacy_pin == fixed_layout.pid_legacy_pin &&
            io_test_port_range_matches(&layout->pit, &fixed_layout.pit) &&
            layout->pit_irq == fixed_layout.pit_irq &&
            io_test_port_range_matches(&layout->superio_config,
-                                 &fixed_layout.superio_config) &&
+                                      &fixed_layout.superio_config) &&
            layout->superio_sysopt == fixed_layout.superio_sysopt &&
-           layout->superio_enter_key ==
-               fixed_layout.superio_enter_key &&
-           layout->superio_enter_count ==
-               fixed_layout.superio_enter_count &&
+           layout->superio_enter_key == fixed_layout.superio_enter_key &&
+           layout->superio_enter_count == fixed_layout.superio_enter_count &&
            layout->superio_exit_key == fixed_layout.superio_exit_key &&
            layout->superio_ldn_select_cr ==
                fixed_layout.superio_ldn_select_cr &&
-           layout->superio_device_id_cr ==
-               fixed_layout.superio_device_id_cr &&
+           layout->superio_device_id_cr == fixed_layout.superio_device_id_cr &&
            layout->superio_device_id == fixed_layout.superio_device_id &&
            layout->uart_ldn == fixed_layout.uart_ldn &&
            layout->uart_activate_cr == fixed_layout.uart_activate_cr &&
@@ -512,33 +488,28 @@ static bool io_test_layout_is_fixed(
            layout->uart_reset_active == fixed_layout.uart_reset_active &&
            io_test_port_range_matches(&layout->uart, &fixed_layout.uart) &&
            layout->uart_irq == fixed_layout.uart_irq &&
-           layout->uart_input_clock_hz ==
-               fixed_layout.uart_input_clock_hz &&
+           layout->uart_input_clock_hz == fixed_layout.uart_input_clock_hz &&
            layout->i8042_ldn == fixed_layout.i8042_ldn &&
-           layout->i8042_activate_cr ==
-               fixed_layout.i8042_activate_cr &&
-           layout->i8042_kbd_irq_cr ==
-               fixed_layout.i8042_kbd_irq_cr &&
-           layout->i8042_mouse_irq_cr ==
-               fixed_layout.i8042_mouse_irq_cr &&
-           layout->i8042_reset_active ==
-               fixed_layout.i8042_reset_active &&
+           layout->i8042_activate_cr == fixed_layout.i8042_activate_cr &&
+           layout->i8042_kbd_irq_cr == fixed_layout.i8042_kbd_irq_cr &&
+           layout->i8042_mouse_irq_cr == fixed_layout.i8042_mouse_irq_cr &&
+           layout->i8042_reset_active == fixed_layout.i8042_reset_active &&
            io_test_port_range_matches(&layout->i8042_data,
-                                 &fixed_layout.i8042_data) &&
+                                      &fixed_layout.i8042_data) &&
            io_test_port_range_matches(&layout->i8042_command,
-                                 &fixed_layout.i8042_command) &&
+                                      &fixed_layout.i8042_command) &&
            layout->i8042_kbd_irq == fixed_layout.i8042_kbd_irq &&
            layout->i8042_mouse_irq == fixed_layout.i8042_mouse_irq &&
            io_test_port_range_matches(&layout->rtc_bank0,
-                                 &fixed_layout.rtc_bank0) &&
+                                      &fixed_layout.rtc_bank0) &&
            io_test_port_range_matches(&layout->rtc_bank1,
-                                 &fixed_layout.rtc_bank1) &&
+                                      &fixed_layout.rtc_bank1) &&
            layout->rtc_irq == fixed_layout.rtc_irq &&
            layout->rtc_base_year == fixed_layout.rtc_base_year &&
            io_test_port_range_matches(&layout->ide_command,
-                                 &fixed_layout.ide_command) &&
+                                      &fixed_layout.ide_command) &&
            io_test_port_range_matches(&layout->ide_control,
-                                 &fixed_layout.ide_control) &&
+                                      &fixed_layout.ide_control) &&
            layout->ide_irq == fixed_layout.ide_irq &&
            layout->ide_master_unit == fixed_layout.ide_master_unit &&
            layout->enabled_features == fixed_layout.enabled_features &&
@@ -551,8 +522,8 @@ void ia64_i2000_io_test_layout_init(IA64I2000IoTestLayout *layout)
     *layout = fixed_layout;
 }
 
-bool ia64_i2000_io_test_layout_validate(
-    const IA64I2000IoTestLayout *layout, Error **errp)
+bool ia64_i2000_io_test_layout_validate(const IA64I2000IoTestLayout *layout,
+                                        Error **errp)
 {
     if (layout == NULL) {
         error_setg(errp, "i2000 I/O test layout is NULL");
@@ -563,27 +534,22 @@ bool ia64_i2000_io_test_layout_validate(
         !io_test_validate_irqs(layout, errp)) {
         return false;
     }
-    if (layout->uart_ldn == layout->i8042_ldn ||
-        layout->uart_ldn >= 32 || layout->i8042_ldn >= 32 ||
-        layout->superio_enter_count == 0 ||
+    if (layout->uart_ldn == layout->i8042_ldn || layout->uart_ldn >= 32 ||
+        layout->i8042_ldn >= 32 || layout->superio_enter_count == 0 ||
         layout->uart_input_clock_hz == 0 ||
         layout->uart_input_clock_hz % 16 != 0 ||
-        layout->uart_reset_active != 0 ||
-        layout->i8042_reset_active != 0) {
-        error_setg(errp,
-                   "i2000 I/O test Super I/O roles or clock are invalid");
+        layout->uart_reset_active != 0 || layout->i8042_reset_active != 0) {
+        error_setg(errp, "i2000 I/O test Super I/O roles or clock are invalid");
         return false;
     }
     if (layout->rtc_base_year <= 0 || layout->ide_master_unit >= 2) {
-        error_setg(errp,
-                   "i2000 I/O test RTC or IDE role is invalid");
+        error_setg(errp, "i2000 I/O test RTC or IDE role is invalid");
         return false;
     }
     if ((layout->enabled_features & layout->disabled_features) != 0 ||
         (layout->enabled_features | layout->disabled_features) !=
             IA64_I2000_IO_TEST_KNOWN_FEATURES) {
-        error_setg(errp,
-                   "i2000 I/O test feature masks are inconsistent");
+        error_setg(errp, "i2000 I/O test feature masks are inconsistent");
         return false;
     }
     if (!io_test_layout_is_fixed(layout)) {

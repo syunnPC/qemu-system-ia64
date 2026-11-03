@@ -72,11 +72,9 @@ IA64RasHubState *ia64_ras_hub_create(Object *parent, const char *name,
                                      hwaddr base, Error **errp);
 bool ia64_ras_hub_report_chipset_fault(void *opaque,
                                        const IA64ChipsetFault *fault);
-bool ia64_ras_hub_report_processor_error(IA64RasHubState *hub,
-                                         CPUState *cs,
+bool ia64_ras_hub_report_processor_error(IA64RasHubState *hub, CPUState *cs,
                                          IA64RasSeverity severity,
-                                         uint64_t status,
-                                         uint64_t address,
+                                         uint64_t status, uint64_t address,
                                          uint64_t information);
 
 #endif /* HW_IA64_RAS_H */

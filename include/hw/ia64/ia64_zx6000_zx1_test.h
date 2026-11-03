@@ -11,23 +11,23 @@
 #include "qom/object.h"
 
 #define TYPE_IA64_ZX6000_ZX1_TEST "ia64-zx6000-zx1-test"
-OBJECT_DECLARE_SIMPLE_TYPE(IA64ZX6000ZX1TestState,
-                           IA64_ZX6000_ZX1_TEST)
+OBJECT_DECLARE_SIMPLE_TYPE(IA64ZX6000ZX1TestState, IA64_ZX6000_ZX1_TEST)
 
 #define IA64_ZX6000_ZX1_TEST_PROP_RAM "ram"
 
 /* The device uses parent-owned RAM and PIB objects. */
-PCIBus *ia64_zx6000_zx1_test_root_bus(
-    IA64ZX6000ZX1TestState *fixture, unsigned int index);
+PCIBus *ia64_zx6000_zx1_test_root_bus(IA64ZX6000ZX1TestState *fixture,
+                                      unsigned int index);
 
 /* Root probe and I/O SAPIC accessors. */
-PCIDevice *ia64_zx6000_zx1_test_create_test_probe(
-    IA64ZX6000ZX1TestState *fixture, unsigned int root,
-    unsigned int slot, Error **errp);
+PCIDevice *
+ia64_zx6000_zx1_test_create_test_probe(IA64ZX6000ZX1TestState *fixture,
+                                       unsigned int root, unsigned int slot,
+                                       Error **errp);
 void ia64_zx6000_zx1_test_destroy_test_probe(PCIDevice *probe);
-qemu_irq ia64_zx6000_zx1_test_io_sapic_input(
-    IA64ZX6000ZX1TestState *fixture, unsigned int root,
-    unsigned int input);
+qemu_irq ia64_zx6000_zx1_test_io_sapic_input(IA64ZX6000ZX1TestState *fixture,
+                                             unsigned int root,
+                                             unsigned int input);
 
 /* Qtest object paths and controls. */
 #define TYPE_IA64_ZX6000_ZX1_QTEST "ia64-zx6000-zx1-qtest"

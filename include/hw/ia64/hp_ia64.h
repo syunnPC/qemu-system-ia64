@@ -41,16 +41,15 @@ struct HPIA64MachineClass {
 };
 
 bool hp_ia64_machine_validate(HPIA64MachineState *machine, Error **errp);
-bool hp_ia64_machine_create_ras(HPIA64MachineState *machine,
-                                hwaddr base, Error **errp);
+bool hp_ia64_machine_create_ras(HPIA64MachineState *machine, hwaddr base,
+                                Error **errp);
 
 /*
  * Install the immutable firmware descriptor after RAM mapping.  Platform
  * identity and GPA come from the machine class.
  */
 bool hp_ia64_machine_install_platform_descriptor(
-    HPIA64MachineState *machine,
-    const IA64PlatformDescriptor *header,
+    HPIA64MachineState *machine, const IA64PlatformDescriptor *header,
     const IA64PlatformDescriptorArrays *arrays, Error **errp);
 
 /*

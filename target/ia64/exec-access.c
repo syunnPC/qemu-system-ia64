@@ -23,8 +23,7 @@ bool ia64_exec_is_parallel(CPUIA64State *env)
 {
     CPUState *cs = env_cpu(env);
 
-    return tcg_cflags_has(cs, CF_PARALLEL) &&
-           !cpu_in_exclusive_context(cs);
+    return tcg_cflags_has(cs, CF_PARALLEL) && !cpu_in_exclusive_context(cs);
 }
 
 void ia64_exec_ensure_alat_exclusive(CPUIA64State *env, uintptr_t ra)
@@ -44,21 +43,21 @@ void ia64_exec_exit_atomic(CPUIA64State *env, uintptr_t ra)
     cpu_loop_exit_atomic(env_cpu(env), ra);
 }
 
-uint64_t ia64_exec_load_data(CPUIA64State *env, uint64_t addr,
-                             unsigned size, bool big_endian, uintptr_t ra)
+uint64_t ia64_exec_load_data(CPUIA64State *env, uint64_t addr, unsigned size,
+                             bool big_endian, uintptr_t ra)
 {
     switch (size) {
     case 1:
         return cpu_ldub_data_ra(env, addr, ra);
     case 2:
-        return big_endian ? cpu_lduw_be_data_ra(env, addr, ra) :
-                            cpu_lduw_le_data_ra(env, addr, ra);
+        return big_endian ? cpu_lduw_be_data_ra(env, addr, ra)
+                          : cpu_lduw_le_data_ra(env, addr, ra);
     case 4:
-        return big_endian ? cpu_ldl_be_data_ra(env, addr, ra) :
-                            cpu_ldl_le_data_ra(env, addr, ra);
+        return big_endian ? cpu_ldl_be_data_ra(env, addr, ra)
+                          : cpu_ldl_le_data_ra(env, addr, ra);
     case 8:
-        return big_endian ? cpu_ldq_be_data_ra(env, addr, ra) :
-                            cpu_ldq_le_data_ra(env, addr, ra);
+        return big_endian ? cpu_ldq_be_data_ra(env, addr, ra)
+                          : cpu_ldq_le_data_ra(env, addr, ra);
     default:
         g_assert_not_reached();
     }
@@ -105,16 +104,15 @@ void ia64_exec_store_data(CPUIA64State *env, uint64_t addr, uint64_t value,
     }
 }
 
-uint64_t ia64_exec_load_mmuidx(CPUIA64State *env, uint64_t addr,
-                               unsigned size, bool big_endian, int mmu_idx,
-                               uintptr_t ra)
+uint64_t ia64_exec_load_mmuidx(CPUIA64State *env, uint64_t addr, unsigned size,
+                               bool big_endian, int mmu_idx, uintptr_t ra)
 {
     switch (size) {
     case 1:
         return cpu_ldub_mmuidx_ra(env, addr, mmu_idx, ra);
     case 8:
-        return big_endian ? cpu_ldq_be_mmuidx_ra(env, addr, mmu_idx, ra) :
-                            cpu_ldq_le_mmuidx_ra(env, addr, mmu_idx, ra);
+        return big_endian ? cpu_ldq_be_mmuidx_ra(env, addr, mmu_idx, ra)
+                          : cpu_ldq_le_mmuidx_ra(env, addr, mmu_idx, ra);
     default:
         g_assert_not_reached();
     }
@@ -209,7 +207,8 @@ uint64_t ia64_exec_rse_store_collection(CPUIA64State *env, uint64_t addr,
         qemu_log_mask(LOG_GUEST_ERROR,
                       "ia64 RSE RNAT store to non-writable RAM/MMIO at "
                       "0x%016" PRIx64 " cannot preserve undefined bits "
-                      "(flags=0x%x)\n", addr, flags);
+                      "(flags=0x%x)\n",
+                      addr, flags);
     }
 
     *previous = old;
@@ -256,21 +255,24 @@ uint64_t ia64_exec_cmpxchg(CPUIA64State *env, uint64_t addr, uint64_t cmp,
         break;
     case 2:
         mask = UINT16_MAX;
-        result = big_endian ?
-            cpu_atomic_cmpxchgw_be_mmu(env, addr, cmp, value, oi, ra) :
-            cpu_atomic_cmpxchgw_le_mmu(env, addr, cmp, value, oi, ra);
+        result =
+            big_endian
+                ? cpu_atomic_cmpxchgw_be_mmu(env, addr, cmp, value, oi, ra)
+                : cpu_atomic_cmpxchgw_le_mmu(env, addr, cmp, value, oi, ra);
         break;
     case 4:
         mask = UINT32_MAX;
-        result = big_endian ?
-            cpu_atomic_cmpxchgl_be_mmu(env, addr, cmp, value, oi, ra) :
-            cpu_atomic_cmpxchgl_le_mmu(env, addr, cmp, value, oi, ra);
+        result =
+            big_endian
+                ? cpu_atomic_cmpxchgl_be_mmu(env, addr, cmp, value, oi, ra)
+                : cpu_atomic_cmpxchgl_le_mmu(env, addr, cmp, value, oi, ra);
         break;
     case 8:
         mask = UINT64_MAX;
-        result = big_endian ?
-            cpu_atomic_cmpxchgq_be_mmu(env, addr, cmp, value, oi, ra) :
-            cpu_atomic_cmpxchgq_le_mmu(env, addr, cmp, value, oi, ra);
+        result =
+            big_endian
+                ? cpu_atomic_cmpxchgq_be_mmu(env, addr, cmp, value, oi, ra)
+                : cpu_atomic_cmpxchgq_le_mmu(env, addr, cmp, value, oi, ra);
         break;
     default:
         g_assert_not_reached();
@@ -297,9 +299,9 @@ Int128 ia64_exec_cmpxchg_16(CPUIA64State *env, uint64_t addr, Int128 cmp,
     if (full_alat) {
         ia64_alat_write_begin(env);
     }
-    result = big_endian ?
-        cpu_atomic_cmpxchgo_be_mmu(env, addr, cmp, value, oi, ra) :
-        cpu_atomic_cmpxchgo_le_mmu(env, addr, cmp, value, oi, ra);
+    result = big_endian
+                 ? cpu_atomic_cmpxchgo_be_mmu(env, addr, cmp, value, oi, ra)
+                 : cpu_atomic_cmpxchgo_le_mmu(env, addr, cmp, value, oi, ra);
     if (full_alat) {
         if (int128_eq(result, cmp)) {
             ia64_alat_write_end(env, addr, invalidation_size);
@@ -320,34 +322,33 @@ void ia64_exec_probe_write(CPUIA64State *env, uint64_t addr, int size,
 }
 
 bool ia64_exec_probe_host(CPUIA64State *env, uint64_t addr, int size,
-                          MMUAccessType access_type, int mmu_idx,
-                          void **host, uintptr_t ra)
+                          MMUAccessType access_type, int mmu_idx, void **host,
+                          uintptr_t ra)
 {
-    int flags = probe_access_flags(env, addr, size, access_type, mmu_idx,
-                                   false, host, ra);
+    int flags = probe_access_flags(env, addr, size, access_type, mmu_idx, false,
+                                   host, ra);
     bool direct = flags == 0 && *host != NULL;
 
     return direct;
 }
 
-bool ia64_exec_probe_writeback_ram(CPUIA64State *env, uint64_t addr,
-                                   int size, MMUAccessType access_type,
-                                   bool *direct, uintptr_t ra)
+bool ia64_exec_probe_writeback_ram(CPUIA64State *env, uint64_t addr, int size,
+                                   MMUAccessType access_type, bool *direct,
+                                   uintptr_t ra)
 {
     CPUTLBEntryFull *full;
     void *host;
     int mmu_idx = cpu_mmu_index(env_cpu(env), false);
-    int flags = probe_access_full(env, addr, size, access_type, mmu_idx,
-                                  false, &host, &full, ra);
+    int flags = probe_access_full(env, addr, size, access_type, mmu_idx, false,
+                                  &host, &full, ra);
 
     *direct = !(flags & (TLB_MMIO | TLB_WATCHPOINT));
     return full->extra.ia64.memory_attribute == IA64_PTE_MA_WB &&
            memory_region_is_ram(full->section->mr);
 }
 
-bool ia64_exec_probe_writeback(CPUIA64State *env, uint64_t addr,
-                               int size, MMUAccessType access_type,
-                               uintptr_t ra)
+bool ia64_exec_probe_writeback(CPUIA64State *env, uint64_t addr, int size,
+                               MMUAccessType access_type, uintptr_t ra)
 {
     CPUState *cs = env_cpu(env);
     int mmu_idx = cpu_mmu_index(cs, false);
@@ -359,12 +360,12 @@ bool ia64_exec_probe_writeback(CPUIA64State *env, uint64_t addr,
         int page_offset = addr & ((1u << TARGET_PAGE_BITS) - 1);
         int page_left = (1u << TARGET_PAGE_BITS) - page_offset;
         int chunk = MIN(size, page_left);
-        int flags = probe_access_full(env, addr, chunk, access_type,
-                                      mmu_idx, false, &host, &full, ra);
+        int flags = probe_access_full(env, addr, chunk, access_type, mmu_idx,
+                                      false, &host, &full, ra);
 
         if (flags & TLB_WATCHPOINT) {
-            cpu_check_watchpoint(cs, addr, chunk, full->attrs,
-                                 BP_MEM_ACCESS, ra);
+            cpu_check_watchpoint(cs, addr, chunk, full->attrs, BP_MEM_ACCESS,
+                                 ra);
         }
         writeback &= full->extra.ia64.memory_attribute == IA64_PTE_MA_WB;
         addr += chunk;
@@ -390,9 +391,9 @@ bool ia64_exec_advanced_load_allowed(CPUIA64State *env, uint64_t addr,
     return full->extra.ia64.speculation != IA64_MEM_NON_SPECULATIVE;
 }
 
-bool ia64_exec_cached_load_translation(
-    CPUIA64State *env, uint64_t addr, int mmu_idx,
-    IA64CachedLoadTranslation *translation)
+bool ia64_exec_cached_load_translation(CPUIA64State *env, uint64_t addr,
+                                       int mmu_idx,
+                                       IA64CachedLoadTranslation *translation)
 {
     CPUTLBEntryFull *full;
     bool from_victim;
@@ -422,9 +423,8 @@ bool ia64_exec_debug_read(CPUState *cs, uint64_t addr, void *buffer,
 bool ia64_exec_physical_rw(uint64_t addr, void *buffer, size_t size,
                            bool is_write)
 {
-    return address_space_rw(&address_space_memory, addr,
-                            MEMTXATTRS_UNSPECIFIED, buffer, size,
-                            is_write) == MEMTX_OK;
+    return address_space_rw(&address_space_memory, addr, MEMTXATTRS_UNSPECIFIED,
+                            buffer, size, is_write) == MEMTX_OK;
 }
 
 void ia64_exec_invalidate_phys_range(CPUIA64State *env, uint64_t addr,
@@ -443,8 +443,8 @@ void ia64_exec_invalidate_phys_range(CPUIA64State *env, uint64_t addr,
         hwaddr len = remaining;
         MemoryRegion *mr;
 
-        mr = address_space_translate(&address_space_memory, start, &xlat,
-                                     &len, false, MEMTXATTRS_UNSPECIFIED);
+        mr = address_space_translate(&address_space_memory, start, &xlat, &len,
+                                     false, MEMTXATTRS_UNSPECIFIED);
         if (len == 0) {
             break;
         }

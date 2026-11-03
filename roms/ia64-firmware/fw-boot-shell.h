@@ -177,16 +177,15 @@ EFI_STATUS fw_unload_image(EFI_HANDLE image);
 EFI_STATUS fw_set_watchdog_timeout(UINTN timeout_seconds);
 void fw_set_sal_loader_handoff_pending(BOOLEAN pending);
 
-EFI_STATUS rs_get_variable(CHAR16 *name, VOID *vendor_guid,
-                           UINT32 *attributes, UINTN *data_size, VOID *data);
-EFI_STATUS rs_set_variable(CHAR16 *name, VOID *vendor_guid,
-                           UINT32 attributes, UINTN data_size, VOID *data);
+EFI_STATUS rs_get_variable(CHAR16 *name, VOID *vendor_guid, UINT32 *attributes,
+                           UINTN *data_size, VOID *data);
+EFI_STATUS rs_set_variable(CHAR16 *name, VOID *vendor_guid, UINT32 attributes,
+                           UINTN data_size, VOID *data);
 EFI_STATUS rs_get_time(EFI_TIME *time, EFI_TIME_CAPABILITIES *capabilities);
 EFI_STATUS rs_set_time(EFI_TIME *time);
 
 void fw_boot_option_name(UINT16 option, CHAR16 name[9]);
-UINTN fw_load_option_description_size(const UINT8 *option,
-                                      UINTN option_size);
+UINTN fw_load_option_description_size(const UINT8 *option, UINTN option_size);
 EFI_STATUS fw_boot_image_from_boot_option(UINT16 option_number);
 
 UINTN fw_partition_count(VOID);

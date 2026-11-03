@@ -30,11 +30,11 @@ static QTestState *host_start(const char *extra_args)
     return host_start_with_reset(extra_args, 0x40, 0x11);
 }
 
-static uint32_t config_address(unsigned bus, unsigned device,
-                               unsigned function, unsigned reg)
+static uint32_t config_address(unsigned bus, unsigned device, unsigned function,
+                               unsigned reg)
 {
-    return UINT32_C(0x80000000) | bus << 16 | device << 11 |
-           function << 8 | (reg & 0xfc);
+    return UINT32_C(0x80000000) | bus << 16 | device << 11 | function << 8 |
+           (reg & 0xfc);
 }
 
 static void test_mechanism_absent_and_reset(void)
@@ -170,8 +170,7 @@ int main(int argc, char **argv)
 
     qtest_add_func("/intel-460gx-host/mechanism-absent-and-reset",
                    test_mechanism_absent_and_reset);
-    qtest_add_func("/intel-460gx-host/migration-state",
-                   test_migration_state);
+    qtest_add_func("/intel-460gx-host/migration-state", test_migration_state);
     qtest_add_func("/intel-460gx-host/migration-reset-baseline",
                    test_migration_reset_baseline);
 

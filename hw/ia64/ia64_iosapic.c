@@ -36,7 +36,7 @@ struct IA64IOSapicState {
     SysBusDevice parent_obj;
     MemoryRegion mmio;
     uint64_t rte[IA64_IOSAPIC_NUM_PINS];
-    uint8_t  irq_level[IA64_IOSAPIC_NUM_PINS];
+    uint8_t irq_level[IA64_IOSAPIC_NUM_PINS];
     uint32_t reg_select;
 };
 
@@ -61,9 +61,9 @@ static void iosapic_update(IA64IOSapicState *s, int pin)
         s->rte[pin] |= RTE_REMOTE_IRR;
     }
 
-    if (!ia64_sapic_deliver(IA64_SAPIC_DESTINATION_PHYSICAL,
-                            id, eid, false, delivery,
-                            rte & RTE_VECTOR_MASK) && level_triggered) {
+    if (!ia64_sapic_deliver(IA64_SAPIC_DESTINATION_PHYSICAL, id, eid, false,
+                            delivery, rte & RTE_VECTOR_MASK) &&
+        level_triggered) {
         s->rte[pin] &= ~RTE_REMOTE_IRR;
     }
 }
@@ -169,7 +169,8 @@ static uint64_t iosapic_read(void *opaque, hwaddr addr, unsigned size)
     return result;
 }
 
-static void iosapic_write(void *opaque, hwaddr addr, uint64_t val, unsigned size)
+static void iosapic_write(void *opaque, hwaddr addr, uint64_t val,
+                          unsigned size)
 {
     IA64IOSapicState *s = opaque;
     uint32_t index;
@@ -212,8 +213,8 @@ static void iosapic_realize(DeviceState *dev, Error **errp)
     IA64IOSapicState *s = IA64_IOSAPIC(dev);
 
     qdev_init_gpio_in(dev, iosapic_irq_handler, IA64_IOSAPIC_NUM_PINS);
-    memory_region_init_io(&s->mmio, OBJECT(dev), &iosapic_ops, s,
-                          "iosapic", 0x2000);
+    memory_region_init_io(&s->mmio, OBJECT(dev), &iosapic_ops, s, "iosapic",
+                          0x2000);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->mmio);
 }
 
@@ -255,14 +256,13 @@ static const VMStateDescription vmstate_ia64_iosapic = {
     .version_id = 1,
     .minimum_version_id = 1,
     .post_load = iosapic_post_load,
-    .fields = (const VMStateField[]) {
-        VMSTATE_UINT64_ARRAY(rte, IA64IOSapicState,
-                             IA64_IOSAPIC_NUM_PINS),
-        VMSTATE_UINT8_ARRAY(irq_level, IA64IOSapicState,
-                            IA64_IOSAPIC_NUM_PINS),
-        VMSTATE_UINT32(reg_select, IA64IOSapicState),
-        VMSTATE_END_OF_LIST()
-    }
+    .fields =
+        (const VMStateField[]) {
+            VMSTATE_UINT64_ARRAY(rte, IA64IOSapicState, IA64_IOSAPIC_NUM_PINS),
+            VMSTATE_UINT8_ARRAY(irq_level, IA64IOSapicState,
+                                IA64_IOSAPIC_NUM_PINS),
+            VMSTATE_UINT32(reg_select, IA64IOSapicState),
+            VMSTATE_END_OF_LIST() }
 };
 
 static void iosapic_class_init(ObjectClass *klass, const void *data)
@@ -275,10 +275,10 @@ static void iosapic_class_init(ObjectClass *klass, const void *data)
 }
 
 static const TypeInfo iosapic_info = {
-    .name          = TYPE_IA64_IOSAPIC,
-    .parent        = TYPE_SYS_BUS_DEVICE,
+    .name = TYPE_IA64_IOSAPIC,
+    .parent = TYPE_SYS_BUS_DEVICE,
     .instance_size = sizeof(IA64IOSapicState),
-    .class_init    = iosapic_class_init,
+    .class_init = iosapic_class_init,
 };
 
 static void iosapic_register_types(void)

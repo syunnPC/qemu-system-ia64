@@ -79,8 +79,9 @@ uint64_t ia64_simd_pcmp_value(uint32_t op_sel, uint64_t a, uint64_t b)
         uint64_t lane;
 
         if (is_gt) {
-            lane = simd_signed_lane(a, i, bits) >
-                   simd_signed_lane(b, i, bits) ? mask : 0;
+            lane = simd_signed_lane(a, i, bits) > simd_signed_lane(b, i, bits)
+                       ? mask
+                       : 0;
         } else {
             lane = left == right ? mask : 0;
         }
@@ -105,12 +106,11 @@ uint64_t ia64_simd_pminmax_value(uint32_t op_sel, uint64_t a, uint64_t b)
             int64_t signed_left = simd_signed_lane(a, i, bits);
             int64_t signed_right = simd_signed_lane(b, i, bits);
 
-            lane = is_max ?
-                (signed_left > signed_right ? left : right) :
-                (signed_left < signed_right ? left : right);
+            lane = is_max ? (signed_left > signed_right ? left : right)
+                          : (signed_left < signed_right ? left : right);
         } else {
-            lane = is_max ? (left > right ? left : right) :
-                            (left < right ? left : right);
+            lane = is_max ? (left > right ? left : right)
+                          : (left < right ? left : right);
         }
         result |= lane << (i * bits);
     }
@@ -124,8 +124,8 @@ static uint64_t simd_pmpy2_result(uint64_t a, uint64_t b, bool right_form)
 
     for (int output = 0; output < 2; output++) {
         int lane = first_lane + output * 2;
-        int32_t product = (int16_t)simd_lane(a, lane, 16) *
-                          (int16_t)simd_lane(b, lane, 16);
+        int32_t product =
+            (int16_t)simd_lane(a, lane, 16) * (int16_t)simd_lane(b, lane, 16);
 
         result |= (uint64_t)(uint32_t)product << (output * 32);
     }
@@ -146,8 +146,7 @@ uint64_t ia64_simd_pmpy_value(uint32_t op_sel, uint64_t a, uint64_t b,
         uint64_t product;
 
         if (op_sel == 2) {
-            int64_t signed_product = (int64_t)(int16_t)left *
-                                     (int16_t)right;
+            int64_t signed_product = (int64_t)(int16_t)left * (int16_t)right;
 
             product = signed_product >> shift;
         } else {
@@ -376,10 +375,8 @@ uint64_t ia64_simd_sum_value(uint64_t a, uint64_t b)
     uint64_t result = 0;
 
     for (int i = 0; i < 2; i++) {
-        uint64_t left = simd_lane(a, 2 * i, 16) +
-                        simd_lane(a, 2 * i + 1, 16);
-        uint64_t right = simd_lane(b, 2 * i, 16) +
-                         simd_lane(b, 2 * i + 1, 16);
+        uint64_t left = simd_lane(a, 2 * i, 16) + simd_lane(a, 2 * i + 1, 16);
+        uint64_t right = simd_lane(b, 2 * i, 16) + simd_lane(b, 2 * i + 1, 16);
 
         result |= left << ((2 + i) * 16);
         result |= right << (i * 16);

@@ -8,8 +8,7 @@
 
 #include "hw/pci-host/hp-zx1-iommu.h"
 
-static uint64_t hp_zx1_iommu_merge_bytes(uint64_t old_value,
-                                         uint64_t value,
+static uint64_t hp_zx1_iommu_merge_bytes(uint64_t old_value, uint64_t value,
                                          uint8_t byte_enable)
 {
     unsigned int lane;
@@ -27,7 +26,7 @@ static uint64_t hp_zx1_iommu_merge_bytes(uint64_t old_value,
 }
 
 bool hp_zx1_iommu_frontend_reset(HPZX1IOMMUFrontend *iommu,
-                                  const HPZX1IOMMUResetConfig *config)
+                                 const HPZX1IOMMUResetConfig *config)
 {
     if (!iommu || !config) {
         return false;
@@ -62,8 +61,8 @@ static uint64_t *hp_zx1_iommu_reg_ptr(HPZX1IOMMUFrontend *iommu,
     }
 }
 
-static const uint64_t *hp_zx1_iommu_const_reg_ptr(
-    const HPZX1IOMMUFrontend *iommu, uint64_t reg_offset)
+static const uint64_t *
+hp_zx1_iommu_const_reg_ptr(const HPZX1IOMMUFrontend *iommu, uint64_t reg_offset)
 {
     switch (reg_offset) {
     case HP_ZX1_IOC_IOMMU_IBASE:
@@ -162,8 +161,8 @@ static bool hp_zx1_iommu_pdir_address(const HPZX1IOMMUFrontend *iommu,
         return false;
     }
 
-    max_pdir_index = (HP_ZX1_IOMMU_PHYS_MASK - 7 -
-                      iommu->pdir_base) / sizeof(uint64_t);
+    max_pdir_index =
+        (HP_ZX1_IOMMU_PHYS_MASK - 7 - iommu->pdir_base) / sizeof(uint64_t);
 
     /* Validate the complete aperture's PDIR, not only this selected entry. */
     if (window->pdir_index_mask > max_pdir_index ||
@@ -175,9 +174,9 @@ static bool hp_zx1_iommu_pdir_address(const HPZX1IOMMUFrontend *iommu,
     return true;
 }
 
-static bool hp_zx1_iommu_select_fill_slot(
-    const HPZX1IOMMUFrontend *iommu, unsigned int *selected,
-    HPZX1IOMMUEvictionResult *eviction)
+static bool hp_zx1_iommu_select_fill_slot(const HPZX1IOMMUFrontend *iommu,
+                                          unsigned int *selected,
+                                          HPZX1IOMMUEvictionResult *eviction)
 {
     HPZX1IOMMUEvictionResult result = { 0 };
     unsigned int slot;
@@ -205,9 +204,8 @@ static bool hp_zx1_iommu_select_fill_slot(
 
 HPZX1IOMMUTranslateResult hp_zx1_iommu_frontend_translate_ex(
     HPZX1IOMMUFrontend *iommu, uint64_t iova, bool dvi,
-    HPSBAIOMMUPdirReadFn pdir_read, void *opaque,
-    HPSBAIOMMUEntry *entry, HPZX1IOMMUEvictionResult *eviction,
-    HPZX1IOMMUFault *fault)
+    HPSBAIOMMUPdirReadFn pdir_read, void *opaque, HPSBAIOMMUEntry *entry,
+    HPZX1IOMMUEvictionResult *eviction, HPZX1IOMMUFault *fault)
 {
     HPZX1IOMMUEvictionResult eviction_result = { 0 };
     HPSBAIOMMUEntry translated;
@@ -256,8 +254,8 @@ HPZX1IOMMUTranslateResult hp_zx1_iommu_frontend_translate_ex(
         return HP_ZX1_IOMMU_TRANSLATE_BLOCKED;
     }
 
-    if (!hp_zx1_iommu_decode_window(iommu->ibase, iommu->imask,
-                                     page_shift, &window)) {
+    if (!hp_zx1_iommu_decode_window(iommu->ibase, iommu->imask, page_shift,
+                                    &window)) {
         if (fault) {
             fault->reason = HP_ZX1_IOMMU_FAULT_WINDOW;
         }
@@ -282,8 +280,7 @@ HPZX1IOMMUTranslateResult hp_zx1_iommu_frontend_translate_ex(
     }
 
     if (!hp_zx1_iommu_pdir_index(&window, iova, false, &pdir_index) ||
-        !hp_zx1_iommu_pdir_address(iommu, &window, pdir_index,
-                                    &pdir_address)) {
+        !hp_zx1_iommu_pdir_address(iommu, &window, pdir_index, &pdir_address)) {
         if (fault) {
             fault->reason = HP_ZX1_IOMMU_FAULT_PDIR_RANGE;
         }
@@ -323,8 +320,7 @@ HPZX1IOMMUTranslateResult hp_zx1_iommu_frontend_translate_ex(
         return HP_ZX1_IOMMU_TRANSLATE_BLOCKED;
     }
     if (eviction_result.evicted) {
-        iommu->rr_next = (iommu->rr_next + 1) %
-                              HP_ZX1_IOTLB_SLOT_COUNT;
+        iommu->rr_next = (iommu->rr_next + 1) % HP_ZX1_IOTLB_SLOT_COUNT;
     }
 
     *entry = translated;
@@ -334,11 +330,12 @@ HPZX1IOMMUTranslateResult hp_zx1_iommu_frontend_translate_ex(
     return HP_ZX1_IOMMU_TRANSLATE_TRANSLATED;
 }
 
-HPZX1IOMMUTranslateResult hp_zx1_iommu_frontend_translate(
-    HPZX1IOMMUFrontend *iommu, uint64_t iova, bool dvi,
-    HPSBAIOMMUPdirReadFn pdir_read, void *opaque,
-    HPSBAIOMMUEntry *entry, HPZX1IOMMUEvictionResult *eviction)
+HPZX1IOMMUTranslateResult
+hp_zx1_iommu_frontend_translate(HPZX1IOMMUFrontend *iommu, uint64_t iova,
+                                bool dvi, HPSBAIOMMUPdirReadFn pdir_read,
+                                void *opaque, HPSBAIOMMUEntry *entry,
+                                HPZX1IOMMUEvictionResult *eviction)
 {
-    return hp_zx1_iommu_frontend_translate_ex(
-        iommu, iova, dvi, pdir_read, opaque, entry, eviction, NULL);
+    return hp_zx1_iommu_frontend_translate_ex(iommu, iova, dvi, pdir_read,
+                                              opaque, entry, eviction, NULL);
 }

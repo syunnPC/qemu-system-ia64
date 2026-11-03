@@ -21,7 +21,6 @@
 /* PAL_PERF_MON_INFO advertises four generic counter pairs, PMD4 through PMD7. */
 #define IA64_LAST_GENERIC_PMD              7
 
-
 static void ia64_swap_banked_gr(CPUIA64State *env);
 
 enum {
@@ -49,8 +48,7 @@ static inline uint64_t ia64_rotl_pr(uint64_t value, uint32_t shift)
     if (shift == 0) {
         return value;
     }
-    return ((value << shift) |
-            (value >> (IA64_PR_ROTATING_COUNT - shift))) &
+    return ((value << shift) | (value >> (IA64_PR_ROTATING_COUNT - shift))) &
            IA64_PR_ROTATING_MASK;
 }
 
@@ -60,27 +58,22 @@ static inline uint64_t ia64_rotr_pr(uint64_t value, uint32_t shift)
     if (shift == 0) {
         return value;
     }
-    return ((value >> shift) |
-            (value << (IA64_PR_ROTATING_COUNT - shift))) &
+    return ((value >> shift) | (value << (IA64_PR_ROTATING_COUNT - shift))) &
            IA64_PR_ROTATING_MASK;
 }
 
-static inline QEMU_ALWAYS_INLINE uint64_t
-ia64_pack_pr_bit(const uint64_t *pr, uint32_t bit)
+static inline QEMU_ALWAYS_INLINE uint64_t ia64_pack_pr_bit(const uint64_t *pr,
+                                                           uint32_t bit)
 {
     return (pr[bit] & 1) << bit;
 }
 
 static inline uint64_t ia64_pack_pr8(const uint64_t *pr)
 {
-    return ia64_pack_pr_bit(pr, 0) |
-           ia64_pack_pr_bit(pr, 1) |
-           ia64_pack_pr_bit(pr, 2) |
-           ia64_pack_pr_bit(pr, 3) |
-           ia64_pack_pr_bit(pr, 4) |
-           ia64_pack_pr_bit(pr, 5) |
-           ia64_pack_pr_bit(pr, 6) |
-           ia64_pack_pr_bit(pr, 7);
+    return ia64_pack_pr_bit(pr, 0) | ia64_pack_pr_bit(pr, 1) |
+           ia64_pack_pr_bit(pr, 2) | ia64_pack_pr_bit(pr, 3) |
+           ia64_pack_pr_bit(pr, 4) | ia64_pack_pr_bit(pr, 5) |
+           ia64_pack_pr_bit(pr, 6) | ia64_pack_pr_bit(pr, 7);
 }
 
 static inline QEMU_ALWAYS_INLINE void
@@ -126,8 +119,7 @@ uint64_t ia64_system_read_pr(const CPUIA64State *env)
 }
 
 static G_GNUC_NO_INLINE void
-ia64_set_cfm_rrb_pr_slow(CPUIA64State *env, uint32_t new_rrb,
-                         uint32_t old_rrb)
+ia64_set_cfm_rrb_pr_slow(CPUIA64State *env, uint32_t new_rrb, uint32_t old_rrb)
 {
     enum { ROTATING_COUNT = IA64_PR_COUNT - IA64_PR_ROTATING_BASE };
     uint32_t shift;
@@ -149,8 +141,8 @@ ia64_set_cfm_rrb_pr_slow(CPUIA64State *env, uint32_t new_rrb,
      * so rebase that logical view just as ia64_set_cfm_rrb_fr() does for
      * rotating floating-point registers.
      */
-    shift = new_rrb >= old_rrb ? new_rrb - old_rrb :
-                                new_rrb + ROTATING_COUNT - old_rrb;
+    shift = new_rrb >= old_rrb ? new_rrb - old_rrb
+                               : new_rrb + ROTATING_COUNT - old_rrb;
     if (shift == 1) {
         uint64_t first = env->pr[IA64_PR_ROTATING_BASE];
 
@@ -212,17 +204,15 @@ void ia64_rotate_cfm_rrb_pr_right(CPUIA64State *env)
     env->pr[IA64_PR_TRUE] = 1;
 }
 
-
 void ia64_system_epc(CPUIA64State *env, uint64_t fault_ip, uint64_t raw,
-                uint32_t fault_slot)
+                     uint32_t fault_slot)
 {
     uint8_t current_cpl = ia64_psr_cpl(env->psr);
     uint8_t pfs_ppl = (env->ar_pfs & IA64_PFS_PPL_MASK) >> IA64_PFS_PPL_SHIFT;
     uint8_t new_cpl = current_cpl;
 
     if (pfs_ppl < current_cpl) {
-        ia64_raise_exception(env, IA64_EXCP_ILLEGAL, fault_ip, raw,
-                               fault_slot);
+        ia64_raise_exception(env, IA64_EXCP_ILLEGAL, fault_ip, raw, fault_slot);
     }
 
     if (env->psr & IA64_PSR_IT) {
@@ -231,8 +221,8 @@ void ia64_system_epc(CPUIA64State *env, uint64_t fault_ip, uint64_t raw,
         for (uint16_t i = 0; i < env->mmu.tlb_inst_count; i++) {
             IA64TlbEntry *entry = &env->mmu.tlb_inst[i];
 
-            if (ia64_tlb_match(entry, fault_ip, rid) &&
-                entry->ar == 7 && entry->pl < current_cpl) {
+            if (ia64_tlb_match(entry, fault_ip, rid) && entry->ar == 7 &&
+                entry->pl < current_cpl) {
                 new_cpl = entry->pl;
                 break;
             }
@@ -242,53 +232,8 @@ void ia64_system_epc(CPUIA64State *env, uint64_t fault_ip, uint64_t raw,
     }
 
     ia64_set_psr(env, (env->psr & ~IA64_PSR_CPL_MASK) |
-                      ((uint64_t)new_cpl << IA64_PSR_CPL_SHIFT));
+                          ((uint64_t)new_cpl << IA64_PSR_CPL_SHIFT));
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 void ia64_system_write_pr(CPUIA64State *env, uint64_t value, uint64_t mask)
 {
@@ -362,12 +307,9 @@ static bool ia64_reserved_rsc_field(uint64_t value)
 
 static bool ia64_reserved_fpsr_field(uint64_t value)
 {
-    return (value >> 58) != 0 ||
-           ((value >> 12) & 1) != 0 ||
-           ((value >> 47) & 3) == 1 ||
-           ((value >> 34) & 3) == 1 ||
-           ((value >> 21) & 3) == 1 ||
-           ((value >> 8) & 3) == 1;
+    return (value >> 58) != 0 || ((value >> 12) & 1) != 0 ||
+           ((value >> 47) & 3) == 1 || ((value >> 34) & 3) == 1 ||
+           ((value >> 21) & 3) == 1 || ((value >> 8) & 3) == 1;
 }
 
 static bool ia64_reserved_pfs_field(uint64_t value)
@@ -376,34 +318,32 @@ static bool ia64_reserved_pfs_field(uint64_t value)
 }
 
 static void ia64_system_check_virtualization(CPUIA64State *env,
-                                             uint64_t fault_ip,
-                                             uint64_t raw, uint32_t slot)
+                                             uint64_t fault_ip, uint64_t raw,
+                                             uint32_t slot)
 {
     if (ia64_env_cpu_class(env)->has_virtualization &&
         (env->psr & IA64_PSR_VM)) {
-        ia64_raise_exception(env, IA64_EXCP_VIRTUALIZATION,
-                             fault_ip, raw, slot);
+        ia64_raise_exception(env, IA64_EXCP_VIRTUALIZATION, fault_ip, raw,
+                             slot);
     }
 }
 
 void ia64_system_validate_ar_access(CPUIA64State *env, uint64_t value,
-                               uint32_t ar_num, uint32_t write,
-                               uint64_t fault_ip, uint64_t raw,
-                               uint32_t slot)
+                                    uint32_t ar_num, uint32_t write,
+                                    uint64_t fault_ip, uint64_t raw,
+                                    uint32_t slot)
 {
-    if ((ar_num == 18 || ar_num == 19) &&
-        (env->ar_rsc & IA64_RSC_MODE)) {
+    if ((ar_num == 18 || ar_num == 19) && (env->ar_rsc & IA64_RSC_MODE)) {
         env->cr_isr = 0;
         ia64_raise_exception(env, IA64_EXCP_ILLEGAL, fault_ip, raw, slot);
     }
 
     if (!write) {
         if ((ar_num == IA64_AR_ITC || ar_num == IA64_AR_RUC) &&
-            (env->psr & IA64_PSR_SI) &&
-            ia64_psr_cpl(env->psr) != 0) {
+            (env->psr & IA64_PSR_SI) && ia64_psr_cpl(env->psr) != 0) {
             env->cr_isr = 0x20;
-            ia64_raise_exception(env, IA64_EXCP_PRIVILEGED_REG,
-                                   fault_ip, raw, slot);
+            ia64_raise_exception(env, IA64_EXCP_PRIVILEGED_REG, fault_ip, raw,
+                                 slot);
         }
         if ((ar_num == IA64_AR_ITC || ar_num == IA64_AR_RUC) &&
             (env->psr & IA64_PSR_SI)) {
@@ -422,15 +362,15 @@ void ia64_system_validate_ar_access(CPUIA64State *env, uint64_t value,
                       " slot=%u\n",
                       fault_ip, ar_num, value, raw, slot);
         env->cr_isr = 0x30;
-        ia64_raise_exception(env, IA64_EXCP_RESERVED_REG_FIELD,
-                               fault_ip, raw, slot);
+        ia64_raise_exception(env, IA64_EXCP_RESERVED_REG_FIELD, fault_ip, raw,
+                             slot);
     }
     if ((ar_num <= IA64_AR_KR7 || ar_num == IA64_AR_CFLG ||
-         ar_num == IA64_AR_ITC ||
-         ar_num == IA64_AR_RUC) && ia64_psr_cpl(env->psr) != 0) {
+         ar_num == IA64_AR_ITC || ar_num == IA64_AR_RUC) &&
+        ia64_psr_cpl(env->psr) != 0) {
         env->cr_isr = 0x20;
-        ia64_raise_exception(env, IA64_EXCP_PRIVILEGED_REG,
-                               fault_ip, raw, slot);
+        ia64_raise_exception(env, IA64_EXCP_PRIVILEGED_REG, fault_ip, raw,
+                             slot);
     }
     if (ar_num == IA64_AR_ITC || ar_num == IA64_AR_RUC) {
         ia64_system_check_virtualization(env, fault_ip, raw, slot);
@@ -463,12 +403,11 @@ void ia64_system_write_ar(CPUIA64State *env, uint32_t ar_num, uint64_t value)
         uint8_t pl = MAX(ia64_rsc_pl(value), ia64_psr_cpl(env->psr));
         uint64_t old_rsc = env->ar_rsc;
 
-        env->ar_rsc = (value & ~IA64_RSC_PL) |
-                      ((uint64_t)pl << IA64_RSC_PL_SHIFT);
+        env->ar_rsc =
+            (value & ~IA64_RSC_PL) | ((uint64_t)pl << IA64_RSC_PL_SHIFT);
         if ((old_rsc ^ env->ar_rsc) & IA64_RSC_PL) {
             /* The RSE MMU index is never used for instruction fetches. */
-            tlb_flush_by_mmuidx_no_jmp_cache(env_cpu(env),
-                                             1u << MMU_IDX_RSE);
+            tlb_flush_by_mmuidx_no_jmp_cache(env_cpu(env), 1u << MMU_IDX_RSE);
         }
         return;
     }
@@ -521,8 +460,8 @@ void ia64_system_write_ar(CPUIA64State *env, uint32_t ar_num, uint64_t value)
 
         ia64_rse_rnat_undefined(env, "mov-bspstore");
         env->rse.rse_dirty_nat = ia64_rse_nat_words_grow(value, dirty);
-        env->ar_bsp = value +
-            (uint64_t)(env->rse.rse_dirty + env->rse.rse_dirty_nat) * 8;
+        env->ar_bsp =
+            value + (uint64_t)(env->rse.rse_dirty + env->rse.rse_dirty_nat) * 8;
         env->rse.rse_invalid += env->rse.rse_clean;
         env->rse.rse_clean = 0;
         env->rse.rse_clean_nat = 0;
@@ -557,15 +496,13 @@ uint64_t ia64_system_read_cr(CPUIA64State *env, uint32_t cr_num)
 
 static bool ia64_reserved_ipsr_field(CPUIA64State *env, uint64_t value)
 {
-    uint64_t high_reserved = ia64_env_cpu_class(env)->has_virtualization ?
-                             (value >> 47) : (value >> 46);
+    uint64_t high_reserved = ia64_env_cpu_class(env)->has_virtualization
+                                 ? (value >> 47)
+                                 : (value >> 46);
 
-    return high_reserved != 0 ||
-           ((value >> 41) & 3) == 3 ||
-           ((value >> 28) & 0xf) != 0 ||
-           ((value >> 16) & 1) != 0 ||
-           ((value >> 6) & 0x7f) != 0 ||
-           (value & 1) != 0;
+    return high_reserved != 0 || ((value >> 41) & 3) == 3 ||
+           ((value >> 28) & 0xf) != 0 || ((value >> 16) & 1) != 0 ||
+           ((value >> 6) & 0x7f) != 0 || (value & 1) != 0;
 }
 
 static bool ia64_reserved_ifs_field(uint64_t value)
@@ -585,14 +522,12 @@ static bool ia64_reserved_cr_field(CPUIA64State *env, uint32_t cr_num,
     case 8: {
         uint8_t ps = (value >> 2) & 0x3f;
 
-        return (value & (0x3fULL << 9)) || (value & 2) ||
-               ps < 15;
+        return (value & (0x3fULL << 9)) || (value & 2) || ps < 15;
     }
     case 16:
         return ia64_reserved_ipsr_field(env, value);
     case 17:
-        return (value >> 44) != 0 ||
-               ((value >> 41) & 3) == 3 ||
+        return (value >> 44) != 0 || ((value >> 41) & 3) == 3 ||
                ((value >> 24) & 0xff) != 0;
     case 23:
         return ia64_reserved_ifs_field(value);
@@ -605,16 +540,13 @@ static bool ia64_reserved_cr_field(CPUIA64State *env, uint32_t cr_num,
     case IA64_CR_ITV:
     case 73:
     case 74:
-        return (value & (7ULL << 13)) ||
-               (value & (0xfULL << 8));
+        return (value & (7ULL << 13)) || (value & (0xfULL << 8));
     case 80:
     case 81: {
         uint8_t delivery_mode = (value >> 8) & 7;
 
-        return (value & (1ULL << 14)) ||
-               (value & (1ULL << 11)) ||
-               delivery_mode == 1 || delivery_mode == 3 ||
-               delivery_mode == 6;
+        return (value & (1ULL << 14)) || (value & (1ULL << 11)) ||
+               delivery_mode == 1 || delivery_mode == 3 || delivery_mode == 6;
     }
     default:
         return false;
@@ -622,9 +554,9 @@ static bool ia64_reserved_cr_field(CPUIA64State *env, uint32_t cr_num,
 }
 
 uint64_t ia64_system_validate_cr_access(CPUIA64State *env, uint64_t value,
-                                   uint32_t cr_num, uint32_t write,
-                                   uint64_t fault_ip, uint64_t raw,
-                                   uint32_t slot)
+                                        uint32_t cr_num, uint32_t write,
+                                        uint64_t fault_ip, uint64_t raw,
+                                        uint32_t slot)
 {
     if ((env->psr & IA64_PSR_IC) && cr_num >= 16 && cr_num <= 25) {
         env->cr_isr = 0;
@@ -637,18 +569,17 @@ uint64_t ia64_system_validate_cr_access(CPUIA64State *env, uint64_t value,
                       " slot=%u psr=%016" PRIx64 "\n",
                       cr_num, value, fault_ip, raw, slot, env->psr);
         env->cr_isr = 0x30;
-        ia64_raise_exception(env, IA64_EXCP_RESERVED_REG_FIELD,
-                               fault_ip, raw, slot);
+        ia64_raise_exception(env, IA64_EXCP_RESERVED_REG_FIELD, fault_ip, raw,
+                             slot);
     }
-    if (write && cr_num == IA64_CR_IFA &&
-        !ia64_va_is_implemented(env, value)) {
+    if (write && cr_num == IA64_CR_IFA && !ia64_va_is_implemented(env, value)) {
         env->cr_ifa = value;
         env->cr_isr = IA64_GENEX_UNIMPL_DATA_ADDR | IA64_ISR_NA;
         if (ia64_current_code_tlb_ed(env)) {
             env->cr_isr |= IA64_ISR_ED;
         }
-        ia64_raise_exception(env, IA64_EXCP_UNIMPL_DATA_ADDR,
-                             fault_ip, raw, slot);
+        ia64_raise_exception(env, IA64_EXCP_UNIMPL_DATA_ADDR, fault_ip, raw,
+                             slot);
     }
     ia64_system_check_virtualization(env, fault_ip, raw, slot);
 
@@ -698,8 +629,7 @@ uint64_t ia64_system_read_dahr_indexed(CPUIA64State *env, uint64_t index)
     return env->dahr[index & 7] & 0x7ff;
 }
 
-void ia64_system_write_dahr(CPUIA64State *env, uint32_t index,
-                            uint64_t value)
+void ia64_system_write_dahr(CPUIA64State *env, uint32_t index, uint64_t value)
 {
     env->dahr[index & 7] = value & 0x7ff;
 }
@@ -809,8 +739,7 @@ void ia64_write_cr(CPUIA64State *env, uint32_t cr_num, uint64_t value)
         break;
     case IA64_CR_SAPIC_LID:
         qatomic_set(&env->cr[cr_num],
-                    value & (IA64_SAPIC_LID_ID_MASK |
-                             IA64_SAPIC_LID_EID_MASK));
+                    value & (IA64_SAPIC_LID_ID_MASK | IA64_SAPIC_LID_EID_MASK));
         break;
     case IA64_CR_SAPIC_EOI:
         ia64_sapic_eoi(env);
@@ -964,7 +893,7 @@ uint64_t ia64_system_read_pmc_indexed(CPUIA64State *env, uint64_t index)
 }
 
 void ia64_system_write_pmc_indexed(CPUIA64State *env, uint64_t index,
-                              uint64_t value)
+                                   uint64_t value)
 {
     index &= 0xff;
     ia64_system_write_pmc(env, index, value);
@@ -1025,8 +954,8 @@ uint64_t ia64_system_read_pmd(CPUIA64State *env, uint32_t index)
 }
 
 uint64_t ia64_system_read_pmd_checked(CPUIA64State *env, uint64_t index,
-                                 uint64_t fault_ip, uint64_t raw,
-                                 uint32_t slot)
+                                      uint64_t fault_ip, uint64_t raw,
+                                      uint32_t slot)
 {
     index &= 0xff;
 
@@ -1103,7 +1032,7 @@ uint64_t ia64_system_read_pmd_indexed(CPUIA64State *env, uint64_t index)
 }
 
 void ia64_system_write_pmd_indexed(CPUIA64State *env, uint64_t index,
-                              uint64_t value)
+                                   uint64_t value)
 {
     index &= 0xff;
     if (index >= IA64_PMD_COUNT) {
@@ -1111,9 +1040,6 @@ void ia64_system_write_pmd_indexed(CPUIA64State *env, uint64_t index,
     }
     ia64_system_write_pmd(env, index, value);
 }
-
-
-
 
 void ia64_system_st_spill_unat(CPUIA64State *env, uint32_t reg, uint64_t addr)
 {
@@ -1155,8 +1081,7 @@ void ia64_set_psr(CPUIA64State *env, uint64_t value)
     }
     if (!(value & IA64_PSR_I) || (value & IA64_PSR_IS)) {
         env->exception_state.psr_i_deferred = false;
-    } else if ((changed & IA64_PSR_I) &&
-               env->exception_state.psr_ic_inflight) {
+    } else if ((changed & IA64_PSR_I) && env->exception_state.psr_ic_inflight) {
         env->exception_state.psr_i_deferred = true;
     }
     if (changed & IA64_PSR_BN) {
@@ -1200,8 +1125,8 @@ void ia64_system_clear_psr_fault_suppression(CPUIA64State *env)
 
 void ia64_set_psr_bn(CPUIA64State *env, bool bank1)
 {
-    uint64_t value = bank1 ? (env->psr | IA64_PSR_BN) :
-                             (env->psr & ~IA64_PSR_BN);
+    uint64_t value =
+        bank1 ? (env->psr | IA64_PSR_BN) : (env->psr & ~IA64_PSR_BN);
 
     ia64_set_psr(env, value);
 }
@@ -1210,9 +1135,6 @@ void ia64_system_set_psr_bn(CPUIA64State *env, uint32_t bank1)
 {
     ia64_set_psr_bn(env, bank1 != 0);
 }
-
-
-
 
 void ia64_system_ssm(CPUIA64State *env, uint64_t imm)
 {
@@ -1231,7 +1153,6 @@ void ia64_system_rsm(CPUIA64State *env, uint64_t imm)
 }
 /* ---- Probe helper (optionally writes r1 and returns the probe result) ---- */
 /* ---- tak / thash / ttag helpers ---- */
-
 
 /* ---- mov to PSR helper ---- */
 
@@ -1267,18 +1188,17 @@ uint64_t ia64_system_mov_rrgr_read(CPUIA64State *env, uint64_t rr_addr)
 }
 
 uint64_t ia64_system_validate_rr_value(CPUIA64State *env, uint64_t value,
-                                  uint64_t fault_ip, uint64_t raw,
-                                  uint32_t slot)
+                                       uint64_t fault_ip, uint64_t raw,
+                                       uint32_t slot)
 {
     uint8_t ps = (value >> 2) & 0x3f;
     uint8_t rid_bits = ia64_env_cpu_class(env)->rid_bits;
-    uint64_t allowed = 1ULL | (0x3fULL << 2) |
-                       (((1ULL << rid_bits) - 1) << 8);
+    uint64_t allowed = 1ULL | (0x3fULL << 2) | (((1ULL << rid_bits) - 1) << 8);
 
     if ((value & ~allowed) || !ia64_page_shift_insertable(env, ps)) {
         env->cr_isr = 0x30;
-        ia64_raise_exception(env, IA64_EXCP_RESERVED_REG_FIELD,
-                               fault_ip, raw, slot);
+        ia64_raise_exception(env, IA64_EXCP_RESERVED_REG_FIELD, fault_ip, raw,
+                             slot);
     }
     return value;
 }
@@ -1328,8 +1248,7 @@ uint64_t ia64_system_mov_pkrgr_indexed_read(CPUIA64State *env, uint64_t pkr_num)
 
 /* ---- mov to PKR helper ---- */
 
-static void ia64_pkr_write(CPUIA64State *env, uint32_t pkr_num,
-                           uint64_t value)
+static void ia64_pkr_write(CPUIA64State *env, uint32_t pkr_num, uint64_t value)
 {
     uint64_t key_mask = ia64_pkr_key_mask(env);
     uint64_t masked = value & ia64_pkr_mask(env);
@@ -1366,7 +1285,7 @@ void ia64_system_mov_grpkr_write(CPUIA64State *env, uint32_t pkr_num,
 }
 
 void ia64_system_mov_grpkr_indexed_write(CPUIA64State *env, uint64_t pkr_num,
-                                    uint64_t value)
+                                         uint64_t value)
 {
     pkr_num &= 0xff;
     ia64_pkr_write(env, pkr_num, value);

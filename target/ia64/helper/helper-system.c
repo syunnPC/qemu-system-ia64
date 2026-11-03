@@ -29,11 +29,10 @@ uint64_t helper_read_ar(CPUIA64State *env, uint32_t ar_num)
 
 void helper_validate_ar_access(CPUIA64State *env, uint64_t value,
                                uint32_t ar_num, uint32_t write,
-                               uint64_t fault_ip, uint64_t raw,
-                               uint32_t slot)
+                               uint64_t fault_ip, uint64_t raw, uint32_t slot)
 {
-    ia64_system_validate_ar_access(env, value, ar_num, write,
-                                   fault_ip, raw, slot);
+    ia64_system_validate_ar_access(env, value, ar_num, write, fault_ip, raw,
+                                   slot);
 }
 
 void helper_write_ar(CPUIA64State *env, uint32_t ar_num, uint64_t value)
@@ -56,8 +55,8 @@ uint64_t helper_validate_cr_access(CPUIA64State *env, uint64_t value,
                                    uint64_t fault_ip, uint64_t raw,
                                    uint32_t slot)
 {
-    return ia64_system_validate_cr_access(env, value, cr_num, write,
-                                          fault_ip, raw, slot);
+    return ia64_system_validate_cr_access(env, value, cr_num, write, fault_ip,
+                                          raw, slot);
 }
 
 uint64_t helper_read_cpuid(CPUIA64State *env, uint64_t index)
@@ -120,8 +119,7 @@ uint64_t helper_read_pmc_indexed(CPUIA64State *env, uint64_t index)
     return ia64_system_read_pmc_indexed(env, index);
 }
 
-void helper_write_pmc_indexed(CPUIA64State *env, uint64_t index,
-                              uint64_t value)
+void helper_write_pmc_indexed(CPUIA64State *env, uint64_t index, uint64_t value)
 {
     ia64_system_write_pmc_indexed(env, index, value);
 }
@@ -132,8 +130,7 @@ uint64_t helper_read_pmd(CPUIA64State *env, uint32_t index)
 }
 
 uint64_t helper_read_pmd_checked(CPUIA64State *env, uint64_t index,
-                                 uint64_t fault_ip, uint64_t raw,
-                                 uint32_t slot)
+                                 uint64_t fault_ip, uint64_t raw, uint32_t slot)
 {
     return ia64_system_read_pmd_checked(env, index, fault_ip, raw, slot);
 }
@@ -148,8 +145,7 @@ uint64_t helper_read_pmd_indexed(CPUIA64State *env, uint64_t index)
     return ia64_system_read_pmd_indexed(env, index);
 }
 
-void helper_write_pmd_indexed(CPUIA64State *env, uint64_t index,
-                              uint64_t value)
+void helper_write_pmd_indexed(CPUIA64State *env, uint64_t index, uint64_t value)
 {
     ia64_system_write_pmd_indexed(env, index, value);
 }
@@ -196,8 +192,7 @@ uint64_t helper_validate_rr_value(CPUIA64State *env, uint64_t value,
     return ia64_system_validate_rr_value(env, value, fault_ip, raw, slot);
 }
 
-void helper_mov_grrr_write(CPUIA64State *env, uint64_t rr_addr,
-                           uint64_t value)
+void helper_mov_grrr_write(CPUIA64State *env, uint64_t rr_addr, uint64_t value)
 {
     ia64_system_mov_grrr_write(env, rr_addr, value);
 }
@@ -212,8 +207,7 @@ uint64_t helper_mov_pkrgr_indexed_read(CPUIA64State *env, uint64_t pkr_num)
     return ia64_system_mov_pkrgr_indexed_read(env, pkr_num);
 }
 
-void helper_mov_grpkr_write(CPUIA64State *env, uint32_t pkr_num,
-                            uint64_t value)
+void helper_mov_grpkr_write(CPUIA64State *env, uint32_t pkr_num, uint64_t value)
 {
     ia64_system_mov_grpkr_write(env, pkr_num, value);
 }

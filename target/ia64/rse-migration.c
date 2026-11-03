@@ -44,12 +44,10 @@ static bool ia64_rnat_collection_address_valid(uint64_t addr)
     return (addr & 0x1ff) == 0x1f8;
 }
 
-static bool
-ia64_rnat_writeback_image_valid(const IA64RnatWritebackImage *image)
+static bool ia64_rnat_writeback_image_valid(const IA64RnatWritebackImage *image)
 {
     if (!image->valid) {
-        return image->value == 0 && image->addr == 0 &&
-               image->defined == 0;
+        return image->value == 0 && image->addr == 0 && image->defined == 0;
     }
 
     return image->defined != 0 &&
@@ -58,8 +56,8 @@ ia64_rnat_writeback_image_valid(const IA64RnatWritebackImage *image)
            ia64_rnat_collection_address_valid(image->addr);
 }
 
-static bool ia64_rse_migration_view_valid(
-    const IA64RSEMigrationView *state, bool has_clean_partition)
+static bool ia64_rse_migration_view_valid(const IA64RSEMigrationView *state,
+                                          bool has_clean_partition)
 {
     int64_t partition_total;
     int64_t dirty_words;
@@ -71,11 +69,10 @@ static bool ia64_rse_migration_view_valid(
                                      state->cfm_sor) ||
         state->bol >= IA64_STACKED_GR_COUNT ||
         state->dirty < -(int32_t)IA64_STACKED_GR_COUNT ||
-        state->dirty > IA64_STACKED_GR_COUNT ||
-        state->clean < 0 || state->clean > IA64_STACKED_GR_COUNT ||
-        state->invalid < 0 || state->invalid > IA64_STACKED_GR_COUNT ||
-        state->dirty_nat < -2 || state->dirty_nat > 2 ||
-        state->clean_nat < 0 || state->clean_nat > 2 ||
+        state->dirty > IA64_STACKED_GR_COUNT || state->clean < 0 ||
+        state->clean > IA64_STACKED_GR_COUNT || state->invalid < 0 ||
+        state->invalid > IA64_STACKED_GR_COUNT || state->dirty_nat < -2 ||
+        state->dirty_nat > 2 || state->clean_nat < 0 || state->clean_nat > 2 ||
         (state->bsp & 7) != 0 || (state->bspstore & 7) != 0) {
         return false;
     }
@@ -93,13 +90,12 @@ static bool ia64_rse_migration_view_valid(
     }
 
     /* The second words describe physical stacked registers 64 through 95. */
-    if ((state->pgr_nat[1] | state->gr_dirty[1]) &
-        ~(uint64_t)UINT32_MAX) {
+    if ((state->pgr_nat[1] | state->gr_dirty[1]) & ~(uint64_t)UINT32_MAX) {
         return false;
     }
 
-    partition_total = (int64_t)state->cfm_sof + state->dirty +
-                      state->clean + state->invalid;
+    partition_total =
+        (int64_t)state->cfm_sof + state->dirty + state->clean + state->invalid;
     if (partition_total != IA64_STACKED_GR_COUNT) {
         return false;
     }
@@ -117,18 +113,16 @@ static bool ia64_rse_migration_view_valid(
     }
 
     if (state->dirty >= 0) {
-        int32_t expected_dirty_nat =
-            (int32_t)((int64_t)(state->bsp >> 9) -
-                      (int64_t)(state->bspstore >> 9));
+        int32_t expected_dirty_nat = (int32_t)((int64_t)(state->bsp >> 9) -
+                                               (int64_t)(state->bspstore >> 9));
 
         if (state->dirty_nat != expected_dirty_nat) {
             return false;
         }
-        uint64_t bspload = state->bspstore -
-            (uint64_t)(state->clean + state->clean_nat) * 8;
-        int32_t expected_clean_nat =
-            (int32_t)((int64_t)(state->bspstore >> 9) -
-                      (int64_t)(bspload >> 9));
+        uint64_t bspload =
+            state->bspstore - (uint64_t)(state->clean + state->clean_nat) * 8;
+        int32_t expected_clean_nat = (int32_t)((int64_t)(state->bspstore >> 9) -
+                                               (int64_t)(bspload >> 9));
 
         if (state->clean_nat != expected_clean_nat) {
             return false;
@@ -136,7 +130,8 @@ static bool ia64_rse_migration_view_valid(
     }
 
     if ((state->rnat | state->rnat_defined | state->load_rnat |
-         state->load_rnat_defined) & ~INT64_MAX) {
+         state->load_rnat_defined) &
+        ~INT64_MAX) {
         return false;
     }
     if ((state->rnat & ~state->rnat_defined) != 0 ||

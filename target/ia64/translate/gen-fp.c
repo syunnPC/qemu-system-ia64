@@ -26,8 +26,7 @@ typedef enum IA64FPCopyMode {
     IA64_FP_COPY_NEG_ABS,
 } IA64FPCopyMode;
 
-static void ia64_gen_fp_copy(const Ia64Instruction *insn,
-                             IA64FPCopyMode mode)
+static void ia64_gen_fp_copy(const Ia64Instruction *insn, IA64FPCopyMode mode)
 {
     const IA64FloatingOperands *op = &insn->operands.floating;
     TCGv_i64 value;
@@ -45,16 +44,16 @@ static void ia64_gen_fp_copy(const Ia64Instruction *insn,
         done = gen_new_label();
         if (mode == IA64_FP_COPY) {
             significand = gen_new_label();
+            tcg_gen_brcondi_i64(
+                TCG_COND_NE, ia64_gen_fr_fmov_slow_read(insn->ctx, op->source1),
+                0, slow);
             tcg_gen_brcondi_i64(TCG_COND_NE,
-                                ia64_gen_fr_fmov_slow_read(
-                                    insn->ctx, op->source1), 0, slow);
-            tcg_gen_brcondi_i64(TCG_COND_NE,
-                                ia64_gen_fr_sig_read(insn->ctx, op->source1),
-                                0, significand);
+                                ia64_gen_fr_sig_read(insn->ctx, op->source1), 0,
+                                significand);
         } else {
-            tcg_gen_brcondi_i64(TCG_COND_NE,
-                                ia64_gen_fr_special_read(
-                                    insn->ctx, op->source1), 0, slow);
+            tcg_gen_brcondi_i64(
+                TCG_COND_NE, ia64_gen_fr_special_read(insn->ctx, op->source1),
+                0, slow);
         }
     }
 
@@ -67,8 +66,9 @@ static void ia64_gen_fp_copy(const Ia64Instruction *insn,
     case IA64_FP_COPY_NEG:
     case IA64_FP_COPY_NEG_ABS:
         if (op->source1 <= 1) {
-            tcg_gen_movi_i64(value, op->source1 == IA64_FR_ONE_INDEX ?
-                            UINT64_C(1) << 63 : 0);
+            tcg_gen_movi_i64(value, op->source1 == IA64_FR_ONE_INDEX
+                                        ? UINT64_C(1) << 63
+                                        : 0);
         } else {
             /*
              * The packed sign pseudo-ops are fpmerge operations over the
@@ -87,14 +87,11 @@ static void ia64_gen_fp_copy(const Ia64Instruction *insn,
             tcg_gen_or_i64(value, value, exponent);
         }
         if (mode == IA64_FP_COPY_ABS) {
-            tcg_gen_andi_i64(value, value,
-                             UINT64_C(0x7fffffff7fffffff));
+            tcg_gen_andi_i64(value, value, UINT64_C(0x7fffffff7fffffff));
         } else if (mode == IA64_FP_COPY_NEG) {
-            tcg_gen_xori_i64(value, value,
-                             UINT64_C(0x8000000080000000));
+            tcg_gen_xori_i64(value, value, UINT64_C(0x8000000080000000));
         } else {
-            tcg_gen_ori_i64(value, value,
-                            UINT64_C(0x8000000080000000));
+            tcg_gen_ori_i64(value, value, UINT64_C(0x8000000080000000));
         }
         break;
     default:
@@ -161,16 +158,15 @@ static TCGv_i64 ia64_gen_fp_significand(const Ia64Instruction *insn,
     tcg_gen_setcondi_i64(TCG_COND_NE, exponent, exponent, 0);
     tcg_gen_shli_i64(exponent, exponent, 63);
     tcg_gen_or_i64(value, value, exponent);
-    tcg_gen_movcond_i64(TCG_COND_NE, value,
-                        ia64_gen_fr_sig_read(insn->ctx, reg),
-                        tcg_constant_i64(0), ia64_fr_significand_src(reg),
-                        value);
+    tcg_gen_movcond_i64(
+        TCG_COND_NE, value, ia64_gen_fr_sig_read(insn->ctx, reg),
+        tcg_constant_i64(0), ia64_fr_significand_src(reg), value);
     return value;
 }
 
 static void ia64_gen_fp_bitwise_operands(const Ia64Instruction *insn,
-                                          TCGLabel *slow, TCGv_i64 *left,
-                                          TCGv_i64 *right)
+                                         TCGLabel *slow, TCGv_i64 *left,
+                                         TCGv_i64 *right)
 {
     const IA64FloatingOperands *op = &insn->operands.floating;
     TCGv_i64 special = tcg_temp_new_i64();
@@ -179,8 +175,9 @@ static void ia64_gen_fp_bitwise_operands(const Ia64Instruction *insn,
                    ia64_gen_fr_fmov_slow_read(insn->ctx, op->source2));
     tcg_gen_brcondi_i64(TCG_COND_NE, special, 0, slow);
     *left = ia64_gen_fp_significand(insn, op->source1);
-    *right = op->source1 == op->source2 ? *left :
-             ia64_gen_fp_significand(insn, op->source2);
+    *right = op->source1 == op->source2
+                 ? *left
+                 : ia64_gen_fp_significand(insn, op->source2);
 }
 
 static void ia64_gen_fp_logical(const Ia64Instruction *insn, uint32_t mode)
@@ -219,26 +216,22 @@ static void ia64_gen_fp_logical(const Ia64Instruction *insn, uint32_t mode)
     /* Helpers read the architected significand for every FR representation. */
     switch (mode) {
     case 0:
-        gen_helper_flogical_and(tcg_env,
-                                tcg_constant_i32(op->destination),
+        gen_helper_flogical_and(tcg_env, tcg_constant_i32(op->destination),
                                 tcg_constant_i32(op->source1),
                                 tcg_constant_i32(op->source2));
         break;
     case 1:
-        gen_helper_flogical_andcm(tcg_env,
-                                  tcg_constant_i32(op->destination),
+        gen_helper_flogical_andcm(tcg_env, tcg_constant_i32(op->destination),
                                   tcg_constant_i32(op->source1),
                                   tcg_constant_i32(op->source2));
         break;
     case 2:
-        gen_helper_flogical_or(tcg_env,
-                               tcg_constant_i32(op->destination),
+        gen_helper_flogical_or(tcg_env, tcg_constant_i32(op->destination),
                                tcg_constant_i32(op->source1),
                                tcg_constant_i32(op->source2));
         break;
     case 3:
-        gen_helper_flogical_xor(tcg_env,
-                                tcg_constant_i32(op->destination),
+        gen_helper_flogical_xor(tcg_env, tcg_constant_i32(op->destination),
                                 tcg_constant_i32(op->source1),
                                 tcg_constant_i32(op->source2));
         break;
@@ -272,8 +265,7 @@ static void ia64_gen_fp_swap(const Ia64Instruction *insn, uint32_t form)
 
     gen_helper_fswap(tcg_env, tcg_constant_i32(op->destination),
                      tcg_constant_i32(op->source1),
-                     tcg_constant_i32(op->source2),
-                     tcg_constant_i32(form));
+                     tcg_constant_i32(op->source2), tcg_constant_i32(form));
     gen_set_label(done);
 }
 
@@ -307,8 +299,7 @@ static void ia64_gen_fp_mix(const Ia64Instruction *insn, uint32_t form)
 
     gen_helper_fmix(tcg_env, tcg_constant_i32(op->destination),
                     tcg_constant_i32(op->source1),
-                    tcg_constant_i32(op->source2),
-                    tcg_constant_i32(form));
+                    tcg_constant_i32(op->source2), tcg_constant_i32(form));
     gen_set_label(done);
 }
 
@@ -339,8 +330,7 @@ static void ia64_gen_fp_sxt(const Ia64Instruction *insn, uint32_t form)
 
     gen_helper_fsxt(tcg_env, tcg_constant_i32(op->destination),
                     tcg_constant_i32(op->source1),
-                    tcg_constant_i32(op->source2),
-                    tcg_constant_i32(form));
+                    tcg_constant_i32(op->source2), tcg_constant_i32(form));
     gen_set_label(done);
 }
 
@@ -358,8 +348,8 @@ static void ia64_gen_fp_parallel_merge(const Ia64Instruction *insn,
     done = gen_new_label();
     value = tcg_temp_new_i64();
     ia64_gen_fp_bitwise_operands(insn, slow, &left, &right);
-    uint64_t mask = form == 2 ? UINT64_C(0xff800000ff800000) :
-                                UINT64_C(0x8000000080000000);
+    uint64_t mask =
+        form == 2 ? UINT64_C(0xff800000ff800000) : UINT64_C(0x8000000080000000);
 
     tcg_gen_andi_i64(value, left, mask);
     if (form == 0) {
@@ -373,8 +363,7 @@ static void ia64_gen_fp_parallel_merge(const Ia64Instruction *insn,
 
     gen_helper_fpmerge(tcg_env, tcg_constant_i32(op->destination),
                        tcg_constant_i32(op->source1),
-                       tcg_constant_i32(op->source2),
-                       tcg_constant_i32(form));
+                       tcg_constant_i32(op->source2), tcg_constant_i32(form));
     gen_set_label(done);
 }
 
@@ -396,8 +385,7 @@ static void ia64_gen_fmerge_helper(const IA64FloatingOperands *op,
     }
 }
 
-static void ia64_gen_fmerge_require_binary_normal(uint8_t reg,
-                                                  TCGLabel *slow)
+static void ia64_gen_fmerge_require_binary_normal(uint8_t reg, TCGLabel *slow)
 {
     const uint64_t exp_mask = UINT64_C(0x7ff0000000000000);
     TCGv_i64 exponent;
@@ -434,9 +422,8 @@ static void ia64_gen_fmerge(const Ia64Instruction *insn, uint32_t form)
      * not to meet that condition, so avoid emitting an unreachable fast
      * path in that case.
      */
-    if (form == 2 &&
-        (op->source1 == IA64_FR_ZERO_INDEX ||
-         op->source2 == IA64_FR_ZERO_INDEX)) {
+    if (form == 2 && (op->source1 == IA64_FR_ZERO_INDEX ||
+                      op->source2 == IA64_FR_ZERO_INDEX)) {
         ia64_gen_fmerge_helper(op, form);
         return;
     }
@@ -463,8 +450,8 @@ static void ia64_gen_fmerge(const Ia64Instruction *insn, uint32_t form)
         }
     }
 
-    left_mask = form == 2 ? UINT64_C(0xfff0000000000000) :
-                            UINT64_C(0x8000000000000000);
+    left_mask =
+        form == 2 ? UINT64_C(0xfff0000000000000) : UINT64_C(0x8000000000000000);
     left = tcg_temp_new_i64();
     right = tcg_temp_new_i64();
     result = tcg_temp_new_i64();
@@ -529,21 +516,18 @@ static void ia64_gen_getf(const Ia64Instruction *insn, uint32_t kind)
         TCGLabel *slow = gen_new_label();
         TCGLabel *done = gen_new_label();
 
-        tcg_gen_brcondi_i64(TCG_COND_EQ,
-                            ia64_gen_fr_sig_read(insn->ctx, op->source1),
-                            0, slow);
+        tcg_gen_brcondi_i64(
+            TCG_COND_EQ, ia64_gen_fr_sig_read(insn->ctx, op->source1), 0, slow);
         tcg_gen_mov_i64(cpu_gr[op->destination],
                         ia64_fr_significand_src(op->source1));
         tcg_gen_br(done);
         gen_set_label(slow);
         gen_helper_getf(cpu_gr[op->destination], tcg_env,
-                        tcg_constant_i32(op->source1),
-                        tcg_constant_i32(kind));
+                        tcg_constant_i32(op->source1), tcg_constant_i32(kind));
         gen_set_label(done);
     } else {
         gen_helper_getf(cpu_gr[op->destination], tcg_env,
-                        tcg_constant_i32(op->source1),
-                        tcg_constant_i32(kind));
+                        tcg_constant_i32(op->source1), tcg_constant_i32(kind));
     }
     ia64_gen_gr_nat_assign(insn, op->destination,
                            ia64_gen_fr_nat_read(insn->ctx, op->source1));
@@ -563,13 +547,11 @@ static void ia64_gen_xma(const Ia64Instruction *insn, uint32_t mode)
         sig_mask[op->source2 / 64] |= 1ULL << (op->source2 % 64);
     }
     if (op->auxiliary1 > 1) {
-        sig_mask[op->auxiliary1 / 64] |=
-            1ULL << (op->auxiliary1 % 64);
+        sig_mask[op->auxiliary1 / 64] |= 1ULL << (op->auxiliary1 % 64);
     }
     if (mode != 3) {
         if (op->source1 > 1) {
-            sig_mask[op->source1 / 64] |=
-                1ULL << (op->source1 % 64);
+            sig_mask[op->source1 / 64] |= 1ULL << (op->source1 % 64);
         }
     }
     for (uint32_t word = 0; word < ARRAY_SIZE(sig_mask); word++) {
@@ -577,9 +559,10 @@ static void ia64_gen_xma(const Ia64Instruction *insn, uint32_t mode)
             TCGv_i64 bits = tcg_temp_new_i64();
 
             /* A significand tag and a NaTVal tag are mutually exclusive. */
-            tcg_gen_xori_i64(bits, ia64_gen_fr_sig_mask_read(insn->ctx, word,
-                                                           sig_mask[word]),
-                             sig_mask[word]);
+            tcg_gen_xori_i64(
+                bits,
+                ia64_gen_fr_sig_mask_read(insn->ctx, word, sig_mask[word]),
+                sig_mask[word]);
             if (missing == NULL) {
                 missing = bits;
             } else {
@@ -619,8 +602,7 @@ static void ia64_gen_xma(const Ia64Instruction *insn, uint32_t mode)
     }
 }
 
-IA64GenResult ia64_gen_fp(DisasContext *ctx,
-                          const Ia64Instruction *insn)
+IA64GenResult ia64_gen_fp(DisasContext *ctx, const Ia64Instruction *insn)
 {
     const IA64FloatingOperands *op = &insn->operands.floating;
 
@@ -641,11 +623,10 @@ IA64GenResult ia64_gen_fp(DisasContext *ctx,
                         tcg_constant_i32(op->source2), ia64_fp_context(insn));
         break;
     case IA64_OP_FMA:
-        gen_helper_fma4(tcg_env, tcg_constant_i32(op->destination),
-                        tcg_constant_i32(op->source1),
-                        tcg_constant_i32(op->source2),
-                        tcg_constant_i32(op->auxiliary1),
-                        ia64_fp_context(insn));
+        gen_helper_fma4(
+            tcg_env, tcg_constant_i32(op->destination),
+            tcg_constant_i32(op->source1), tcg_constant_i32(op->source2),
+            tcg_constant_i32(op->auxiliary1), ia64_fp_context(insn));
         break;
     case IA64_OP_XMA_L:
         ia64_gen_xma(insn, 0);
@@ -689,12 +670,10 @@ IA64GenResult ia64_gen_fp(DisasContext *ctx,
         gen_helper_fprcpa(tcg_env, tcg_constant_i32(op->destination),
                           tcg_constant_i32(op->auxiliary2),
                           tcg_constant_i32(op->source1),
-                          tcg_constant_i32(op->source2),
-                          ia64_fp_context(insn));
+                          tcg_constant_i32(op->source2), ia64_fp_context(insn));
         break;
     case IA64_OP_FCMP:
-        gen_helper_fcmp(tcg_env,
-                        tcg_constant_i32(op->auxiliary1),
+        gen_helper_fcmp(tcg_env, tcg_constant_i32(op->auxiliary1),
                         tcg_constant_i32(op->auxiliary2),
                         tcg_constant_i32(op->source1),
                         tcg_constant_i32(op->source2),
@@ -707,11 +686,10 @@ IA64GenResult ia64_gen_fp(DisasContext *ctx,
                        tcg_constant_i32(op->auxiliary1), ia64_fp_context(insn));
         break;
     case IA64_OP_FNMA:
-        gen_helper_fnma4(tcg_env, tcg_constant_i32(op->destination),
-                         tcg_constant_i32(op->source1),
-                         tcg_constant_i32(op->source2),
-                         tcg_constant_i32(op->auxiliary1),
-                         ia64_fp_context(insn));
+        gen_helper_fnma4(
+            tcg_env, tcg_constant_i32(op->destination),
+            tcg_constant_i32(op->source1), tcg_constant_i32(op->source2),
+            tcg_constant_i32(op->auxiliary1), ia64_fp_context(insn));
         break;
     case IA64_OP_FSELECT:
         gen_helper_fselect(tcg_env, tcg_constant_i32(op->destination),
@@ -798,71 +776,58 @@ IA64GenResult ia64_gen_fp(DisasContext *ctx,
     case IA64_OP_FPMIN:
         gen_helper_fpminmax(tcg_env, tcg_constant_i32(op->destination),
                             tcg_constant_i32(op->source1),
-                            tcg_constant_i32(op->source2),
-                            tcg_constant_i32(0),
-                            tcg_constant_i32(0),
-                            ia64_fp_context(insn));
+                            tcg_constant_i32(op->source2), tcg_constant_i32(0),
+                            tcg_constant_i32(0), ia64_fp_context(insn));
         break;
     case IA64_OP_FPMAX:
         gen_helper_fpminmax(tcg_env, tcg_constant_i32(op->destination),
                             tcg_constant_i32(op->source1),
-                            tcg_constant_i32(op->source2),
-                            tcg_constant_i32(1),
-                            tcg_constant_i32(0),
-                            ia64_fp_context(insn));
+                            tcg_constant_i32(op->source2), tcg_constant_i32(1),
+                            tcg_constant_i32(0), ia64_fp_context(insn));
         break;
     case IA64_OP_FPAMIN:
         gen_helper_fpminmax(tcg_env, tcg_constant_i32(op->destination),
                             tcg_constant_i32(op->source1),
-                            tcg_constant_i32(op->source2),
-                            tcg_constant_i32(0),
-                            tcg_constant_i32(1),
-                            ia64_fp_context(insn));
+                            tcg_constant_i32(op->source2), tcg_constant_i32(0),
+                            tcg_constant_i32(1), ia64_fp_context(insn));
         break;
     case IA64_OP_FPAMAX:
         gen_helper_fpminmax(tcg_env, tcg_constant_i32(op->destination),
                             tcg_constant_i32(op->source1),
-                            tcg_constant_i32(op->source2),
-                            tcg_constant_i32(1),
-                            tcg_constant_i32(1),
-                            ia64_fp_context(insn));
+                            tcg_constant_i32(op->source2), tcg_constant_i32(1),
+                            tcg_constant_i32(1), ia64_fp_context(insn));
         break;
     case IA64_OP_FPCMP:
-        gen_helper_fpcmp(tcg_env, tcg_constant_i32(op->destination),
-                         tcg_constant_i32(op->source1),
-                         tcg_constant_i32(op->source2),
-                         tcg_constant_i32(op->immediate),
-                         ia64_fp_context(insn));
+        gen_helper_fpcmp(
+            tcg_env, tcg_constant_i32(op->destination),
+            tcg_constant_i32(op->source1), tcg_constant_i32(op->source2),
+            tcg_constant_i32(op->immediate), ia64_fp_context(insn));
         break;
     case IA64_OP_FPCVT:
-        gen_helper_fpcvt(tcg_env, tcg_constant_i32(op->destination),
-                         tcg_constant_i32(op->source1),
-                         tcg_constant_i32(op->immediate & 1),
-                         tcg_constant_i32((op->immediate >> 1) & 1),
-                         ia64_fp_context(insn));
+        gen_helper_fpcvt(
+            tcg_env, tcg_constant_i32(op->destination),
+            tcg_constant_i32(op->source1), tcg_constant_i32(op->immediate & 1),
+            tcg_constant_i32((op->immediate >> 1) & 1), ia64_fp_context(insn));
         break;
     case IA64_OP_FPMA:
         gen_helper_fpma(tcg_env, tcg_constant_i32(op->destination),
                         tcg_constant_i32(op->source1),
                         tcg_constant_i32(op->source2),
-                        tcg_constant_i32(op->auxiliary1),
-                        tcg_constant_i32(0),
+                        tcg_constant_i32(op->auxiliary1), tcg_constant_i32(0),
                         ia64_fp_context(insn));
         break;
     case IA64_OP_FPMS:
         gen_helper_fpma(tcg_env, tcg_constant_i32(op->destination),
                         tcg_constant_i32(op->source1),
                         tcg_constant_i32(op->source2),
-                        tcg_constant_i32(op->auxiliary1),
-                        tcg_constant_i32(1),
+                        tcg_constant_i32(op->auxiliary1), tcg_constant_i32(1),
                         ia64_fp_context(insn));
         break;
     case IA64_OP_FPNMA:
         gen_helper_fpma(tcg_env, tcg_constant_i32(op->destination),
                         tcg_constant_i32(op->source1),
                         tcg_constant_i32(op->source2),
-                        tcg_constant_i32(op->auxiliary1),
-                        tcg_constant_i32(2),
+                        tcg_constant_i32(op->auxiliary1), tcg_constant_i32(2),
                         ia64_fp_context(insn));
         break;
     case IA64_OP_FMOV:

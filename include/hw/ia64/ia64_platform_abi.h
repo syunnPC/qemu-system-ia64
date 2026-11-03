@@ -60,13 +60,12 @@
 /* Mercury I/O SAPIC selector offset inside an IOA aperture. */
 #define IA64_PLATFORM_ZX1_IO_SAPIC_OFFSET 0x0800U
 
-static inline int ia64_platform_zx1_embedded_io_sapic(
-    unsigned long long config_base, unsigned long long io_sapic_base)
+static inline int
+ia64_platform_zx1_embedded_io_sapic(unsigned long long config_base,
+                                    unsigned long long io_sapic_base)
 {
-    return config_base <=
-        ~0ULL - IA64_PLATFORM_ZX1_IO_SAPIC_OFFSET &&
-        io_sapic_base ==
-        config_base + IA64_PLATFORM_ZX1_IO_SAPIC_OFFSET;
+    return config_base <= ~0ULL - IA64_PLATFORM_ZX1_IO_SAPIC_OFFSET &&
+           io_sapic_base == config_base + IA64_PLATFORM_ZX1_IO_SAPIC_OFFSET;
 }
 
 #define IA64_PLATFORM_MAX_PCI_ROOTS       16U
@@ -127,8 +126,9 @@ static inline int ia64_platform_zx1_embedded_io_sapic(
      IA64_PLATFORM_FLAG_FAMILY_HP_I2000 | \
      IA64_PLATFORM_FLAG_PCI_CF8)
 
-static inline unsigned long long ia64_platform_firmware_compat_flags(
-    unsigned int platform_id, unsigned int flags)
+static inline unsigned long long
+ia64_platform_firmware_compat_flags(unsigned int platform_id,
+                                    unsigned int flags)
 {
     (void)platform_id;
     if ((flags & IA64_PLATFORM_FLAG_FAMILY_MASK) ==
@@ -145,26 +145,27 @@ static inline unsigned long long ia64_platform_firmware_compat_flags(
 #define IA64_PLATFORM_PCI_ECAM_BUS_SIZE   0x00100000ULL
 #define IA64_PLATFORM_PCI_ECAM_ALIGNMENT  0x10000000ULL
 
-static inline unsigned long long ia64_platform_pci_config_size(
-    unsigned int config_type, unsigned int first_bus,
-    unsigned int last_bus)
+static inline unsigned long long
+ia64_platform_pci_config_size(unsigned int config_type, unsigned int first_bus,
+                              unsigned int last_bus)
 {
     if (config_type == IA64_PLATFORM_PCI_CONFIG_ZX1_LBA) {
         return IA64_PLATFORM_ZX1_LBA_CONFIG_SIZE;
     }
-    if (config_type == IA64_PLATFORM_PCI_CONFIG_ECAM &&
-        last_bus >= first_bus) {
+    if (config_type == IA64_PLATFORM_PCI_CONFIG_ECAM && last_bus >= first_bus) {
         return ((unsigned long long)last_bus - first_bus + 1U) *
-            IA64_PLATFORM_PCI_ECAM_BUS_SIZE;
+               IA64_PLATFORM_PCI_ECAM_BUS_SIZE;
     }
     return 0;
 }
 
-static inline unsigned long long ia64_platform_pci_config_offset(
-    unsigned int config_type, unsigned int first_bus)
+static inline unsigned long long
+ia64_platform_pci_config_offset(unsigned int config_type,
+                                unsigned int first_bus)
 {
-    return config_type == IA64_PLATFORM_PCI_CONFIG_ECAM ?
-        (unsigned long long)first_bus * IA64_PLATFORM_PCI_ECAM_BUS_SIZE : 0;
+    return config_type == IA64_PLATFORM_PCI_CONFIG_ECAM
+               ? (unsigned long long)first_bus * IA64_PLATFORM_PCI_ECAM_BUS_SIZE
+               : 0;
 }
 
 #define IA64_PLATFORM_PCI_ROOT_FLAG_IDENTITY_DMA (1U << 0)
@@ -237,9 +238,9 @@ typedef struct __attribute__((packed)) IA64PlatformUart {
  * Keep descriptor acceptance within the CPU model paired with each machine
  * and outside the QEMU PAL firmware-update exclusion window.
  */
-static inline int ia64_platform_legacy_io_valid(
-    unsigned int physical_address_bits, unsigned long long base,
-    unsigned long long size)
+static inline int
+ia64_platform_legacy_io_valid(unsigned int physical_address_bits,
+                              unsigned long long base, unsigned long long size)
 {
     unsigned long long implemented_limit;
 
@@ -253,7 +254,7 @@ static inline int ia64_platform_legacy_io_valid(
         return 0;
     }
     return base >= IA64_PLATFORM_PAL_FW_UPDATE_LIMIT ||
-        base + size <= IA64_PLATFORM_PAL_FW_UPDATE_BASE;
+           base + size <= IA64_PLATFORM_PAL_FW_UPDATE_BASE;
 }
 
 /*
@@ -287,8 +288,7 @@ typedef struct __attribute__((packed)) IA64PlatformDescriptor {
     unsigned int OnboardDeviceCount;
     unsigned int NumaNodeCount;
 
-    IA64PlatformOnboardDevice
-        OnboardDevice[IA64_PLATFORM_MAX_ONBOARD_DEVICES];
+    IA64PlatformOnboardDevice OnboardDevice[IA64_PLATFORM_MAX_ONBOARD_DEVICES];
     IA64PlatformNumaNode NumaNode[IA64_PLATFORM_MAX_NUMA_NODES];
 
     unsigned int PciRootOffset;

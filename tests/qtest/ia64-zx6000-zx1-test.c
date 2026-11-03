@@ -121,10 +121,10 @@ static const unsigned int zx1_test_probe_slot[ZX1_TEST_PROBES_PER_ROOT] = {
 };
 
 static const char *const
-zx1_test_delivery_count_property[ZX1_TEST_ROOT_COUNT] = {
-    IA64_ZX6000_ZX1_TEST_DELIVERY_COUNT_0,
-    IA64_ZX6000_ZX1_TEST_DELIVERY_COUNT_1,
-};
+    zx1_test_delivery_count_property[ZX1_TEST_ROOT_COUNT] = {
+        IA64_ZX6000_ZX1_TEST_DELIVERY_COUNT_0,
+        IA64_ZX6000_ZX1_TEST_DELIVERY_COUNT_1,
+    };
 
 static const char *const zx1_test_last_address_property[ZX1_TEST_ROOT_COUNT] = {
     IA64_ZX6000_ZX1_TEST_LAST_ADDRESS_0,
@@ -165,8 +165,7 @@ static QTestState *zx1_test_start(const char *extra_args)
     return qtest_initf(
         "-machine ia64-vpc,nvram=none -S -smp 1 -m 512M -nodefaults "
         "-display none -net none -device %s,id=%s %s",
-        TYPE_IA64_ZX6000_ZX1_QTEST,
-        IA64_ZX6000_ZX1_QTEST_ID, extra_args ?: "");
+        TYPE_IA64_ZX6000_ZX1_QTEST, IA64_ZX6000_ZX1_QTEST_ID, extra_args ?: "");
 }
 
 static uint64_t zx1_test_iommu_register(uint64_t offset)
@@ -175,7 +174,7 @@ static uint64_t zx1_test_iommu_register(uint64_t offset)
 }
 
 static uint32_t zx1_test_config_selector(uint8_t bus, unsigned int probe,
-                                   unsigned int reg)
+                                         unsigned int reg)
 {
     unsigned int slot;
 
@@ -185,8 +184,8 @@ static uint32_t zx1_test_config_selector(uint8_t bus, unsigned int probe,
 }
 
 static void zx1_test_config_select(QTestState *qts, unsigned int root,
-                             uint8_t bus, unsigned int probe,
-                             unsigned int reg)
+                                   uint8_t bus, unsigned int probe,
+                                   unsigned int reg)
 {
     g_assert_cmpuint(root, <, ZX1_TEST_ROOT_COUNT);
     qtest_writeq(qts, zx1_test_ioa_base[root] + ZX1_TEST_IOA_CONFIG_ADDRESS,
@@ -194,60 +193,63 @@ static void zx1_test_config_select(QTestState *qts, unsigned int root,
 }
 
 static uint8_t zx1_test_config_readb(QTestState *qts, unsigned int root,
-                               uint8_t bus, unsigned int probe,
-                               unsigned int reg)
+                                     uint8_t bus, unsigned int probe,
+                                     unsigned int reg)
 {
     zx1_test_config_select(qts, root, bus, probe, reg);
     return qtest_readb(qts, zx1_test_ioa_base[root] + ZX1_TEST_IOA_CONFIG_DATA +
-                       (reg & 3));
+                                (reg & 3));
 }
 
 static uint16_t zx1_test_config_readw(QTestState *qts, unsigned int root,
-                                uint8_t bus, unsigned int probe,
-                                unsigned int reg)
+                                      uint8_t bus, unsigned int probe,
+                                      unsigned int reg)
 {
     zx1_test_config_select(qts, root, bus, probe, reg);
     return qtest_readw(qts, zx1_test_ioa_base[root] + ZX1_TEST_IOA_CONFIG_DATA +
-                       (reg & 3));
+                                (reg & 3));
 }
 
 static uint32_t zx1_test_config_readl(QTestState *qts, unsigned int root,
-                                uint8_t bus, unsigned int probe,
-                                unsigned int reg)
+                                      uint8_t bus, unsigned int probe,
+                                      unsigned int reg)
 {
     zx1_test_config_select(qts, root, bus, probe, reg);
     return qtest_readl(qts, zx1_test_ioa_base[root] + ZX1_TEST_IOA_CONFIG_DATA +
-                       (reg & 3));
+                                (reg & 3));
 }
 
 static void zx1_test_config_writew(QTestState *qts, unsigned int root,
-                             uint8_t bus, unsigned int probe,
-                             unsigned int reg, uint16_t value)
+                                   uint8_t bus, unsigned int probe,
+                                   unsigned int reg, uint16_t value)
 {
     zx1_test_config_select(qts, root, bus, probe, reg);
-    qtest_writew(qts, zx1_test_ioa_base[root] + ZX1_TEST_IOA_CONFIG_DATA +
-                 (reg & 3), value);
+    qtest_writew(qts,
+                 zx1_test_ioa_base[root] + ZX1_TEST_IOA_CONFIG_DATA + (reg & 3),
+                 value);
 }
 
 static void zx1_test_config_writel(QTestState *qts, unsigned int root,
-                             uint8_t bus, unsigned int probe,
-                             unsigned int reg, uint32_t value)
+                                   uint8_t bus, unsigned int probe,
+                                   unsigned int reg, uint32_t value)
 {
     zx1_test_config_select(qts, root, bus, probe, reg);
-    qtest_writel(qts, zx1_test_ioa_base[root] + ZX1_TEST_IOA_CONFIG_DATA +
-                 (reg & 3), value);
+    qtest_writel(qts,
+                 zx1_test_ioa_base[root] + ZX1_TEST_IOA_CONFIG_DATA + (reg & 3),
+                 value);
 }
 
 static uint64_t zx1_test_configure_probe(QTestState *qts, unsigned int root,
-                                   unsigned int probe)
+                                         unsigned int probe)
 {
     uint32_t bar = zx1_test_bar_offset[probe];
 
     zx1_test_config_writel(qts, root, 0, probe, PCI_BASE_ADDRESS_0, bar);
     zx1_test_config_writew(qts, root, 0, probe, PCI_COMMAND,
-                     PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
-    g_assert_cmphex(zx1_test_config_readl(qts, root, 0, probe,
-                                   PCI_BASE_ADDRESS_0), ==, bar);
+                           PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
+    g_assert_cmphex(
+        zx1_test_config_readl(qts, root, 0, probe, PCI_BASE_ADDRESS_0), ==,
+        bar);
     g_assert_cmphex(zx1_test_config_readw(qts, root, 0, probe, PCI_COMMAND), ==,
                     PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
     return zx1_test_root_mmio_base[root] + bar;
@@ -261,8 +263,8 @@ static uint64_t zx1_test_probe_mmio(unsigned int root, unsigned int probe)
 }
 
 static uint32_t zx1_test_dma_trigger(QTestState *qts, unsigned int root,
-                               unsigned int probe, uint64_t iova,
-                               uint64_t gpa)
+                                     unsigned int probe, uint64_t iova,
+                                     uint64_t gpa)
 {
     uint64_t mmio = zx1_test_probe_mmio(root, probe);
 
@@ -278,31 +280,32 @@ static uint32_t zx1_test_dma_trigger(QTestState *qts, unsigned int root,
 }
 
 static void zx1_test_expect_dma_success(QTestState *qts, unsigned int root,
-                                  unsigned int probe, uint64_t iova,
-                                  uint64_t target)
+                                        unsigned int probe, uint64_t iova,
+                                        uint64_t target)
 {
     uint64_t mmio = zx1_test_probe_mmio(root, probe);
 
     qtest_writel(qts, target, ZX1_TEST_DMA_SENTINEL);
-    g_assert_cmphex(zx1_test_dma_trigger(qts, root, probe, iova, target),
-                    ==, 0);
+    g_assert_cmphex(zx1_test_dma_trigger(qts, root, probe, iova, target), ==,
+                    0);
     g_assert_cmphex(qtest_readl(qts, mmio + ITD_REG_DMA_MEMTX_RESULT), ==,
                     MEMTX_OK);
     g_assert_cmphex(qtest_readl(qts, target), ==, ITD_DMA_WRITE_VAL);
 }
 
-static void zx1_test_expect_dma_blocked_without_fallback(
-    QTestState *qts, unsigned int root, unsigned int probe,
-    uint64_t iova, uint64_t translated_target)
+static void
+zx1_test_expect_dma_blocked_without_fallback(QTestState *qts, unsigned int root,
+                                             unsigned int probe, uint64_t iova,
+                                             uint64_t translated_target)
 {
     uint64_t mmio = zx1_test_probe_mmio(root, probe);
 
     g_assert_cmphex(iova, !=, translated_target);
     qtest_writel(qts, iova, ZX1_TEST_DMA_SENTINEL);
     qtest_writel(qts, translated_target, ZX1_TEST_DMA_SENTINEL);
-    g_assert_cmphex(zx1_test_dma_trigger(qts, root, probe, iova,
-                                  translated_target), ==,
-                    ITD_DMA_ERR_TX_FAIL);
+    g_assert_cmphex(
+        zx1_test_dma_trigger(qts, root, probe, iova, translated_target), ==,
+        ITD_DMA_ERR_TX_FAIL);
     g_assert_cmphex(qtest_readl(qts, mmio + ITD_REG_DMA_MEMTX_RESULT), ==,
                     MEMTX_DECODE_ERROR);
     g_assert_cmphex(qtest_readl(qts, iova), ==, ZX1_TEST_DMA_SENTINEL);
@@ -322,7 +325,7 @@ static uint64_t zx1_test_page_target(unsigned int page)
 }
 
 static void zx1_test_write_pte(QTestState *qts, unsigned int page,
-                         uint64_t target, bool valid)
+                               uint64_t target, bool valid)
 {
     uint64_t pte = target;
 
@@ -337,10 +340,9 @@ static void zx1_test_write_pte(QTestState *qts, unsigned int page,
 static void zx1_test_enable_iommu(QTestState *qts)
 {
     qtest_writeb(qts, zx1_test_iommu_register(ZX1_TEST_IOC_IOMMU_IBASE), 1);
-    g_assert_cmphex(qtest_readq(
-                        qts,
-                        zx1_test_iommu_register(ZX1_TEST_IOC_IOMMU_IBASE)), ==,
-                    ZX1_TEST_IOMMU_IBASE_RESET | 1);
+    g_assert_cmphex(
+        qtest_readq(qts, zx1_test_iommu_register(ZX1_TEST_IOC_IOMMU_IBASE)), ==,
+        ZX1_TEST_IOMMU_IBASE_RESET | 1);
 }
 
 static void zx1_test_purge_page(QTestState *qts, uint64_t iova)
@@ -352,10 +354,11 @@ static void zx1_test_purge_page(QTestState *qts, uint64_t iova)
 
 static uint64_t zx1_test_qom_get_uint(QTestState *qts, const char *property)
 {
-    QDict *response = qtest_qmp(
-        qts, "{'execute':'qom-get','arguments':"
-        "{'path':%s,'property':%s}}",
-        IA64_ZX6000_ZX1_TEST_FIXTURE_QOM_PATH, property);
+    QDict *response =
+        qtest_qmp(qts,
+                  "{'execute':'qom-get','arguments':"
+                  "{'path':%s,'property':%s}}",
+                  IA64_ZX6000_ZX1_TEST_FIXTURE_QOM_PATH, property);
     uint64_t value;
 
     g_assert_true(qdict_haskey(response, "return"));
@@ -371,20 +374,20 @@ static uint64_t zx1_test_delivery_count(QTestState *qts, unsigned int root)
 }
 
 static void zx1_test_sapic_select(QTestState *qts, unsigned int root,
-                            uint32_t reg)
+                                  uint32_t reg)
 {
     qtest_writel(qts, zx1_test_ioa_base[root] + ZX1_TEST_IOA_IOREGSEL, reg);
 }
 
 static uint32_t zx1_test_sapic_read(QTestState *qts, unsigned int root,
-                              uint32_t reg)
+                                    uint32_t reg)
 {
     zx1_test_sapic_select(qts, root, reg);
     return qtest_readl(qts, zx1_test_ioa_base[root] + ZX1_TEST_IOA_IOWIN);
 }
 
 static void zx1_test_sapic_write(QTestState *qts, unsigned int root,
-                           uint32_t reg, uint32_t value)
+                                 uint32_t reg, uint32_t value)
 {
     zx1_test_sapic_select(qts, root, reg);
     qtest_writel(qts, zx1_test_ioa_base[root] + ZX1_TEST_IOA_IOWIN, value);
@@ -396,21 +399,21 @@ static uint32_t zx1_test_rte_low(unsigned int input)
 }
 
 static void zx1_test_program_level_rte(QTestState *qts, unsigned int root,
-                                 unsigned int input, uint8_t vector)
+                                       unsigned int input, uint8_t vector)
 {
     zx1_test_sapic_write(qts, root, zx1_test_rte_low(input) + 1, 0);
     zx1_test_sapic_write(qts, root, zx1_test_rte_low(input),
-                   vector | ZX1_TEST_SAPIC_RTE_TRIGGER);
+                         vector | ZX1_TEST_SAPIC_RTE_TRIGGER);
 }
 
 static void zx1_test_sapic_eoi(QTestState *qts, unsigned int root,
-                         uint8_t vector)
+                               uint8_t vector)
 {
     qtest_writel(qts, zx1_test_ioa_base[root] + ZX1_TEST_IOA_IOEOI, vector);
 }
 
 static void zx1_test_set_intx(QTestState *qts, unsigned int root,
-                        unsigned int probe, unsigned int pin, bool level)
+                              unsigned int probe, unsigned int pin, bool level)
 {
     unsigned int line;
 
@@ -423,32 +426,31 @@ static void zx1_test_set_intx(QTestState *qts, unsigned int root,
 }
 
 static void zx1_test_program_msi(QTestState *qts, unsigned int root,
-                           unsigned int probe, uint64_t address,
-                           uint16_t data)
+                                 unsigned int probe, uint64_t address,
+                                 uint16_t data)
 {
-    uint16_t flags = zx1_test_config_readw(qts, root, 0, probe,
-                                     ZX1_TEST_MSI_CAP_OFFSET + PCI_MSI_FLAGS);
+    uint16_t flags = zx1_test_config_readw(
+        qts, root, 0, probe, ZX1_TEST_MSI_CAP_OFFSET + PCI_MSI_FLAGS);
 
-    g_assert_cmphex(zx1_test_config_readb(qts, root, 0, probe,
-                                   ZX1_TEST_MSI_CAP_OFFSET), ==,
-                    PCI_CAP_ID_MSI);
-    g_assert_cmphex(flags & PCI_MSI_FLAGS_64BIT, ==,
-                    PCI_MSI_FLAGS_64BIT);
+    g_assert_cmphex(
+        zx1_test_config_readb(qts, root, 0, probe, ZX1_TEST_MSI_CAP_OFFSET), ==,
+        PCI_CAP_ID_MSI);
+    g_assert_cmphex(flags & PCI_MSI_FLAGS_64BIT, ==, PCI_MSI_FLAGS_64BIT);
     zx1_test_config_writel(qts, root, 0, probe,
-                     ZX1_TEST_MSI_CAP_OFFSET + PCI_MSI_ADDRESS_LO,
-                     address);
+                           ZX1_TEST_MSI_CAP_OFFSET + PCI_MSI_ADDRESS_LO,
+                           address);
     zx1_test_config_writel(qts, root, 0, probe,
-                     ZX1_TEST_MSI_CAP_OFFSET + PCI_MSI_ADDRESS_HI,
-                     address >> 32);
+                           ZX1_TEST_MSI_CAP_OFFSET + PCI_MSI_ADDRESS_HI,
+                           address >> 32);
     zx1_test_config_writew(qts, root, 0, probe,
-                     ZX1_TEST_MSI_CAP_OFFSET + PCI_MSI_DATA_64, data);
+                           ZX1_TEST_MSI_CAP_OFFSET + PCI_MSI_DATA_64, data);
     zx1_test_config_writew(qts, root, 0, probe,
-                     ZX1_TEST_MSI_CAP_OFFSET + PCI_MSI_FLAGS,
-                     flags | PCI_MSI_FLAGS_ENABLE);
+                           ZX1_TEST_MSI_CAP_OFFSET + PCI_MSI_FLAGS,
+                           flags | PCI_MSI_FLAGS_ENABLE);
 }
 
 static void zx1_test_trigger_msi(QTestState *qts, unsigned int root,
-                           unsigned int probe)
+                                 unsigned int probe)
 {
     unsigned int line;
 
@@ -468,9 +470,10 @@ static bool zx1_test_sapic_irr_has_vector(QTestState *qts, uint8_t vector)
     uint64_t irr[4];
 
     g_assert_nonnull(line);
-    g_assert_cmpint(sscanf(line, "SAPIC IRR: %" SCNx64 " %" SCNx64
-                          " %" SCNx64 " %" SCNx64,
-                          &irr[0], &irr[1], &irr[2], &irr[3]), ==, 4);
+    g_assert_cmpint(
+        sscanf(line, "SAPIC IRR: %" SCNx64 " %" SCNx64 " %" SCNx64 " %" SCNx64,
+               &irr[0], &irr[1], &irr[2], &irr[3]),
+        ==, 4);
     return (irr[vector / 64] & BIT_ULL(vector % 64)) != 0;
 }
 
@@ -492,49 +495,44 @@ static void test_csr_and_indirect_config(void)
     QTestState *qts = zx1_test_start(NULL);
     unsigned int root;
 
-    g_assert_cmphex(qtest_readq(qts, ZX1_TEST_MIO_BASE +
-                               ZX1_TEST_MIO_F0_ID_OFFSET), ==,
-                    UINT64_C(0x1229103c));
-    g_assert_cmphex(qtest_readq(qts, ZX1_TEST_MIO_BASE +
-                               ZX1_TEST_MIO_F1_ID_OFFSET), ==,
-                    UINT64_C(0x122a103c));
-    g_assert_cmphex(qtest_readq(
-                        qts, ZX1_TEST_MIO_BASE +
-                             ZX1_TEST_MIO_LMMIO_DIR_BASE0), ==,
-                    UINT64_C(0x80000000));
-    g_assert_cmphex(qtest_readq(
-                        qts,
-                        zx1_test_iommu_register(ZX1_TEST_IOC_IOMMU_IBASE)), ==,
-                    ZX1_TEST_IOMMU_IBASE_RESET);
+    g_assert_cmphex(
+        qtest_readq(qts, ZX1_TEST_MIO_BASE + ZX1_TEST_MIO_F0_ID_OFFSET), ==,
+        UINT64_C(0x1229103c));
+    g_assert_cmphex(
+        qtest_readq(qts, ZX1_TEST_MIO_BASE + ZX1_TEST_MIO_F1_ID_OFFSET), ==,
+        UINT64_C(0x122a103c));
+    g_assert_cmphex(
+        qtest_readq(qts, ZX1_TEST_MIO_BASE + ZX1_TEST_MIO_LMMIO_DIR_BASE0), ==,
+        UINT64_C(0x80000000));
+    g_assert_cmphex(
+        qtest_readq(qts, zx1_test_iommu_register(ZX1_TEST_IOC_IOMMU_IBASE)), ==,
+        ZX1_TEST_IOMMU_IBASE_RESET);
 
     for (root = 0; root < ZX1_TEST_ROOT_COUNT; root++) {
-        uint64_t expected_bus = (uint64_t)zx1_test_last_bus[root] << 8 |
-                                zx1_test_first_bus[root];
+        uint64_t expected_bus =
+            (uint64_t)zx1_test_last_bus[root] << 8 | zx1_test_first_bus[root];
 
-        g_assert_cmphex(qtest_readq(
-                            qts, zx1_test_ioa_base[root] +
-                                 ZX1_TEST_IOA_FUNCTION_ID), ==,
-                        UINT64_C(0x02b00000122e103c));
-        g_assert_cmphex(qtest_readq(
-                            qts, zx1_test_ioa_base[root] +
-                                 ZX1_TEST_IOA_BUS_NUMBER), ==,
-                        expected_bus);
+        g_assert_cmphex(qtest_readq(qts, zx1_test_ioa_base[root] +
+                                             ZX1_TEST_IOA_FUNCTION_ID),
+                        ==, UINT64_C(0x02b00000122e103c));
+        g_assert_cmphex(
+            qtest_readq(qts, zx1_test_ioa_base[root] + ZX1_TEST_IOA_BUS_NUMBER),
+            ==, expected_bus);
 
         /* Mercury bus zero is the only selector for this root device. */
-        g_assert_cmphex(zx1_test_config_readw(qts, root, 0, 0,
-                                       PCI_VENDOR_ID), ==,
-                        IOMMU_TESTDEV_VENDOR_ID);
-        g_assert_cmphex(zx1_test_config_readb(qts, root, 0, 0,
-                                       PCI_VENDOR_ID + 1), ==,
-                        IOMMU_TESTDEV_VENDOR_ID >> 8);
-        g_assert_cmphex(zx1_test_config_readw(qts, root, 0, 0,
-                                       PCI_DEVICE_ID), ==,
-                        IOMMU_TESTDEV_DEVICE_ID);
+        g_assert_cmphex(zx1_test_config_readw(qts, root, 0, 0, PCI_VENDOR_ID),
+                        ==, IOMMU_TESTDEV_VENDOR_ID);
+        g_assert_cmphex(
+            zx1_test_config_readb(qts, root, 0, 0, PCI_VENDOR_ID + 1), ==,
+            IOMMU_TESTDEV_VENDOR_ID >> 8);
+        g_assert_cmphex(zx1_test_config_readw(qts, root, 0, 0, PCI_DEVICE_ID),
+                        ==, IOMMU_TESTDEV_DEVICE_ID);
 
         /* A type-1 selector naming first_bus must not alias bus-zero type 0. */
         g_assert_cmphex(zx1_test_config_readl(qts, root,
-                                             zx1_test_first_bus[root], 0,
-                                             PCI_VENDOR_ID), ==, UINT32_MAX);
+                                              zx1_test_first_bus[root], 0,
+                                              PCI_VENDOR_ID),
+                        ==, UINT32_MAX);
     }
     qtest_quit(qts);
 }
@@ -559,13 +557,11 @@ static void test_shared_iommu_pcom_and_invalid_pte(void)
     zx1_test_expect_dma_success(qts, 1, 0, iova, old_target);
 
     /* A high-dword-only PCOM write updates the latch, but is not a command. */
-    qtest_writel(qts,
-                 zx1_test_iommu_register(ZX1_TEST_IOC_IOMMU_PCOM) + 4,
+    qtest_writel(qts, zx1_test_iommu_register(ZX1_TEST_IOC_IOMMU_PCOM) + 4,
                  UINT32_C(0xa5a55a5a));
-    g_assert_cmphex(qtest_readq(
-                        qts,
-                        zx1_test_iommu_register(ZX1_TEST_IOC_IOMMU_PCOM)), ==,
-                    UINT64_C(0xa5a55a5a00000000));
+    g_assert_cmphex(
+        qtest_readq(qts, zx1_test_iommu_register(ZX1_TEST_IOC_IOMMU_PCOM)), ==,
+        UINT64_C(0xa5a55a5a00000000));
     zx1_test_expect_dma_success(qts, 0, 0, iova, old_target);
 
     /* A complete PCOM page command refreshes the shared mapping. */
@@ -580,18 +576,16 @@ static void test_shared_iommu_pcom_and_invalid_pte(void)
                  ZX1_TEST_INVALID_GUARD_IMASK);
     qtest_writeq(qts, zx1_test_iommu_register(ZX1_TEST_IOC_IOMMU_IBASE),
                  ZX1_TEST_INVALID_GUARD_IOVA | 1);
-    g_assert_cmphex(qtest_readq(
-                        qts,
-                        zx1_test_iommu_register(ZX1_TEST_IOC_IOMMU_IMASK)), ==,
-                    ZX1_TEST_INVALID_GUARD_IMASK);
-    g_assert_cmphex(qtest_readq(
-                        qts,
-                        zx1_test_iommu_register(ZX1_TEST_IOC_IOMMU_IBASE)), ==,
-                    ZX1_TEST_INVALID_GUARD_IOVA | 1);
+    g_assert_cmphex(
+        qtest_readq(qts, zx1_test_iommu_register(ZX1_TEST_IOC_IOMMU_IMASK)), ==,
+        ZX1_TEST_INVALID_GUARD_IMASK);
+    g_assert_cmphex(
+        qtest_readq(qts, zx1_test_iommu_register(ZX1_TEST_IOC_IOMMU_IBASE)), ==,
+        ZX1_TEST_INVALID_GUARD_IOVA | 1);
 
     zx1_test_write_pte(qts, 0, guard_target, true);
     zx1_test_expect_dma_success(qts, 0, 0, ZX1_TEST_INVALID_GUARD_IOVA,
-                          guard_target);
+                                guard_target);
     zx1_test_write_pte(qts, 0, guard_target, false);
     zx1_test_purge_page(qts, ZX1_TEST_INVALID_GUARD_IOVA);
     zx1_test_expect_dma_blocked_without_fallback(
@@ -614,19 +608,19 @@ static void test_shared_iotlb_eviction_notifier(void)
     /* Alternate roots while filling all sixteen shared frontend slots. */
     for (page = 0; page < 16; page++) {
         zx1_test_expect_dma_success(qts, page & 1, 0, zx1_test_page_iova(page),
-                              zx1_test_page_target(page));
+                                    zx1_test_page_target(page));
     }
 
     /* Updating the PTE alone leaves all sixteen cached entries intact. */
     zx1_test_write_pte(qts, 0, zx1_test_page_target(17), true);
     zx1_test_expect_dma_success(qts, 0, 0, zx1_test_page_iova(0),
-                          zx1_test_page_target(0));
+                                zx1_test_page_target(0));
 
     /* Page 16 evicts slot zero; its notifier must discard page zero. */
     zx1_test_expect_dma_success(qts, 0, 0, zx1_test_page_iova(16),
-                          zx1_test_page_target(16));
+                                zx1_test_page_target(16));
     zx1_test_expect_dma_success(qts, 0, 0, zx1_test_page_iova(0),
-                          zx1_test_page_target(17));
+                                zx1_test_page_target(17));
     qtest_quit(qts);
 }
 
@@ -635,8 +629,8 @@ static void test_intx_aggregation_eoi_and_function_reset(void)
     const unsigned int root = 0;
     const unsigned int input = 0;
     const uint8_t vector = 0x60;
-    const uint32_t expected_data = ZX1_TEST_SAPIC_MESSAGE_ASSERT |
-                                   ZX1_TEST_SAPIC_MESSAGE_TRIGGER | vector;
+    const uint32_t expected_data =
+        ZX1_TEST_SAPIC_MESSAGE_ASSERT | ZX1_TEST_SAPIC_MESSAGE_TRIGGER | vector;
     QTestState *qts = zx1_test_start(NULL);
     unsigned int probe;
 
@@ -647,15 +641,15 @@ static void test_intx_aggregation_eoi_and_function_reset(void)
 
     zx1_test_set_intx(qts, root, 0, input, true);
     g_assert_cmpuint(zx1_test_delivery_count(qts, root), ==, 1);
-    g_assert_cmphex(zx1_test_qom_get_uint(
-                        qts, zx1_test_last_address_property[root]), ==,
-                    UINT64_C(0xfee00000));
-    g_assert_cmphex(zx1_test_qom_get_uint(
-                        qts, zx1_test_last_data_property[root]), ==,
-                    expected_data);
-    g_assert_cmphex(zx1_test_qom_get_uint(
-                        qts, zx1_test_last_result_property[root]), ==,
-                    MEMTX_OK);
+    g_assert_cmphex(
+        zx1_test_qom_get_uint(qts, zx1_test_last_address_property[root]), ==,
+        UINT64_C(0xfee00000));
+    g_assert_cmphex(
+        zx1_test_qom_get_uint(qts, zx1_test_last_data_property[root]), ==,
+        expected_data);
+    g_assert_cmphex(
+        zx1_test_qom_get_uint(qts, zx1_test_last_result_property[root]), ==,
+        MEMTX_OK);
     g_assert_true(zx1_test_sapic_irr_wait_for_vector(qts, vector));
 
     /* Two PCI sources aggregate on one Mercury input without a new edge. */
@@ -676,19 +670,19 @@ static void test_intx_aggregation_eoi_and_function_reset(void)
     qtest_writeb(qts, zx1_test_ioa_base[root] + ZX1_TEST_IOA_STATUS_CONTROL,
                  ZX1_TEST_IOA_SIC_RESET_FUNCTION);
     for (probe = 0; probe < ZX1_TEST_PROBES_PER_ROOT; probe++) {
-        g_assert_cmphex(zx1_test_config_readl(qts, root, 0, probe,
-                                       PCI_BASE_ADDRESS_0), ==, 0);
-        g_assert_cmphex(zx1_test_config_readw(qts, root, 0, probe,
-                                       PCI_COMMAND), ==, 0);
+        g_assert_cmphex(
+            zx1_test_config_readl(qts, root, 0, probe, PCI_BASE_ADDRESS_0), ==,
+            0);
+        g_assert_cmphex(zx1_test_config_readw(qts, root, 0, probe, PCI_COMMAND),
+                        ==, 0);
     }
-    g_assert_cmphex(zx1_test_sapic_read(qts, root,
-                                       zx1_test_rte_low(input)), ==,
+    g_assert_cmphex(zx1_test_sapic_read(qts, root, zx1_test_rte_low(input)), ==,
                     vector | ZX1_TEST_SAPIC_RTE_TRIGGER |
-                    ZX1_TEST_SAPIC_RTE_MASK);
+                        ZX1_TEST_SAPIC_RTE_MASK);
 
     /* Unmasking after RF does not deliver a stale subordinate IRQ. */
     zx1_test_sapic_write(qts, root, zx1_test_rte_low(input),
-                   vector | ZX1_TEST_SAPIC_RTE_TRIGGER);
+                         vector | ZX1_TEST_SAPIC_RTE_TRIGGER);
     g_assert_cmpuint(zx1_test_delivery_count(qts, root), ==, 3);
     zx1_test_set_intx(qts, root, 0, input, true);
     g_assert_cmpuint(zx1_test_delivery_count(qts, root), ==, 4);
@@ -717,15 +711,14 @@ static void test_msi_root_ranges(void)
     zx1_test_trigger_msi(qts, 0, 0);
     g_assert_cmpuint(zx1_test_delivery_count(qts, 0), ==, 1);
     g_assert_cmpuint(zx1_test_delivery_count(qts, 1), ==, 0);
-    g_assert_cmphex(zx1_test_qom_get_uint(
-                        qts, zx1_test_last_address_property[0]), ==,
-                    ZX1_TEST_MSI_ADDRESS);
-    g_assert_cmphex(zx1_test_qom_get_uint(
-                        qts, zx1_test_last_data_property[0]), ==,
-                    root0_vector);
-    g_assert_cmphex(zx1_test_qom_get_uint(
-                        qts, zx1_test_last_result_property[0]), ==,
-                    MEMTX_OK);
+    g_assert_cmphex(
+        zx1_test_qom_get_uint(qts, zx1_test_last_address_property[0]), ==,
+        ZX1_TEST_MSI_ADDRESS);
+    g_assert_cmphex(zx1_test_qom_get_uint(qts, zx1_test_last_data_property[0]),
+                    ==, root0_vector);
+    g_assert_cmphex(
+        zx1_test_qom_get_uint(qts, zx1_test_last_result_property[0]), ==,
+        MEMTX_OK);
     g_assert_true(zx1_test_sapic_irr_wait_for_vector(qts, root0_vector));
 
     /* The same DMA address is decoded by the IOA belonging to root one. */
@@ -753,18 +746,18 @@ static void test_msi_root_ranges(void)
     g_assert_true(zx1_test_sapic_irr_wait_for_vector(qts, 0x78));
 
     zx1_test_program_msi(qts, 0, 0, ZX1_TEST_MSI_ADDRESS + UINT64_C(0x10000),
-                   0x79);
+                         0x79);
     zx1_test_trigger_msi(qts, 0, 0);
     g_assert_cmpuint(zx1_test_delivery_count(qts, 0), ==, 2);
 
     /* System reset restores the default window; PCI MSI is reprogrammed. */
     qtest_system_reset(qts);
-    g_assert_cmphex(qtest_readq(qts, ZX1_TEST_IOA0_BASE +
-                               ZX1_TEST_IOA_MSI_BASE), ==,
-                    ZX1_TEST_MSI_BASE_RESET);
-    g_assert_cmphex(qtest_readq(qts, ZX1_TEST_IOA0_BASE +
-                               ZX1_TEST_IOA_MSI_MASK), ==,
-                    ZX1_TEST_MSI_MASK_RESET);
+    g_assert_cmphex(
+        qtest_readq(qts, ZX1_TEST_IOA0_BASE + ZX1_TEST_IOA_MSI_BASE), ==,
+        ZX1_TEST_MSI_BASE_RESET);
+    g_assert_cmphex(
+        qtest_readq(qts, ZX1_TEST_IOA0_BASE + ZX1_TEST_IOA_MSI_MASK), ==,
+        ZX1_TEST_MSI_MASK_RESET);
     zx1_test_configure_probe(qts, 0, 0);
     zx1_test_program_msi(qts, 0, 0, ZX1_TEST_MSI_ADDRESS, 0x7a);
     zx1_test_trigger_msi(qts, 0, 0);
@@ -789,63 +782,58 @@ static void test_system_reset_baseline(void)
     zx1_test_write_pte(qts, 0, zx1_test_page_target(0), true);
     zx1_test_enable_iommu(qts);
     zx1_test_expect_dma_success(qts, 0, 0, zx1_test_page_iova(0),
-                          zx1_test_page_target(0));
+                                zx1_test_page_target(0));
 
     qtest_system_reset(qts);
 
-    g_assert_cmphex(qtest_readq(qts, ZX1_TEST_MIO_BASE +
-                               ZX1_TEST_MIO_F0_ID_OFFSET), ==,
-                    UINT64_C(0x1229103c));
-    g_assert_cmphex(qtest_readq(qts, ZX1_TEST_MIO_BASE +
-                               ZX1_TEST_MIO_ROPE_CONFIG), ==,
-                    UINT64_C(0x00ff));
-    g_assert_cmphex(qtest_readq(
-                        qts,
-                        zx1_test_iommu_register(ZX1_TEST_IOC_IOMMU_IBASE)), ==,
-                    ZX1_TEST_IOMMU_IBASE_RESET);
-    g_assert_cmphex(qtest_readq(
-                        qts,
-                        zx1_test_iommu_register(ZX1_TEST_IOC_IOMMU_IMASK)), ==,
-                    ZX1_TEST_IOMMU_IMASK_RESET);
-    g_assert_cmphex(qtest_readq(
-                        qts,
-                        zx1_test_iommu_register(ZX1_TEST_IOC_IOMMU_PCOM)), ==,
-                    ZX1_TEST_IOMMU_PCOM_RESET);
-    g_assert_cmphex(qtest_readq(
-                        qts,
-                        zx1_test_iommu_register(ZX1_TEST_IOC_IOMMU_TCNFG)), ==,
-                    ZX1_TEST_IOMMU_TCNFG_RESET);
-    g_assert_cmphex(qtest_readq(
-                        qts,
-                        zx1_test_iommu_register(
-                            ZX1_TEST_IOC_IOMMU_PDIR_BASE)), ==,
-                    ZX1_TEST_PDIR_BASE);
+    g_assert_cmphex(
+        qtest_readq(qts, ZX1_TEST_MIO_BASE + ZX1_TEST_MIO_F0_ID_OFFSET), ==,
+        UINT64_C(0x1229103c));
+    g_assert_cmphex(
+        qtest_readq(qts, ZX1_TEST_MIO_BASE + ZX1_TEST_MIO_ROPE_CONFIG), ==,
+        UINT64_C(0x00ff));
+    g_assert_cmphex(
+        qtest_readq(qts, zx1_test_iommu_register(ZX1_TEST_IOC_IOMMU_IBASE)), ==,
+        ZX1_TEST_IOMMU_IBASE_RESET);
+    g_assert_cmphex(
+        qtest_readq(qts, zx1_test_iommu_register(ZX1_TEST_IOC_IOMMU_IMASK)), ==,
+        ZX1_TEST_IOMMU_IMASK_RESET);
+    g_assert_cmphex(
+        qtest_readq(qts, zx1_test_iommu_register(ZX1_TEST_IOC_IOMMU_PCOM)), ==,
+        ZX1_TEST_IOMMU_PCOM_RESET);
+    g_assert_cmphex(
+        qtest_readq(qts, zx1_test_iommu_register(ZX1_TEST_IOC_IOMMU_TCNFG)), ==,
+        ZX1_TEST_IOMMU_TCNFG_RESET);
+    g_assert_cmphex(
+        qtest_readq(qts, zx1_test_iommu_register(ZX1_TEST_IOC_IOMMU_PDIR_BASE)),
+        ==, ZX1_TEST_PDIR_BASE);
 
     for (root = 0; root < ZX1_TEST_ROOT_COUNT; root++) {
-        uint64_t expected_bus = (uint64_t)zx1_test_last_bus[root] << 8 |
-                                zx1_test_first_bus[root];
+        uint64_t expected_bus =
+            (uint64_t)zx1_test_last_bus[root] << 8 | zx1_test_first_bus[root];
 
-        g_assert_cmphex(qtest_readq(
-                            qts, zx1_test_ioa_base[root] +
-                                 ZX1_TEST_IOA_BUS_NUMBER), ==,
-                        expected_bus);
-        g_assert_cmphex(qtest_readq(
-                            qts, zx1_test_ioa_base[root] +
-                                 ZX1_TEST_IOA_CONFIG_ADDRESS), ==, 0);
+        g_assert_cmphex(
+            qtest_readq(qts, zx1_test_ioa_base[root] + ZX1_TEST_IOA_BUS_NUMBER),
+            ==, expected_bus);
+        g_assert_cmphex(qtest_readq(qts, zx1_test_ioa_base[root] +
+                                             ZX1_TEST_IOA_CONFIG_ADDRESS),
+                        ==, 0);
         g_assert_cmphex(zx1_test_sapic_read(qts, root, zx1_test_rte_low(0)), ==,
                         ZX1_TEST_SAPIC_RTE_MASK);
-        g_assert_cmphex(zx1_test_config_readl(qts, root, 0, 0,
-                                       PCI_BASE_ADDRESS_0), ==, 0);
-        g_assert_cmphex(zx1_test_config_readw(qts, root, 0, 0,
-                                       PCI_COMMAND), ==, 0);
+        g_assert_cmphex(
+            zx1_test_config_readl(qts, root, 0, 0, PCI_BASE_ADDRESS_0), ==, 0);
+        g_assert_cmphex(zx1_test_config_readw(qts, root, 0, 0, PCI_COMMAND), ==,
+                        0);
         g_assert_cmpuint(zx1_test_delivery_count(qts, root), ==, 0);
-        g_assert_cmphex(zx1_test_qom_get_uint(
-                            qts, zx1_test_last_address_property[root]), ==, 0);
-        g_assert_cmphex(zx1_test_qom_get_uint(
-                            qts, zx1_test_last_data_property[root]), ==, 0);
-        g_assert_cmphex(zx1_test_qom_get_uint(
-                            qts, zx1_test_last_result_property[root]), ==,
-                        UINT32_MAX);
+        g_assert_cmphex(
+            zx1_test_qom_get_uint(qts, zx1_test_last_address_property[root]),
+            ==, 0);
+        g_assert_cmphex(
+            zx1_test_qom_get_uint(qts, zx1_test_last_data_property[root]), ==,
+            0);
+        g_assert_cmphex(
+            zx1_test_qom_get_uint(qts, zx1_test_last_result_property[root]), ==,
+            UINT32_MAX);
     }
 
     /* Reset must also clear the shared cache and every asserted PCI input. */
@@ -853,7 +841,7 @@ static void test_system_reset_baseline(void)
     zx1_test_enable_iommu(qts);
     zx1_test_configure_probe(qts, 0, 0);
     zx1_test_expect_dma_success(qts, 0, 0, zx1_test_page_iova(0),
-                          zx1_test_page_target(1));
+                                zx1_test_page_target(1));
     zx1_test_program_level_rte(qts, 0, 0, vector);
     g_assert_cmpuint(zx1_test_delivery_count(qts, 0), ==, 0);
     zx1_test_set_intx(qts, 0, 0, 0, true);
@@ -917,16 +905,17 @@ static void test_savevm_state(void)
     zx1_test_sapic_select(qts, 0, saved_selector);
 
     /* Preserve the hardware error log and an armed CE across save/load. */
-    error_control = qtest_readq(qts, ZX1_TEST_IOA0_BASE +
-                               HP_ZX1_IOA_STATUS_CONTROL) &
+    error_control =
+        qtest_readq(qts, ZX1_TEST_IOA0_BASE + HP_ZX1_IOA_STATUS_CONTROL) &
         (HP_ZX1_IOA_SIC_FORWARD_VGA | HP_ZX1_IOA_SIC_HARD_FAIL);
     qtest_writeq(qts, ZX1_TEST_IOA0_BASE + HP_ZX1_IOA_STATUS_CONTROL,
                  error_control | HP_ZX1_IOA_SIC_CLEAR_ENABLE);
     qtest_writeq(qts, ZX1_TEST_IOA0_BASE + HP_ZX1_IOA_STATUS_CONTROL,
                  error_control | HP_ZX1_IOA_SIC_CLEAR_LOG);
     qtest_writeq(qts, ZX1_TEST_IOA0_BASE + HP_ZX1_IOA_CONFIG_ADDRESS, 0x7800);
-    g_assert_cmphex(qtest_readl(qts, ZX1_TEST_IOA0_BASE +
-                                HP_ZX1_IOA_CONFIG_DATA), ==, UINT32_MAX);
+    g_assert_cmphex(
+        qtest_readl(qts, ZX1_TEST_IOA0_BASE + HP_ZX1_IOA_CONFIG_DATA), ==,
+        UINT32_MAX);
     qtest_writeq(qts, ZX1_TEST_IOA0_BASE + HP_ZX1_IOA_STATUS_CONTROL,
                  error_control | HP_ZX1_IOA_SIC_CLEAR_ENABLE);
 
@@ -937,8 +926,8 @@ static void test_savevm_state(void)
     /* Change every migrated state category before loading. */
     qtest_writeq(qts, ZX1_TEST_IOA0_BASE + HP_ZX1_IOA_STATUS_CONTROL,
                  error_control | HP_ZX1_IOA_SIC_CLEAR_LOG);
-    g_assert_cmphex(qtest_readq(qts, ZX1_TEST_IOA0_BASE +
-                                HP_ZX1_IOA_ERROR_STATUS), ==, 0);
+    g_assert_cmphex(
+        qtest_readq(qts, ZX1_TEST_IOA0_BASE + HP_ZX1_IOA_ERROR_STATUS), ==, 0);
     zx1_test_purge_page(qts, iova);
     zx1_test_expect_dma_success(qts, 0, 0, iova, new_target);
     qtest_writeq(qts, ZX1_TEST_MIO_BASE + ZX1_TEST_MIO_ROPE_CONFIG, 0);
@@ -948,7 +937,7 @@ static void test_savevm_state(void)
     zx1_test_sapic_eoi(qts, 0, vector0);
     zx1_test_sapic_eoi(qts, 0, vector1);
     zx1_test_config_writel(qts, 0, 0, 0, PCI_BASE_ADDRESS_0,
-                     UINT32_C(0x00300000));
+                           UINT32_C(0x00300000));
     zx1_test_config_writew(qts, 0, 0, 0, PCI_COMMAND, 0);
     qtest_writeq(qts, ZX1_TEST_IOA1_BASE + ZX1_TEST_IOA_MSI_BASE, 0);
     zx1_test_set_intx(qts, 0, 0, 0, true);
@@ -959,43 +948,47 @@ static void test_savevm_state(void)
     g_clear_pointer(&response, g_free);
 
     /* Post-load restores state but never replays an interrupt delivery. */
+    g_assert_cmphex(
+        qtest_readq(qts, ZX1_TEST_IOA0_BASE + HP_ZX1_IOA_ERROR_STATUS), ==,
+        0x40c);
     g_assert_cmphex(qtest_readq(qts, ZX1_TEST_IOA0_BASE +
-                                HP_ZX1_IOA_ERROR_STATUS), ==, 0x40c);
-    g_assert_cmphex(qtest_readq(qts, ZX1_TEST_IOA0_BASE +
-                                HP_ZX1_IOA_OUTBOUND_ERROR_ADDRESS), ==,
-                    UINT64_C(0x4000000080000000));
-    g_assert_cmphex(qtest_readq(qts, ZX1_TEST_IOA0_BASE +
-                                HP_ZX1_IOA_STATUS_CONTROL) &
-                    HP_ZX1_IOA_SIC_CLEAR_ENABLE, ==,
-                    HP_ZX1_IOA_SIC_CLEAR_ENABLE);
+                                         HP_ZX1_IOA_OUTBOUND_ERROR_ADDRESS),
+                    ==, UINT64_C(0x4000000080000000));
+    g_assert_cmphex(
+        qtest_readq(qts, ZX1_TEST_IOA0_BASE + HP_ZX1_IOA_STATUS_CONTROL) &
+            HP_ZX1_IOA_SIC_CLEAR_ENABLE,
+        ==, HP_ZX1_IOA_SIC_CLEAR_ENABLE);
     g_assert_cmpuint(zx1_test_delivery_count(qts, 0), ==, 2);
-    g_assert_cmphex(zx1_test_qom_get_uint(
-                        qts, zx1_test_last_address_property[0]), ==,
-                    UINT64_C(0xfee00000));
-    g_assert_cmphex(zx1_test_qom_get_uint(
-                        qts, zx1_test_last_data_property[0]), ==,
+    g_assert_cmphex(
+        zx1_test_qom_get_uint(qts, zx1_test_last_address_property[0]), ==,
+        UINT64_C(0xfee00000));
+    g_assert_cmphex(zx1_test_qom_get_uint(qts, zx1_test_last_data_property[0]),
+                    ==,
                     ZX1_TEST_SAPIC_MESSAGE_ASSERT |
-                    ZX1_TEST_SAPIC_MESSAGE_TRIGGER | vector1);
-    g_assert_cmphex(zx1_test_qom_get_uint(
-                        qts, zx1_test_last_result_property[0]), ==, MEMTX_OK);
+                        ZX1_TEST_SAPIC_MESSAGE_TRIGGER | vector1);
+    g_assert_cmphex(
+        zx1_test_qom_get_uint(qts, zx1_test_last_result_property[0]), ==,
+        MEMTX_OK);
     g_assert_cmpuint(zx1_test_delivery_count(qts, 1), ==, 0);
-    g_assert_cmphex(zx1_test_qom_get_uint(
-                        qts, zx1_test_last_address_property[1]), ==, 0);
-    g_assert_cmphex(zx1_test_qom_get_uint(
-                        qts, zx1_test_last_data_property[1]), ==, 0);
-    g_assert_cmphex(zx1_test_qom_get_uint(
-                        qts, zx1_test_last_result_property[1]), ==, UINT32_MAX);
+    g_assert_cmphex(
+        zx1_test_qom_get_uint(qts, zx1_test_last_address_property[1]), ==, 0);
+    g_assert_cmphex(zx1_test_qom_get_uint(qts, zx1_test_last_data_property[1]),
+                    ==, 0);
+    g_assert_cmphex(
+        zx1_test_qom_get_uint(qts, zx1_test_last_result_property[1]), ==,
+        UINT32_MAX);
 
     /* Root-one MSI configuration and IOA mapping return without replay. */
     zx1_test_trigger_msi(qts, 1, 0);
     g_assert_cmpuint(zx1_test_delivery_count(qts, 1), ==, 1);
-    g_assert_cmphex(zx1_test_qom_get_uint(
-                        qts, zx1_test_last_address_property[1]), ==,
-                    ZX1_TEST_MSI_ADDRESS);
-    g_assert_cmphex(zx1_test_qom_get_uint(
-                        qts, zx1_test_last_data_property[1]), ==, 0x6a);
-    g_assert_cmphex(zx1_test_qom_get_uint(
-                        qts, zx1_test_last_result_property[1]), ==, MEMTX_OK);
+    g_assert_cmphex(
+        zx1_test_qom_get_uint(qts, zx1_test_last_address_property[1]), ==,
+        ZX1_TEST_MSI_ADDRESS);
+    g_assert_cmphex(zx1_test_qom_get_uint(qts, zx1_test_last_data_property[1]),
+                    ==, 0x6a);
+    g_assert_cmphex(
+        zx1_test_qom_get_uint(qts, zx1_test_last_result_property[1]), ==,
+        MEMTX_OK);
     g_assert_true(zx1_test_sapic_irr_wait_for_vector(qts, 0x6a));
 
     /* Restored PCI irq_state lets deassertion reach the IOA before EOI. */
@@ -1003,12 +996,13 @@ static void test_savevm_state(void)
     zx1_test_sapic_eoi(qts, 0, vector0);
     g_assert_cmpuint(zx1_test_delivery_count(qts, 0), ==, 2);
 
-    g_assert_cmphex(qtest_readq(qts, ZX1_TEST_MIO_BASE +
-                               ZX1_TEST_MIO_ROPE_CONFIG), ==, saved_rope);
-    g_assert_cmphex(qtest_readl(qts, zx1_test_ioa_base[0] +
-                               ZX1_TEST_IOA_IOREGSEL), ==, saved_selector);
-    g_assert_cmphex(zx1_test_config_readl(qts, 0, 0, 0,
-                                   PCI_BASE_ADDRESS_0), ==,
+    g_assert_cmphex(
+        qtest_readq(qts, ZX1_TEST_MIO_BASE + ZX1_TEST_MIO_ROPE_CONFIG), ==,
+        saved_rope);
+    g_assert_cmphex(
+        qtest_readl(qts, zx1_test_ioa_base[0] + ZX1_TEST_IOA_IOREGSEL), ==,
+        saved_selector);
+    g_assert_cmphex(zx1_test_config_readl(qts, 0, 0, 0, PCI_BASE_ADDRESS_0), ==,
                     ZX1_TEST_BAR0_OFFSET);
     g_assert_cmphex(zx1_test_config_readw(qts, 0, 0, 0, PCI_COMMAND), ==,
                     PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
@@ -1033,7 +1027,8 @@ static void test_savevm_state(void)
 
 static void test_zx6000_chipset_fault_records(void)
 {
-    const uint64_t ras_bank = IA64_RAS_HUB_DEFAULT_BASE +
+    const uint64_t ras_bank =
+        IA64_RAS_HUB_DEFAULT_BASE +
         ia64_ras_record_bank_offset(0, IA64_RAS_RECORD_TYPE_MCA);
     const uint64_t invalid_mio_offset = UINT64_C(0xfff8);
     const uint32_t absent_selectors[] = {
@@ -1043,31 +1038,29 @@ static void test_zx6000_chipset_fault_records(void)
     };
     const uint32_t bus_addresses[] = { 0x10000, 0x20300, 0 };
     unsigned int i;
-    QTestState *qts = qtest_init(
-        "-machine hp-zx6000,nvram=none,firmware=none "
-        "-m 1G -smp 1 -S -display none -serial none -monitor none "
-        "-net none");
+    QTestState *qts =
+        qtest_init("-machine hp-zx6000,nvram=none,firmware=none "
+                   "-m 1G -smp 1 -S -display none -serial none -monitor none "
+                   "-net none");
 
     while (qtest_readq(qts, ras_bank + IA64_RAS_RECORD_REG_LENGTH)) {
         qtest_writeq(qts, ras_bank + IA64_RAS_RECORD_REG_CLEAR,
                      IA64_RAS_RECORD_CLEAR_VALUE);
     }
-    g_assert_cmpuint(qtest_readq(qts, ras_bank +
-                                IA64_RAS_RECORD_REG_LENGTH), ==, 0);
+    g_assert_cmpuint(qtest_readq(qts, ras_bank + IA64_RAS_RECORD_REG_LENGTH),
+                     ==, 0);
     qtest_writeq(qts, HP_ZX6000_MIO_BASE + HP_ZX1_MIO_ERROR_CONFIG,
                  HP_ZX1_MIO_ERROR_CONFIG_NOTIFY);
     qtest_readq(qts, HP_ZX6000_MIO_BASE + invalid_mio_offset);
-    g_assert_cmphex(qtest_readq(qts, HP_ZX6000_MIO_BASE +
-                                HP_ZX1_MIO_ERROR_STATUS), ==,
-                    HP_ZX1_MIO_ERROR_VALID |
-                    HP_ZX1_MIO_ERROR_CSR_DECODE);
-    g_assert_cmphex(qtest_readq(qts, HP_ZX6000_MIO_BASE +
-                                HP_ZX1_MIO_ERROR_ADDRESS), ==,
-                    invalid_mio_offset);
-    g_assert_cmphex(qtest_readq(qts, ras_bank +
-                                IA64_RAS_RECORD_REG_STATUS) &
-                    IA64_RAS_RECORD_STATUS_PRESENT, ==,
-                    IA64_RAS_RECORD_STATUS_PRESENT);
+    g_assert_cmphex(
+        qtest_readq(qts, HP_ZX6000_MIO_BASE + HP_ZX1_MIO_ERROR_STATUS), ==,
+        HP_ZX1_MIO_ERROR_VALID | HP_ZX1_MIO_ERROR_CSR_DECODE);
+    g_assert_cmphex(
+        qtest_readq(qts, HP_ZX6000_MIO_BASE + HP_ZX1_MIO_ERROR_ADDRESS), ==,
+        invalid_mio_offset);
+    g_assert_cmphex(qtest_readq(qts, ras_bank + IA64_RAS_RECORD_REG_STATUS) &
+                        IA64_RAS_RECORD_STATUS_PRESENT,
+                    ==, IA64_RAS_RECORD_STATUS_PRESENT);
 
     while (qtest_readq(qts, ras_bank + IA64_RAS_RECORD_REG_LENGTH)) {
         qtest_writeq(qts, ras_bank + IA64_RAS_RECORD_REG_CLEAR,
@@ -1075,8 +1068,8 @@ static void test_zx6000_chipset_fault_records(void)
     }
     qtest_writeq(qts, HP_ZX6000_MIO_BASE + HP_ZX1_MIO_ERROR_STATUS,
                  HP_ZX1_MIO_ERROR_STATUS_W1C);
-    g_assert_cmpuint(qtest_readq(qts, ras_bank +
-                                IA64_RAS_RECORD_REG_LENGTH), ==, 0);
+    g_assert_cmpuint(qtest_readq(qts, ras_bank + IA64_RAS_RECORD_REG_LENGTH),
+                     ==, 0);
 
     /* PCI enumeration may probe empty slots/functions without raising MCA. */
     for (i = 0; i < G_N_ELEMENTS(absent_selectors); i++) {
@@ -1086,21 +1079,22 @@ static void test_zx6000_chipset_fault_records(void)
                      HP_ZX1_IOA_SIC_CLEAR_LOG);
         qtest_writeq(qts, ZX1_TEST_IOA0_BASE + HP_ZX1_IOA_CONFIG_ADDRESS,
                      absent_selectors[i]);
-        g_assert_cmphex(qtest_readl(qts, ZX1_TEST_IOA0_BASE +
-                                    HP_ZX1_IOA_CONFIG_DATA), ==, UINT32_MAX);
+        g_assert_cmphex(
+            qtest_readl(qts, ZX1_TEST_IOA0_BASE + HP_ZX1_IOA_CONFIG_DATA), ==,
+            UINT32_MAX);
+        g_assert_cmphex(
+            qtest_readq(qts, ZX1_TEST_IOA0_BASE + HP_ZX1_IOA_ERROR_STATUS), ==,
+            0x40c);
         g_assert_cmphex(qtest_readq(qts, ZX1_TEST_IOA0_BASE +
-                                    HP_ZX1_IOA_ERROR_STATUS), ==,
-                        0x40c);
-        g_assert_cmphex(qtest_readq(qts, ZX1_TEST_IOA0_BASE +
-                                    HP_ZX1_IOA_OUTBOUND_ERROR_ADDRESS), ==,
-                        UINT64_C(0x4000000000000000) | bus_addresses[i]);
-        g_assert_cmpuint(qtest_readq(qts, ras_bank +
-                                     IA64_RAS_RECORD_REG_LENGTH), ==, 0);
+                                             HP_ZX1_IOA_OUTBOUND_ERROR_ADDRESS),
+                        ==, UINT64_C(0x4000000000000000) | bus_addresses[i]);
+        g_assert_cmpuint(
+            qtest_readq(qts, ras_bank + IA64_RAS_RECORD_REG_LENGTH), ==, 0);
 
         qtest_writel(qts, ZX1_TEST_IOA0_BASE + HP_ZX1_IOA_CONFIG_DATA,
                      UINT32_MAX);
-        g_assert_cmpuint(qtest_readq(qts, ras_bank +
-                                     IA64_RAS_RECORD_REG_LENGTH), ==, 0);
+        g_assert_cmpuint(
+            qtest_readq(qts, ras_bank + IA64_RAS_RECORD_REG_LENGTH), ==, 0);
     }
 
     qtest_quit(qts);
@@ -1122,8 +1116,7 @@ int main(int argc, char **argv)
                    test_msi_root_ranges);
     qtest_add_func("/ia64-zx6000-zx1-test/system-reset-baseline",
                    test_system_reset_baseline);
-    qtest_add_func("/ia64-zx6000-zx1-test/savevm-state",
-                   test_savevm_state);
+    qtest_add_func("/ia64-zx6000-zx1-test/savevm-state", test_savevm_state);
     qtest_add_func("/ia64-zx6000-zx1-test/chipset-fault-records",
                    test_zx6000_chipset_fault_records);
 

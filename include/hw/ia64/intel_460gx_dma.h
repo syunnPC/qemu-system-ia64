@@ -21,27 +21,21 @@ typedef struct Intel460GXDMA Intel460GXDMA;
  * explicit deny-all configuration.
  */
 Intel460GXDMA *intel_460gx_dma_new(uint64_t aperture_base,
-                                  uint64_t aperture_size,
-                                  Error **errp);
+                                   uint64_t aperture_size, Error **errp);
 
 /*
  * Add a direct IOVA-to-RAM alias.  The target must be ordinary writable RAM,
  * must outlive the DMA view, and must not shrink while the view is attached.
  * Both ranges use exclusive-end bounds.
  */
-bool intel_460gx_dma_add_ram_alias(Intel460GXDMA *dma,
-                                   uint64_t dma_base,
-                                   uint64_t size,
-                                   MemoryRegion *target,
-                                   uint64_t target_offset,
-                                   Error **errp);
+bool intel_460gx_dma_add_ram_alias(Intel460GXDMA *dma, uint64_t dma_base,
+                                   uint64_t size, MemoryRegion *target,
+                                   uint64_t target_offset, Error **errp);
 
-bool intel_460gx_dma_add_pci_window_alias(Intel460GXDMA *dma,
-                                          uint64_t dma_base,
+bool intel_460gx_dma_add_pci_window_alias(Intel460GXDMA *dma, uint64_t dma_base,
                                           uint64_t size,
                                           MemoryRegion *pci_memory,
-                                          uint64_t pci_offset,
-                                          Error **errp);
+                                          uint64_t pci_offset, Error **errp);
 
 /*
  * Seal the view before attaching it to a root PCI bus.  Once sealed, its
@@ -52,8 +46,7 @@ bool intel_460gx_dma_seal(Intel460GXDMA *dma, Error **errp);
 void intel_460gx_dma_set_fault_notify(Intel460GXDMA *dma,
                                       IA64ChipsetFaultNotify notify,
                                       void *opaque);
-bool intel_460gx_dma_attach_root(Intel460GXDMA *dma, PCIBus *bus,
-                                Error **errp);
+bool intel_460gx_dma_attach_root(Intel460GXDMA *dma, PCIBus *bus, Error **errp);
 
 AddressSpace *intel_460gx_dma_address_space(Intel460GXDMA *dma);
 uint64_t intel_460gx_dma_aperture_base(const Intel460GXDMA *dma);

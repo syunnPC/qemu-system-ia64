@@ -36,8 +36,8 @@ static bool ia64_min_state_address_valid(const CPUIA64State *env,
                                          uint64_t address)
 {
     uint64_t pa = ia64_physical_address(address);
-    uint64_t limit = UINT64_C(1) <<
-        ia64_env_cpu_class_const(env)->phys_addr_bits;
+    uint64_t limit = UINT64_C(1)
+                     << ia64_env_cpu_class_const(env)->phys_addr_bits;
 
     return address != 0 && (address & 0x1ff) == 0 &&
            ia64_pa_is_implemented(env, address) &&
@@ -145,12 +145,11 @@ bool ia64_ras_save_min_state(CPUIA64State *env, uint64_t address)
 
 static uint64_t ia64_ras_context_cfm(const IA64RSEContextState *state)
 {
-    return state->cfm_sof |
-        ((uint64_t)state->cfm_sol << IA64_CFM_SOL_SHIFT) |
-        ((uint64_t)state->cfm_sor << IA64_CFM_SOR_SHIFT) |
-        ((uint64_t)state->cfm_rrb_gr << IA64_CFM_RRB_GR_SHIFT) |
-        ((uint64_t)state->cfm_rrb_fr << IA64_CFM_RRB_FR_SHIFT) |
-        ((uint64_t)state->cfm_rrb_pr << IA64_CFM_RRB_PR_SHIFT);
+    return state->cfm_sof | ((uint64_t)state->cfm_sol << IA64_CFM_SOL_SHIFT) |
+           ((uint64_t)state->cfm_sor << IA64_CFM_SOR_SHIFT) |
+           ((uint64_t)state->cfm_rrb_gr << IA64_CFM_RRB_GR_SHIFT) |
+           ((uint64_t)state->cfm_rrb_fr << IA64_CFM_RRB_FR_SHIFT) |
+           ((uint64_t)state->cfm_rrb_pr << IA64_CFM_RRB_PR_SHIFT);
 }
 
 bool ia64_ras_restore_min_state(IA64CPU *cpu, uint64_t address,
@@ -171,15 +170,15 @@ bool ia64_ras_restore_min_state(IA64CPU *cpu, uint64_t address,
     cfm = state.ifs & IA64_IFS_IFM_MASK;
     if (!(state.ifs & IA64_IFS_V) ||
         (state.ifs & ~(IA64_IFS_V | IA64_IFS_IFM_MASK)) != 0 ||
-        !ia64_cfm_frame_fields_valid(cfm & IA64_CFM_SOF_MASK,
+        !ia64_cfm_frame_fields_valid(
+            cfm & IA64_CFM_SOF_MASK,
             (cfm & IA64_CFM_SOL_MASK) >> IA64_CFM_SOL_SHIFT,
             (cfm & IA64_CFM_SOR_MASK) >> IA64_CFM_SOR_SHIFT)) {
         return false;
     }
 
     if (!new_context) {
-        if (!cpu->mca_rse_valid ||
-            cfm != ia64_ras_context_cfm(&cpu->mca_rse)) {
+        if (!cpu->mca_rse_valid || cfm != ia64_ras_context_cfm(&cpu->mca_rse)) {
             return false;
         }
         ia64_rse_restore_context(env, &cpu->mca_rse);
@@ -249,8 +248,7 @@ bool ia64_ras_enter_pmi(CPUIA64State *env, uint8_t vector)
     unsigned int reg;
 
     if (env->pal.pal_pmi_entry == 0 ||
-        (save_address != 0 &&
-         !ia64_ras_save_min_state(env, save_address))) {
+        (save_address != 0 && !ia64_ras_save_min_state(env, save_address))) {
         return false;
     }
 
@@ -262,8 +260,8 @@ bool ia64_ras_enter_pmi(CPUIA64State *env, uint8_t vector)
     env->gr[IA64_RAS_GR_PMI_B0] = old_b0;
     env->gr[IA64_RAS_GR_PMI_B1] = old_b1;
     env->gr[IA64_RAS_GR_PMI_PREDICATES] = old_pr;
-    for (reg = IA64_RAS_GR_PMI_VECTOR;
-         reg <= IA64_RAS_GR_PMI_PREDICATES; reg++) {
+    for (reg = IA64_RAS_GR_PMI_VECTOR; reg <= IA64_RAS_GR_PMI_PREDICATES;
+         reg++) {
         ia64_gr_nat_set(env, reg, false);
     }
     env->ip = ia64_physical_address(env->pal.pal_pmi_entry);
@@ -306,14 +304,14 @@ bool ia64_ras_enter_mca(IA64CPU *cpu)
     ia64_rse_save_context(env, &cpu->mca_rse);
     cpu->mca_rse_valid = true;
     ia64_rse_cover(env);
-    ia64_set_psr(env, IA64_PSR_BN | IA64_PSR_MC |
-                 (old_psr & (IA64_PSR_MFL | IA64_PSR_MFH | IA64_PSR_PK)));
+    ia64_set_psr(env,
+                 IA64_PSR_BN | IA64_PSR_MC |
+                     (old_psr & (IA64_PSR_MFL | IA64_PSR_MFH | IA64_PSR_PK)));
     env->ar_rsc &= ~IA64_RSC_MODE;
     env->gr[IA64_RAS_GR_SAL_MIN_STATE] =
         save_address + sizeof(IA64MinimalStateArea);
     env->gr[IA64_RAS_GR_PAL_MIN_STATE] = save_address;
-    env->gr[IA64_RAS_GR_PROCESSOR_STATE] =
-        env->pal.pal_mc_state_parameter;
+    env->gr[IA64_RAS_GR_PROCESSOR_STATE] = env->pal.pal_mc_state_parameter;
     env->gr[IA64_RAS_GR_PALE_RETURN] = 0;
     env->gr[IA64_RAS_GR_SALE_ENTRY_STATE] = 1;
     for (unsigned int reg = IA64_RAS_GR_SAL_MIN_STATE;
@@ -358,8 +356,9 @@ bool ia64_ras_enter_init(IA64CPU *cpu)
     ia64_rse_save_context(env, &cpu->mca_rse);
     cpu->mca_rse_valid = true;
     ia64_rse_cover(env);
-    ia64_set_psr(env, IA64_PSR_BN | IA64_PSR_MC |
-                 (old_psr & (IA64_PSR_MFL | IA64_PSR_MFH | IA64_PSR_PK)));
+    ia64_set_psr(env,
+                 IA64_PSR_BN | IA64_PSR_MC |
+                     (old_psr & (IA64_PSR_MFL | IA64_PSR_MFH | IA64_PSR_PK)));
     env->ar_rsc &= ~IA64_RSC_MODE;
     env->gr[IA64_GR_GLOBAL_POINTER] = env->pal.pal_init_gp;
     env->gr[IA64_GR_STACK_POINTER] = cpu->boot_info.stack_pointer;
@@ -378,14 +377,14 @@ bool ia64_ras_enter_init(IA64CPU *cpu)
     return true;
 }
 
-static uint64_t ia64_ras_processor_state_parameter(
-    CPUIA64State *env, uint8_t severity)
+static uint64_t ia64_ras_processor_state_parameter(CPUIA64State *env,
+                                                   uint8_t severity)
 {
-    uint64_t value = BIT_ULL(5) | BIT_ULL(6) | BIT_ULL(7) |
-        BIT_ULL(8) | BIT_ULL(12) | BIT_ULL(13) | BIT_ULL(14) |
-        BIT_ULL(17) | BIT_ULL(20) | BIT_ULL(24) | BIT_ULL(25) |
-        BIT_ULL(26) | BIT_ULL(27) | BIT_ULL(29) | BIT_ULL(30) |
-        BIT_ULL(31) | BIT_ULL(61);
+    uint64_t value = BIT_ULL(5) | BIT_ULL(6) | BIT_ULL(7) | BIT_ULL(8) |
+                     BIT_ULL(12) | BIT_ULL(13) | BIT_ULL(14) | BIT_ULL(17) |
+                     BIT_ULL(20) | BIT_ULL(24) | BIT_ULL(25) | BIT_ULL(26) |
+                     BIT_ULL(27) | BIT_ULL(29) | BIT_ULL(30) | BIT_ULL(31) |
+                     BIT_ULL(61);
 
     if (severity == 2) {
         value |= BIT_ULL(18);
@@ -417,7 +416,7 @@ typedef struct IA64RasCpuRecordRequest {
 } IA64RasCpuRecordRequest;
 
 static void ia64_cpu_record_machine_check_work(CPUState *cs,
-                                                run_on_cpu_data data)
+                                               run_on_cpu_data data)
 {
     IA64RasCpuRecordRequest *request = data.host_ptr;
     IA64CPU *cpu = ia64_cpu_from_cpu_state(cs);
@@ -434,8 +433,8 @@ static void ia64_cpu_record_machine_check_work(CPUState *cs,
     }
     env->pal.pal_mc_severity = request->severity;
     env->pal.pal_mc_error_map = BIT_ULL(24) |
-        ((uint64_t)(cpu->thread_id & 0xf) << 4) |
-        (cpu->core_id & 0xf);
+                                ((uint64_t)(cpu->thread_id & 0xf) << 4) |
+                                (cpu->core_id & 0xf);
     env->pal.pal_mc_state_parameter |=
         ia64_ras_processor_state_parameter(env, request->severity);
     if (request->severity == 2) {
@@ -462,8 +461,7 @@ void ia64_cpu_record_machine_check(CPUState *cs, uint8_t severity,
         .severity = severity,
     };
     if (qemu_cpu_is_self(cs)) {
-        ia64_cpu_record_machine_check_work(
-            cs, RUN_ON_CPU_HOST_PTR(request));
+        ia64_cpu_record_machine_check_work(cs, RUN_ON_CPU_HOST_PTR(request));
     } else {
         async_safe_run_on_cpu(cs, ia64_cpu_record_machine_check_work,
                               RUN_ON_CPU_HOST_PTR(request));
@@ -545,8 +543,7 @@ void ia64_cpu_set_init_entry(CPUState *cs, uint64_t entry, uint64_t gp)
     registration->entry = entry;
     registration->gp = gp;
     if (qemu_cpu_is_self(cs)) {
-        ia64_cpu_set_init_entry_work(
-            cs, RUN_ON_CPU_HOST_PTR(registration));
+        ia64_cpu_set_init_entry_work(cs, RUN_ON_CPU_HOST_PTR(registration));
     } else {
         async_safe_run_on_cpu(cs, ia64_cpu_set_init_entry_work,
                               RUN_ON_CPU_HOST_PTR(registration));

@@ -47,8 +47,7 @@ const HPIOSAPICPolicy hp_io_sapic_zx1_policy = {
 };
 
 static bool hp_io_sapic_storage_valid(const HPIOSAPICPolicy *policy,
-                                      const uint64_t *regs,
-                                      size_t reg_count)
+                                      const uint64_t *regs, size_t reg_count)
 {
     return policy && regs && reg_count >= policy->register_count;
 }
@@ -68,8 +67,8 @@ uint32_t hp_io_sapic_select_read(const HPIOSAPICPolicy *policy,
     return selector;
 }
 
-void hp_io_sapic_select_write(const HPIOSAPICPolicy *policy,
-                              uint32_t *selector, uint64_t value)
+void hp_io_sapic_select_write(const HPIOSAPICPolicy *policy, uint32_t *selector,
+                              uint64_t value)
 {
     if (!policy || !selector) {
         return;
@@ -82,9 +81,9 @@ void hp_io_sapic_select_write(const HPIOSAPICPolicy *policy,
     }
 }
 
-bool hp_io_sapic_window_read(const HPIOSAPICPolicy *policy,
-                             uint32_t selector, const uint64_t *regs,
-                             size_t reg_count, uint64_t *value)
+bool hp_io_sapic_window_read(const HPIOSAPICPolicy *policy, uint32_t selector,
+                             const uint64_t *regs, size_t reg_count,
+                             uint64_t *value)
 {
     uint32_t rte_mask;
 
@@ -113,15 +112,14 @@ bool hp_io_sapic_window_read(const HPIOSAPICPolicy *policy,
         return true;
     }
 
-    rte_mask = (selector & 1) ? ZX1_RTE_HIGH_WRITABLE :
-               ZX1_RTE_LOW_WRITABLE | HP_IO_SAPIC_RTE_STATUS;
+    rte_mask = (selector & 1) ? ZX1_RTE_HIGH_WRITABLE
+                              : ZX1_RTE_LOW_WRITABLE | HP_IO_SAPIC_RTE_STATUS;
     *value = (uint32_t)regs[selector] & rte_mask;
     return true;
 }
 
-bool hp_io_sapic_window_write(const HPIOSAPICPolicy *policy,
-                              uint32_t selector, uint64_t *regs,
-                              size_t reg_count, uint64_t value)
+bool hp_io_sapic_window_write(const HPIOSAPICPolicy *policy, uint32_t selector,
+                              uint64_t *regs, size_t reg_count, uint64_t value)
 {
     uint32_t old_status;
 
@@ -148,8 +146,7 @@ bool hp_io_sapic_window_write(const HPIOSAPICPolicy *policy,
         regs[selector] = (uint32_t)value & ZX1_RTE_HIGH_WRITABLE;
     } else {
         old_status = regs[selector] & HP_IO_SAPIC_RTE_STATUS;
-        regs[selector] = old_status |
-                         ((uint32_t)value & ZX1_RTE_LOW_WRITABLE);
+        regs[selector] = old_status | ((uint32_t)value & ZX1_RTE_LOW_WRITABLE);
     }
     return true;
 }
@@ -186,8 +183,7 @@ bool hp_io_sapic_reset(const HPIOSAPICPolicy *policy, uint32_t *selector,
 
 bool hp_io_sapic_make_message(const HPIOSAPICPolicy *policy,
                               const uint64_t *regs, size_t reg_count,
-                              unsigned int entry,
-                              HPIOSAPICMessage *message)
+                              unsigned int entry, HPIOSAPICMessage *message)
 {
     uint32_t low;
     uint32_t high;
@@ -202,8 +198,7 @@ bool hp_io_sapic_make_message(const HPIOSAPICPolicy *policy,
     high = regs[hp_io_sapic_rte_low(entry) + 1];
     if (policy->variant == HP_IO_SAPIC_VARIANT_ASTRO) {
         message->address = (((uint64_t)high << 4) & 0x0ff00000) |
-                           (((uint64_t)high >> 12) & 0x000ff000) |
-                           0xf0000000;
+                           (((uint64_t)high >> 12) & 0x000ff000) | 0xf0000000;
         message->data = low & ASTRO_VECTOR_MASK;
         return true;
     }
@@ -216,8 +211,7 @@ bool hp_io_sapic_make_message(const HPIOSAPICPolicy *policy,
         message->address |= ZX1_MESSAGE_REDIRECT_HINT;
     }
     message->data = ZX1_MESSAGE_ASSERT |
-                    (low & (HP_IO_SAPIC_RTE_DELIVERY |
-                            HP_IO_SAPIC_RTE_VECTOR));
+                    (low & (HP_IO_SAPIC_RTE_DELIVERY | HP_IO_SAPIC_RTE_VECTOR));
     if (low & HP_IO_SAPIC_RTE_TRIGGER) {
         message->data |= ZX1_MESSAGE_TRIGGER;
     }
@@ -225,9 +219,8 @@ bool hp_io_sapic_make_message(const HPIOSAPICPolicy *policy,
 }
 
 bool hp_io_sapic_set_input(const HPIOSAPICPolicy *policy, uint64_t *regs,
-                           size_t reg_count, uint32_t *ilr,
-                           unsigned int input, bool level,
-                           HPIOSAPICDeliver deliver, void *opaque)
+                           size_t reg_count, uint32_t *ilr, unsigned int input,
+                           bool level, HPIOSAPICDeliver deliver, void *opaque)
 {
     HPIOSAPICMessage message;
     uint32_t old_ilr;
@@ -277,8 +270,9 @@ unsigned int hp_io_sapic_eoi(const HPIOSAPICPolicy *policy, uint64_t *regs,
         return 0;
     }
 
-    vector_mask = policy->variant == HP_IO_SAPIC_VARIANT_ASTRO ?
-                  ASTRO_VECTOR_MASK : HP_IO_SAPIC_RTE_VECTOR;
+    vector_mask = policy->variant == HP_IO_SAPIC_VARIANT_ASTRO
+                      ? ASTRO_VECTOR_MASK
+                      : HP_IO_SAPIC_RTE_VECTOR;
     vector = value & vector_mask;
     for (input = 0; input < policy->input_count; input++) {
         low = regs[hp_io_sapic_rte_low(input)];
@@ -324,8 +318,8 @@ bool hp_io_sapic_software_interrupt(const HPIOSAPICPolicy *policy,
         return false;
     }
 
-    if (!hp_io_sapic_make_message(policy, regs, reg_count,
-                                  ZX1_SOFTWARE_ENTRY, &message)) {
+    if (!hp_io_sapic_make_message(policy, regs, reg_count, ZX1_SOFTWARE_ENTRY,
+                                  &message)) {
         return false;
     }
     if (deliver) {

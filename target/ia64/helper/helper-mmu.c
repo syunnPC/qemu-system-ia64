@@ -23,8 +23,8 @@ void helper_merced_dtlb1_touch(CPUIA64State *env, uint64_t va, uint32_t size)
      * Cross-page accesses and the theoretical LRU clock wrap retain the full
      * path, which touches both endpoints and rebases all ages respectively.
      */
-    if (ia64_env_cpu_class(env)->model == IA64_CPU_MODEL_MERCED &&
-        size != 0 && end >= va &&
+    if (ia64_env_cpu_class(env)->model == IA64_CPU_MODEL_MERCED && size != 0 &&
+        end >= va &&
         ia64_merced_dtlb1_lookup_page(end) ==
             ia64_merced_dtlb1_lookup_page(va) &&
         env->mmu.tlb_data_l1_clock != UINT64_MAX) {
@@ -43,8 +43,7 @@ void helper_merced_dtlb1_touch(CPUIA64State *env, uint64_t va, uint32_t size)
         }
         cached = ia64_merced_dtlb1_lookup(env, va, rid);
         if (cached >= 0) {
-            env->mmu.tlb_data_l1_age[cached] =
-                ++env->mmu.tlb_data_l1_clock;
+            env->mmu.tlb_data_l1_age[cached] = ++env->mmu.tlb_data_l1_clock;
             env->mmu.tlb_data_l1_last = cached + 1U;
             return;
         }
@@ -94,8 +93,8 @@ void helper_probe_fault(CPUIA64State *env, uint64_t va, uint32_t is_write,
     ia64_mmu_probe_fault(env, va, is_write, is_rw, access_level);
 }
 
-void helper_lfetch_fault(CPUIA64State *env, uint64_t va,
-                         uint64_t fault_info, uint32_t hint)
+void helper_lfetch_fault(CPUIA64State *env, uint64_t va, uint64_t fault_info,
+                         uint32_t hint)
 {
     ia64_mmu_lfetch_fault(env, va, fault_info, hint);
 }
@@ -103,9 +102,8 @@ void helper_lfetch_fault(CPUIA64State *env, uint64_t va,
 void helper_data_debug(CPUIA64State *env, uint64_t va, uint32_t size,
                        uint64_t isr_access, uint64_t fault_info)
 {
-    ia64_mmu_check_data_debug(
-        env, va, size, isr_access, ia64_psr_cpl(env->psr), false,
-        fault_info & ~3ULL, fault_info & 3);
+    ia64_mmu_check_data_debug(env, va, size, isr_access, ia64_psr_cpl(env->psr),
+                              false, fault_info & ~3ULL, fault_info & 3);
 }
 
 void helper_instruction_debug(CPUIA64State *env, uint64_t address,
@@ -134,16 +132,15 @@ void helper_check_alignment(CPUIA64State *env, uint64_t va,
 
 uint64_t helper_speculative_probe(CPUIA64State *env, uint64_t va,
                                   uint32_t is_write, uint32_t is_ifetch,
-                                  uint32_t debug_size,
-                                  uint32_t alignment_info)
+                                  uint32_t debug_size, uint32_t alignment_info)
 {
-    uint64_t result = ia64_mmu_speculative_probe(
-        env, va, is_write, is_ifetch, debug_size, alignment_info);
+    uint64_t result = ia64_mmu_speculative_probe(env, va, is_write, is_ifetch,
+                                                 debug_size, alignment_info);
 
     if (!result) {
-        trace_ia64_speculative_probe_defer(
-            env_cpu(env)->cpu_index, env->ip, va,
-            alignment_info & IA64_ALIGNMENT_DATUM_MASK);
+        trace_ia64_speculative_probe_defer(env_cpu(env)->cpu_index, env->ip, va,
+                                           alignment_info &
+                                               IA64_ALIGNMENT_DATUM_MASK);
     }
     return result;
 }
@@ -153,38 +150,37 @@ uint64_t helper_speculative_int_probe(CPUIA64State *env, uint64_t va,
 {
     uint64_t result = ia64_mmu_speculative_int_probe(env, va, size);
     if (!result) {
-        trace_ia64_speculative_probe_defer(
-            env_cpu(env)->cpu_index, env->ip, va, size);
+        trace_ia64_speculative_probe_defer(env_cpu(env)->cpu_index, env->ip, va,
+                                           size);
     }
     return result;
 }
 
 Int128 helper_speculative_int_probe_pa(CPUIA64State *env, uint64_t va,
-                                        uint32_t size)
+                                       uint32_t size)
 {
     uint64_t pa;
     uint64_t result = ia64_mmu_speculative_int_probe_pa(env, va, size, &pa);
 
     if (!result) {
-        trace_ia64_speculative_probe_defer(
-            env_cpu(env)->cpu_index, env->ip, va, size);
+        trace_ia64_speculative_probe_defer(env_cpu(env)->cpu_index, env->ip, va,
+                                           size);
     }
     return int128_make128(result, pa);
 }
 
 Int128 helper_speculative_probe_pa(CPUIA64State *env, uint64_t va,
-                                    uint32_t is_write, uint32_t is_ifetch,
-                                    uint32_t debug_size,
-                                    uint32_t alignment_info)
+                                   uint32_t is_write, uint32_t is_ifetch,
+                                   uint32_t debug_size, uint32_t alignment_info)
 {
     uint64_t pa;
     uint64_t result = ia64_mmu_speculative_probe_pa(
         env, va, is_write, is_ifetch, debug_size, alignment_info, &pa);
 
     if (!result) {
-        trace_ia64_speculative_probe_defer(
-            env_cpu(env)->cpu_index, env->ip, va,
-            alignment_info & IA64_ALIGNMENT_DATUM_MASK);
+        trace_ia64_speculative_probe_defer(env_cpu(env)->cpu_index, env->ip, va,
+                                           alignment_info &
+                                               IA64_ALIGNMENT_DATUM_MASK);
     }
     return int128_make128(result, pa);
 }

@@ -102,8 +102,7 @@ static void assert_qom_child(QTestState *qts, const char *parent_path,
                              const char *name, const char *type)
 {
     g_autoptr(QDict) response = qtest_qmp(
-        qts, "{'execute':'qom-list','arguments':{'path':%s}}",
-        parent_path);
+        qts, "{'execute':'qom-list','arguments':{'path':%s}}", parent_path);
     g_autofree char *child_type = g_strdup_printf("child<%s>", type);
     QList *children;
     QListEntry *entry;
@@ -123,8 +122,7 @@ static void assert_qom_child(QTestState *qts, const char *parent_path,
 
 static void assert_topology_ownership(QTestState *qts)
 {
-    assert_qom_child(qts, "/machine",
-                     IA64_ZX6000_EFI_TEST_TOPOLOGY_CHILD,
+    assert_qom_child(qts, "/machine", IA64_ZX6000_EFI_TEST_TOPOLOGY_CHILD,
                      TYPE_IA64_ZX6000_EFI_TEST_TOPOLOGY);
     assert_qom_child(qts, IA64_ZX6000_EFI_TEST_TOPOLOGY_QOM_PATH,
                      IA64_ZX6000_EFI_TEST_FIXTURE_CHILD,
@@ -143,18 +141,17 @@ static void assert_descriptor(QTestState *qts, unsigned int cpu_count)
     const IA64PlatformIoSapic *sapics;
     const IA64PlatformPciRoute *routes;
     const uint32_t ram_offset = sizeof(*descriptor);
-    const uint32_t root_offset =
-        ram_offset + sizeof(IA64PlatformRamRange);
-    const uint32_t sapic_offset = root_offset +
-        IA64_ZX6000_ZX1_TEST_ROOT_COUNT *
-            sizeof(IA64PlatformPciRoot);
-    const uint32_t route_offset = sapic_offset +
-        IA64_ZX6000_ZX1_TEST_ROOT_COUNT *
-            sizeof(IA64PlatformIoSapic);
+    const uint32_t root_offset = ram_offset + sizeof(IA64PlatformRamRange);
+    const uint32_t sapic_offset =
+        root_offset +
+        IA64_ZX6000_ZX1_TEST_ROOT_COUNT * sizeof(IA64PlatformPciRoot);
+    const uint32_t route_offset =
+        sapic_offset +
+        IA64_ZX6000_ZX1_TEST_ROOT_COUNT * sizeof(IA64PlatformIoSapic);
     unsigned int i;
 
-    qtest_memread(qts, IA64_ZX6000_EFI_TEST_DESCRIPTOR_GPA,
-                  storage.bytes, sizeof(storage.bytes));
+    qtest_memread(qts, IA64_ZX6000_EFI_TEST_DESCRIPTOR_GPA, storage.bytes,
+                  sizeof(storage.bytes));
     g_assert_cmphex(le64_to_cpu(descriptor->Magic), ==,
                     IA64_PLATFORM_DESC_MAGIC);
     g_assert_cmpuint(le32_to_cpu(descriptor->FormatRevision), ==,
@@ -165,14 +162,13 @@ static void assert_descriptor(QTestState *qts, unsigned int cpu_count)
                      IA64_ZX6000_EFI_TEST_DESCRIPTOR_SIZE);
     g_assert_cmpuint(le32_to_cpu(descriptor->PlatformId), ==,
                      IA64_PLATFORM_ID_HP_ZX6000);
-    g_assert_cmphex(le32_to_cpu(descriptor->Flags), ==,
-                    IA64_PLATFORM_FLAG_NO_MCFG |
-                    IA64_PLATFORM_FLAG_QEMU_EXTENSION |
-                    IA64_PLATFORM_FLAG_FAMILY_HP_ZX |
-                    IA64_PLATFORM_FLAG_PCI_ZX1_LBA |
-                    IA64_PLATFORM_FLAG_EMBEDDED_IO_SAPIC);
-    g_assert_cmpuint(descriptor_checksum(storage.bytes,
-                                         sizeof(storage.bytes)), ==, 0);
+    g_assert_cmphex(
+        le32_to_cpu(descriptor->Flags), ==,
+        IA64_PLATFORM_FLAG_NO_MCFG | IA64_PLATFORM_FLAG_QEMU_EXTENSION |
+            IA64_PLATFORM_FLAG_FAMILY_HP_ZX | IA64_PLATFORM_FLAG_PCI_ZX1_LBA |
+            IA64_PLATFORM_FLAG_EMBEDDED_IO_SAPIC);
+    g_assert_cmpuint(descriptor_checksum(storage.bytes, sizeof(storage.bytes)),
+                     ==, 0);
 
     g_assert_cmphex(le64_to_cpu(descriptor->RamSize), ==,
                     IA64_ZX6000_ZX1_TEST_RAM_SIZE);
@@ -210,25 +206,21 @@ static void assert_descriptor(QTestState *qts, unsigned int cpu_count)
     g_assert_cmphex(le64_to_cpu(descriptor->RtcSize), ==,
                     IA64_ZX6000_EFI_TEST_RTC_SIZE);
 
-    g_assert_cmpuint(le32_to_cpu(descriptor->RamRangeOffset), ==,
-                     ram_offset);
+    g_assert_cmpuint(le32_to_cpu(descriptor->RamRangeOffset), ==, ram_offset);
     g_assert_cmpuint(le32_to_cpu(descriptor->RamRangeCount), ==, 1);
     g_assert_cmpuint(le32_to_cpu(descriptor->RamRangeEntrySize), ==,
                      sizeof(IA64PlatformRamRange));
-    g_assert_cmpuint(le32_to_cpu(descriptor->PciRootOffset), ==,
-                     root_offset);
+    g_assert_cmpuint(le32_to_cpu(descriptor->PciRootOffset), ==, root_offset);
     g_assert_cmpuint(le32_to_cpu(descriptor->PciRootCount), ==,
                      IA64_ZX6000_ZX1_TEST_ROOT_COUNT);
     g_assert_cmpuint(le32_to_cpu(descriptor->PciRootEntrySize), ==,
                      sizeof(IA64PlatformPciRoot));
-    g_assert_cmpuint(le32_to_cpu(descriptor->IoSapicOffset), ==,
-                     sapic_offset);
+    g_assert_cmpuint(le32_to_cpu(descriptor->IoSapicOffset), ==, sapic_offset);
     g_assert_cmpuint(le32_to_cpu(descriptor->IoSapicCount), ==,
                      IA64_ZX6000_ZX1_TEST_ROOT_COUNT);
     g_assert_cmpuint(le32_to_cpu(descriptor->IoSapicEntrySize), ==,
                      sizeof(IA64PlatformIoSapic));
-    g_assert_cmpuint(le32_to_cpu(descriptor->PciRouteOffset), ==,
-                     route_offset);
+    g_assert_cmpuint(le32_to_cpu(descriptor->PciRouteOffset), ==, route_offset);
     g_assert_cmpuint(le32_to_cpu(descriptor->PciRouteCount), ==,
                      IA64_ZX6000_ZX1_TEST_ROOT_COUNT);
     g_assert_cmpuint(le32_to_cpu(descriptor->PciRouteEntrySize), ==,
@@ -238,10 +230,8 @@ static void assert_descriptor(QTestState *qts, unsigned int cpu_count)
     g_assert_cmpuint(le32_to_cpu(descriptor->ProfileEntrySize), ==, 0);
 
     ram = (const IA64PlatformRamRange *)(storage.bytes + ram_offset);
-    g_assert_cmphex(le64_to_cpu(ram->Base), ==,
-                    IA64_ZX6000_ZX1_TEST_RAM_BASE);
-    g_assert_cmphex(le64_to_cpu(ram->Size), ==,
-                    IA64_ZX6000_ZX1_TEST_RAM_SIZE);
+    g_assert_cmphex(le64_to_cpu(ram->Base), ==, IA64_ZX6000_ZX1_TEST_RAM_BASE);
+    g_assert_cmphex(le64_to_cpu(ram->Size), ==, IA64_ZX6000_ZX1_TEST_RAM_SIZE);
 
     roots = (const IA64PlatformPciRoot *)(storage.bytes + root_offset);
     sapics = (const IA64PlatformIoSapic *)(storage.bytes + sapic_offset);
@@ -272,12 +262,11 @@ static void assert_descriptor(QTestState *qts, unsigned int cpu_count)
         g_assert_cmphex(le64_to_cpu(roots[i].IoTranslationOffset), ==, 0);
         g_assert_cmphex(le64_to_cpu(roots[i].Mmio32TranslationOffset), ==,
                         zx6000_efi_cpu_mmio_base[i]);
-        g_assert_cmphex(le64_to_cpu(roots[i].Mmio64TranslationOffset), ==,
-                        0);
+        g_assert_cmphex(le64_to_cpu(roots[i].Mmio64TranslationOffset), ==, 0);
 
         g_assert_cmphex(le64_to_cpu(sapics[i].Base), ==,
                         zx6000_efi_config_base[i] +
-                        IA64_PLATFORM_ZX1_IO_SAPIC_OFFSET);
+                            IA64_PLATFORM_ZX1_IO_SAPIC_OFFSET);
         g_assert_cmpuint(le32_to_cpu(sapics[i].GsiBase), ==,
                          zx6000_efi_gsi_base[i]);
         g_assert_cmpuint(le32_to_cpu(sapics[i].RedirectionEntries), ==,
@@ -288,8 +277,7 @@ static void assert_descriptor(QTestState *qts, unsigned int cpu_count)
 
         g_assert_cmpuint(le16_to_cpu(routes[i].Segment), ==, 0);
         g_assert_cmpuint(routes[i].Bus, ==, zx6000_efi_first_bus[i]);
-        g_assert_cmpuint(routes[i].Device, ==,
-                         IA64_ZX6000_EFI_TEST_PROBE_SLOT);
+        g_assert_cmpuint(routes[i].Device, ==, IA64_ZX6000_EFI_TEST_PROBE_SLOT);
         g_assert_cmpuint(routes[i].Pin, ==, 0);
         g_assert_cmpuint(le32_to_cpu(routes[i].Gsi), ==,
                          zx6000_efi_gsi_base[i]);
@@ -297,8 +285,7 @@ static void assert_descriptor(QTestState *qts, unsigned int cpu_count)
     }
 }
 
-static void assert_firmware_loaded(QTestState *qts,
-                                   const char *firmware_path)
+static void assert_firmware_loaded(QTestState *qts, const char *firmware_path)
 {
     g_autofree char *expected = NULL;
     g_autofree uint8_t *actual = NULL;
@@ -352,10 +339,12 @@ static uint64_t parse_gr(const char *registers, unsigned int reg)
 
 static char *cpu_registers(QTestState *qts, unsigned int cpu_index)
 {
-    g_autoptr(QDict) response = qtest_qmp(
-        qts, "{'execute':'human-monitor-command',"
-        "'arguments':{'command-line':'info registers',"
-        "'cpu-index':%u}}", cpu_index);
+    g_autoptr(QDict) response =
+        qtest_qmp(qts,
+                  "{'execute':'human-monitor-command',"
+                  "'arguments':{'command-line':'info registers',"
+                  "'cpu-index':%u}}",
+                  cpu_index);
     const char *registers;
 
     g_assert_true(qdict_haskey(response, "return"));
@@ -364,11 +353,9 @@ static char *cpu_registers(QTestState *qts, unsigned int cpu_index)
     return g_strdup(registers);
 }
 
-static bool cpu_start_powered_off(QTestState *qts,
-                                  unsigned int cpu_index)
+static bool cpu_start_powered_off(QTestState *qts, unsigned int cpu_index)
 {
-    g_autoptr(QDict) response = qtest_qmp(
-        qts, "{'execute':'query-cpus-fast'}");
+    g_autoptr(QDict) response = qtest_qmp(qts, "{'execute':'query-cpus-fast'}");
     QList *cpus;
     QListEntry *entry;
 
@@ -392,35 +379,32 @@ static void assert_cpu_handoff(QTestState *qts, unsigned int cpu_index,
     g_autofree char *registers = cpu_registers(qts, cpu_index);
     const char *halted;
 
-    g_assert_cmpint(cpu_start_powered_off(qts, cpu_index), ==,
-                    powered_off);
+    g_assert_cmpint(cpu_start_powered_off(qts, cpu_index), ==, powered_off);
     g_assert_cmphex(parse_hex_field(registers, "IP: 0x"), ==,
                     IA64_PLATFORM_FIRMWARE_BASE);
     g_assert_cmphex(parse_gr(registers, 8), ==,
                     IA64_ZX6000_EFI_TEST_DESCRIPTOR_GPA);
     g_assert_cmphex(parse_gr(registers, 9), ==,
                     IA64_ZX6000_EFI_TEST_DESCRIPTOR_SIZE);
-    g_assert_cmphex(parse_gr(registers, 10), ==,
-                    IA64_PLATFORM_ID_HP_ZX6000);
+    g_assert_cmphex(parse_gr(registers, 10), ==, IA64_PLATFORM_ID_HP_ZX6000);
     if (cpu_index == 0) {
         g_assert_cmphex(parse_gr(registers, 12), ==,
                         IA64_ZX6000_ZX1_TEST_RAM_SIZE - 16);
     }
     halted = strstr(registers, "HALTED: ");
     g_assert_nonnull(halted);
-    g_assert_cmpuint(g_ascii_strtoull(halted + strlen("HALTED: "),
-                                     NULL, 10), ==, powered_off);
+    g_assert_cmpuint(g_ascii_strtoull(halted + strlen("HALTED: "), NULL, 10),
+                     ==, powered_off);
 }
 
 static uint32_t zx6000_efi_config_selector(uint8_t bus, unsigned int reg)
 {
     return (uint32_t)bus << 16 |
-        PCI_DEVFN(IA64_ZX6000_EFI_TEST_PROBE_SLOT, 0) << 8 |
-        (reg & 0xfc);
+           PCI_DEVFN(IA64_ZX6000_EFI_TEST_PROBE_SLOT, 0) << 8 | (reg & 0xfc);
 }
 
 static void zx6000_efi_config_select(QTestState *qts, unsigned int root,
-                             uint8_t bus, unsigned int reg)
+                                     uint8_t bus, unsigned int reg)
 {
     g_assert_cmpuint(root, <, IA64_ZX6000_ZX1_TEST_ROOT_COUNT);
     qtest_writeq(qts, zx6000_efi_config_base[root] + HP_ZX1_IOA_CONFIG_ADDRESS,
@@ -428,43 +412,47 @@ static void zx6000_efi_config_select(QTestState *qts, unsigned int root,
 }
 
 static uint8_t zx6000_efi_config_readb(QTestState *qts, unsigned int root,
-                               uint8_t bus, unsigned int reg)
+                                       uint8_t bus, unsigned int reg)
 {
     zx6000_efi_config_select(qts, root, bus, reg);
     return qtest_readb(qts, zx6000_efi_config_base[root] +
-                       HP_ZX1_IOA_CONFIG_DATA + (reg & 3));
+                                HP_ZX1_IOA_CONFIG_DATA + (reg & 3));
 }
 
 static uint16_t zx6000_efi_config_readw(QTestState *qts, unsigned int root,
-                                uint8_t bus, unsigned int reg)
+                                        uint8_t bus, unsigned int reg)
 {
     zx6000_efi_config_select(qts, root, bus, reg);
     return qtest_readw(qts, zx6000_efi_config_base[root] +
-                       HP_ZX1_IOA_CONFIG_DATA + (reg & 3));
+                                HP_ZX1_IOA_CONFIG_DATA + (reg & 3));
 }
 
 static uint32_t zx6000_efi_config_readl(QTestState *qts, unsigned int root,
-                                uint8_t bus, unsigned int reg)
+                                        uint8_t bus, unsigned int reg)
 {
     zx6000_efi_config_select(qts, root, bus, reg);
     return qtest_readl(qts, zx6000_efi_config_base[root] +
-                       HP_ZX1_IOA_CONFIG_DATA + (reg & 3));
+                                HP_ZX1_IOA_CONFIG_DATA + (reg & 3));
 }
 
 static void zx6000_efi_config_writew(QTestState *qts, unsigned int root,
-                             uint8_t bus, unsigned int reg, uint16_t value)
+                                     uint8_t bus, unsigned int reg,
+                                     uint16_t value)
 {
     zx6000_efi_config_select(qts, root, bus, reg);
-    qtest_writew(qts, zx6000_efi_config_base[root] +
-                 HP_ZX1_IOA_CONFIG_DATA + (reg & 3), value);
+    qtest_writew(
+        qts, zx6000_efi_config_base[root] + HP_ZX1_IOA_CONFIG_DATA + (reg & 3),
+        value);
 }
 
 static void zx6000_efi_config_writel(QTestState *qts, unsigned int root,
-                             uint8_t bus, unsigned int reg, uint32_t value)
+                                     uint8_t bus, unsigned int reg,
+                                     uint32_t value)
 {
     zx6000_efi_config_select(qts, root, bus, reg);
-    qtest_writel(qts, zx6000_efi_config_base[root] +
-                 HP_ZX1_IOA_CONFIG_DATA + (reg & 3), value);
+    qtest_writel(
+        qts, zx6000_efi_config_base[root] + HP_ZX1_IOA_CONFIG_DATA + (reg & 3),
+        value);
 }
 
 static void assert_config_isolation(QTestState *qts)
@@ -475,39 +463,41 @@ static void assert_config_isolation(QTestState *qts)
         zx6000_efi_config_selector(0, PCI_DEVICE_ID);
     unsigned int root;
 
-    g_assert_cmphex(qtest_readq(qts, zx6000_efi_config_base[0] +
-                               HP_ZX1_IOA_CONFIG_ADDRESS), ==, 0);
-    g_assert_cmphex(qtest_readq(qts, zx6000_efi_config_base[1] +
-                               HP_ZX1_IOA_CONFIG_ADDRESS), ==, 0);
+    g_assert_cmphex(
+        qtest_readq(qts, zx6000_efi_config_base[0] + HP_ZX1_IOA_CONFIG_ADDRESS),
+        ==, 0);
+    g_assert_cmphex(
+        qtest_readq(qts, zx6000_efi_config_base[1] + HP_ZX1_IOA_CONFIG_ADDRESS),
+        ==, 0);
     zx6000_efi_config_select(qts, 0, 0, PCI_VENDOR_ID);
-    g_assert_cmphex(qtest_readq(qts, zx6000_efi_config_base[0] +
-                               HP_ZX1_IOA_CONFIG_ADDRESS), ==,
-                    root0_selector);
-    g_assert_cmphex(qtest_readq(qts, zx6000_efi_config_base[1] +
-                               HP_ZX1_IOA_CONFIG_ADDRESS), ==, 0);
+    g_assert_cmphex(
+        qtest_readq(qts, zx6000_efi_config_base[0] + HP_ZX1_IOA_CONFIG_ADDRESS),
+        ==, root0_selector);
+    g_assert_cmphex(
+        qtest_readq(qts, zx6000_efi_config_base[1] + HP_ZX1_IOA_CONFIG_ADDRESS),
+        ==, 0);
     zx6000_efi_config_select(qts, 1, 0, PCI_DEVICE_ID);
-    g_assert_cmphex(qtest_readq(qts, zx6000_efi_config_base[0] +
-                               HP_ZX1_IOA_CONFIG_ADDRESS), ==,
-                    root0_selector);
-    g_assert_cmphex(qtest_readq(qts, zx6000_efi_config_base[1] +
-                               HP_ZX1_IOA_CONFIG_ADDRESS), ==,
-                    root1_selector);
+    g_assert_cmphex(
+        qtest_readq(qts, zx6000_efi_config_base[0] + HP_ZX1_IOA_CONFIG_ADDRESS),
+        ==, root0_selector);
+    g_assert_cmphex(
+        qtest_readq(qts, zx6000_efi_config_base[1] + HP_ZX1_IOA_CONFIG_ADDRESS),
+        ==, root1_selector);
 
     for (root = 0; root < IA64_ZX6000_ZX1_TEST_ROOT_COUNT; root++) {
-        g_assert_cmphex(zx6000_efi_config_readw(qts, root, 0,
-                                               PCI_VENDOR_ID), ==,
-                        IOMMU_TESTDEV_VENDOR_ID);
-        g_assert_cmphex(zx6000_efi_config_readb(qts, root, 0,
-                                       PCI_VENDOR_ID + 1), ==,
-                        IOMMU_TESTDEV_VENDOR_ID >> 8);
-        g_assert_cmphex(zx6000_efi_config_readw(qts, root, 0,
-                                               PCI_DEVICE_ID), ==,
-                        IOMMU_TESTDEV_DEVICE_ID);
+        g_assert_cmphex(zx6000_efi_config_readw(qts, root, 0, PCI_VENDOR_ID),
+                        ==, IOMMU_TESTDEV_VENDOR_ID);
+        g_assert_cmphex(
+            zx6000_efi_config_readb(qts, root, 0, PCI_VENDOR_ID + 1), ==,
+            IOMMU_TESTDEV_VENDOR_ID >> 8);
+        g_assert_cmphex(zx6000_efi_config_readw(qts, root, 0, PCI_DEVICE_ID),
+                        ==, IOMMU_TESTDEV_DEVICE_ID);
 
         /* The descriptor bus names the root; Mercury type 0 uses bus zero. */
-        g_assert_cmphex(zx6000_efi_config_readl(
-                            qts, root, zx6000_efi_first_bus[root],
-                            PCI_VENDOR_ID), ==, UINT32_MAX);
+        g_assert_cmphex(zx6000_efi_config_readl(qts, root,
+                                                zx6000_efi_first_bus[root],
+                                                PCI_VENDOR_ID),
+                        ==, UINT32_MAX);
     }
 
     zx6000_efi_config_writel(qts, 0, 0, PCI_BASE_ADDRESS_0,
@@ -528,21 +518,21 @@ static void assert_config_isolation(QTestState *qts)
 }
 
 static void zx6000_efi_sapic_select(QTestState *qts, unsigned int root,
-                            uint32_t reg)
+                                    uint32_t reg)
 {
     g_assert_cmpuint(root, <, IA64_ZX6000_ZX1_TEST_ROOT_COUNT);
     qtest_writel(qts, zx6000_efi_config_base[root] + HP_ZX1_IOA_IOREGSEL, reg);
 }
 
 static uint32_t zx6000_efi_sapic_read(QTestState *qts, unsigned int root,
-                              uint32_t reg)
+                                      uint32_t reg)
 {
     zx6000_efi_sapic_select(qts, root, reg);
     return qtest_readl(qts, zx6000_efi_config_base[root] + HP_ZX1_IOA_IOWIN);
 }
 
 static void zx6000_efi_sapic_write(QTestState *qts, unsigned int root,
-                           uint32_t reg, uint32_t value)
+                                   uint32_t reg, uint32_t value)
 {
     zx6000_efi_sapic_select(qts, root, reg);
     qtest_writel(qts, zx6000_efi_config_base[root] + HP_ZX1_IOA_IOWIN, value);
@@ -552,20 +542,26 @@ static void assert_sapic_isolation(QTestState *qts)
 {
     const uint32_t rte0 = HP_IO_SAPIC_RTE_BASE;
 
-    g_assert_cmphex(qtest_readl(qts, zx6000_efi_config_base[0] +
-                               HP_ZX1_IOA_IOREGSEL), ==, 0);
-    g_assert_cmphex(qtest_readl(qts, zx6000_efi_config_base[1] +
-                               HP_ZX1_IOA_IOREGSEL), ==, 0);
+    g_assert_cmphex(
+        qtest_readl(qts, zx6000_efi_config_base[0] + HP_ZX1_IOA_IOREGSEL), ==,
+        0);
+    g_assert_cmphex(
+        qtest_readl(qts, zx6000_efi_config_base[1] + HP_ZX1_IOA_IOREGSEL), ==,
+        0);
     zx6000_efi_sapic_select(qts, 0, rte0);
-    g_assert_cmphex(qtest_readl(qts, zx6000_efi_config_base[0] +
-                               HP_ZX1_IOA_IOREGSEL), ==, rte0);
-    g_assert_cmphex(qtest_readl(qts, zx6000_efi_config_base[1] +
-                               HP_ZX1_IOA_IOREGSEL), ==, 0);
+    g_assert_cmphex(
+        qtest_readl(qts, zx6000_efi_config_base[0] + HP_ZX1_IOA_IOREGSEL), ==,
+        rte0);
+    g_assert_cmphex(
+        qtest_readl(qts, zx6000_efi_config_base[1] + HP_ZX1_IOA_IOREGSEL), ==,
+        0);
     zx6000_efi_sapic_select(qts, 1, 1);
-    g_assert_cmphex(qtest_readl(qts, zx6000_efi_config_base[0] +
-                               HP_ZX1_IOA_IOREGSEL), ==, rte0);
-    g_assert_cmphex(qtest_readl(qts, zx6000_efi_config_base[1] +
-                               HP_ZX1_IOA_IOREGSEL), ==, 1);
+    g_assert_cmphex(
+        qtest_readl(qts, zx6000_efi_config_base[0] + HP_ZX1_IOA_IOREGSEL), ==,
+        rte0);
+    g_assert_cmphex(
+        qtest_readl(qts, zx6000_efi_config_base[1] + HP_ZX1_IOA_IOREGSEL), ==,
+        1);
 
     g_assert_cmphex(zx6000_efi_sapic_read(qts, 0, 1), ==,
                     ZX6000_EFI_TEST_IO_SAPIC_VERSION);
@@ -577,9 +573,9 @@ static void assert_sapic_isolation(QTestState *qts)
                     HP_IO_SAPIC_RTE_MASK);
 
     zx6000_efi_sapic_write(qts, 0, rte0,
-                   HP_IO_SAPIC_RTE_MASK | ZX6000_EFI_TEST_ROOT0_VECTOR);
+                           HP_IO_SAPIC_RTE_MASK | ZX6000_EFI_TEST_ROOT0_VECTOR);
     zx6000_efi_sapic_write(qts, 1, rte0,
-                   HP_IO_SAPIC_RTE_MASK | ZX6000_EFI_TEST_ROOT1_VECTOR);
+                           HP_IO_SAPIC_RTE_MASK | ZX6000_EFI_TEST_ROOT1_VECTOR);
     g_assert_cmphex(zx6000_efi_sapic_read(qts, 0, rte0), ==,
                     HP_IO_SAPIC_RTE_MASK | ZX6000_EFI_TEST_ROOT0_VECTOR);
     g_assert_cmphex(zx6000_efi_sapic_read(qts, 1, rte0), ==,
@@ -592,16 +588,17 @@ static void assert_mutable_reset_state(QTestState *qts)
 
     for (root = 0; root < IA64_ZX6000_ZX1_TEST_ROOT_COUNT; root++) {
         g_assert_cmphex(qtest_readq(qts, zx6000_efi_config_base[root] +
-                                   HP_ZX1_IOA_CONFIG_ADDRESS), ==, 0);
+                                             HP_ZX1_IOA_CONFIG_ADDRESS),
+                        ==, 0);
         g_assert_cmphex(qtest_readl(qts, zx6000_efi_config_base[root] +
-                                   HP_ZX1_IOA_IOREGSEL), ==, 0);
-        g_assert_cmphex(zx6000_efi_sapic_read(qts, root,
-                                     HP_IO_SAPIC_RTE_BASE), ==,
-                        HP_IO_SAPIC_RTE_MASK);
-        g_assert_cmphex(zx6000_efi_config_readl(qts, root, 0,
-                                       PCI_BASE_ADDRESS_0), ==, 0);
-        g_assert_cmphex(zx6000_efi_config_readw(qts, root, 0,
-                                               PCI_COMMAND), ==, 0);
+                                             HP_ZX1_IOA_IOREGSEL),
+                        ==, 0);
+        g_assert_cmphex(zx6000_efi_sapic_read(qts, root, HP_IO_SAPIC_RTE_BASE),
+                        ==, HP_IO_SAPIC_RTE_MASK);
+        g_assert_cmphex(
+            zx6000_efi_config_readl(qts, root, 0, PCI_BASE_ADDRESS_0), ==, 0);
+        g_assert_cmphex(zx6000_efi_config_readw(qts, root, 0, PCI_COMMAND), ==,
+                        0);
     }
 }
 
@@ -615,11 +612,10 @@ static void test_machine_configuration(void)
 
     g_assert_nonnull(firmware_path);
     quoted_firmware = g_shell_quote(firmware_path);
-    qts = qtest_initf(
-        "-machine x-ia64-zx6000-efi-test -S "
-        "-smp 2,sockets=2,cores=1,threads=1 -m 512M -nodefaults "
-        "-display none -net none -serial null -bios %s",
-        quoted_firmware);
+    qts = qtest_initf("-machine x-ia64-zx6000-efi-test -S "
+                      "-smp 2,sockets=2,cores=1,threads=1 -m 512M -nodefaults "
+                      "-display none -net none -serial null -bios %s",
+                      quoted_firmware);
 
     response = qtest_qmp(qts, "{'execute':'query-cpus-fast'}");
     g_assert_true(qdict_haskey(response, "return"));
@@ -648,8 +644,8 @@ static uint64_t wait_for_acpi_xsdt(QTestState *qts)
     unsigned int attempt;
 
     for (attempt = 0; attempt < 30000; attempt++) {
-        qtest_memread(qts, ZX6000_EFI_TEST_RSDP_BASE,
-                      signature, sizeof(signature));
+        qtest_memread(qts, ZX6000_EFI_TEST_RSDP_BASE, signature,
+                      sizeof(signature));
         if (memcmp(signature, "RSD PTR ", sizeof(signature)) == 0) {
             return qtest_readq(qts, ZX6000_EFI_TEST_RSDP_BASE + 24U);
         }
@@ -706,25 +702,23 @@ static void test_firmware_ecam_mcfg(void)
         "-bios %s",
         quoted_firmware);
 
-    qtest_memread(qts, IA64_ZX6000_EFI_TEST_DESCRIPTOR_GPA,
-                  storage.bytes, sizeof(storage.bytes));
-    roots = (IA64PlatformPciRoot *)(
-        storage.bytes + le32_to_cpu(descriptor->PciRootOffset));
+    qtest_memread(qts, IA64_ZX6000_EFI_TEST_DESCRIPTOR_GPA, storage.bytes,
+                  sizeof(storage.bytes));
+    roots = (IA64PlatformPciRoot *)(storage.bytes +
+                                    le32_to_cpu(descriptor->PciRootOffset));
     g_assert_cmphex(le32_to_cpu(descriptor->Flags), ==,
                     IA64_PLATFORM_FLAG_QEMU_EXTENSION |
-                    IA64_PLATFORM_FLAG_FAMILY_HP_ZX |
-                    IA64_PLATFORM_FLAG_PCI_ECAM);
+                        IA64_PLATFORM_FLAG_FAMILY_HP_ZX |
+                        IA64_PLATFORM_FLAG_PCI_ECAM);
     for (i = 0; i < IA64_ZX6000_ZX1_TEST_ROOT_COUNT; i++) {
         g_assert_cmpuint(roots[i].ConfigType, ==,
                          IA64_PLATFORM_PCI_CONFIG_ECAM);
         g_assert_cmpuint(le16_to_cpu(roots[i].Segment), ==, i);
-        g_assert_cmphex(le64_to_cpu(roots[i].ConfigBase), ==,
-                        ecam_base[i]);
+        g_assert_cmphex(le64_to_cpu(roots[i].ConfigBase), ==, ecam_base[i]);
     }
-    g_assert_cmpuint(descriptor_checksum(
-                         storage.bytes,
-                         le32_to_cpu(descriptor->TotalSize)),
-                     ==, 0);
+    g_assert_cmpuint(
+        descriptor_checksum(storage.bytes, le32_to_cpu(descriptor->TotalSize)),
+        ==, 0);
 
     qtest_qmp_assert_success(qts, "{'execute':'cont'}");
     xsdt = wait_for_acpi_xsdt(qts);
@@ -752,7 +746,6 @@ int main(int argc, char **argv)
     g_test_init(&argc, &argv, NULL);
     qtest_add_func("zx6000-efi/machine-configuration",
                    test_machine_configuration);
-    qtest_add_func("zx6000-efi/firmware-ecam-mcfg",
-                   test_firmware_ecam_mcfg);
+    qtest_add_func("zx6000-efi/firmware-ecam-mcfg", test_firmware_ecam_mcfg);
     return g_test_run();
 }

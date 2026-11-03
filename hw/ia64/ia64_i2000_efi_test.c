@@ -52,12 +52,9 @@ struct IA64I2000EfiTestMachineState {
 
 enum {
     IA64_I2000_EFI_TEST_CALCULATED_DESCRIPTOR_SIZE =
-        sizeof(IA64PlatformDescriptor) +
-        sizeof(IA64PlatformRamRange) +
-        IA64_I2000_460GX_TEST_ROOT_COUNT *
-            sizeof(IA64PlatformPciRoot) +
-        sizeof(IA64PlatformIoSapic) +
-        2 * sizeof(IA64PlatformPciRoute) +
+        sizeof(IA64PlatformDescriptor) + sizeof(IA64PlatformRamRange) +
+        IA64_I2000_460GX_TEST_ROOT_COUNT * sizeof(IA64PlatformPciRoot) +
+        sizeof(IA64PlatformIoSapic) + 2 * sizeof(IA64PlatformPciRoute) +
         sizeof(IA64PlatformI2000Profile),
 };
 
@@ -67,8 +64,7 @@ G_STATIC_ASSERT(IA64_I2000_EFI_TEST_CALCULATED_DESCRIPTOR_SIZE ==
                 IA64_I2000_EFI_TEST_DESCRIPTOR_SIZE);
 
 static DeviceState *i2000_topology_add_child(DeviceState *parent,
-                                              const char *name,
-                                              const char *type)
+                                             const char *name, const char *type)
 {
     DeviceState *child = qdev_new(type);
 
@@ -89,8 +85,7 @@ static void i2000_topology_remove_child(DeviceState **child)
     *child = NULL;
 }
 
-static void i2000_topology_cleanup(
-    IA64I2000EfiTestTopologyState *topology)
+static void i2000_topology_cleanup(IA64I2000EfiTestTopologyState *topology)
 {
     DeviceState *child = topology->io_test ? DEVICE(topology->io_test) : NULL;
 
@@ -103,8 +98,7 @@ static void i2000_topology_cleanup(
 
 static void i2000_topology_realize(DeviceState *dev, Error **errp)
 {
-    IA64I2000EfiTestTopologyState *topology =
-        IA64_I2000_EFI_TEST_TOPOLOGY(dev);
+    IA64I2000EfiTestTopologyState *topology = IA64_I2000_EFI_TEST_TOPOLOGY(dev);
     IA64I2000IoTestLayout io_test_layout;
     MachineState *machine = MACHINE(qdev_get_machine());
     DeviceState *child;
@@ -117,30 +111,27 @@ static void i2000_topology_realize(DeviceState *dev, Error **errp)
     }
     ia64_i2000_io_test_layout_init(&io_test_layout);
 
-    child = i2000_topology_add_child(
-        dev, IA64_I2000_EFI_TEST_460GX_TEST_CHILD,
-        TYPE_IA64_I2000_460GX_TEST);
+    child = i2000_topology_add_child(dev, IA64_I2000_EFI_TEST_460GX_TEST_CHILD,
+                                     TYPE_IA64_I2000_460GX_TEST);
     topology->test_460gx = IA64_I2000_460GX_TEST(child);
     qdev_prop_set_uint32(child, IA64_I2000_460GX_TEST_PROP_LEGACY_PIN,
-                        io_test_layout.pid_legacy_pin);
-    if (!object_property_set_link(OBJECT(child),
-                                  IA64_I2000_460GX_TEST_PROP_RAM,
+                         io_test_layout.pid_legacy_pin);
+    if (!object_property_set_link(OBJECT(child), IA64_I2000_460GX_TEST_PROP_RAM,
                                   OBJECT(machine->ram), &local_err) ||
         !qdev_realize(child, NULL, &local_err)) {
         goto fail;
     }
 
-    child = i2000_topology_add_child(
-        dev, IA64_I2000_EFI_TEST_IO_TEST_CHILD,
-        TYPE_IA64_I2000_IO_TEST);
+    child = i2000_topology_add_child(dev, IA64_I2000_EFI_TEST_IO_TEST_CHILD,
+                                     TYPE_IA64_I2000_IO_TEST);
     topology->io_test = IA64_I2000_IO_TEST(child);
     if (!object_property_set_link(OBJECT(child),
                                   IA64_I2000_IO_TEST_PROP_460GX_TEST,
                                   OBJECT(topology->test_460gx), &local_err) ||
         !ia64_i2000_io_test_set_uart_chardev(
             topology->io_test, topology->uart_chardev, &local_err) ||
-        !ia64_i2000_io_test_set_cd_drive(
-            topology->io_test, topology->cd_drive, &local_err) ||
+        !ia64_i2000_io_test_set_cd_drive(topology->io_test, topology->cd_drive,
+                                         &local_err) ||
         !qdev_realize(child, NULL, &local_err)) {
         goto fail;
     }
@@ -168,21 +159,19 @@ static void i2000_topology_class_init(ObjectClass *oc, const void *data)
     dc->hotpluggable = false;
 }
 
-static bool i2000_machine_create_topology(
-    IA64I2000EfiTestMachineState *machine, Error **errp)
+static bool i2000_machine_create_topology(IA64I2000EfiTestMachineState *machine,
+                                          Error **errp)
 {
     DeviceState *dev = qdev_new(TYPE_IA64_I2000_EFI_TEST_TOPOLOGY);
-    IA64I2000EfiTestTopologyState *topology =
-        IA64_I2000_EFI_TEST_TOPOLOGY(dev);
+    IA64I2000EfiTestTopologyState *topology = IA64_I2000_EFI_TEST_TOPOLOGY(dev);
 
     object_property_add_child(OBJECT(machine),
-                              IA64_I2000_EFI_TEST_TOPOLOGY_CHILD,
-                              OBJECT(dev));
+                              IA64_I2000_EFI_TEST_TOPOLOGY_CHILD, OBJECT(dev));
     object_unref(OBJECT(dev));
     machine->topology = topology;
     topology->uart_chardev = serial_hd(0);
-    topology->cd_drive = drive_get(
-        IF_IDE, 0, IA64_I2000_IO_TEST_IDE_MASTER_UNIT);
+    topology->cd_drive =
+        drive_get(IF_IDE, 0, IA64_I2000_IO_TEST_IDE_MASTER_UNIT);
 
     if (!qdev_realize(dev, NULL, errp)) {
         object_unparent(OBJECT(dev));
@@ -192,10 +181,9 @@ static bool i2000_machine_create_topology(
     return true;
 }
 
-static void i2000_descriptor_header_init(
-    IA64PlatformDescriptor *header,
-    const IA64I2000460GXTestLayout *layout,
-    const MachineState *machine)
+static void i2000_descriptor_header_init(IA64PlatformDescriptor *header,
+                                         const IA64I2000460GXTestLayout *layout,
+                                         const MachineState *machine)
 {
     *header = (IA64PlatformDescriptor) {
         .Magic = cpu_to_le64(IA64_PLATFORM_DESC_MAGIC),
@@ -210,26 +198,21 @@ static void i2000_descriptor_header_init(
         .SocketCount = cpu_to_le32(machine->smp.sockets),
         .CoresPerSocket = cpu_to_le32(machine->smp.cores),
         .ThreadsPerCore = cpu_to_le32(machine->smp.threads),
-        .PhysicalAddressBits = cpu_to_le32(
-            IA64_PLATFORM_I2000_PHYS_ADDR_BITS),
+        .PhysicalAddressBits = cpu_to_le32(IA64_PLATFORM_I2000_PHYS_ADDR_BITS),
         .MaxSockets = cpu_to_le32(2),
         .MaxCoresPerSocket = cpu_to_le32(1),
         .MaxThreadsPerCore = cpu_to_le32(1),
-        .MaxPciRoots = cpu_to_le32(
-            IA64_I2000_460GX_TEST_ROOT_COUNT),
-        .PciRootIdentity = cpu_to_le32(
-            IA64_PLATFORM_PCI_ROOT_IDENTITY_GENERIC),
+        .MaxPciRoots = cpu_to_le32(IA64_I2000_460GX_TEST_ROOT_COUNT),
+        .PciRootIdentity = cpu_to_le32(IA64_PLATFORM_PCI_ROOT_IDENTITY_GENERIC),
         .NumaNodeCount = cpu_to_le32(1),
         .LegacyIoBase = cpu_to_le64(layout->legacy_io.base),
         .LegacyIoSize = cpu_to_le64(layout->legacy_io.size),
         .LocalSapicBase = cpu_to_le64(layout->pib.base),
         .LocalSapicSize = cpu_to_le64(layout->pib.size),
         .ConsoleBase = cpu_to_le64(
-            ia64_i2000_460gx_test_sparse_io_pa(
-                IA64_I2000_IO_TEST_UART_BASE)),
+            ia64_i2000_460gx_test_sparse_io_pa(IA64_I2000_IO_TEST_UART_BASE)),
         .ConsoleRegisterStride = cpu_to_le32(1),
-        .ConsoleClockHz = cpu_to_le32(
-            IA64_I2000_IO_TEST_UART_INPUT_CLOCK_HZ),
+        .ConsoleClockHz = cpu_to_le32(IA64_I2000_IO_TEST_UART_INPUT_CLOCK_HZ),
         /* No interrupt is advertised; GSI is zero. */
         .ConsoleIrq = 0,
         .NvramBase = cpu_to_le64(IA64_I2000_PROFILE_NVRAM_BASE),
@@ -250,16 +233,14 @@ static void i2000_descriptor_roots_init(
 {
     unsigned int i;
 
-    memset(roots, 0,
-           sizeof(*roots) * IA64_I2000_460GX_TEST_ROOT_COUNT);
+    memset(roots, 0, sizeof(*roots) * IA64_I2000_460GX_TEST_ROOT_COUNT);
     for (i = 0; i < IA64_I2000_460GX_TEST_ROOT_COUNT; i++) {
         const IA64I2000460GXTestRoot *source = &layout->roots[i];
 
         roots[i].Segment = cpu_to_le16(source->segment);
         roots[i].Bus = source->first_bus;
         roots[i].ConfigType = source->config_mechanism;
-        roots[i].Flags = cpu_to_le32(
-            IA64_PLATFORM_PCI_ROOT_FLAG_IDENTITY_DMA);
+        roots[i].Flags = cpu_to_le32(IA64_PLATFORM_PCI_ROOT_FLAG_IDENTITY_DMA);
         roots[i].ConfigBase = 0;
         roots[i].IoBase = cpu_to_le64(source->io_base);
         roots[i].IoSize = cpu_to_le64(source->io_size);
@@ -277,8 +258,7 @@ static void i2000_descriptor_roots_init(
 
 static bool i2000_machine_install_descriptor(
     IA64I2000EfiTestMachineState *machine,
-    const IA64I2000460GXTestLayout *layout_460gx_test,
-    Error **errp)
+    const IA64I2000460GXTestLayout *layout_460gx_test, Error **errp)
 {
     HPIA64MachineState *hp = HP_IA64_MACHINE(machine);
     MachineState *ms = MACHINE(machine);
@@ -298,13 +278,15 @@ static bool i2000_machine_install_descriptor(
     IA64PlatformPciRoute pci_routes[] = {
         {
             .Segment = cpu_to_le16(0),
-            .Bus = layout_460gx_test->roots[
-                IA64_I2000_IO_TEST_I82559_PARENT_ROOT].first_bus,
+            .Bus =
+                layout_460gx_test->roots[IA64_I2000_IO_TEST_I82559_PARENT_ROOT]
+                    .first_bus,
             .Device = IA64_I2000_IO_TEST_I82559_SLOT,
             /* Descriptor pins use zero-based PCI INTA..INTD numbering. */
             .Pin = IA64_I2000_IO_TEST_I82559_INTERRUPT_PIN - 1,
             .Gsi = cpu_to_le32(IA64_I2000_IO_TEST_I82559_PID_PIN),
-        }, {
+        },
+        {
             .Segment = cpu_to_le16(ISP12160_QEMU_I2000_SEGMENT),
             .Bus = ISP12160_QEMU_I2000_BUS,
             .Device = ISP12160_QEMU_I2000_DEVICE,
@@ -329,26 +311,25 @@ static bool i2000_machine_install_descriptor(
     i2000_descriptor_header_init(&header, layout_460gx_test, ms);
     i2000_descriptor_roots_init(roots, layout_460gx_test);
     ia64_platform_i2000_profile_init(&profile);
-    if (!hp_ia64_machine_install_platform_descriptor(
-            hp, &header, &arrays, errp)) {
+    if (!hp_ia64_machine_install_platform_descriptor(hp, &header, &arrays,
+                                                     errp)) {
         return false;
     }
     if (hp->firmware_args.descriptor_size !=
         IA64_I2000_EFI_TEST_DESCRIPTOR_SIZE) {
-        error_setg(errp,
-                   "i2000 EFI descriptor has unexpected size %" PRIu64,
+        error_setg(errp, "i2000 EFI descriptor has unexpected size %" PRIu64,
                    hp->firmware_args.descriptor_size);
         return false;
     }
     return true;
 }
 
-static IA64BootInfo i2000_machine_boot_info(
-    unsigned int cpu_index, uint64_t entry, uint64_t global_pointer,
-    void *opaque)
+static IA64BootInfo i2000_machine_boot_info(unsigned int cpu_index,
+                                            uint64_t entry,
+                                            uint64_t global_pointer,
+                                            void *opaque)
 {
-    IA64I2000EfiTestMachineState *machine =
-        IA64_I2000_EFI_TEST_MACHINE(opaque);
+    IA64I2000EfiTestMachineState *machine = IA64_I2000_EFI_TEST_MACHINE(opaque);
     HPIA64MachineState *hp = HP_IA64_MACHINE(machine);
     const uint64_t low_ram_end = hp->descriptor_low_ram_end;
     const uint64_t cpu_assist_base = low_ram_end - IA64_FW_BOOT_STACK_SIZE;
@@ -359,11 +340,13 @@ static IA64BootInfo i2000_machine_boot_info(
         .global_pointer = global_pointer,
         .iva = IA64_I2000_EFI_TEST_IVT_BASE,
         .bsp = cpu_assist_base + IA64_FW_EARLY_RSE_OFFSET +
-            cpu_index * IA64_FW_EARLY_RSE_SIZE,
+               cpu_index * IA64_FW_EARLY_RSE_SIZE,
         /* The descriptor transport requires the BSP at LowRamEnd - 16. */
-        .stack_pointer = cpu_index == 0 ? low_ram_end - 16 :
-            cpu_assist_base + IA64_FW_BOOTSTRAP_STACK_TOP_OFFSET - 16 -
-            cpu_index * IA64_FW_CPU_STACK_SIZE,
+        .stack_pointer = cpu_index == 0
+                             ? low_ram_end - 16
+                             : cpu_assist_base +
+                                   IA64_FW_BOOTSTRAP_STACK_TOP_OFFSET - 16 -
+                                   cpu_index * IA64_FW_CPU_STACK_SIZE,
         .rsc = IA64_RSC_MODE,
         .low_ram_size = low_ram_end,
         .io_port_base = IA64_I2000_460GX_TEST_LEGACY_IO_BASE,
@@ -380,22 +363,22 @@ static IA64BootInfo i2000_machine_boot_info(
 static IA64BootInfo i2000_machine_initial_boot_info(unsigned int cpu_index,
                                                     void *opaque)
 {
-    return i2000_machine_boot_info(
-        cpu_index, IA64_I2000_460GX_TEST_FIRMWARE_BASE,
-        IA64_I2000_460GX_TEST_FIRMWARE_BASE, opaque);
+    return i2000_machine_boot_info(cpu_index,
+                                   IA64_I2000_460GX_TEST_FIRMWARE_BASE,
+                                   IA64_I2000_460GX_TEST_FIRMWARE_BASE, opaque);
 }
 
-static IA64BootInfo i2000_machine_firmware_boot_info(
-    unsigned int cpu_index, uint64_t entry, uint64_t global_pointer,
-    void *opaque)
+static IA64BootInfo i2000_machine_firmware_boot_info(unsigned int cpu_index,
+                                                     uint64_t entry,
+                                                     uint64_t global_pointer,
+                                                     void *opaque)
 {
     return i2000_machine_boot_info(cpu_index, entry, global_pointer, opaque);
 }
 
 static bool i2000_machine_build(MachineState *ms, Error **errp)
 {
-    IA64I2000EfiTestMachineState *machine =
-        IA64_I2000_EFI_TEST_MACHINE(ms);
+    IA64I2000EfiTestMachineState *machine = IA64_I2000_EFI_TEST_MACHINE(ms);
     HPIA64MachineState *hp = HP_IA64_MACHINE(machine);
     IA64I2000460GXTestLayout layout_460gx_test;
     IA64I2000IoTestLayout io_test_layout;
@@ -426,34 +409,28 @@ static bool i2000_machine_build(MachineState *ms, Error **errp)
 
     memory_region_add_subregion(get_system_memory(), layout_460gx_test.ram.base,
                                 ms->ram);
-    if (!hp_ia64_machine_create_ras(
-            hp, IA64_RAS_HUB_DEFAULT_BASE, errp)) {
+    if (!hp_ia64_machine_create_ras(hp, IA64_RAS_HUB_DEFAULT_BASE, errp)) {
         return false;
     }
-    if (!memory_region_init_ram(
-            &machine->nvram, NULL,
-            "ia64-i2000-efi-test.nvram",
-            IA64_I2000_PROFILE_NVRAM_SIZE, errp)) {
+    if (!memory_region_init_ram(&machine->nvram, NULL,
+                                "ia64-i2000-efi-test.nvram",
+                                IA64_I2000_PROFILE_NVRAM_SIZE, errp)) {
         return false;
     }
     memory_region_add_subregion(get_system_memory(),
-                                IA64_I2000_PROFILE_NVRAM_BASE,
-                                &machine->nvram);
-    ia64_machine_map_pib(OBJECT(machine), &hp->pib,
-                         "ia64-i2000-efi-test.pib",
+                                IA64_I2000_PROFILE_NVRAM_BASE, &machine->nvram);
+    ia64_machine_map_pib(OBJECT(machine), &hp->pib, "ia64-i2000-efi-test.pib",
                          layout_460gx_test.pib.base,
                          layout_460gx_test.pib.size);
     if (!ia64_machine_load_firmware(ms, &hp->firmware,
-                                      layout_460gx_test.ram.size, errp)) {
+                                    layout_460gx_test.ram.size, errp)) {
         return false;
     }
     if (!i2000_machine_create_topology(machine, errp) ||
-        !i2000_machine_install_descriptor(machine, &layout_460gx_test,
-                                           errp)) {
+        !i2000_machine_install_descriptor(machine, &layout_460gx_test, errp)) {
         return false;
     }
-    cpu_config.firmware_compat_flags =
-        hp->firmware_args.firmware_compat_flags;
+    cpu_config.firmware_compat_flags = hp->firmware_args.firmware_compat_flags;
     if (!ia64_machine_create_cpus(ms, &cpu_config, errp)) {
         return false;
     }
@@ -461,8 +438,7 @@ static bool i2000_machine_build(MachineState *ms, Error **errp)
     ia64_machine_init_firmware_notifier(
         &hp->firmware_notifier, ms, hp->firmware.base,
         hp->firmware.elf ? 0 : hp->firmware.size,
-        i2000_machine_firmware_boot_info,
-        NULL, machine);
+        i2000_machine_firmware_boot_info, NULL, machine);
     return true;
 }
 
@@ -477,8 +453,7 @@ static void i2000_machine_init(MachineState *machine)
 
 static void i2000_machine_reset(MachineState *machine, ResetType type)
 {
-    IA64I2000EfiTestMachineState *s =
-        IA64_I2000_EFI_TEST_MACHINE(machine);
+    IA64I2000EfiTestMachineState *s = IA64_I2000_EFI_TEST_MACHINE(machine);
 
     qemu_devices_reset(type);
     if (s->topology) {
@@ -521,7 +496,8 @@ static const TypeInfo i2000_efi_test_types[] = {
         .parent = TYPE_DEVICE,
         .instance_size = sizeof(IA64I2000EfiTestTopologyState),
         .class_init = i2000_topology_class_init,
-    }, {
+    },
+    {
         .name = TYPE_IA64_I2000_EFI_TEST_MACHINE,
         .parent = TYPE_HP_IA64_MACHINE,
         .instance_size = sizeof(IA64I2000EfiTestMachineState),

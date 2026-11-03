@@ -49,18 +49,20 @@ typedef enum Intel460GXMemoryError {
     INTEL_460GX_MEMORY_ERROR_QUEUE_OVERFLOW,
 } Intel460GXMemoryError;
 
-void intel_460gx_chipset_set_fault_notify(
-    Intel460GXChipsetState *s, IA64ChipsetFaultNotify notify, void *opaque);
+void intel_460gx_chipset_set_fault_notify(Intel460GXChipsetState *s,
+                                          IA64ChipsetFaultNotify notify,
+                                          void *opaque);
 void intel_460gx_chipset_report_memory_error(
     Intel460GXChipsetState *s, unsigned int card, unsigned int mac,
-    Intel460GXMemoryError error, uint64_t address, uint64_t data,
-    uint8_t ecc, uint8_t chunk, uint8_t itid);
-bool intel_460gx_chipset_report_expander_fault(
-    Intel460GXChipsetState *s, unsigned int port,
-    const IA64ChipsetFault *fault);
-void intel_460gx_chipset_set_downstream_reset_range(
-    Intel460GXChipsetState *s, unsigned int port,
-    uint8_t first_bus, uint8_t last_bus);
+    Intel460GXMemoryError error, uint64_t address, uint64_t data, uint8_t ecc,
+    uint8_t chunk, uint8_t itid);
+bool intel_460gx_chipset_report_expander_fault(Intel460GXChipsetState *s,
+                                               unsigned int port,
+                                               const IA64ChipsetFault *fault);
+void intel_460gx_chipset_set_downstream_reset_range(Intel460GXChipsetState *s,
+                                                    unsigned int port,
+                                                    uint8_t first_bus,
+                                                    uint8_t last_bus);
 
 uint32_t intel_460gx_chipset_present_mask(uint8_t expander_mask);
 

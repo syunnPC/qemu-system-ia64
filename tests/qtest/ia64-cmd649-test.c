@@ -41,8 +41,7 @@ typedef struct CMD649Fixture {
 
 static uint64_t cmd649_sparse_io_address(uint32_t port)
 {
-    return IA64_PCI_IO_BASE + ((uint64_t)(port >> 2) << 12) +
-        (port & 0xfff);
+    return IA64_PCI_IO_BASE + ((uint64_t)(port >> 2) << 12) + (port & 0xfff);
 }
 
 static uint8_t cmd649_pio_readb(QPCIBus *bus, uint32_t addr)
@@ -87,8 +86,7 @@ static CMD649Fixture *cmd649_start(const char *properties)
     f->gbus.bus.pio_writeb = cmd649_pio_writeb;
     f->gbus.bus.pio_writew = cmd649_pio_writew;
     f->gbus.bus.pio_writel = cmd649_pio_writel;
-    f->dev = qpci_device_find(&f->gbus.bus,
-                              QPCI_DEVFN(CMD649_SLOT, 0));
+    f->dev = qpci_device_find(&f->gbus.bus, QPCI_DEVFN(CMD649_SLOT, 0));
     g_assert_nonnull(f->dev);
     return f;
 }
@@ -130,15 +128,13 @@ static void test_cmd649_config(void)
                     CMD649_PM_CAP);
     g_assert_cmphex(qpci_config_readb(f->dev, CMD649_PM_CAP), ==,
                     PCI_CAP_ID_PM);
-    g_assert_cmphex(qpci_config_readw(f->dev,
-                                     CMD649_PM_CAP + PCI_PM_PMC), ==,
+    g_assert_cmphex(qpci_config_readw(f->dev, CMD649_PM_CAP + PCI_PM_PMC), ==,
                     0x0622);
-    g_assert_cmphex(qpci_config_readw(f->dev,
-                                     CMD649_PM_CAP + PCI_PM_CTRL), ==,
+    g_assert_cmphex(qpci_config_readw(f->dev, CMD649_PM_CAP + PCI_PM_CTRL), ==,
                     0x6000);
-    g_assert_cmphex(qpci_config_readb(f->dev,
-                                     CMD649_PM_CAP + PCI_PM_DATA_REGISTER),
-                    ==, 0xf0);
+    g_assert_cmphex(
+        qpci_config_readb(f->dev, CMD649_PM_CAP + PCI_PM_DATA_REGISTER), ==,
+        0xf0);
 
     qpci_config_writeb(f->dev, PCI_CLASS_PROG, 0x00);
     g_assert_cmphex(qpci_config_readb(f->dev, PCI_CLASS_PROG), ==, 0x8a);
@@ -187,12 +183,10 @@ static void test_cmd649_bmdma_aliases(void)
     g_assert_cmphex(qpci_config_readb(f->dev, CMD649_UDIDETCR1), ==, 0x6a);
 
     qpci_config_writel(f->dev, CMD649_DTPR0, 0x1234567f);
-    g_assert_cmphex(qpci_config_readl(f->dev, CMD649_DTPR0), ==,
-                    0x1234567c);
+    g_assert_cmphex(qpci_config_readl(f->dev, CMD649_DTPR0), ==, 0x1234567c);
     g_assert_cmphex(qpci_io_readl(f->dev, bar, 4), ==, 0x1234567c);
     qpci_io_writel(f->dev, bar, 12, 0xaabbccdf);
-    g_assert_cmphex(qpci_config_readl(f->dev, CMD649_DTPR1), ==,
-                    0xaabbccdc);
+    g_assert_cmphex(qpci_config_readl(f->dev, CMD649_DTPR1), ==, 0xaabbccdc);
 
     cmd649_stop(f);
 }
@@ -212,28 +206,28 @@ static void test_cmd649_irq_and_modes(void)
     native_bar2 = qpci_config_readl(f->dev, PCI_BASE_ADDRESS_2);
 
     qtest_set_irq_in(f->qts, CMD649_QOM_PATH, NULL, 0, 1);
-    g_assert_cmphex(qpci_config_readb(f->dev, CMD649_CFR) & 0x04, ==,
-                    0x04);
-    g_assert_cmphex(qpci_config_readb(f->dev, CMD649_MRDMODE) & 0x04, ==,
-                    0x04);
+    g_assert_cmphex(qpci_config_readb(f->dev, CMD649_CFR) & 0x04, ==, 0x04);
+    g_assert_cmphex(qpci_config_readb(f->dev, CMD649_MRDMODE) & 0x04, ==, 0x04);
     g_assert_cmphex(qpci_config_readw(f->dev, PCI_STATUS) &
-                    PCI_STATUS_INTERRUPT, ==, PCI_STATUS_INTERRUPT);
+                        PCI_STATUS_INTERRUPT,
+                    ==, PCI_STATUS_INTERRUPT);
 
     qtest_set_irq_in(f->qts, CMD649_QOM_PATH, NULL, 0, 0);
     g_assert_cmphex(qpci_config_readb(f->dev, CMD649_CFR) & 0x04, ==, 0);
     g_assert_cmphex(qpci_config_readb(f->dev, CMD649_MRDMODE) & 0x04, ==, 0);
-    g_assert_cmphex(qpci_config_readw(f->dev, PCI_STATUS) &
-                    PCI_STATUS_INTERRUPT, ==, 0);
+    g_assert_cmphex(
+        qpci_config_readw(f->dev, PCI_STATUS) & PCI_STATUS_INTERRUPT, ==, 0);
 
     qtest_set_irq_in(f->qts, CMD649_QOM_PATH, NULL, 0, 1);
 
     qpci_config_writeb(f->dev, CMD649_MRDMODE, 0x10);
     g_assert_cmphex(qpci_config_readb(f->dev, CMD649_MRDMODE), ==, 0x14);
-    g_assert_cmphex(qpci_config_readw(f->dev, PCI_STATUS) &
-                    PCI_STATUS_INTERRUPT, ==, 0);
+    g_assert_cmphex(
+        qpci_config_readw(f->dev, PCI_STATUS) & PCI_STATUS_INTERRUPT, ==, 0);
     qpci_config_writeb(f->dev, CMD649_MRDMODE, 0x00);
     g_assert_cmphex(qpci_config_readw(f->dev, PCI_STATUS) &
-                    PCI_STATUS_INTERRUPT, ==, PCI_STATUS_INTERRUPT);
+                        PCI_STATUS_INTERRUPT,
+                    ==, PCI_STATUS_INTERRUPT);
     qpci_config_writeb(f->dev, CMD649_CFR, 0x04);
     g_assert_cmphex(qpci_config_readb(f->dev, CMD649_MRDMODE) & 0x04, ==, 0);
     qtest_set_irq_in(f->qts, CMD649_QOM_PATH, NULL, 0, 0);
@@ -241,8 +235,7 @@ static void test_cmd649_irq_and_modes(void)
     qtest_set_irq_in(f->qts, CMD649_QOM_PATH, NULL, 1, 1);
     g_assert_cmphex(qpci_config_readb(f->dev, CMD649_ARTTIM23) & 0x10, ==,
                     0x10);
-    g_assert_cmphex(qpci_config_readb(f->dev, CMD649_MRDMODE) & 0x08, ==,
-                    0x08);
+    g_assert_cmphex(qpci_config_readb(f->dev, CMD649_MRDMODE) & 0x08, ==, 0x08);
     qtest_set_irq_in(f->qts, CMD649_QOM_PATH, NULL, 1, 0);
     g_assert_cmphex(qpci_config_readb(f->dev, CMD649_ARTTIM23) & 0x10, ==, 0);
     g_assert_cmphex(qpci_config_readb(f->dev, CMD649_MRDMODE) & 0x08, ==, 0);
@@ -351,7 +344,8 @@ static void test_cmd649_atapi_completion(gconstpointer opaque)
         g_assert_cmphex(qpci_io_readb(f->dev, control, 2) & 0x88, ==, 0x80);
         g_assert_cmphex(qpci_io_readb(f->dev, bm, 2) & BM_STATUS_INT, ==, 0);
         g_assert_cmphex(qpci_config_readw(f->dev, PCI_STATUS) &
-                       PCI_STATUS_INTERRUPT, ==, 0);
+                            PCI_STATUS_INTERRUPT,
+                        ==, 0);
 
         if (start == 1) {
             qpci_io_writeb(f->dev, bm, 2, BM_STATUS_INT | BM_STATUS_ERROR);
@@ -359,13 +353,14 @@ static void test_cmd649_atapi_completion(gconstpointer opaque)
         }
         qtest_clock_step(f->qts, 100000000);
         g_assert_cmphex(qpci_io_readb(f->dev, control, 2) & 0x89, ==,
-                       commands[i].error ? 1 : 0);
+                        commands[i].error ? 1 : 0);
         g_assert_cmphex(qpci_io_readb(f->dev, ide, 1), ==, commands[i].error);
         g_assert_cmphex(qpci_io_readb(f->dev, ide, 2) & 7, ==, 3);
         g_assert_cmphex(qpci_io_readb(f->dev, bm, 2), ==,
-                       BM_STATUS_INT | (start < 2 ? BM_STATUS_DMAING : 0));
+                        BM_STATUS_INT | (start < 2 ? BM_STATUS_DMAING : 0));
         g_assert_cmphex(qpci_config_readw(f->dev, PCI_STATUS) &
-                       PCI_STATUS_INTERRUPT, ==, PCI_STATUS_INTERRUPT);
+                            PCI_STATUS_INTERRUPT,
+                        ==, PCI_STATUS_INTERRUPT);
         qtest_memread(f->qts, 0x100100, actual, sizeof(actual));
         g_assert_cmpmem(actual, sizeof(actual), buffer, sizeof(buffer));
 
@@ -377,7 +372,8 @@ static void test_cmd649_atapi_completion(gconstpointer opaque)
         }
         g_assert_cmphex(qpci_io_readb(f->dev, bm, 2), ==, BM_STATUS_DMAING);
         g_assert_cmphex(qpci_config_readw(f->dev, PCI_STATUS) &
-                       PCI_STATUS_INTERRUPT, ==, 0);
+                            PCI_STATUS_INTERRUPT,
+                        ==, 0);
         qpci_io_writeb(f->dev, bm, 0, 0);
         g_assert_cmphex(qpci_io_readb(f->dev, bm, 2), ==, 0);
     }
@@ -408,7 +404,8 @@ static void test_cmd649_atapi_reset(void)
         qtest_clock_step(f->qts, 100000000);
         g_assert_cmphex(qpci_io_readb(f->dev, bm, 2) & BM_STATUS_INT, ==, 0);
         g_assert_cmphex(qpci_config_readw(f->dev, PCI_STATUS) &
-                       PCI_STATUS_INTERRUPT, ==, 0);
+                            PCI_STATUS_INTERRUPT,
+                        ==, 0);
         cmd649_dma_packet(f, ide, 0x1e);
         cmd649_wait_packet(f, ide);
         g_assert_cmphex(qpci_io_readb(f->dev, ide, 7) & 0x89, ==, 0);
@@ -432,27 +429,32 @@ static void test_cmd649_masked_completion(gconstpointer opaque)
         cmd649_packet(f, ide, i ? 0xff : 0x1e, dma);
         qtest_clock_step(f->qts, 100000000);
         g_assert_cmphex(qpci_io_readb(f->dev, control, 2) & 0x89, ==,
-                       i ? 1 : 0);
+                        i ? 1 : 0);
         g_assert_cmphex(qpci_config_readw(f->dev, PCI_STATUS) &
-                       PCI_STATUS_INTERRUPT, ==, 0);
+                            PCI_STATUS_INTERRUPT,
+                        ==, 0);
 
         /* Alternate Status preserves completion while INTRQ is masked. */
         qpci_io_writeb(f->dev, control, 2, 0);
         g_assert_cmphex(qpci_config_readw(f->dev, PCI_STATUS) &
-                       PCI_STATUS_INTERRUPT, ==, PCI_STATUS_INTERRUPT);
+                            PCI_STATUS_INTERRUPT,
+                        ==, PCI_STATUS_INTERRUPT);
         qpci_io_writeb(f->dev, control, 2, 2);
         g_assert_cmphex(qpci_config_readw(f->dev, PCI_STATUS) &
-                       PCI_STATUS_INTERRUPT, ==, 0);
+                            PCI_STATUS_INTERRUPT,
+                        ==, 0);
         qpci_io_writeb(f->dev, control, 2, 0);
         g_assert_cmphex(qpci_config_readw(f->dev, PCI_STATUS) &
-                       PCI_STATUS_INTERRUPT, ==, PCI_STATUS_INTERRUPT);
+                            PCI_STATUS_INTERRUPT,
+                        ==, PCI_STATUS_INTERRUPT);
 
         /* Reading Status acknowledges even while INTRQ is masked. */
         qpci_io_writeb(f->dev, control, 2, 2);
         qpci_io_readb(f->dev, ide, 7);
         qpci_io_writeb(f->dev, control, 2, 0);
         g_assert_cmphex(qpci_config_readw(f->dev, PCI_STATUS) &
-                       PCI_STATUS_INTERRUPT, ==, 0);
+                            PCI_STATUS_INTERRUPT,
+                        ==, 0);
     }
 
     /* A controller reset cancels an unacknowledged completion. */
@@ -463,8 +465,8 @@ static void test_cmd649_masked_completion(gconstpointer opaque)
     control = qpci_iomap(f->dev, 1, NULL);
     qpci_device_enable(f->dev);
     qpci_io_writeb(f->dev, control, 2, 0);
-    g_assert_cmphex(qpci_config_readw(f->dev, PCI_STATUS) &
-                   PCI_STATUS_INTERRUPT, ==, 0);
+    g_assert_cmphex(
+        qpci_config_readw(f->dev, PCI_STATUS) & PCI_STATUS_INTERRUPT, ==, 0);
     cmd649_stop(f);
 }
 
@@ -473,8 +475,8 @@ static void cmd649_wait_migration(QTestState *qts)
     int64_t deadline = g_get_monotonic_time() + 60 * G_TIME_SPAN_SECOND;
 
     for (;;) {
-        QDict *result = qtest_qmp_assert_success_ref(
-            qts, "{'execute':'query-migrate'}");
+        QDict *result =
+            qtest_qmp_assert_success_ref(qts, "{'execute':'query-migrate'}");
         const char *status = qdict_get_str(result, "status");
 
         if (!strcmp(status, "completed")) {
@@ -491,8 +493,8 @@ static void cmd649_wait_migration(QTestState *qts)
 
 static void test_cmd649_masked_migration(void)
 {
-    g_autofree char *path = g_strdup_printf(
-        "%s/cmd649-irq-migration.XXXXXX", g_get_tmp_dir());
+    g_autofree char *path =
+        g_strdup_printf("%s/cmd649-irq-migration.XXXXXX", g_get_tmp_dir());
     g_autofree char *uri = NULL;
     CMD649Fixture *f = cmd649_start(" -device ide-cd,bus=cmd649.0,unit=1");
     QPCIBar ide = qpci_iomap(f->dev, 0, NULL);
@@ -505,26 +507,28 @@ static void test_cmd649_masked_migration(void)
     qpci_device_enable(f->dev);
     qpci_io_writeb(f->dev, control, 2, 2);
     cmd649_packet(f, ide, 0x1e, false);
-    g_assert_cmphex(qpci_config_readw(f->dev, PCI_STATUS) &
-                   PCI_STATUS_INTERRUPT, ==, 0);
+    g_assert_cmphex(
+        qpci_config_readw(f->dev, PCI_STATUS) & PCI_STATUS_INTERRUPT, ==, 0);
     qtest_qmp_assert_success(
         f->qts, "{'execute':'migrate','arguments':{'uri':%s}}", uri);
     cmd649_wait_migration(f->qts);
     cmd649_stop(f);
 
     f = cmd649_start(" -device ide-cd,bus=cmd649.0,unit=1 -incoming defer");
-    qtest_qmp_assert_success(
-        f->qts, "{'execute':'migrate-incoming','arguments':"
-                "{'uri':%s,'exit-on-error':false}}", uri);
+    qtest_qmp_assert_success(f->qts,
+                             "{'execute':'migrate-incoming','arguments':"
+                             "{'uri':%s,'exit-on-error':false}}",
+                             uri);
     cmd649_wait_migration(f->qts);
-    g_assert_cmphex(qpci_config_readw(f->dev, PCI_STATUS) &
-                   PCI_STATUS_INTERRUPT, ==, 0);
+    g_assert_cmphex(
+        qpci_config_readw(f->dev, PCI_STATUS) & PCI_STATUS_INTERRUPT, ==, 0);
     qpci_io_writeb(f->dev, control, 2, 0);
     g_assert_cmphex(qpci_config_readw(f->dev, PCI_STATUS) &
-                   PCI_STATUS_INTERRUPT, ==, PCI_STATUS_INTERRUPT);
+                        PCI_STATUS_INTERRUPT,
+                    ==, PCI_STATUS_INTERRUPT);
     qpci_io_readb(f->dev, ide, 7);
-    g_assert_cmphex(qpci_config_readw(f->dev, PCI_STATUS) &
-                   PCI_STATUS_INTERRUPT, ==, 0);
+    g_assert_cmphex(
+        qpci_config_readw(f->dev, PCI_STATUS) & PCI_STATUS_INTERRUPT, ==, 0);
     cmd649_stop(f);
     g_assert_cmpint(g_unlink(path), ==, 0);
 }
@@ -537,16 +541,16 @@ int main(int argc, char **argv)
     qtest_add_func("/cmd649/irq-and-modes", test_cmd649_irq_and_modes);
     qtest_add_func("/cmd649/primary-only", test_cmd649_primary_only);
     qtest_add_data_func("/cmd649/atapi-completion/dma-started",
-                       GUINT_TO_POINTER(0), test_cmd649_atapi_completion);
+                        GUINT_TO_POINTER(0), test_cmd649_atapi_completion);
     qtest_add_data_func("/cmd649/atapi-completion/dma-preparing",
-                       GUINT_TO_POINTER(1), test_cmd649_atapi_completion);
+                        GUINT_TO_POINTER(1), test_cmd649_atapi_completion);
     qtest_add_data_func("/cmd649/atapi-completion/dma-stopped",
-                       GUINT_TO_POINTER(2), test_cmd649_atapi_completion);
+                        GUINT_TO_POINTER(2), test_cmd649_atapi_completion);
     qtest_add_func("/cmd649/atapi-completion/reset", test_cmd649_atapi_reset);
-    qtest_add_data_func("/cmd649/masked-completion/pio",
-                       GINT_TO_POINTER(false), test_cmd649_masked_completion);
-    qtest_add_data_func("/cmd649/masked-completion/dma",
-                       GINT_TO_POINTER(true), test_cmd649_masked_completion);
+    qtest_add_data_func("/cmd649/masked-completion/pio", GINT_TO_POINTER(false),
+                        test_cmd649_masked_completion);
+    qtest_add_data_func("/cmd649/masked-completion/dma", GINT_TO_POINTER(true),
+                        test_cmd649_masked_completion);
     qtest_add_func("/cmd649/masked-completion/migration",
                    test_cmd649_masked_migration);
     return g_test_run();

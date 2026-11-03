@@ -13,26 +13,22 @@
 typedef struct IDEBus IDEBus;
 
 #define TYPE_IA64_I2000_IO_TEST "ia64-i2000-io-test"
-OBJECT_DECLARE_SIMPLE_TYPE(IA64I2000IoTestState,
-                           IA64_I2000_IO_TEST)
+OBJECT_DECLARE_SIMPLE_TYPE(IA64I2000IoTestState, IA64_I2000_IO_TEST)
 
 #define IA64_I2000_IO_TEST_PROP_460GX_TEST "460gx-test"
 #define IA64_I2000_IO_TEST_PROP_I82559_NETDEV "i82559-netdev"
 
 /* Optional internal board-builder inputs; configure them before realize. */
-bool ia64_i2000_io_test_set_uart_chardev(
-    IA64I2000IoTestState *io_test, Chardev *chardev, Error **errp);
-bool ia64_i2000_io_test_set_cd_drive(
-    IA64I2000IoTestState *io_test, DriveInfo *drive, Error **errp);
+bool ia64_i2000_io_test_set_uart_chardev(IA64I2000IoTestState *io_test,
+                                         Chardev *chardev, Error **errp);
+bool ia64_i2000_io_test_set_cd_drive(IA64I2000IoTestState *io_test,
+                                     DriveInfo *drive, Error **errp);
 
 /* Restore the fixed PCI resources after a machine-wide reset. */
-void ia64_i2000_io_test_restore_pci_resources(
-    IA64I2000IoTestState *io_test);
+void ia64_i2000_io_test_restore_pci_resources(IA64I2000IoTestState *io_test);
 
-ISABus *ia64_i2000_io_test_isa_bus(
-    IA64I2000IoTestState *io_test);
-IDEBus *ia64_i2000_io_test_ide_bus(
-    IA64I2000IoTestState *io_test);
+ISABus *ia64_i2000_io_test_isa_bus(IA64I2000IoTestState *io_test);
+IDEBus *ia64_i2000_io_test_ide_bus(IA64I2000IoTestState *io_test);
 
 /* Qtest object paths. */
 #define TYPE_IA64_I2000_IO_QTEST "ia64-i2000-io-qtest"

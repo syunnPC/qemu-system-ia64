@@ -90,6 +90,10 @@ FIXUPS="${OUT_DIR}/ia64-firmware.fixups"
     -T "$GENERATED_LDS" -Map="$FW_MAP" -o "$FW_ELF" "$@" "$LIBGCC"
 "$PYTHON" "$LAYOUT_SCRIPT" fixups "$FW_ELF" "$FW_MAP" "$FIXUPS"
 "$OBJCOPY" --update-section ".fw.virtual_fixups=$FIXUPS" "$FW_ELF"
+COMMIT_SCRIPT="${SRC_DIR}/../../scripts/git-source-commit.sh"
+COMMIT_FILE="${OUT_DIR}/ia64-firmware.commit"
+printf '%s' "$(sh "$COMMIT_SCRIPT" "$SRC_DIR/../..")" > "$COMMIT_FILE"
+"$OBJCOPY" --add-section ".fw.build_commit=$COMMIT_FILE" "$FW_ELF"
 cp "$FW_ELF" "$OUT_BIN"
 "$SIZE" -A "$FW_ELF" > "$FW_SECTIONS"
 
@@ -98,5 +102,5 @@ cp "$FW_ELF" "$OUT_BIN"
         command cat "$dependency"
     done
     echo "$OUT_BIN: $MANIFEST $LINKER_SCRIPT" \
-        "$SRC_DIR/build_firmware.sh $LAYOUT_SCRIPT"
+        "$SRC_DIR/build_firmware.sh $LAYOUT_SCRIPT $COMMIT_SCRIPT"
 } > "$DEPFILE"

@@ -43,52 +43,42 @@ static const HPZX1MIORegDesc hp_zx1_mio_reg_descs[] = {
     REG_RO(HP_ZX1_MIO_MODULE_INFO, UINT64_C(0x0703000a), false),
 
     REG_RW(HP_ZX1_MIO_LMMIO_DIR_BASE(0), lmmio_dir_base[0],
-           UINT64_C(0x80000000),
-           LMMIO_BASE_MASK | 1, false),
+           UINT64_C(0x80000000), LMMIO_BASE_MASK | 1, false),
     REG_RW(HP_ZX1_MIO_LMMIO_DIR_MASK(0), lmmio_dir_mask[0],
-           UINT64_C(0x80000000),
-           LMMIO_BASE_MASK, false),
-    REG_RW(HP_ZX1_MIO_LMMIO_DIR_ROUTE(0), lmmio_dir_route[0], 0,
-           UINT64_C(0x7), false),
+           UINT64_C(0x80000000), LMMIO_BASE_MASK, false),
+    REG_RW(HP_ZX1_MIO_LMMIO_DIR_ROUTE(0), lmmio_dir_route[0], 0, UINT64_C(0x7),
+           false),
     REG_RW(HP_ZX1_MIO_LMMIO_DIR_BASE(1), lmmio_dir_base[1],
-           UINT64_C(0x80000000),
-           LMMIO_BASE_MASK | 1, false),
+           UINT64_C(0x80000000), LMMIO_BASE_MASK | 1, false),
     REG_RW(HP_ZX1_MIO_LMMIO_DIR_MASK(1), lmmio_dir_mask[1],
-           UINT64_C(0x80000000),
-           LMMIO_BASE_MASK, false),
-    REG_RW(HP_ZX1_MIO_LMMIO_DIR_ROUTE(1), lmmio_dir_route[1], 0,
-           UINT64_C(0x7), false),
-    REG_RW(HP_ZX1_MIO_LMMIO_DIST_BASE, lmmio_dist_base,
-           UINT64_C(0x80000000),
+           UINT64_C(0x80000000), LMMIO_BASE_MASK, false),
+    REG_RW(HP_ZX1_MIO_LMMIO_DIR_ROUTE(1), lmmio_dir_route[1], 0, UINT64_C(0x7),
+           false),
+    REG_RW(HP_ZX1_MIO_LMMIO_DIST_BASE, lmmio_dist_base, UINT64_C(0x80000000),
            LMMIO_BASE_MASK | 1, false),
-    REG_RW(HP_ZX1_MIO_LMMIO_DIST_MASK, lmmio_dist_mask,
-           UINT64_C(0x80000000),
+    REG_RW(HP_ZX1_MIO_LMMIO_DIST_MASK, lmmio_dist_mask, UINT64_C(0x80000000),
            LMMIO_BASE_MASK, false),
-    REG_RW(HP_ZX1_MIO_LMMIO_DIST_ROUTE, lmmio_dist_route, 0,
-           LMMIO_ROUTE_MASK, false),
+    REG_RW(HP_ZX1_MIO_LMMIO_DIST_ROUTE, lmmio_dist_route, 0, LMMIO_ROUTE_MASK,
+           false),
     REG_RW(HP_ZX1_MIO_GMMIO_DIST_BASE, gmmio_dist_base, 0,
            GMMIO_BASE_MASK | UINT64_C(0x7), false),
-    REG_RW(HP_ZX1_MIO_GMMIO_DIST_MASK, gmmio_dist_mask, 0,
-           GMMIO_BASE_MASK, false),
-    REG_RW(HP_ZX1_MIO_GMMIO_DIST_ROUTE, gmmio_dist_route, 0,
+    REG_RW(HP_ZX1_MIO_GMMIO_DIST_MASK, gmmio_dist_mask, 0, GMMIO_BASE_MASK,
+           false),
+    REG_RW(HP_ZX1_MIO_GMMIO_DIST_ROUTE, gmmio_dist_route, 0, LMMIO_ROUTE_MASK,
+           false),
+    REG_RW(HP_ZX1_MIO_IOS_DIST_BASE, ios_dist_base, 0, UINT64_C(0x1), false),
+    REG_RW(HP_ZX1_MIO_IOS_DIST_MASK, ios_dist_mask, UINT64_C(0xffff0000),
+           UINT64_C(0x000f0000), false),
+    REG_RW(HP_ZX1_MIO_IOS_DIST_ROUTE, ios_dist_route, UINT64_C(12) << 58,
            LMMIO_ROUTE_MASK, false),
-    REG_RW(HP_ZX1_MIO_IOS_DIST_BASE, ios_dist_base, 0,
-           UINT64_C(0x1), false),
-    REG_RW(HP_ZX1_MIO_IOS_DIST_MASK, ios_dist_mask,
-           UINT64_C(0xffff0000), UINT64_C(0x000f0000), false),
-    REG_RW(HP_ZX1_MIO_IOS_DIST_ROUTE, ios_dist_route,
-           UINT64_C(12) << 58, LMMIO_ROUTE_MASK, false),
-    REG_RW(HP_ZX1_MIO_ROPE_CONFIG_BASE, rope_config_base,
-           UINT64_C(0x80000000),
+    REG_RW(HP_ZX1_MIO_ROPE_CONFIG_BASE, rope_config_base, UINT64_C(0x80000000),
            (UINT64_C(0x3fff) << 17) | 1, false),
     REG_RW(HP_ZX1_MIO_VGA_ROUTE, vga_route, 0,
            (UINT64_C(0x3) << 62) | UINT64_C(0xf), false),
-    REG_RW(HP_ZX1_MIO_IOS_DIR_BASE, ios_dir_base, 0,
-           IOS_DIR_MASK | 1, false),
+    REG_RW(HP_ZX1_MIO_IOS_DIR_BASE, ios_dir_base, 0, IOS_DIR_MASK | 1, false),
     REG_RW(HP_ZX1_MIO_IOS_DIR_MASK, ios_dir_mask, UINT64_C(0xffff0000),
            IOS_DIR_MASK, false),
-    REG_RW(HP_ZX1_MIO_IOS_DIR_ROUTE, ios_dir_route, 0,
-           UINT64_C(0x7), false),
+    REG_RW(HP_ZX1_MIO_IOS_DIR_ROUTE, ios_dir_route, 0, UINT64_C(0x7), false),
 
     REG_RO(HP_ZX1_MIO_F1_ID, UINT64_C(0x122a103c), true),
     REG_RO(HP_ZX1_MIO_F1_CLASS, ZX1_CLASS_VALUE, true),
@@ -117,8 +107,8 @@ static const HPZX1MIORegDesc hp_zx1_mio_reg_descs[] = {
 void hp_zx1_mio_regs_report_fault(HPZX1MIORegs *regs, uint64_t status,
                                   uint64_t address, uint64_t information)
 {
-    uint64_t reason = status & (HP_ZX1_MIO_ERROR_IOMMU |
-                                HP_ZX1_MIO_ERROR_CSR_DECODE);
+    uint64_t reason =
+        status & (HP_ZX1_MIO_ERROR_IOMMU | HP_ZX1_MIO_ERROR_CSR_DECODE);
 
     if (!regs || !reason) {
         return;
@@ -151,14 +141,13 @@ static uint64_t *hp_zx1_mio_reg_ptr(HPZX1MIORegs *regs,
     return (uint64_t *)((uint8_t *)regs + desc->state_offset);
 }
 
-static const uint64_t *hp_zx1_mio_const_reg_ptr(
-    const HPZX1MIORegs *regs, const HPZX1MIORegDesc *desc)
+static const uint64_t *hp_zx1_mio_const_reg_ptr(const HPZX1MIORegs *regs,
+                                                const HPZX1MIORegDesc *desc)
 {
     return (const uint64_t *)((const uint8_t *)regs + desc->state_offset);
 }
 
-static bool hp_zx1_mio_f1_write_shape_valid(uint64_t offset,
-                                            unsigned int size,
+static bool hp_zx1_mio_f1_write_shape_valid(uint64_t offset, unsigned int size,
                                             uint64_t base)
 {
     if (size != 1 && size != 2 && size != 4 && size != 8) {
@@ -260,8 +249,7 @@ bool hp_zx1_mio_regs_write(HPZX1MIORegs *regs, uint64_t offset,
             return false;
         }
         lane = offset & 7;
-        byte_enable = size == 8 ? UINT8_MAX :
-                      ((1U << size) - 1) << lane;
+        byte_enable = size == 8 ? UINT8_MAX : ((1U << size) - 1) << lane;
         value = size == 8 ? value : value << (lane * 8);
         return hp_zx1_mio_regs_write_be(regs, base, value, byte_enable);
     }
@@ -280,8 +268,7 @@ bool hp_zx1_mio_regs_write(HPZX1MIORegs *regs, uint64_t offset,
             return false;
         }
         lane = offset & 7;
-        byte_enable = size == 8 ? UINT8_MAX :
-                      ((1U << size) - 1) << lane;
+        byte_enable = size == 8 ? UINT8_MAX : ((1U << size) - 1) << lane;
         value = size == 8 ? value : value << (lane * 8);
         return hp_zx1_mio_regs_write_be(regs, base, value, byte_enable);
     } else if (size != 8 || offset != base) {
@@ -294,8 +281,7 @@ bool hp_zx1_mio_regs_write(HPZX1MIORegs *regs, uint64_t offset,
     }
 
     reg = hp_zx1_mio_reg_ptr(regs, desc);
-    *reg = (*reg & ~desc->writable_mask) |
-           (value & desc->writable_mask);
+    *reg = (*reg & ~desc->writable_mask) | (value & desc->writable_mask);
     return true;
 }
 
@@ -337,8 +323,7 @@ bool hp_zx1_mio_regs_write_be(HPZX1MIORegs *regs, uint64_t offset,
 
     reg = hp_zx1_mio_reg_ptr(regs, desc);
     merged = hp_zx1_mio_merge_be(*reg, value, byte_enable);
-    *reg = (*reg & ~desc->writable_mask) |
-           (merged & desc->writable_mask);
+    *reg = (*reg & ~desc->writable_mask) | (merged & desc->writable_mask);
     return true;
 }
 

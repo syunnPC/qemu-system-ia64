@@ -77,22 +77,22 @@ struct HPZX1MIOState {
     HPZX2MIORegs zx2_regs;
 };
 
-static HPZX1IOMMUFrontend *hp_zx1_mio_iommu_context(
-    HPZX1MIOState *s, unsigned int context)
+static HPZX1IOMMUFrontend *hp_zx1_mio_iommu_context(HPZX1MIOState *s,
+                                                    unsigned int context)
 {
     g_assert(context < HP_ZX2_MIO_GROUP_COUNT);
     return context == 0 ? &s->iommu : &s->zx2_iommu[context - 1];
 }
 
-static IOMMUMemoryRegion *hp_zx1_mio_iommu_region(
-    HPZX1MIOState *s, unsigned int context)
+static IOMMUMemoryRegion *hp_zx1_mio_iommu_region(HPZX1MIOState *s,
+                                                  unsigned int context)
 {
     g_assert(context < HP_ZX2_MIO_GROUP_COUNT);
     return context == 0 ? &s->iommu_mr : &s->zx2_iommu_mr[context - 1];
 }
 
-static unsigned int hp_zx1_mio_iommu_region_context(
-    HPZX1MIOState *s, IOMMUMemoryRegion *mr)
+static unsigned int hp_zx1_mio_iommu_region_context(HPZX1MIOState *s,
+                                                    IOMMUMemoryRegion *mr)
 {
     unsigned int context;
 
@@ -106,8 +106,7 @@ static unsigned int hp_zx1_mio_iommu_region_context(
 
 static unsigned int hp_zx1_mio_selected_context(const HPZX1MIOState *s)
 {
-    return s->zx2 ?
-        s->zx2_regs.iommu_select & HP_ZX2_MIO_IOMMU_SELECT_MASK : 0;
+    return s->zx2 ? s->zx2_regs.iommu_select & HP_ZX2_MIO_IOMMU_SELECT_MASK : 0;
 }
 
 #define HP_ZX2_MIO_F0_ID_VALUE UINT64_C(0x4030103c)
@@ -121,8 +120,8 @@ static const HPSBAIOMMUPurge hp_zx1_mio_full_unmap = {
 static bool hp_zx2_mio_update_frontend_groups(HPZX1MIOState *s);
 
 bool hp_zx1_mio_set_fault_notifier(HPZX1MIOState *s,
-                                    IA64ChipsetFaultNotify notify,
-                                    void *opaque, Error **errp)
+                                   IA64ChipsetFaultNotify notify, void *opaque,
+                                   Error **errp)
 {
     if (!s || !notify) {
         error_setg(errp, "MIO fault setup requires a device and callback");
@@ -141,9 +140,8 @@ bool hp_zx1_mio_set_fault_notifier(HPZX1MIOState *s,
     return true;
 }
 
-bool hp_zx1_mio_set_error_delivery(HPZX1MIOState *s,
-                                    HPIOSAPICDeliver deliver,
-                                    void *opaque, Error **errp)
+bool hp_zx1_mio_set_error_delivery(HPZX1MIOState *s, HPIOSAPICDeliver deliver,
+                                   void *opaque, Error **errp)
 {
     if (!s || !deliver) {
         error_setg(errp, "MIO error delivery requires a device and callback");
@@ -174,14 +172,14 @@ static void hp_zx1_mio_report_fault(HPZX1MIOState *s, uint64_t status,
 
         hp_zx2_mio_regs_report_fault(&s->zx2_regs, status, address,
                                      information);
-        if (s->error_deliver &&
-            (config & HP_ZX2_MIO_ERROR_INTERRUPT_ENABLE)) {
+        if (s->error_deliver && (config & HP_ZX2_MIO_ERROR_INTERRUPT_ENABLE)) {
             HPIOSAPICMessage message = {
-                .address = UINT64_C(0xfee00000) |
+                .address =
+                    UINT64_C(0xfee00000) |
                     (((config & HP_ZX2_MIO_ERROR_INTERRUPT_ID) >> 16) << 12) |
                     (((config & HP_ZX2_MIO_ERROR_INTERRUPT_EID) >> 24) << 4),
                 .data = UINT32_C(0x4000) |
-                    ((config & HP_ZX2_MIO_ERROR_INTERRUPT_VECTOR) >> 8),
+                        ((config & HP_ZX2_MIO_ERROR_INTERRUPT_VECTOR) >> 8),
             };
 
             s->error_deliver(s->error_delivery_opaque, &message);
@@ -192,8 +190,8 @@ static void hp_zx1_mio_report_fault(HPZX1MIOState *s, uint64_t status,
         return;
     }
     fault = (IA64ChipsetFault) {
-        .source = s->zx2 ? IA64_CHIPSET_FAULT_ZX2_MIO :
-                  IA64_CHIPSET_FAULT_ZX1_MIO,
+        .source =
+            s->zx2 ? IA64_CHIPSET_FAULT_ZX2_MIO : IA64_CHIPSET_FAULT_ZX1_MIO,
         .reason = reason,
         .address = address,
         .status = s->regs.error_status,
@@ -202,8 +200,8 @@ static void hp_zx1_mio_report_fault(HPZX1MIOState *s, uint64_t status,
     s->fault_notify(s->fault_opaque, &fault);
 }
 
-static HPZX1IOMMUResetConfig hp_zx1_mio_iommu_reset_config(
-    const HPZX1MIOState *s)
+static HPZX1IOMMUResetConfig
+hp_zx1_mio_iommu_reset_config(const HPZX1MIOState *s)
 {
     return (HPZX1IOMMUResetConfig) {
         .ibase = s->iommu_reset.ibase,
@@ -214,26 +212,28 @@ static HPZX1IOMMUResetConfig hp_zx1_mio_iommu_reset_config(
     };
 }
 
-bool hp_zx1_mio_configure_iommu_reset(
-    HPZX1MIOState *s, const HPZX1MIOIOMMUResetConfig *config,
-    Error **errp)
+bool hp_zx1_mio_configure_iommu_reset(HPZX1MIOState *s,
+                                      const HPZX1MIOIOMMUResetConfig *config,
+                                      Error **errp)
 {
     HPZX1IOMMUFrontend frontend = { 0 };
     HPZX1IOMMUResetConfig frontend_config;
 
     if (!s || !config) {
-        error_setg(errp,
-                   "zx1 MIO IOMMU setup requires a device and reset configuration");
+        error_setg(
+            errp,
+            "zx1 MIO IOMMU setup requires a device and reset configuration");
         return false;
     }
     if (qdev_is_realized(DEVICE(s))) {
-        error_setg(errp,
-                   "zx1 MIO IOMMU reset configuration must precede device realization");
+        error_setg(errp, "zx1 MIO IOMMU reset configuration must precede "
+                         "device realization");
         return false;
     }
     if (s->iommu_configured) {
-        error_setg(errp,
-                   "zx1 MIO IOMMU reset configuration may be supplied only once");
+        error_setg(
+            errp,
+            "zx1 MIO IOMMU reset configuration may be supplied only once");
         return false;
     }
 
@@ -252,8 +252,8 @@ bool hp_zx1_mio_configure_iommu_reset(
     qemu_rec_mutex_lock(&s->iommu_lock);
     s->iommu_reset = *config;
     s->iommu = frontend;
-    for (unsigned int context = 1;
-         context < HP_ZX2_MIO_GROUP_COUNT; context++) {
+    for (unsigned int context = 1; context < HP_ZX2_MIO_GROUP_COUNT;
+         context++) {
         s->zx2_iommu[context - 1] = frontend;
     }
     s->iommu_configured = true;
@@ -261,8 +261,7 @@ bool hp_zx1_mio_configure_iommu_reset(
     return true;
 }
 
-static void hp_zx1_mio_notify_unmap(HPZX1MIOState *s,
-                                    unsigned int context,
+static void hp_zx1_mio_notify_unmap(HPZX1MIOState *s, unsigned int context,
                                     const HPSBAIOMMUPurge *purge)
 {
     IOMMUTLBEvent event;
@@ -287,8 +286,7 @@ static void hp_zx1_mio_notify_unmap(HPZX1MIOState *s,
 
 static bool hp_zx1_mio_is_iommu_address(hwaddr addr)
 {
-    return addr >= HP_ZX1_MIO_IOMMU_FIRST &&
-           addr < HP_ZX1_MIO_IOMMU_END;
+    return addr >= HP_ZX1_MIO_IOMMU_FIRST && addr < HP_ZX1_MIO_IOMMU_END;
 }
 
 static bool hp_zx1_mio_iommu_read_locked(HPZX1MIOState *s, hwaddr addr,
@@ -302,31 +300,30 @@ static bool hp_zx1_mio_iommu_read_locked(HPZX1MIOState *s, hwaddr addr,
 
     reg_offset = addr - HP_ZX1_MIO_IOC_FUNCTION_OFFSET;
     return hp_zx1_iommu_frontend_reg_latch(
-        hp_zx1_mio_iommu_context(s, hp_zx1_mio_selected_context(s)),
-        reg_offset, data);
+        hp_zx1_mio_iommu_context(s, hp_zx1_mio_selected_context(s)), reg_offset,
+        data);
 }
 
-static bool hp_zx1_mio_contiguous_write_shape(
-    hwaddr addr, uint64_t value, unsigned int size, uint64_t *base,
-    uint64_t *reg_value, uint8_t *byte_enable)
+static bool hp_zx1_mio_contiguous_write_shape(hwaddr addr, uint64_t value,
+                                              unsigned int size, uint64_t *base,
+                                              uint64_t *reg_value,
+                                              uint8_t *byte_enable)
 {
     unsigned int lane = addr & 7;
 
-    if ((size != 1 && size != 2 && size != 4 && size != 8) ||
-        lane + size > 8) {
+    if ((size != 1 && size != 2 && size != 4 && size != 8) || lane + size > 8) {
         return false;
     }
 
     *base = addr & ~UINT64_C(7);
     *reg_value = value << (lane * 8);
-    *byte_enable = size == 8 ? UINT8_MAX :
-                   ((1U << size) - 1) << lane;
+    *byte_enable = size == 8 ? UINT8_MAX : ((1U << size) - 1) << lane;
     return true;
 }
 
-static bool hp_zx1_mio_iommu_write_locked(
-    HPZX1MIOState *s, hwaddr addr, uint64_t value, unsigned int size,
-    HPSBAIOMMUPurge *unmap, bool *notify)
+static bool hp_zx1_mio_iommu_write_locked(HPZX1MIOState *s, hwaddr addr,
+                                          uint64_t value, unsigned int size,
+                                          HPSBAIOMMUPurge *unmap, bool *notify)
 {
     HPZX1IOMMUWriteResult result;
     uint64_t base;
@@ -334,10 +331,9 @@ static bool hp_zx1_mio_iommu_write_locked(
     uint64_t reg_value;
     uint8_t byte_enable;
 
-    if (!hp_zx1_mio_contiguous_write_shape(addr, value, size, &base,
-                                            &reg_value, &byte_enable) ||
-        base < HP_ZX1_MIO_IOMMU_FIRST ||
-        base > HP_ZX1_MIO_IOMMU_LAST) {
+    if (!hp_zx1_mio_contiguous_write_shape(addr, value, size, &base, &reg_value,
+                                           &byte_enable) ||
+        base < HP_ZX1_MIO_IOMMU_FIRST || base > HP_ZX1_MIO_IOMMU_LAST) {
         return false;
     }
     reg_offset = base - HP_ZX1_MIO_IOC_FUNCTION_OFFSET;
@@ -360,21 +356,19 @@ static bool hp_zx1_mio_iommu_write_locked(
 }
 
 static bool hp_zx1_mio_f1_write_locked(HPZX1MIOState *s, hwaddr addr,
-                                        uint64_t value, unsigned int size)
+                                       uint64_t value, unsigned int size)
 {
     uint64_t base;
     uint64_t reg_value;
     uint8_t byte_enable;
 
-    return hp_zx1_mio_contiguous_write_shape(
-               addr, value, size, &base, &reg_value, &byte_enable) &&
-           hp_zx1_mio_regs_write_be(&s->regs, base, reg_value,
-                                     byte_enable);
+    return hp_zx1_mio_contiguous_write_shape(addr, value, size, &base,
+                                             &reg_value, &byte_enable) &&
+           hp_zx1_mio_regs_write_be(&s->regs, base, reg_value, byte_enable);
 }
 
-static MemTxResult hp_zx1_mio_read(void *opaque, hwaddr addr,
-                                   uint64_t *data, unsigned int size,
-                                   MemTxAttrs attrs)
+static MemTxResult hp_zx1_mio_read(void *opaque, hwaddr addr, uint64_t *data,
+                                   unsigned int size, MemTxAttrs attrs)
 {
     HPZX1MIOState *s = opaque;
     bool ok;
@@ -399,8 +393,8 @@ static MemTxResult hp_zx1_mio_read(void *opaque, hwaddr addr,
     if (!ok) {
         *data = 0;
         qemu_rec_mutex_lock(&s->iommu_lock);
-        hp_zx1_mio_report_fault(s, HP_ZX1_MIO_ERROR_CSR_DECODE,
-                                addr, 0, IA64_CHIPSET_FAULT_DECODE);
+        hp_zx1_mio_report_fault(s, HP_ZX1_MIO_ERROR_CSR_DECODE, addr, 0,
+                                IA64_CHIPSET_FAULT_DECODE);
         qemu_rec_mutex_unlock(&s->iommu_lock);
         return MEMTX_DECODE_ERROR;
     }
@@ -408,9 +402,8 @@ static MemTxResult hp_zx1_mio_read(void *opaque, hwaddr addr,
     return MEMTX_OK;
 }
 
-static MemTxResult hp_zx1_mio_write(void *opaque, hwaddr addr,
-                                    uint64_t value, unsigned int size,
-                                    MemTxAttrs attrs)
+static MemTxResult hp_zx1_mio_write(void *opaque, hwaddr addr, uint64_t value,
+                                    unsigned int size, MemTxAttrs attrs)
 {
     HPZX1MIOState *s = opaque;
     HPSBAIOMMUPurge unmap = { 0 };
@@ -431,8 +424,8 @@ static MemTxResult hp_zx1_mio_write(void *opaque, hwaddr addr,
     }
     if (!ok) {
         if (hp_zx1_mio_is_iommu_address(addr)) {
-            ok = hp_zx1_mio_iommu_write_locked(s, addr, value, size,
-                                                &unmap, &notify);
+            ok = hp_zx1_mio_iommu_write_locked(s, addr, value, size, &unmap,
+                                               &notify);
         } else if (addr >= HP_ZX1_MIO_F1_ID) {
             ok = hp_zx1_mio_f1_write_locked(s, addr, value, size);
         } else {
@@ -444,14 +437,13 @@ static MemTxResult hp_zx1_mio_write(void *opaque, hwaddr addr,
     trace_hp_zx1_mio_write(addr, value, size, ok);
     if (!ok) {
         qemu_rec_mutex_lock(&s->iommu_lock);
-        hp_zx1_mio_report_fault(s, HP_ZX1_MIO_ERROR_CSR_DECODE,
-                                addr, value, IA64_CHIPSET_FAULT_DECODE);
+        hp_zx1_mio_report_fault(s, HP_ZX1_MIO_ERROR_CSR_DECODE, addr, value,
+                                IA64_CHIPSET_FAULT_DECODE);
         qemu_rec_mutex_unlock(&s->iommu_lock);
         return MEMTX_DECODE_ERROR;
     }
     if (notify) {
-        hp_zx1_mio_notify_unmap(s, hp_zx1_mio_selected_context(s),
-                                &unmap);
+        hp_zx1_mio_notify_unmap(s, hp_zx1_mio_selected_context(s), &unmap);
     }
     return MEMTX_OK;
 }
@@ -488,12 +480,12 @@ static bool hp_zx1_mio_pdir_read(void *opaque, uint64_t address,
     return true;
 }
 
-static IOMMUTLBEntry hp_zx1_mio_iommu_translate(
-    IOMMUMemoryRegion *iommu_mr, hwaddr addr, IOMMUAccessFlags flag,
-    int iommu_idx)
+static IOMMUTLBEntry hp_zx1_mio_iommu_translate(IOMMUMemoryRegion *iommu_mr,
+                                                hwaddr addr,
+                                                IOMMUAccessFlags flag,
+                                                int iommu_idx)
 {
-    HPZX1MIOState *s = HP_ZX1_MIO(
-        memory_region_owner(MEMORY_REGION(iommu_mr)));
+    HPZX1MIOState *s = HP_ZX1_MIO(memory_region_owner(MEMORY_REGION(iommu_mr)));
     unsigned int context = hp_zx1_mio_iommu_region_context(s, iommu_mr);
     HPZX1IOMMUEvictionResult eviction = { 0 };
     HPZX1IOMMUFault iommu_fault = { 0 };
@@ -508,16 +500,15 @@ static IOMMUTLBEntry hp_zx1_mio_iommu_translate(
     qemu_rec_mutex_lock(&s->iommu_lock);
     /* The shared DMA frontend performs translations with DVI disabled. */
     result = hp_zx1_iommu_frontend_translate_ex(
-        hp_zx1_mio_iommu_context(s, context), addr, false,
-        hp_zx1_mio_pdir_read, s, &entry,
-        &eviction, &iommu_fault);
+        hp_zx1_mio_iommu_context(s, context), addr, false, hp_zx1_mio_pdir_read,
+        s, &entry, &eviction, &iommu_fault);
     if (result == HP_ZX1_IOMMU_TRANSLATE_BLOCKED) {
         uint64_t information =
             ((uint64_t)iommu_fault.reason << 56) |
             (iommu_fault.pdir_address & UINT64_C(0x00ffffffffffffff));
 
-        hp_zx1_mio_report_fault(s, HP_ZX1_MIO_ERROR_IOMMU, addr,
-                                information, IA64_CHIPSET_FAULT_IOMMU);
+        hp_zx1_mio_report_fault(s, HP_ZX1_MIO_ERROR_IOMMU, addr, information,
+                                IA64_CHIPSET_FAULT_IOMMU);
     }
     qemu_rec_mutex_unlock(&s->iommu_lock);
 
@@ -537,33 +528,31 @@ static IOMMUTLBEntry hp_zx1_mio_iommu_translate(
     };
 }
 
-static uint64_t hp_zx1_mio_iommu_min_page_size(
-    IOMMUMemoryRegion *iommu_mr)
+static uint64_t hp_zx1_mio_iommu_min_page_size(IOMMUMemoryRegion *iommu_mr)
 {
     (void)iommu_mr;
     return UINT64_C(1) << 12;
 }
 
-static int hp_zx1_mio_iommu_notify_flag_changed(
-    IOMMUMemoryRegion *iommu_mr, IOMMUNotifierFlag old_flags,
-    IOMMUNotifierFlag new_flags, Error **errp)
+static int hp_zx1_mio_iommu_notify_flag_changed(IOMMUMemoryRegion *iommu_mr,
+                                                IOMMUNotifierFlag old_flags,
+                                                IOMMUNotifierFlag new_flags,
+                                                Error **errp)
 {
-    unsigned int unsupported = (unsigned int)new_flags &
-                               ~(unsigned int)IOMMU_NOTIFIER_UNMAP;
+    unsigned int unsupported =
+        (unsigned int)new_flags & ~(unsigned int)IOMMU_NOTIFIER_UNMAP;
 
     (void)iommu_mr;
     (void)old_flags;
     if (unsupported) {
-        error_setg(errp,
-                   "zx1 IOC IOMMU does not support notifier flags 0x%x",
+        error_setg(errp, "zx1 IOC IOMMU does not support notifier flags 0x%x",
                    unsupported);
         return -EINVAL;
     }
     return 0;
 }
 
-static int hp_zx1_mio_pci_root_slot(const HPZX1MIOState *s,
-                                    const PCIBus *bus);
+static int hp_zx1_mio_pci_root_slot(const HPZX1MIOState *s, const PCIBus *bus);
 
 static PCIBus *hp_zx1_mio_pci_root_for_bus(PCIBus *bus)
 {
@@ -576,8 +565,8 @@ static PCIBus *hp_zx1_mio_pci_root_for_bus(PCIBus *bus)
     return bus;
 }
 
-static bool hp_zx1_mio_pci_supports_address_space(
-    PCIBus *bus, void *opaque, int devfn, Error **errp)
+static bool hp_zx1_mio_pci_supports_address_space(PCIBus *bus, void *opaque,
+                                                  int devfn, Error **errp)
 {
     HPZX1MIOState *s = opaque;
     PCIBus *root = hp_zx1_mio_pci_root_for_bus(bus);
@@ -591,8 +580,8 @@ static bool hp_zx1_mio_pci_supports_address_space(
     return true;
 }
 
-static AddressSpace *hp_zx1_mio_pci_address_space(
-    PCIBus *bus, void *opaque, int devfn)
+static AddressSpace *hp_zx1_mio_pci_address_space(PCIBus *bus, void *opaque,
+                                                  int devfn)
 {
     HPZX1MIOState *s = opaque;
     PCIBus *root = hp_zx1_mio_pci_root_for_bus(bus);
@@ -621,8 +610,7 @@ static bool hp_zx1_mio_pci_bus_empty(const PCIBus *bus)
     return true;
 }
 
-static int hp_zx1_mio_pci_root_slot(const HPZX1MIOState *s,
-                                    const PCIBus *bus)
+static int hp_zx1_mio_pci_root_slot(const HPZX1MIOState *s, const PCIBus *bus)
 {
     unsigned int slot;
 
@@ -640,7 +628,7 @@ static int hp_zx1_mio_free_pci_root_slot(const HPZX1MIOState *s)
 }
 
 static void hp_zx1_mio_frontend_set_context(HPZX1MIORootFrontend *frontend,
-                                             unsigned int context)
+                                            unsigned int context)
 {
     unsigned int index;
 
@@ -668,9 +656,8 @@ static bool hp_zx2_mio_update_frontend_groups(HPZX1MIOState *s)
         if (!frontend->bus) {
             continue;
         }
-        if (!hp_zx2_mio_regs_group_for_ropes(
-                &s->zx2_regs, frontend->ropes,
-                &group, &context)) {
+        if (!hp_zx2_mio_regs_group_for_ropes(&s->zx2_regs, frontend->ropes,
+                                             &group, &context)) {
             return false;
         }
         groups[slot] = group;
@@ -704,8 +691,7 @@ static bool hp_zx1_mio_attach_root(HPZX1MIOState *s, PCIBus *bus,
         return false;
     }
     if (ioa && !qdev_is_realized(DEVICE(ioa))) {
-        error_setg(errp,
-                   "Mercury must be realized before zx1 MIO attachment");
+        error_setg(errp, "Mercury must be realized before zx1 MIO attachment");
         return false;
     }
     if (!bus) {
@@ -713,8 +699,7 @@ static bool hp_zx1_mio_attach_root(HPZX1MIOState *s, PCIBus *bus,
         return false;
     }
     if (ioa && hp_zx1_ioa_bus(ioa) != bus) {
-        error_setg(errp,
-                   "Mercury does not own the selected PCI root bus");
+        error_setg(errp, "Mercury does not own the selected PCI root bus");
         return false;
     }
     if (ioa && ropes != hp_zx1_ioa_rope_mask(ioa)) {
@@ -731,8 +716,9 @@ static bool hp_zx1_mio_attach_root(HPZX1MIOState *s, PCIBus *bus,
         return false;
     }
     if (!s->iommu_configured || !qdev_is_realized(DEVICE(s))) {
-        error_setg(errp,
-                   "zx1 MIO IOMMU must be configured and realized before attachment");
+        error_setg(
+            errp,
+            "zx1 MIO IOMMU must be configured and realized before attachment");
         return false;
     }
     if (hp_zx1_mio_pci_root_slot(s, bus) >= 0) {
@@ -744,7 +730,8 @@ static bool hp_zx1_mio_attach_root(HPZX1MIOState *s, PCIBus *bus,
             frontend = &s->root_frontends[index];
             if (frontend->bus && (frontend->ropes & ropes)) {
                 error_setg(errp,
-                           "zx2 MIOC rope mask 0x%04x overlaps attached root mask 0x%04x",
+                           "zx2 MIOC rope mask 0x%04x overlaps attached root "
+                           "mask 0x%04x",
                            ropes, frontend->ropes);
                 return false;
             }
@@ -755,8 +742,8 @@ static bool hp_zx1_mio_attach_root(HPZX1MIOState *s, PCIBus *bus,
         return false;
     }
     if (pci_bus_bypass_iommu(bus)) {
-        error_setg(errp,
-                   "zx1 MIO IOMMU cannot attach to a bus that bypasses IOMMU operations");
+        error_setg(errp, "zx1 MIO IOMMU cannot attach to a bus that bypasses "
+                         "IOMMU operations");
         return false;
     }
     if (bus->iommu_ops || bus->iommu_opaque) {
@@ -770,25 +757,20 @@ static bool hp_zx1_mio_attach_root(HPZX1MIOState *s, PCIBus *bus,
     }
     slot = hp_zx1_mio_free_pci_root_slot(s);
     if (slot < 0) {
-        error_setg(errp,
-                   "zx1 MIO IOMMU has no free PCI root attachment slot");
+        error_setg(errp, "zx1 MIO IOMMU has no free PCI root attachment slot");
         return false;
     }
 
     frontend = &s->root_frontends[slot];
-    if (s->zx2 &&
-        !hp_zx2_mio_regs_group_for_ropes(
-            &s->zx2_regs, ropes,
-            &group, &context)) {
-        error_setg(errp,
-                   "zx2 MIOC has no enabled group for rope mask 0x%04x",
+    if (s->zx2 && !hp_zx2_mio_regs_group_for_ropes(&s->zx2_regs, ropes, &group,
+                                                   &context)) {
+        error_setg(errp, "zx2 MIOC has no enabled group for rope mask 0x%04x",
                    ropes);
         return false;
     }
     frontend->group = group;
     hp_zx1_mio_frontend_set_context(frontend, context);
-    if (ioa &&
-        !hp_zx1_ioa_attach_msi_window(ioa, &frontend->root, errp)) {
+    if (ioa && !hp_zx1_ioa_attach_msi_window(ioa, &frontend->root, errp)) {
         hp_zx1_mio_frontend_set_context(frontend, 0);
         frontend->group = 0;
         return false;
@@ -806,14 +788,13 @@ static bool hp_zx1_mio_attach_root(HPZX1MIOState *s, PCIBus *bus,
     return true;
 }
 
-bool hp_zx1_mio_attach_pci_root(HPZX1MIOState *s, PCIBus *bus,
-                                Error **errp)
+bool hp_zx1_mio_attach_pci_root(HPZX1MIOState *s, PCIBus *bus, Error **errp)
 {
     return hp_zx1_mio_attach_root(s, bus, NULL, 0, errp);
 }
 
-bool hp_zx2_mio_attach_pci_root(HPZX1MIOState *s, PCIBus *bus,
-                                uint16_t ropes, Error **errp)
+bool hp_zx2_mio_attach_pci_root(HPZX1MIOState *s, PCIBus *bus, uint16_t ropes,
+                                Error **errp)
 {
     if (!s || !s->zx2) {
         error_setg(errp, "zx2 MIOC root attachment requires a zx2 device");
@@ -822,15 +803,13 @@ bool hp_zx2_mio_attach_pci_root(HPZX1MIOState *s, PCIBus *bus,
     return hp_zx1_mio_attach_root(s, bus, NULL, ropes, errp);
 }
 
-bool hp_zx1_mio_attach_ioa(HPZX1MIOState *s, HPZX1IOAState *ioa,
-                           Error **errp)
+bool hp_zx1_mio_attach_ioa(HPZX1MIOState *s, HPZX1IOAState *ioa, Error **errp)
 {
     return hp_zx1_mio_attach_root(s, hp_zx1_ioa_bus(ioa), ioa,
                                   hp_zx1_ioa_rope_mask(ioa), errp);
 }
 
-bool hp_zx1_mio_detach_pci_root(HPZX1MIOState *s, PCIBus *bus,
-                                Error **errp)
+bool hp_zx1_mio_detach_pci_root(HPZX1MIOState *s, PCIBus *bus, Error **errp)
 {
     HPZX1MIORootFrontend *frontend;
     int slot;
@@ -847,12 +826,12 @@ bool hp_zx1_mio_detach_pci_root(HPZX1MIOState *s, PCIBus *bus,
         return false;
     }
     if (!hp_zx1_mio_pci_bus_empty(bus)) {
-        error_setg(errp,
-                   "zx1 MIO IOMMU cannot detach while PCI devices remain realized");
+        error_setg(
+            errp,
+            "zx1 MIO IOMMU cannot detach while PCI devices remain realized");
         return false;
     }
-    if (bus->iommu_ops != &hp_zx1_mio_pci_iommu_ops ||
-        bus->iommu_opaque != s) {
+    if (bus->iommu_ops != &hp_zx1_mio_pci_iommu_ops || bus->iommu_opaque != s) {
         error_setg(errp,
                    "zx1 MIO IOMMU does not own the PCI root bus attachment");
         return false;
@@ -876,8 +855,9 @@ bool hp_zx1_mio_detach_pci_root(HPZX1MIOState *s, PCIBus *bus,
 
 AddressSpace *hp_zx1_mio_iommu_address_space(HPZX1MIOState *s)
 {
-    return s && s->iommu_configured && qdev_is_realized(DEVICE(s)) ?
-           &s->iommu_as : NULL;
+    return s && s->iommu_configured && qdev_is_realized(DEVICE(s))
+               ? &s->iommu_as
+               : NULL;
 }
 
 static void hp_zx1_mio_reset_hold(Object *obj, ResetType type)
@@ -898,8 +878,8 @@ static void hp_zx1_mio_reset_hold(Object *obj, ResetType type)
         reset = hp_zx1_iommu_frontend_reset(&s->iommu, &config);
         g_assert(reset);
         for (context = 1; context < HP_ZX2_MIO_GROUP_COUNT; context++) {
-            reset = hp_zx1_iommu_frontend_reset(
-                &s->zx2_iommu[context - 1], &config);
+            reset = hp_zx1_iommu_frontend_reset(&s->zx2_iommu[context - 1],
+                                                &config);
             g_assert(reset);
         }
         notify = true;
@@ -912,24 +892,21 @@ static void hp_zx1_mio_reset_hold(Object *obj, ResetType type)
     }
 
     if (notify) {
-        for (context = 0;
-             context < (s->zx2 ? HP_ZX2_MIO_GROUP_COUNT : 1); context++) {
-            hp_zx1_mio_notify_unmap(s, context,
-                                    &hp_zx1_mio_full_unmap);
+        for (context = 0; context < (s->zx2 ? HP_ZX2_MIO_GROUP_COUNT : 1);
+             context++) {
+            hp_zx1_mio_notify_unmap(s, context, &hp_zx1_mio_full_unmap);
         }
     }
 }
 
 static bool hp_zx1_mio_iotlb_mask_valid(uint64_t addr_mask)
 {
-    return addr_mask == UINT64_C(0xfff) ||
-           addr_mask == UINT64_C(0x1fff) ||
-           addr_mask == UINT64_C(0x3fff) ||
-           addr_mask == UINT64_C(0xffff);
+    return addr_mask == UINT64_C(0xfff) || addr_mask == UINT64_C(0x1fff) ||
+           addr_mask == UINT64_C(0x3fff) || addr_mask == UINT64_C(0xffff);
 }
 
-static bool hp_zx1_mio_iotlb_migration_valid(
-    const HPZX1IOMMUFrontend *iommu, Error **errp)
+static bool hp_zx1_mio_iotlb_migration_valid(const HPZX1IOMMUFrontend *iommu,
+                                             Error **errp)
 {
     unsigned int slot_index;
 
@@ -940,10 +917,8 @@ static bool hp_zx1_mio_iotlb_migration_valid(
         return false;
     }
 
-    for (slot_index = 0; slot_index < HP_ZX1_IOTLB_SLOT_COUNT;
-         slot_index++) {
-        const HPZX1IOTLBSlot *slot =
-            &iommu->iotlb.slots[slot_index];
+    for (slot_index = 0; slot_index < HP_ZX1_IOTLB_SLOT_COUNT; slot_index++) {
+        const HPZX1IOTLBSlot *slot = &iommu->iotlb.slots[slot_index];
         const HPSBAIOMMUEntry *entry = &slot->entry;
 
         if (!slot->valid) {
@@ -955,8 +930,7 @@ static bool hp_zx1_mio_iotlb_migration_valid(
             entry->iova > HP_ZX1_IOMMU_PHYS_MASK - entry->addr_mask ||
             entry->translated_addr >
                 HP_ZX1_IOMMU_PHYS_MASK - entry->addr_mask) {
-            error_setg(errp,
-                       "zx1 MIO migration has invalid IOTLB slot %u",
+            error_setg(errp, "zx1 MIO migration has invalid IOTLB slot %u",
                        slot_index);
             return false;
         }
@@ -964,21 +938,20 @@ static bool hp_zx1_mio_iotlb_migration_valid(
     return true;
 }
 
-static bool hp_zx1_mio_post_load(void *opaque, int version_id,
-                                 Error **errp)
+static bool hp_zx1_mio_post_load(void *opaque, int version_id, Error **errp)
 {
     HPZX1MIOState *s = opaque;
     unsigned int context;
 
     if (!s->iommu_configured) {
-        error_setg(errp,
-                   "zx1 MIO migration destination has no IOMMU reset configuration");
+        error_setg(
+            errp,
+            "zx1 MIO migration destination has no IOMMU reset configuration");
         return false;
     }
 
     if (!hp_zx1_mio_regs_state_valid(&s->migration.regs)) {
-        error_setg(errp,
-                   "zx1 MIO migration has unreachable register state");
+        error_setg(errp, "zx1 MIO migration has unreachable register state");
         return false;
     }
     if (s->zx2 && !hp_zx2_mio_regs_state_valid(&s->migration.zx2_regs)) {
@@ -1002,8 +975,7 @@ static bool hp_zx1_mio_post_load(void *opaque, int version_id,
     s->iommu = s->migration.iommu;
     if (s->zx2) {
         s->zx2_regs = s->migration.zx2_regs;
-        memcpy(s->zx2_iommu, s->migration.zx2_iommu,
-               sizeof(s->zx2_iommu));
+        memcpy(s->zx2_iommu, s->migration.zx2_iommu, sizeof(s->zx2_iommu));
     }
     qemu_rec_mutex_unlock(&s->iommu_lock);
 
@@ -1012,8 +984,8 @@ static bool hp_zx1_mio_post_load(void *opaque, int version_id,
         return false;
     }
 
-    for (context = 0;
-         context < (s->zx2 ? HP_ZX2_MIO_GROUP_COUNT : 1); context++) {
+    for (context = 0; context < (s->zx2 ? HP_ZX2_MIO_GROUP_COUNT : 1);
+         context++) {
         hp_zx1_mio_notify_unmap(s, context, &hp_zx1_mio_full_unmap);
     }
     return true;
@@ -1034,8 +1006,7 @@ static bool hp_zx1_mio_pre_save(void *opaque, Error **errp)
     s->migration.iommu = s->iommu;
     if (s->zx2) {
         s->migration.zx2_regs = s->zx2_regs;
-        memcpy(s->migration.zx2_iommu, s->zx2_iommu,
-               sizeof(s->zx2_iommu));
+        memcpy(s->migration.zx2_iommu, s->zx2_iommu, sizeof(s->zx2_iommu));
     }
     qemu_rec_mutex_unlock(&s->iommu_lock);
     return true;
@@ -1045,32 +1016,29 @@ static const VMStateDescription vmstate_hp_zx1_mio_iotlb_slot = {
     .name = TYPE_HP_ZX1_MIO "/iotlb-slot",
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (const VMStateField[]) {
-        VMSTATE_UINT64(entry.iova, HPZX1IOTLBSlot),
-        VMSTATE_UINT64(entry.translated_addr, HPZX1IOTLBSlot),
-        VMSTATE_UINT64(entry.addr_mask, HPZX1IOTLBSlot),
-        VMSTATE_BOOL(valid, HPZX1IOTLBSlot),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) {
+            VMSTATE_UINT64(entry.iova, HPZX1IOTLBSlot),
+            VMSTATE_UINT64(entry.translated_addr, HPZX1IOTLBSlot),
+            VMSTATE_UINT64(entry.addr_mask, HPZX1IOTLBSlot),
+            VMSTATE_BOOL(valid, HPZX1IOTLBSlot), VMSTATE_END_OF_LIST() },
 };
 
 static const VMStateDescription vmstate_hp_zx2_mio_iommu_context = {
     .name = TYPE_HP_ZX2_MIO "/iommu-context",
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (const VMStateField[]) {
-        VMSTATE_UINT64(ibase, HPZX1IOMMUFrontend),
-        VMSTATE_UINT64(imask, HPZX1IOMMUFrontend),
-        VMSTATE_UINT64(pcom, HPZX1IOMMUFrontend),
-        VMSTATE_UINT64(tcnfg, HPZX1IOMMUFrontend),
-        VMSTATE_UINT64(pdir_base, HPZX1IOMMUFrontend),
-        VMSTATE_STRUCT_ARRAY(iotlb.slots, HPZX1IOMMUFrontend,
-                             HP_ZX1_IOTLB_SLOT_COUNT, 1,
-                             vmstate_hp_zx1_mio_iotlb_slot,
-                             HPZX1IOTLBSlot),
-        VMSTATE_UINT8(rr_next, HPZX1IOMMUFrontend),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) {
+            VMSTATE_UINT64(ibase, HPZX1IOMMUFrontend),
+            VMSTATE_UINT64(imask, HPZX1IOMMUFrontend),
+            VMSTATE_UINT64(pcom, HPZX1IOMMUFrontend),
+            VMSTATE_UINT64(tcnfg, HPZX1IOMMUFrontend),
+            VMSTATE_UINT64(pdir_base, HPZX1IOMMUFrontend),
+            VMSTATE_STRUCT_ARRAY(iotlb.slots, HPZX1IOMMUFrontend,
+                                 HP_ZX1_IOTLB_SLOT_COUNT, 1,
+                                 vmstate_hp_zx1_mio_iotlb_slot, HPZX1IOTLBSlot),
+            VMSTATE_UINT8(rr_next, HPZX1IOMMUFrontend), VMSTATE_END_OF_LIST() },
 };
 
 static const VMStateDescription vmstate_hp_zx1_mio = {
@@ -1080,68 +1048,65 @@ static const VMStateDescription vmstate_hp_zx1_mio = {
     .priority = MIG_PRI_IOMMU,
     .pre_save_errp = hp_zx1_mio_pre_save,
     .post_load_errp = hp_zx1_mio_post_load,
-    .fields = (const VMStateField[]) {
-        /* Reject migration between differently configured IOC instances. */
-        VMSTATE_UINT64_EQUAL(iommu_reset.ibase, HPZX1MIOState),
-        VMSTATE_UINT64_EQUAL(iommu_reset.imask, HPZX1MIOState),
-        VMSTATE_UINT64_EQUAL(iommu_reset.pcom, HPZX1MIOState),
-        VMSTATE_UINT64_EQUAL(iommu_reset.tcnfg, HPZX1MIOState),
-        VMSTATE_UINT64_EQUAL(iommu_reset.pdir_base, HPZX1MIOState),
+    .fields =
+        (const VMStateField[]) {
+            /* Reject migration between differently configured IOC instances. */
+            VMSTATE_UINT64_EQUAL(iommu_reset.ibase, HPZX1MIOState),
+            VMSTATE_UINT64_EQUAL(iommu_reset.imask, HPZX1MIOState),
+            VMSTATE_UINT64_EQUAL(iommu_reset.pcom, HPZX1MIOState),
+            VMSTATE_UINT64_EQUAL(iommu_reset.tcnfg, HPZX1MIOState),
+            VMSTATE_UINT64_EQUAL(iommu_reset.pdir_base, HPZX1MIOState),
 
-        VMSTATE_UINT64(migration.iommu.ibase, HPZX1MIOState),
-        VMSTATE_UINT64(migration.iommu.imask, HPZX1MIOState),
-        VMSTATE_UINT64(migration.iommu.pcom, HPZX1MIOState),
-        VMSTATE_UINT64(migration.iommu.tcnfg, HPZX1MIOState),
-        VMSTATE_UINT64(migration.iommu.pdir_base, HPZX1MIOState),
-        VMSTATE_STRUCT_ARRAY(migration.iommu.iotlb.slots, HPZX1MIOState,
-                             HP_ZX1_IOTLB_SLOT_COUNT, 1,
-                             vmstate_hp_zx1_mio_iotlb_slot,
-                             HPZX1IOTLBSlot),
-        VMSTATE_UINT8(migration.iommu.rr_next, HPZX1MIOState),
-        VMSTATE_STRUCT_ARRAY(migration.zx2_iommu, HPZX1MIOState,
-                             HP_ZX2_MIO_EXTRA_CONTEXTS, 0,
-                             vmstate_hp_zx2_mio_iommu_context,
-                             HPZX1IOMMUFrontend),
+            VMSTATE_UINT64(migration.iommu.ibase, HPZX1MIOState),
+            VMSTATE_UINT64(migration.iommu.imask, HPZX1MIOState),
+            VMSTATE_UINT64(migration.iommu.pcom, HPZX1MIOState),
+            VMSTATE_UINT64(migration.iommu.tcnfg, HPZX1MIOState),
+            VMSTATE_UINT64(migration.iommu.pdir_base, HPZX1MIOState),
+            VMSTATE_STRUCT_ARRAY(migration.iommu.iotlb.slots, HPZX1MIOState,
+                                 HP_ZX1_IOTLB_SLOT_COUNT, 1,
+                                 vmstate_hp_zx1_mio_iotlb_slot, HPZX1IOTLBSlot),
+            VMSTATE_UINT8(migration.iommu.rr_next, HPZX1MIOState),
+            VMSTATE_STRUCT_ARRAY(
+                migration.zx2_iommu, HPZX1MIOState, HP_ZX2_MIO_EXTRA_CONTEXTS,
+                0, vmstate_hp_zx2_mio_iommu_context, HPZX1IOMMUFrontend),
 
-        VMSTATE_UINT64_ARRAY(migration.regs.lmmio_dir_base,
-                             HPZX1MIOState, 2),
-        VMSTATE_UINT64_ARRAY(migration.regs.lmmio_dir_mask,
-                             HPZX1MIOState, 2),
-        VMSTATE_UINT64_ARRAY(migration.regs.lmmio_dir_route,
-                             HPZX1MIOState, 2),
-        VMSTATE_UINT64(migration.regs.lmmio_dist_base, HPZX1MIOState),
-        VMSTATE_UINT64(migration.regs.lmmio_dist_mask, HPZX1MIOState),
-        VMSTATE_UINT64(migration.regs.lmmio_dist_route, HPZX1MIOState),
-        VMSTATE_UINT64(migration.regs.gmmio_dist_base, HPZX1MIOState),
-        VMSTATE_UINT64(migration.regs.gmmio_dist_mask, HPZX1MIOState),
-        VMSTATE_UINT64(migration.regs.gmmio_dist_route, HPZX1MIOState),
-        VMSTATE_UINT64(migration.regs.ios_dist_base, HPZX1MIOState),
-        VMSTATE_UINT64(migration.regs.ios_dist_mask, HPZX1MIOState),
-        VMSTATE_UINT64(migration.regs.ios_dist_route, HPZX1MIOState),
-        VMSTATE_UINT64(migration.regs.rope_config_base, HPZX1MIOState),
-        VMSTATE_UINT64(migration.regs.vga_route, HPZX1MIOState),
-        VMSTATE_UINT64(migration.regs.ios_dir_base, HPZX1MIOState),
-        VMSTATE_UINT64(migration.regs.ios_dir_mask, HPZX1MIOState),
-        VMSTATE_UINT64(migration.regs.ios_dir_route, HPZX1MIOState),
-        VMSTATE_UINT64(migration.regs.rope_config, HPZX1MIOState),
-        VMSTATE_UINT64_ARRAY(migration.regs.lba_port_control,
-                             HPZX1MIOState,
-                             HP_ZX1_MIO_LBA_PORT_COUNT),
-        VMSTATE_UINT64(migration.regs.error_config, HPZX1MIOState),
-        VMSTATE_UINT64(migration.regs.error_status, HPZX1MIOState),
-        VMSTATE_UINT64(migration.regs.error_address, HPZX1MIOState),
-        VMSTATE_UINT64(migration.regs.error_information, HPZX1MIOState),
-        VMSTATE_UINT64_ARRAY(migration.zx2_regs.group_ropes,
-                             HPZX1MIOState, HP_ZX2_MIO_GROUP_COUNT),
-        VMSTATE_UINT64_ARRAY(migration.zx2_regs.group_control,
-                             HPZX1MIOState, HP_ZX2_MIO_GROUP_COUNT),
-        VMSTATE_UINT64(migration.zx2_regs.iommu_select, HPZX1MIOState),
-        VMSTATE_UINT64(migration.zx2_regs.error_interrupt, HPZX1MIOState),
-        VMSTATE_UINT64(migration.zx2_regs.error_status, HPZX1MIOState),
-        VMSTATE_UINT64(migration.zx2_regs.error_address, HPZX1MIOState),
-        VMSTATE_UINT64(migration.zx2_regs.error_information, HPZX1MIOState),
-        VMSTATE_END_OF_LIST()
-    },
+            VMSTATE_UINT64_ARRAY(migration.regs.lmmio_dir_base, HPZX1MIOState,
+                                 2),
+            VMSTATE_UINT64_ARRAY(migration.regs.lmmio_dir_mask, HPZX1MIOState,
+                                 2),
+            VMSTATE_UINT64_ARRAY(migration.regs.lmmio_dir_route, HPZX1MIOState,
+                                 2),
+            VMSTATE_UINT64(migration.regs.lmmio_dist_base, HPZX1MIOState),
+            VMSTATE_UINT64(migration.regs.lmmio_dist_mask, HPZX1MIOState),
+            VMSTATE_UINT64(migration.regs.lmmio_dist_route, HPZX1MIOState),
+            VMSTATE_UINT64(migration.regs.gmmio_dist_base, HPZX1MIOState),
+            VMSTATE_UINT64(migration.regs.gmmio_dist_mask, HPZX1MIOState),
+            VMSTATE_UINT64(migration.regs.gmmio_dist_route, HPZX1MIOState),
+            VMSTATE_UINT64(migration.regs.ios_dist_base, HPZX1MIOState),
+            VMSTATE_UINT64(migration.regs.ios_dist_mask, HPZX1MIOState),
+            VMSTATE_UINT64(migration.regs.ios_dist_route, HPZX1MIOState),
+            VMSTATE_UINT64(migration.regs.rope_config_base, HPZX1MIOState),
+            VMSTATE_UINT64(migration.regs.vga_route, HPZX1MIOState),
+            VMSTATE_UINT64(migration.regs.ios_dir_base, HPZX1MIOState),
+            VMSTATE_UINT64(migration.regs.ios_dir_mask, HPZX1MIOState),
+            VMSTATE_UINT64(migration.regs.ios_dir_route, HPZX1MIOState),
+            VMSTATE_UINT64(migration.regs.rope_config, HPZX1MIOState),
+            VMSTATE_UINT64_ARRAY(migration.regs.lba_port_control, HPZX1MIOState,
+                                 HP_ZX1_MIO_LBA_PORT_COUNT),
+            VMSTATE_UINT64(migration.regs.error_config, HPZX1MIOState),
+            VMSTATE_UINT64(migration.regs.error_status, HPZX1MIOState),
+            VMSTATE_UINT64(migration.regs.error_address, HPZX1MIOState),
+            VMSTATE_UINT64(migration.regs.error_information, HPZX1MIOState),
+            VMSTATE_UINT64_ARRAY(migration.zx2_regs.group_ropes, HPZX1MIOState,
+                                 HP_ZX2_MIO_GROUP_COUNT),
+            VMSTATE_UINT64_ARRAY(migration.zx2_regs.group_control,
+                                 HPZX1MIOState, HP_ZX2_MIO_GROUP_COUNT),
+            VMSTATE_UINT64(migration.zx2_regs.iommu_select, HPZX1MIOState),
+            VMSTATE_UINT64(migration.zx2_regs.error_interrupt, HPZX1MIOState),
+            VMSTATE_UINT64(migration.zx2_regs.error_status, HPZX1MIOState),
+            VMSTATE_UINT64(migration.zx2_regs.error_address, HPZX1MIOState),
+            VMSTATE_UINT64(migration.zx2_regs.error_information, HPZX1MIOState),
+            VMSTATE_END_OF_LIST() },
 };
 
 static void hp_zx1_mio_realize(DeviceState *dev, Error **errp)
@@ -1152,8 +1117,8 @@ static void hp_zx1_mio_realize(DeviceState *dev, Error **errp)
     unsigned int context;
 
     if (!s->iommu_configured) {
-        error_setg(errp,
-                   "zx1 MIO device requires explicit IOMMU reset configuration");
+        error_setg(
+            errp, "zx1 MIO device requires explicit IOMMU reset configuration");
         return;
     }
 
@@ -1166,8 +1131,8 @@ static void hp_zx1_mio_realize(DeviceState *dev, Error **errp)
     reset = hp_zx1_iommu_frontend_reset(&s->iommu, &config);
     g_assert(reset);
     for (context = 1; context < HP_ZX2_MIO_GROUP_COUNT; context++) {
-        reset = hp_zx1_iommu_frontend_reset(
-            &s->zx2_iommu[context - 1], &config);
+        reset =
+            hp_zx1_iommu_frontend_reset(&s->zx2_iommu[context - 1], &config);
         g_assert(reset);
     }
     qemu_rec_mutex_unlock(&s->iommu_lock);
@@ -1180,12 +1145,11 @@ static void hp_zx1_mio_init(Object *obj)
     unsigned int slot;
 
     qemu_rec_mutex_init(&s->iommu_lock);
-    memory_region_init_io(&s->csr, obj, &hp_zx1_mio_ops, s,
-                          TYPE_HP_ZX1_MIO, HP_ZX1_MIO_CSR_SIZE);
+    memory_region_init_io(&s->csr, obj, &hp_zx1_mio_ops, s, TYPE_HP_ZX1_MIO,
+                          HP_ZX1_MIO_CSR_SIZE);
     memory_region_init_iommu(&s->iommu_mr, sizeof(s->iommu_mr),
                              TYPE_HP_ZX1_MIO_IOMMU_MEMORY_REGION, obj,
-                             TYPE_HP_ZX1_MIO ".iommu",
-                             HP_ZX1_MIO_IOMMU_SIZE);
+                             TYPE_HP_ZX1_MIO ".iommu", HP_ZX1_MIO_IOMMU_SIZE);
     address_space_init(&s->iommu_as, MEMORY_REGION(&s->iommu_mr),
                        TYPE_HP_ZX1_MIO ".iommu-as");
     for (context = 1; context < HP_ZX2_MIO_GROUP_COUNT; context++) {
@@ -1215,11 +1179,10 @@ static void hp_zx1_mio_init(Object *obj)
             g_autofree char *alias_name = g_strdup_printf(
                 TYPE_HP_ZX1_MIO ".root-iommu-%u-%u", slot, context);
 
-            memory_region_init_alias(&frontend->iommu_alias[context], obj,
-                                     alias_name,
-                                     MEMORY_REGION(hp_zx1_mio_iommu_region(
-                                                       s, context)),
-                                     0, HP_ZX1_MIO_IOMMU_SIZE);
+            memory_region_init_alias(
+                &frontend->iommu_alias[context], obj, alias_name,
+                MEMORY_REGION(hp_zx1_mio_iommu_region(s, context)), 0,
+                HP_ZX1_MIO_IOMMU_SIZE);
             memory_region_set_enabled(&frontend->iommu_alias[context],
                                       context == 0);
             memory_region_add_subregion_overlap(
@@ -1287,8 +1250,8 @@ static void hp_zx2_mio_class_init(ObjectClass *klass, const void *data)
     dc->desc = "HP zx2 MIOC/SBA CSR block (internal)";
 }
 
-static void hp_zx1_mio_iommu_memory_region_class_init(
-    ObjectClass *klass, const void *data)
+static void hp_zx1_mio_iommu_memory_region_class_init(ObjectClass *klass,
+                                                      const void *data)
 {
     IOMMUMemoryRegionClass *imrc = IOMMU_MEMORY_REGION_CLASS(klass);
 

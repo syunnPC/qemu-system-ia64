@@ -135,21 +135,18 @@ static const uint64_t rx2660_ioa[RX2660_PCI_ROOT_COUNT] = {
 };
 
 static const uint64_t rx2660_mmio_base[RX2660_PCI_ROOT_COUNT] = {
-    UINT64_C(0x80000000), UINT64_C(0xa0000000),
-    UINT64_C(0xb0000000), UINT64_C(0xe0000000),
-    UINT64_C(0xf0000000),
+    UINT64_C(0x80000000), UINT64_C(0xa0000000), UINT64_C(0xb0000000),
+    UINT64_C(0xe0000000), UINT64_C(0xf0000000),
 };
 
 static const uint64_t rx2660_mmio_size[RX2660_PCI_ROOT_COUNT] = {
-    UINT64_C(0x10000000), UINT64_C(0x10000000),
-    UINT64_C(0x10000000), UINT64_C(0x10000000),
-    UINT64_C(0x0e000000),
+    UINT64_C(0x10000000), UINT64_C(0x10000000), UINT64_C(0x10000000),
+    UINT64_C(0x10000000), UINT64_C(0x0e000000),
 };
 
 static const uint64_t rx2660_mmio64_base[RX2660_PCI_ROOT_COUNT] = {
-    UINT64_C(0x80004000000), UINT64_C(0x80204000000),
-    UINT64_C(0x80304000000), UINT64_C(0x80604000000),
-    UINT64_C(0x80704000000),
+    UINT64_C(0x80004000000), UINT64_C(0x80204000000), UINT64_C(0x80304000000),
+    UINT64_C(0x80604000000), UINT64_C(0x80704000000),
 };
 
 static const uint32_t rx2660_gsi_base[RX2660_PCI_ROOT_COUNT] = {
@@ -172,8 +169,7 @@ static uint8_t rx2660_checksum(const void *data, size_t size)
     return sum;
 }
 
-static uint8_t zx_pcie_test_find_capability(QTestState *qts,
-                                            uint64_t config,
+static uint8_t zx_pcie_test_find_capability(QTestState *qts, uint64_t config,
                                             uint8_t capability)
 {
     uint8_t offset = qtest_readb(qts, config + PCI_CAPABILITY_LIST);
@@ -208,12 +204,11 @@ static bool rx2660_qom_has_child(QTestState *qts, const char *name,
     return false;
 }
 
-static char *rx2660_find_unattached_child(QTestState *qts,
-                                           const char *qom_type)
+static char *rx2660_find_unattached_child(QTestState *qts, const char *qom_type)
 {
-    g_autoptr(QDict) response = qtest_qmp(
-        qts, "{'execute':'qom-list','arguments':"
-             " {'path':'/machine/unattached'}}");
+    g_autoptr(QDict) response =
+        qtest_qmp(qts, "{'execute':'qom-list','arguments':"
+                       " {'path':'/machine/unattached'}}");
     g_autofree char *child_type = g_strdup_printf("child<%s>", qom_type);
     QList *children = qdict_get_qlist(response, "return");
     QListEntry *entry;
@@ -231,8 +226,7 @@ static char *rx2660_find_unattached_child(QTestState *qts,
 
 static void rx2660_assert_machine_identity(QTestState *qts)
 {
-    g_autoptr(QDict) response = qtest_qmp(
-        qts, "{'execute':'query-machines'}");
+    g_autoptr(QDict) response = qtest_qmp(qts, "{'execute':'query-machines'}");
     QList *machines = qdict_get_qlist(response, "return");
     QListEntry *entry;
     bool found = false;
@@ -301,14 +295,12 @@ static void rx2660_assert_descriptor(QTestState *qts)
                      IA64_PLATFORM_DESC_REVISION);
     g_assert_cmpuint(le32_to_cpu(descriptor->PlatformId), ==,
                      IA64_PLATFORM_ID_HP_RX2660);
-    g_assert_cmphex(le32_to_cpu(descriptor->Flags), ==,
-                    IA64_PLATFORM_FLAG_NO_MCFG |
-                    IA64_PLATFORM_FLAG_QEMU_EXTENSION |
-                    IA64_PLATFORM_FLAG_FAMILY_HP_ZX |
-                    IA64_PLATFORM_FLAG_PCI_ZX1_LBA |
-                    IA64_PLATFORM_FLAG_SPARSE_IO |
-                    IA64_PLATFORM_FLAG_EMBEDDED_IO_SAPIC |
-                    IA64_PLATFORM_FLAG_ACPI_PM);
+    g_assert_cmphex(
+        le32_to_cpu(descriptor->Flags), ==,
+        IA64_PLATFORM_FLAG_NO_MCFG | IA64_PLATFORM_FLAG_QEMU_EXTENSION |
+            IA64_PLATFORM_FLAG_FAMILY_HP_ZX | IA64_PLATFORM_FLAG_PCI_ZX1_LBA |
+            IA64_PLATFORM_FLAG_SPARSE_IO |
+            IA64_PLATFORM_FLAG_EMBEDDED_IO_SAPIC | IA64_PLATFORM_FLAG_ACPI_PM);
     g_assert_cmphex(le64_to_cpu(descriptor->RamSize), ==, 4 * GiB);
     g_assert_cmphex(le64_to_cpu(descriptor->LowRamEnd), ==,
                     RX2660_LOW_RAM_SIZE);
@@ -330,28 +322,31 @@ static void rx2660_assert_descriptor(QTestState *qts)
     g_assert_cmpuint(le32_to_cpu(descriptor->ProfileCount), ==, 0);
     g_assert_cmphex(rx2660_checksum(storage.bytes, total_size), ==, 0);
 
-    ram = (const IA64PlatformRamRange *)(
-        storage.bytes + le32_to_cpu(descriptor->RamRangeOffset));
+    ram =
+        (const IA64PlatformRamRange *)(storage.bytes +
+                                       le32_to_cpu(descriptor->RamRangeOffset));
     g_assert_cmphex(le64_to_cpu(ram[0].Base), ==, 0);
     g_assert_cmphex(le64_to_cpu(ram[0].Size), ==, RX2660_LOW_RAM_SIZE);
     g_assert_cmphex(le64_to_cpu(ram[1].Base), ==, RX2660_HIGH_RAM_BASE);
     g_assert_cmphex(le64_to_cpu(ram[1].Size), ==, RX2660_HIGH_RAM_SIZE);
 
-    roots = (const IA64PlatformPciRoot *)(
-        storage.bytes + le32_to_cpu(descriptor->PciRootOffset));
-    sapics = (const IA64PlatformIoSapic *)(
-        storage.bytes + le32_to_cpu(descriptor->IoSapicOffset));
+    roots =
+        (const IA64PlatformPciRoot *)(storage.bytes +
+                                      le32_to_cpu(descriptor->PciRootOffset));
+    sapics =
+        (const IA64PlatformIoSapic *)(storage.bytes +
+                                      le32_to_cpu(descriptor->IoSapicOffset));
     for (root = 0; root < RX2660_PCI_ROOT_COUNT; root++) {
         g_assert_cmpuint(le16_to_cpu(roots[root].Segment), ==, 0);
         g_assert_cmpuint(roots[root].Bus, ==, rx2660_bus[root]);
         g_assert_cmpuint(roots[root].BusEnd, ==, rx2660_bus[root]);
         g_assert_cmpuint(roots[root].ConfigType, ==,
                          IA64_PLATFORM_PCI_CONFIG_ZX1_LBA);
-        g_assert_cmphex(le32_to_cpu(roots[root].Flags), ==,
-                        IA64_PLATFORM_PCI_ROOT_FLAG_IDENTITY_DMA |
-                        IA64_PLATFORM_PCI_ROOT_FLAG_SPARSE_IO |
-                        (root == 0 ?
-                         IA64_PLATFORM_PCI_ROOT_FLAG_VGA_LEGACY : 0));
+        g_assert_cmphex(
+            le32_to_cpu(roots[root].Flags), ==,
+            IA64_PLATFORM_PCI_ROOT_FLAG_IDENTITY_DMA |
+                IA64_PLATFORM_PCI_ROOT_FLAG_SPARSE_IO |
+                (root == 0 ? IA64_PLATFORM_PCI_ROOT_FLAG_VGA_LEGACY : 0));
         g_assert_cmphex(le64_to_cpu(roots[root].ConfigBase), ==,
                         rx2660_ioa[root]);
         g_assert_cmphex(le64_to_cpu(roots[root].IoBase), ==,
@@ -367,34 +362,30 @@ static void rx2660_assert_descriptor(QTestState *qts)
                         rx2660_mmio64_base[root]);
         g_assert_cmphex(le64_to_cpu(roots[root].Mmio64Size), ==,
                         UINT64_C(0xfc000000));
-        g_assert_cmphex(
-            le64_to_cpu(roots[root].Mmio64TranslationOffset), ==, 0);
+        g_assert_cmphex(le64_to_cpu(roots[root].Mmio64TranslationOffset), ==,
+                        0);
         g_assert_cmphex(le64_to_cpu(roots[root].DmaBase), ==, 0);
         g_assert_cmphex(le64_to_cpu(roots[root].DmaSize), ==,
                         RX2660_LOW_RAM_SIZE);
-        g_assert_cmpuint(le32_to_cpu(roots[root].Rope), ==,
-                         rx2660_rope[root]);
+        g_assert_cmpuint(le32_to_cpu(roots[root].Rope), ==, rx2660_rope[root]);
 
         g_assert_cmphex(le64_to_cpu(sapics[root].Base), ==,
-                        rx2660_ioa[root] +
-                        IA64_PLATFORM_ZX1_IO_SAPIC_OFFSET);
+                        rx2660_ioa[root] + IA64_PLATFORM_ZX1_IO_SAPIC_OFFSET);
         g_assert_cmpuint(le32_to_cpu(sapics[root].GsiBase), ==,
                          rx2660_gsi_base[root]);
-        g_assert_cmpuint(le32_to_cpu(sapics[root].RedirectionEntries), ==,
-                         10);
+        g_assert_cmpuint(le32_to_cpu(sapics[root].RedirectionEntries), ==, 10);
         g_assert_cmpuint(sapics[root].Id, ==, rx2660_rope[root]);
     }
 
-    routes = (const IA64PlatformPciRoute *)(
-        storage.bytes + le32_to_cpu(descriptor->PciRouteOffset));
+    routes =
+        (const IA64PlatformPciRoute *)(storage.bytes +
+                                       le32_to_cpu(descriptor->PciRouteOffset));
     for (route = 0; route < G_N_ELEMENTS(expected_routes); route++) {
         g_assert_cmpuint(le16_to_cpu(routes[route].Segment), ==, 0);
-        g_assert_cmpuint(routes[route].Bus, ==,
-                         expected_routes[route].bus);
+        g_assert_cmpuint(routes[route].Bus, ==, expected_routes[route].bus);
         g_assert_cmpuint(routes[route].Device, ==,
                          expected_routes[route].device);
-        g_assert_cmpuint(routes[route].Pin, ==,
-                         expected_routes[route].pin);
+        g_assert_cmpuint(routes[route].Pin, ==, expected_routes[route].pin);
         g_assert_cmpuint(le32_to_cpu(routes[route].Gsi), ==,
                          expected_routes[route].gsi);
     }
@@ -407,32 +398,31 @@ static void rx2660_config_select(QTestState *qts, unsigned int root,
 
     g_assert_cmpuint(root, <, RX2660_PCI_ROOT_COUNT);
     selector = (uint64_t)devfn << 8 | (reg & 0xfc);
-    qtest_writeq(qts, rx2660_ioa[root] + HP_ZX1_IOA_CONFIG_ADDRESS,
-                 selector);
+    qtest_writeq(qts, rx2660_ioa[root] + HP_ZX1_IOA_CONFIG_ADDRESS, selector);
 }
 
 static uint16_t rx2660_config_readw(QTestState *qts, unsigned int root,
                                     unsigned int devfn, unsigned int reg)
 {
     rx2660_config_select(qts, root, devfn, reg);
-    return qtest_readw(qts, rx2660_ioa[root] +
-                       HP_ZX1_IOA_CONFIG_DATA + (reg & 3));
+    return qtest_readw(qts,
+                       rx2660_ioa[root] + HP_ZX1_IOA_CONFIG_DATA + (reg & 3));
 }
 
 static uint8_t rx2660_config_readb(QTestState *qts, unsigned int root,
                                    unsigned int devfn, unsigned int reg)
 {
     rx2660_config_select(qts, root, devfn, reg);
-    return qtest_readb(qts, rx2660_ioa[root] +
-                       HP_ZX1_IOA_CONFIG_DATA + (reg & 3));
+    return qtest_readb(qts,
+                       rx2660_ioa[root] + HP_ZX1_IOA_CONFIG_DATA + (reg & 3));
 }
 
 static uint32_t rx2660_config_readl(QTestState *qts, unsigned int root,
                                     unsigned int devfn, unsigned int reg)
 {
     rx2660_config_select(qts, root, devfn, reg);
-    return qtest_readl(qts, rx2660_ioa[root] +
-                       HP_ZX1_IOA_CONFIG_DATA + (reg & 3));
+    return qtest_readl(qts,
+                       rx2660_ioa[root] + HP_ZX1_IOA_CONFIG_DATA + (reg & 3));
 }
 
 static void rx2660_config_writew(QTestState *qts, unsigned int root,
@@ -440,8 +430,8 @@ static void rx2660_config_writew(QTestState *qts, unsigned int root,
                                  uint16_t value)
 {
     rx2660_config_select(qts, root, devfn, reg);
-    qtest_writew(qts, rx2660_ioa[root] +
-                 HP_ZX1_IOA_CONFIG_DATA + (reg & 3), value);
+    qtest_writew(qts, rx2660_ioa[root] + HP_ZX1_IOA_CONFIG_DATA + (reg & 3),
+                 value);
 }
 
 static void rx2660_config_writel(QTestState *qts, unsigned int root,
@@ -449,8 +439,8 @@ static void rx2660_config_writel(QTestState *qts, unsigned int root,
                                  uint32_t value)
 {
     rx2660_config_select(qts, root, devfn, reg);
-    qtest_writel(qts, rx2660_ioa[root] +
-                 HP_ZX1_IOA_CONFIG_DATA + (reg & 3), value);
+    qtest_writel(qts, rx2660_ioa[root] + HP_ZX1_IOA_CONFIG_DATA + (reg & 3),
+                 value);
 }
 
 static QTestState *rx2660_zx2_test_start(const char *extra_args)
@@ -465,36 +455,30 @@ static QTestState *rx2660_zx2_test_start(const char *extra_args)
 
 static void rx2660_zx2_configure_probe(QTestState *qts)
 {
-    rx2660_config_writel(qts, RX2660_ZX2_TEST_ROOT,
-                         RX2660_ZX2_TEST_DEVFN, PCI_BASE_ADDRESS_0,
-                         RX2660_ZX2_TEST_MMIO);
-    rx2660_config_writew(qts, RX2660_ZX2_TEST_ROOT,
-                         RX2660_ZX2_TEST_DEVFN, PCI_COMMAND,
-                         PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
+    rx2660_config_writel(qts, RX2660_ZX2_TEST_ROOT, RX2660_ZX2_TEST_DEVFN,
+                         PCI_BASE_ADDRESS_0, RX2660_ZX2_TEST_MMIO);
+    rx2660_config_writew(qts, RX2660_ZX2_TEST_ROOT, RX2660_ZX2_TEST_DEVFN,
+                         PCI_COMMAND, PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
     g_assert_cmphex(rx2660_config_readl(qts, RX2660_ZX2_TEST_ROOT,
                                         RX2660_ZX2_TEST_DEVFN,
-                                        PCI_BASE_ADDRESS_0), ==,
-                    RX2660_ZX2_TEST_MMIO);
+                                        PCI_BASE_ADDRESS_0),
+                    ==, RX2660_ZX2_TEST_MMIO);
 }
 
-static void rx2660_zx2_configure_context(QTestState *qts,
-                                         unsigned int context,
+static void rx2660_zx2_configure_context(QTestState *qts, unsigned int context,
                                          uint64_t pdir)
 {
-    qtest_writeq(qts, HP_ZX6000_MIO_BASE + HP_ZX2_MIO_IOMMU_SELECT,
-                 context);
+    qtest_writeq(qts, HP_ZX6000_MIO_BASE + HP_ZX2_MIO_IOMMU_SELECT, context);
     qtest_writeq(qts, RX2660_ZX2_IOMMU_REG(HP_ZX1_IOC_IOMMU_IMASK),
                  RX2660_ZX2_IOMMU_IMASK);
     qtest_writeq(qts, RX2660_ZX2_IOMMU_REG(HP_ZX1_IOC_IOMMU_IBASE),
                  RX2660_ZX2_IOMMU_IBASE | 1);
     qtest_writeq(qts, RX2660_ZX2_IOMMU_REG(HP_ZX1_IOC_IOMMU_TCNFG), 0);
-    qtest_writeq(qts, RX2660_ZX2_IOMMU_REG(HP_ZX1_IOC_IOMMU_PDIR_BASE),
-                 pdir);
+    qtest_writeq(qts, RX2660_ZX2_IOMMU_REG(HP_ZX1_IOC_IOMMU_PDIR_BASE), pdir);
 }
 
 static void rx2660_zx2_write_pte(QTestState *qts, uint64_t pdir,
-                                 unsigned int page, uint64_t target,
-                                 bool valid)
+                                 unsigned int page, uint64_t target, bool valid)
 {
     uint64_t pte = target;
 
@@ -511,10 +495,8 @@ static uint32_t rx2660_zx2_dma_trigger(QTestState *qts, uint64_t iova,
     qtest_writel(qts, RX2660_ZX2_TEST_MMIO + ITD_REG_DMA_GVA_LO, iova);
     qtest_writel(qts, RX2660_ZX2_TEST_MMIO + ITD_REG_DMA_GVA_HI, iova >> 32);
     qtest_writel(qts, RX2660_ZX2_TEST_MMIO + ITD_REG_DMA_GPA_LO, target);
-    qtest_writel(qts, RX2660_ZX2_TEST_MMIO + ITD_REG_DMA_GPA_HI,
-                 target >> 32);
-    qtest_writel(qts, RX2660_ZX2_TEST_MMIO + ITD_REG_DMA_LEN,
-                 sizeof(uint32_t));
+    qtest_writel(qts, RX2660_ZX2_TEST_MMIO + ITD_REG_DMA_GPA_HI, target >> 32);
+    qtest_writel(qts, RX2660_ZX2_TEST_MMIO + ITD_REG_DMA_LEN, sizeof(uint32_t));
     qtest_writel(qts, RX2660_ZX2_TEST_MMIO + ITD_REG_DMA_ATTRS, 0);
     qtest_writel(qts, RX2660_ZX2_TEST_MMIO + ITD_REG_DMA_DBELL,
                  ITD_DMA_DBELL_ARM);
@@ -527,8 +509,9 @@ static void rx2660_zx2_expect_dma_success(QTestState *qts, uint64_t iova,
 {
     qtest_writel(qts, target, UINT32_C(0xa5a5a5a5));
     g_assert_cmphex(rx2660_zx2_dma_trigger(qts, iova, target), ==, 0);
-    g_assert_cmphex(qtest_readl(qts, RX2660_ZX2_TEST_MMIO +
-                               ITD_REG_DMA_MEMTX_RESULT), ==, MEMTX_OK);
+    g_assert_cmphex(
+        qtest_readl(qts, RX2660_ZX2_TEST_MMIO + ITD_REG_DMA_MEMTX_RESULT), ==,
+        MEMTX_OK);
     g_assert_cmphex(qtest_readl(qts, target), ==, ITD_DMA_WRITE_VAL);
 }
 
@@ -548,189 +531,182 @@ static void rx2660_assert_pci_device(QTestState *qts, unsigned int root,
                                      uint16_t command, uint8_t line,
                                      uint8_t pin)
 {
-    g_assert_cmphex(rx2660_config_readl(qts, root, devfn, PCI_VENDOR_ID),
-                    ==, id);
+    g_assert_cmphex(rx2660_config_readl(qts, root, devfn, PCI_VENDOR_ID), ==,
+                    id);
     g_assert_cmphex(rx2660_config_readw(qts, root, devfn, PCI_COMMAND), ==,
                     command);
-    g_assert_cmphex(rx2660_config_readw(qts, root, devfn,
-                                        PCI_INTERRUPT_LINE), ==,
-                    line | (pin << 8));
+    g_assert_cmphex(rx2660_config_readw(qts, root, devfn, PCI_INTERRUPT_LINE),
+                    ==, line | (pin << 8));
 }
 
 static void rx2660_assert_pci_layout(QTestState *qts)
 {
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 0, PCI_DEVFN(1, 0), PCI_VENDOR_ID), ==,
-                    RX2660_MANAGEMENT_ID);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 0, PCI_DEVFN(1, 0), PCI_CLASS_REVISION) >> 8,
-                    ==, 0xff0000);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 0, PCI_DEVFN(1, 0), PCI_SUBSYSTEM_VENDOR_ID),
-                    ==, 0x1303103c);
-    g_assert_cmphex(rx2660_config_readw(
-                        qts, 0, PCI_DEVFN(1, 0), PCI_INTERRUPT_LINE),
-                    ==, 0x0100);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 0, PCI_DEVFN(1, 1), PCI_VENDOR_ID), ==,
-                    RX2660_MP_INTERFACE_ID);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 0, PCI_DEVFN(1, 1), PCI_CLASS_REVISION) >> 8,
-                    ==, 0x078000);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 0, PCI_DEVFN(1, 1), PCI_SUBSYSTEM_VENDOR_ID),
-                    ==, 0x1302103c);
-    g_assert_cmphex(rx2660_config_readw(
-                        qts, 0, PCI_DEVFN(1, 1), PCI_INTERRUPT_LINE),
-                    ==, 0x0100);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 0, PCI_DEVFN(1, 1), PCI_BASE_ADDRESS_1), ==,
-                    0x88034004);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 0, PCI_DEVFN(1, 1), PCI_BASE_ADDRESS_2), ==, 0);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 0, PCI_DEVFN(1, 1), PCI_BASE_ADDRESS_3), ==,
-                    0x8000000c);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 0, PCI_DEVFN(1, 1), PCI_BASE_ADDRESS_4), ==,
-                    0x00000800);
-    rx2660_assert_pci_device(qts, 0, PCI_DEVFN(1, 2),
-                             RX2660_CONSOLE_ID,
-                             PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER,
-                             16, 1);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 0, PCI_DEVFN(1, 2), PCI_CLASS_REVISION) >> 8,
-                    ==, 0x070002);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 0, PCI_DEVFN(1, 2), PCI_SUBSYSTEM_VENDOR_ID),
-                    ==, 0x1301103c);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 0, PCI_DEVFN(1, 2), PCI_BASE_ADDRESS_1), ==,
-                    0x88033004);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 0, PCI_DEVFN(1, 2), PCI_BASE_ADDRESS_2), ==, 0);
+    g_assert_cmphex(rx2660_config_readl(qts, 0, PCI_DEVFN(1, 0), PCI_VENDOR_ID),
+                    ==, RX2660_MANAGEMENT_ID);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 0, PCI_DEVFN(1, 0), PCI_CLASS_REVISION) >> 8,
+        ==, 0xff0000);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 0, PCI_DEVFN(1, 0), PCI_SUBSYSTEM_VENDOR_ID),
+        ==, 0x1303103c);
+    g_assert_cmphex(
+        rx2660_config_readw(qts, 0, PCI_DEVFN(1, 0), PCI_INTERRUPT_LINE), ==,
+        0x0100);
+    g_assert_cmphex(rx2660_config_readl(qts, 0, PCI_DEVFN(1, 1), PCI_VENDOR_ID),
+                    ==, RX2660_MP_INTERFACE_ID);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 0, PCI_DEVFN(1, 1), PCI_CLASS_REVISION) >> 8,
+        ==, 0x078000);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 0, PCI_DEVFN(1, 1), PCI_SUBSYSTEM_VENDOR_ID),
+        ==, 0x1302103c);
+    g_assert_cmphex(
+        rx2660_config_readw(qts, 0, PCI_DEVFN(1, 1), PCI_INTERRUPT_LINE), ==,
+        0x0100);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 0, PCI_DEVFN(1, 1), PCI_BASE_ADDRESS_1), ==,
+        0x88034004);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 0, PCI_DEVFN(1, 1), PCI_BASE_ADDRESS_2), ==,
+        0);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 0, PCI_DEVFN(1, 1), PCI_BASE_ADDRESS_3), ==,
+        0x8000000c);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 0, PCI_DEVFN(1, 1), PCI_BASE_ADDRESS_4), ==,
+        0x00000800);
+    rx2660_assert_pci_device(qts, 0, PCI_DEVFN(1, 2), RX2660_CONSOLE_ID,
+                             PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER, 16, 1);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 0, PCI_DEVFN(1, 2), PCI_CLASS_REVISION) >> 8,
+        ==, 0x070002);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 0, PCI_DEVFN(1, 2), PCI_SUBSYSTEM_VENDOR_ID),
+        ==, 0x1301103c);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 0, PCI_DEVFN(1, 2), PCI_BASE_ADDRESS_1), ==,
+        0x88033004);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 0, PCI_DEVFN(1, 2), PCI_BASE_ADDRESS_2), ==,
+        0);
 
-    rx2660_assert_pci_device(qts, 0, PCI_DEVFN(3, 0),
-                             RX2660_ATI_ES1000_ID,
-                             PCI_COMMAND_IO | PCI_COMMAND_MEMORY |
-                             PCI_COMMAND_MASTER, 20, 1);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 0, PCI_DEVFN(3, 0), PCI_BASE_ADDRESS_0), ==,
-                    0x80000008);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 0, PCI_DEVFN(3, 0), PCI_BASE_ADDRESS_1), ==,
-                    0x00001001);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 0, PCI_DEVFN(3, 0), PCI_BASE_ADDRESS_2), ==,
-                    0x88020000);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 0, PCI_DEVFN(3, 0), PCI_ROM_ADDRESS), ==,
-                    0x88000000);
-    g_assert_cmphex(rx2660_config_readb(qts, 0, PCI_DEVFN(3, 0),
-                                        PCI_REVISION_ID), ==, 0x02);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 0, PCI_DEVFN(3, 0), PCI_SUBSYSTEM_VENDOR_ID),
-                    ==, 0x1304103c);
+    rx2660_assert_pci_device(
+        qts, 0, PCI_DEVFN(3, 0), RX2660_ATI_ES1000_ID,
+        PCI_COMMAND_IO | PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER, 20, 1);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 0, PCI_DEVFN(3, 0), PCI_BASE_ADDRESS_0), ==,
+        0x80000008);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 0, PCI_DEVFN(3, 0), PCI_BASE_ADDRESS_1), ==,
+        0x00001001);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 0, PCI_DEVFN(3, 0), PCI_BASE_ADDRESS_2), ==,
+        0x88020000);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 0, PCI_DEVFN(3, 0), PCI_ROM_ADDRESS), ==,
+        0x88000000);
+    g_assert_cmphex(
+        rx2660_config_readb(qts, 0, PCI_DEVFN(3, 0), PCI_REVISION_ID), ==,
+        0x02);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 0, PCI_DEVFN(3, 0), PCI_SUBSYSTEM_VENDOR_ID),
+        ==, 0x1304103c);
 
-    rx2660_assert_pci_device(qts, 0, PCI_DEVFN(2, 0),
-                             RX2660_NEC_OHCI_ID,
-                             PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER,
-                             17, 1);
-    rx2660_assert_pci_device(qts, 0, PCI_DEVFN(2, 1),
-                             RX2660_NEC_OHCI_ID,
-                             PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER,
-                             18, 2);
-    rx2660_assert_pci_device(qts, 0, PCI_DEVFN(2, 2),
-                             RX2660_NEC_EHCI_ID,
-                             PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER,
-                             19, 3);
-    g_assert_cmphex(rx2660_config_readb(qts, 0, PCI_DEVFN(2, 0),
-                                        PCI_REVISION_ID), ==, 0x41);
-    g_assert_cmphex(rx2660_config_readb(qts, 0, PCI_DEVFN(2, 1),
-                                        PCI_REVISION_ID), ==, 0x41);
-    g_assert_cmphex(rx2660_config_readb(qts, 0, PCI_DEVFN(2, 2),
-                                        PCI_REVISION_ID), ==, 0x02);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 0, PCI_DEVFN(2, 0), PCI_BASE_ADDRESS_0), ==,
-                    0x88032000);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 0, PCI_DEVFN(2, 1), PCI_BASE_ADDRESS_0), ==,
-                    0x88031000);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 0, PCI_DEVFN(2, 2), PCI_BASE_ADDRESS_0), ==,
-                    0x88030000);
-    g_assert_cmpuint(qtest_readl(qts, RX2660_OHCI0_MMIO +
-                                     OHCI_RH_DESCRIPTOR_A) & 0xff,
-                     ==, 3);
-    g_assert_cmpuint(qtest_readl(qts, RX2660_OHCI1_MMIO +
-                                     OHCI_RH_DESCRIPTOR_A) & 0xff,
-                     ==, 2);
-    g_assert_cmpuint(qtest_readb(qts, RX2660_EHCI_MMIO +
-                                     EHCI_HCS_PARAMS) & 0xf,
+    rx2660_assert_pci_device(qts, 0, PCI_DEVFN(2, 0), RX2660_NEC_OHCI_ID,
+                             PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER, 17, 1);
+    rx2660_assert_pci_device(qts, 0, PCI_DEVFN(2, 1), RX2660_NEC_OHCI_ID,
+                             PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER, 18, 2);
+    rx2660_assert_pci_device(qts, 0, PCI_DEVFN(2, 2), RX2660_NEC_EHCI_ID,
+                             PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER, 19, 3);
+    g_assert_cmphex(
+        rx2660_config_readb(qts, 0, PCI_DEVFN(2, 0), PCI_REVISION_ID), ==,
+        0x41);
+    g_assert_cmphex(
+        rx2660_config_readb(qts, 0, PCI_DEVFN(2, 1), PCI_REVISION_ID), ==,
+        0x41);
+    g_assert_cmphex(
+        rx2660_config_readb(qts, 0, PCI_DEVFN(2, 2), PCI_REVISION_ID), ==,
+        0x02);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 0, PCI_DEVFN(2, 0), PCI_BASE_ADDRESS_0), ==,
+        0x88032000);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 0, PCI_DEVFN(2, 1), PCI_BASE_ADDRESS_0), ==,
+        0x88031000);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 0, PCI_DEVFN(2, 2), PCI_BASE_ADDRESS_0), ==,
+        0x88030000);
+    g_assert_cmpuint(
+        qtest_readl(qts, RX2660_OHCI0_MMIO + OHCI_RH_DESCRIPTOR_A) & 0xff, ==,
+        3);
+    g_assert_cmpuint(
+        qtest_readl(qts, RX2660_OHCI1_MMIO + OHCI_RH_DESCRIPTOR_A) & 0xff, ==,
+        2);
+    g_assert_cmpuint(qtest_readb(qts, RX2660_EHCI_MMIO + EHCI_HCS_PARAMS) & 0xf,
                      ==, 5);
 
-    rx2660_assert_pci_device(qts, 1, PCI_DEVFN(1, 0),
-                             RX2660_LSI_SAS1068_ID,
-                             PCI_COMMAND_IO | PCI_COMMAND_MEMORY |
-                             PCI_COMMAND_MASTER, 27, 1);
-    g_assert_cmphex(rx2660_config_readb(qts, 1, PCI_DEVFN(1, 0),
-                                        PCI_REVISION_ID), ==, 0x01);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 1, PCI_DEVFN(1, 0), PCI_SUBSYSTEM_VENDOR_ID),
-                    ==, 0x1312103c);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 1, PCI_DEVFN(1, 0), PCI_BASE_ADDRESS_0), ==,
-                    0x00001001);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 1, PCI_DEVFN(1, 0), PCI_BASE_ADDRESS_1), ==,
-                    0xa0470004);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 1, PCI_DEVFN(1, 0), PCI_BASE_ADDRESS_2), ==,
-                    0);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 1, PCI_DEVFN(1, 0), PCI_BASE_ADDRESS_3), ==,
-                    0xa0460004);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 1, PCI_DEVFN(1, 0), PCI_BASE_ADDRESS_4), ==,
-                    0);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 1, PCI_DEVFN(1, 0), PCI_ROM_ADDRESS), ==,
-                    0xa0000000);
+    rx2660_assert_pci_device(
+        qts, 1, PCI_DEVFN(1, 0), RX2660_LSI_SAS1068_ID,
+        PCI_COMMAND_IO | PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER, 27, 1);
+    g_assert_cmphex(
+        rx2660_config_readb(qts, 1, PCI_DEVFN(1, 0), PCI_REVISION_ID), ==,
+        0x01);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 1, PCI_DEVFN(1, 0), PCI_SUBSYSTEM_VENDOR_ID),
+        ==, 0x1312103c);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 1, PCI_DEVFN(1, 0), PCI_BASE_ADDRESS_0), ==,
+        0x00001001);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 1, PCI_DEVFN(1, 0), PCI_BASE_ADDRESS_1), ==,
+        0xa0470004);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 1, PCI_DEVFN(1, 0), PCI_BASE_ADDRESS_2), ==,
+        0);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 1, PCI_DEVFN(1, 0), PCI_BASE_ADDRESS_3), ==,
+        0xa0460004);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 1, PCI_DEVFN(1, 0), PCI_BASE_ADDRESS_4), ==,
+        0);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 1, PCI_DEVFN(1, 0), PCI_ROM_ADDRESS), ==,
+        0xa0000000);
 
-    rx2660_assert_pci_device(qts, 1, PCI_DEVFN(2, 0),
-                             RX2660_BCM5704_ID,
-                             PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER,
-                             29, 1);
-    rx2660_assert_pci_device(qts, 1, PCI_DEVFN(2, 1),
-                             RX2660_BCM5704_ID,
-                             PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER,
-                             30, 2);
-    g_assert_cmphex(rx2660_config_readb(qts, 1, PCI_DEVFN(2, 0),
-                                        PCI_REVISION_ID), ==, 0x10);
-    g_assert_cmphex(rx2660_config_readb(qts, 1, PCI_DEVFN(2, 1),
-                                        PCI_REVISION_ID), ==, 0x10);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 1, PCI_DEVFN(2, 0), PCI_SUBSYSTEM_VENDOR_ID),
-                    ==, 0x1311103c);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 1, PCI_DEVFN(2, 1), PCI_SUBSYSTEM_VENDOR_ID),
-                    ==, 0x1311103c);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 1, PCI_DEVFN(2, 0), PCI_BASE_ADDRESS_0), ==,
-                    0xa0450004);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 1, PCI_DEVFN(2, 0), PCI_BASE_ADDRESS_1), ==, 0);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 1, PCI_DEVFN(2, 1), PCI_BASE_ADDRESS_0), ==,
-                    0xa0440004);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 1, PCI_DEVFN(2, 1), PCI_BASE_ADDRESS_1), ==, 0);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 1, PCI_DEVFN(2, 0), PCI_ROM_ADDRESS), ==,
-                    0xa0420000);
-    g_assert_cmphex(rx2660_config_readl(
-                        qts, 1, PCI_DEVFN(2, 1), PCI_ROM_ADDRESS), ==,
-                    0xa0400000);
+    rx2660_assert_pci_device(qts, 1, PCI_DEVFN(2, 0), RX2660_BCM5704_ID,
+                             PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER, 29, 1);
+    rx2660_assert_pci_device(qts, 1, PCI_DEVFN(2, 1), RX2660_BCM5704_ID,
+                             PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER, 30, 2);
+    g_assert_cmphex(
+        rx2660_config_readb(qts, 1, PCI_DEVFN(2, 0), PCI_REVISION_ID), ==,
+        0x10);
+    g_assert_cmphex(
+        rx2660_config_readb(qts, 1, PCI_DEVFN(2, 1), PCI_REVISION_ID), ==,
+        0x10);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 1, PCI_DEVFN(2, 0), PCI_SUBSYSTEM_VENDOR_ID),
+        ==, 0x1311103c);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 1, PCI_DEVFN(2, 1), PCI_SUBSYSTEM_VENDOR_ID),
+        ==, 0x1311103c);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 1, PCI_DEVFN(2, 0), PCI_BASE_ADDRESS_0), ==,
+        0xa0450004);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 1, PCI_DEVFN(2, 0), PCI_BASE_ADDRESS_1), ==,
+        0);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 1, PCI_DEVFN(2, 1), PCI_BASE_ADDRESS_0), ==,
+        0xa0440004);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 1, PCI_DEVFN(2, 1), PCI_BASE_ADDRESS_1), ==,
+        0);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 1, PCI_DEVFN(2, 0), PCI_ROM_ADDRESS), ==,
+        0xa0420000);
+    g_assert_cmphex(
+        rx2660_config_readl(qts, 1, PCI_DEVFN(2, 1), PCI_ROM_ADDRESS), ==,
+        0xa0400000);
 }
 
 static void rx2660_assert_ohci_port_resume(QTestState *qts)
@@ -753,8 +729,7 @@ static void rx2660_assert_ohci_port_resume(QTestState *qts)
     status = qtest_readl(qts, port);
     g_assert_cmphex(status & OHCI_PORT_PSS, ==, OHCI_PORT_PSS);
     g_assert_cmphex(status & OHCI_PORT_PSSC, ==, 0);
-    qtest_clock_step(qts,
-                     OHCI_RESUME_EOP_NS + OHCI_RESUME_RECOVERY_NS - 1);
+    qtest_clock_step(qts, OHCI_RESUME_EOP_NS + OHCI_RESUME_RECOVERY_NS - 1);
     status = qtest_readl(qts, port);
     g_assert_cmphex(status & OHCI_PORT_PSS, ==, OHCI_PORT_PSS);
     g_assert_cmphex(status & OHCI_PORT_PSSC, ==, 0);
@@ -770,28 +745,25 @@ static void rx2660_assert_ohci_port_resume(QTestState *qts)
 
     /* Global resume clears PSS without setting PSSC. */
     qtest_writel(qts, port, OHCI_PORT_PSS);
-    qtest_writel(qts, RX2660_OHCI0_MMIO + OHCI_INTR_STATUS,
-                 OHCI_INTR_RHSC);
-    qtest_writel(qts, RX2660_OHCI0_MMIO + OHCI_CONTROL,
-                 OHCI_USB_SUSPEND);
+    qtest_writel(qts, RX2660_OHCI0_MMIO + OHCI_INTR_STATUS, OHCI_INTR_RHSC);
+    qtest_writel(qts, RX2660_OHCI0_MMIO + OHCI_CONTROL, OHCI_USB_SUSPEND);
     qtest_writel(qts, port, OHCI_PORT_POCI);
-    qtest_writel(qts, RX2660_OHCI0_MMIO + OHCI_CONTROL,
-                 OHCI_USB_RESUME);
+    qtest_writel(qts, RX2660_OHCI0_MMIO + OHCI_CONTROL, OHCI_USB_RESUME);
     status = qtest_readl(qts, port);
     g_assert_cmphex(status & OHCI_PORT_PES, ==, OHCI_PORT_PES);
     g_assert_cmphex(status & OHCI_PORT_PSS, ==, 0);
     g_assert_cmphex(status & OHCI_PORT_PSSC, ==, 0);
     g_assert_cmphex(qtest_readl(qts, RX2660_OHCI0_MMIO + OHCI_INTR_STATUS) &
-                    OHCI_INTR_RHSC, ==, 0);
+                        OHCI_INTR_RHSC,
+                    ==, 0);
     qtest_clock_step(qts, OHCI_RESUME_SIGNAL_NS + OHCI_RESUME_EOP_NS +
-                     OHCI_RESUME_RECOVERY_NS);
+                              OHCI_RESUME_RECOVERY_NS);
     g_assert_cmphex(qtest_readl(qts, port) & OHCI_PORT_PSSC, ==, 0);
 
     /* Port reset clears PSS and PSSC. */
     qtest_writel(qts, port, OHCI_PORT_PSSC);
     qtest_writel(qts, port, OHCI_PORT_PSS);
-    qtest_writel(qts, RX2660_OHCI0_MMIO + OHCI_INTR_STATUS,
-                 OHCI_INTR_RHSC);
+    qtest_writel(qts, RX2660_OHCI0_MMIO + OHCI_INTR_STATUS, OHCI_INTR_RHSC);
     qtest_writel(qts, port, OHCI_PORT_POCI);
     qtest_writel(qts, port, OHCI_PORT_PRS);
     status = qtest_readl(qts, port);
@@ -800,26 +772,35 @@ static void rx2660_assert_ohci_port_resume(QTestState *qts)
     g_assert_cmphex(status & OHCI_PORT_PSSC, ==, 0);
     g_assert_cmphex(status & OHCI_PORT_PRSC, ==, OHCI_PORT_PRSC);
     g_assert_cmphex(qtest_readl(qts, RX2660_OHCI0_MMIO + OHCI_INTR_STATUS) &
-                    OHCI_INTR_RHSC, ==, OHCI_INTR_RHSC);
+                        OHCI_INTR_RHSC,
+                    ==, OHCI_INTR_RHSC);
     qtest_clock_step(qts, OHCI_RESUME_SIGNAL_NS + OHCI_RESUME_EOP_NS +
-                     OHCI_RESUME_RECOVERY_NS);
+                              OHCI_RESUME_RECOVERY_NS);
     g_assert_cmphex(qtest_readl(qts, port) & OHCI_PORT_PSSC, ==, 0);
 }
 
 static void rx2660_assert_start_fails(const char *cpu, const char *smp,
-                                     const char *message)
+                                      const char *message)
 {
     const char *argv[] = {
         qtest_qemu_binary(NULL),
-        "-machine", "hp-rx2660,nvram=none,firmware=none",
-        "-cpu", cpu,
-        "-m", "1G",
-        "-smp", smp,
+        "-machine",
+        "hp-rx2660,nvram=none,firmware=none",
+        "-cpu",
+        cpu,
+        "-m",
+        "1G",
+        "-smp",
+        smp,
         "-S",
-        "-display", "none",
-        "-serial", "none",
-        "-monitor", "none",
-        "-net", "none",
+        "-display",
+        "none",
+        "-serial",
+        "none",
+        "-monitor",
+        "none",
+        "-net",
+        "none",
         NULL,
     };
     g_autofree char *stderr_text = NULL;
@@ -827,9 +808,8 @@ static void rx2660_assert_start_fails(const char *cpu, const char *smp,
     int wait_status;
 
     g_assert_true(g_spawn_sync(NULL, (char **)argv, NULL,
-                               G_SPAWN_STDOUT_TO_DEV_NULL,
-                               NULL, NULL, NULL, &stderr_text,
-                               &wait_status, &error));
+                               G_SPAWN_STDOUT_TO_DEV_NULL, NULL, NULL, NULL,
+                               &stderr_text, &wait_status, &error));
     g_assert_no_error(error);
     g_assert_true(WIFEXITED(wait_status));
     g_assert_cmpint(WEXITSTATUS(wait_status), ==, 1);
@@ -851,16 +831,16 @@ static void test_hp_rx2660_cpu_topology(void)
     };
     unsigned int index;
 
-    rx2660_assert_start_fails(
-        "montecito-9010", "2,sockets=1,cores=1,threads=2,maxcpus=2",
-        "one to 1 threads per core");
+    rx2660_assert_start_fails("montecito-9010",
+                              "2,sockets=1,cores=1,threads=2,maxcpus=2",
+                              "one to 1 threads per core");
 
     for (index = 0; index < G_N_ELEMENTS(valid); index++) {
-        QTestState *qts = qtest_initf(
-            "-machine hp-rx2660,nvram=none,firmware=none "
-            "-cpu %s -m 1G -smp %s -S "
-            "-display none -serial none -monitor none -net none",
-            valid[index].cpu, valid[index].smp);
+        QTestState *qts =
+            qtest_initf("-machine hp-rx2660,nvram=none,firmware=none "
+                        "-cpu %s -m 1G -smp %s -S "
+                        "-display none -serial none -monitor none -net none",
+                        valid[index].cpu, valid[index].smp);
 
         qtest_quit(qts);
     }
@@ -868,10 +848,10 @@ static void test_hp_rx2660_cpu_topology(void)
 
 static void test_hp_rx2660_smoke_and_pci(void)
 {
-    QTestState *qts = qtest_init(
-        "-machine hp-rx2660,nvram=none,firmware=none "
-        "-m 4G -smp 2,sockets=2,cores=1,threads=1 -S "
-        "-display none -serial none -monitor none -net none");
+    QTestState *qts =
+        qtest_init("-machine hp-rx2660,nvram=none,firmware=none "
+                   "-m 4G -smp 2,sockets=2,cores=1,threads=1 -S "
+                   "-display none -serial none -monitor none -net none");
 
     rx2660_assert_machine_identity(qts);
     rx2660_assert_descriptor(qts);
@@ -886,40 +866,36 @@ static void test_hp_zx_pcie_profile(void)
     const IA64PlatformPciRoot *root;
     const IA64PlatformIoSapic *sapic;
     uint64_t root_port_config = ZX_PCIE_TEST_ECAM_BASE +
-        ((uint64_t)ZX_PCIE_TEST_FIRST_BUS << 20) +
-        ((uint64_t)PCI_DEVFN(1, 0) << 12);
-    uint64_t probe_config = ZX_PCIE_TEST_ECAM_BASE +
-        (UINT64_C(0x21) << 20) + ((uint64_t)PCI_DEVFN(1, 0) << 12);
-    uint64_t endpoint_config = ZX_PCIE_TEST_ECAM_BASE +
-        (UINT64_C(0x21) << 20);
+                                ((uint64_t)ZX_PCIE_TEST_FIRST_BUS << 20) +
+                                ((uint64_t)PCI_DEVFN(1, 0) << 12);
+    uint64_t probe_config = ZX_PCIE_TEST_ECAM_BASE + (UINT64_C(0x21) << 20) +
+                            ((uint64_t)PCI_DEVFN(1, 0) << 12);
+    uint64_t endpoint_config = ZX_PCIE_TEST_ECAM_BASE + (UINT64_C(0x21) << 20);
     uint32_t total_size;
     unsigned int group;
     bool rope_attached = false;
     uint8_t pcie_cap;
     uint16_t slot_control;
-    QTestState *qts = qtest_init(
-        "-machine hp-zx-pcie-test,nvram=none,firmware=none "
-        "-m 1G -smp 1 -S -nodefaults -display none -serial none "
-        "-monitor none "
-        "-device pcie-root-port,id=rp,bus=pci.0000.20,"
-        "chassis=1,slot=1,addr=1 "
-        "-device iommu-testdev,id=probe,bus=rp,addr=1 "
-        "-device edu,id=irq-source,bus=rp,addr=0");
+    QTestState *qts =
+        qtest_init("-machine hp-zx-pcie-test,nvram=none,firmware=none "
+                   "-m 1G -smp 1 -S -nodefaults -display none -serial none "
+                   "-monitor none "
+                   "-device pcie-root-port,id=rp,bus=pci.0000.20,"
+                   "chassis=1,slot=1,addr=1 "
+                   "-device iommu-testdev,id=probe,bus=rp,addr=1 "
+                   "-device edu,id=irq-source,bus=rp,addr=0");
 
     g_assert_true(rx2660_qom_has_child(qts, "pcie0", "ia64-pciehost"));
-    g_assert_true(rx2660_qom_has_child(
-        qts, "pcie-iosapic0", "ia64-iosapic"));
-    g_assert_true(qtest_qom_get_bool(
-        qts, "/machine/pcie0", "iommu-attached"));
-    g_assert_true(qtest_qom_get_bool(
-        qts, "/machine/pcie0", "iommu-per-bus"));
+    g_assert_true(rx2660_qom_has_child(qts, "pcie-iosapic0", "ia64-iosapic"));
+    g_assert_true(qtest_qom_get_bool(qts, "/machine/pcie0", "iommu-attached"));
+    g_assert_true(qtest_qom_get_bool(qts, "/machine/pcie0", "iommu-per-bus"));
     g_assert_cmphex(qtest_readl(qts, root_port_config + PCI_VENDOR_ID), ==,
                     UINT32_C(0x000c1b36));
-    pcie_cap = zx_pcie_test_find_capability(
-        qts, root_port_config, PCI_CAP_ID_EXP);
+    pcie_cap =
+        zx_pcie_test_find_capability(qts, root_port_config, PCI_CAP_ID_EXP);
     g_assert_cmphex(pcie_cap, !=, 0);
-    slot_control = qtest_readw(
-        qts, root_port_config + pcie_cap + PCI_EXP_SLTCTL);
+    slot_control =
+        qtest_readw(qts, root_port_config + pcie_cap + PCI_EXP_SLTCTL);
     slot_control &= ~(PCI_EXP_SLTCTL_PCC | PCI_EXP_SLTCTL_PIC);
     slot_control |= PCI_EXP_SLTCTL_PWR_IND_ON;
     qtest_writew(qts, root_port_config + pcie_cap + PCI_EXP_SLTCTL,
@@ -931,45 +907,43 @@ static void test_hp_zx_pcie_profile(void)
     g_assert_cmpuint(total_size, >=, sizeof(*descriptor));
     g_assert_cmpuint(total_size, <=, sizeof(storage.bytes));
     qtest_memread(qts, ZX_PCIE_TEST_DESCRIPTOR_GPA, storage.bytes, total_size);
-    g_assert_cmphex(le32_to_cpu(descriptor->Flags), ==,
-                    IA64_PLATFORM_FLAG_QEMU_EXTENSION |
-                    IA64_PLATFORM_FLAG_FAMILY_HP_ZX |
-                    IA64_PLATFORM_FLAG_PCI_ECAM |
-                    IA64_PLATFORM_FLAG_SPARSE_IO |
-                    IA64_PLATFORM_FLAG_ACPI_PM);
+    g_assert_cmphex(
+        le32_to_cpu(descriptor->Flags), ==,
+        IA64_PLATFORM_FLAG_QEMU_EXTENSION | IA64_PLATFORM_FLAG_FAMILY_HP_ZX |
+            IA64_PLATFORM_FLAG_PCI_ECAM | IA64_PLATFORM_FLAG_SPARSE_IO |
+            IA64_PLATFORM_FLAG_ACPI_PM);
     g_assert_cmpuint(le32_to_cpu(descriptor->PciRootCount), ==, 1);
     g_assert_cmpuint(le32_to_cpu(descriptor->IoSapicCount), ==, 1);
-    root = (const IA64PlatformPciRoot *)(
-        storage.bytes + le32_to_cpu(descriptor->PciRootOffset));
-    sapic = (const IA64PlatformIoSapic *)(
-        storage.bytes + le32_to_cpu(descriptor->IoSapicOffset));
+    root =
+        (const IA64PlatformPciRoot *)(storage.bytes +
+                                      le32_to_cpu(descriptor->PciRootOffset));
+    sapic =
+        (const IA64PlatformIoSapic *)(storage.bytes +
+                                      le32_to_cpu(descriptor->IoSapicOffset));
     g_assert_cmpuint(root->ConfigType, ==, IA64_PLATFORM_PCI_CONFIG_ECAM);
     g_assert_cmpuint(root->Bus, ==, ZX_PCIE_TEST_FIRST_BUS);
     g_assert_cmpuint(root->BusEnd, ==, ZX_PCIE_TEST_LAST_BUS);
-    g_assert_cmphex(le64_to_cpu(root->ConfigBase), ==,
-                    ZX_PCIE_TEST_ECAM_BASE);
-    g_assert_cmphex(le64_to_cpu(sapic->Base), ==,
-                    ZX_PCIE_TEST_SAPIC_BASE);
-    g_assert_cmphex(le32_to_cpu(sapic->Version), ==,
-                    IA64_IOSAPIC_VERSION);
+    g_assert_cmphex(le64_to_cpu(root->ConfigBase), ==, ZX_PCIE_TEST_ECAM_BASE);
+    g_assert_cmphex(le64_to_cpu(sapic->Base), ==, ZX_PCIE_TEST_SAPIC_BASE);
+    g_assert_cmphex(le32_to_cpu(sapic->Version), ==, IA64_IOSAPIC_VERSION);
     qtest_writel(qts, ZX_PCIE_TEST_SAPIC_BASE, 1);
     g_assert_cmphex(qtest_readl(qts, ZX_PCIE_TEST_SAPIC_BASE + 0x10), ==,
                     IA64_IOSAPIC_VERSION);
 
     for (group = 0; group < HP_ZX2_MIO_GROUP_COUNT; group++) {
-        uint64_t ropes = qtest_readq(
-            qts, HP_ZX6000_MIO_BASE + HP_ZX2_MIO_GROUP_ROPES(group));
+        uint64_t ropes = qtest_readq(qts, HP_ZX6000_MIO_BASE +
+                                              HP_ZX2_MIO_GROUP_ROPES(group));
 
         if (ropes & 1) {
-            g_assert_cmphex(qtest_readq(
-                qts, HP_ZX6000_MIO_BASE +
-                     HP_ZX2_MIO_GROUP_CONTROL(group)) &
-                            HP_ZX2_MIO_GROUP_ENABLE,
-                            ==, HP_ZX2_MIO_GROUP_ENABLE);
+            g_assert_cmphex(
+                qtest_readq(qts, HP_ZX6000_MIO_BASE +
+                                     HP_ZX2_MIO_GROUP_CONTROL(group)) &
+                    HP_ZX2_MIO_GROUP_ENABLE,
+                ==, HP_ZX2_MIO_GROUP_ENABLE);
             rope_attached = true;
 
-            qtest_writeq(qts, HP_ZX6000_MIO_BASE +
-                         HP_ZX2_MIO_GROUP_CONTROL(group),
+            qtest_writeq(qts,
+                         HP_ZX6000_MIO_BASE + HP_ZX2_MIO_GROUP_CONTROL(group),
                          HP_ZX2_MIO_GROUP_ENABLE);
         }
     }
@@ -986,8 +960,7 @@ static void test_hp_zx_pcie_profile(void)
     qtest_writew(qts, root_port_config + PCI_COMMAND,
                  PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
     g_assert_cmphex(qtest_readl(qts, probe_config + PCI_VENDOR_ID), ==,
-                    IOMMU_TESTDEV_DEVICE_ID << 16 |
-                    IOMMU_TESTDEV_VENDOR_ID);
+                    IOMMU_TESTDEV_DEVICE_ID << 16 | IOMMU_TESTDEV_VENDOR_ID);
     qtest_writel(qts, probe_config + PCI_BASE_ADDRESS_0,
                  ZX_PCIE_TEST_PROBE_MMIO);
     qtest_writew(qts, probe_config + PCI_COMMAND,
@@ -1001,13 +974,10 @@ static void test_hp_zx_pcie_profile(void)
     qtest_writew(qts, endpoint_config + PCI_COMMAND,
                  PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
     qtest_writel(qts, ZX_PCIE_TEST_SAPIC_BASE, 0x12);
-    qtest_writel(qts, ZX_PCIE_TEST_SAPIC_BASE + 0x10,
-                 ZX_PCIE_TEST_IRQ_VECTOR);
-    g_assert_false(rx2660_sapic_irr_has_vector(
-        qts, ZX_PCIE_TEST_IRQ_VECTOR));
+    qtest_writel(qts, ZX_PCIE_TEST_SAPIC_BASE + 0x10, ZX_PCIE_TEST_IRQ_VECTOR);
+    g_assert_false(rx2660_sapic_irr_has_vector(qts, ZX_PCIE_TEST_IRQ_VECTOR));
     qtest_writel(qts, ZX_PCIE_TEST_IRQ_MMIO + 0x60, 1);
-    g_assert_true(rx2660_sapic_irr_has_vector(
-        qts, ZX_PCIE_TEST_IRQ_VECTOR));
+    g_assert_true(rx2660_sapic_irr_has_vector(qts, ZX_PCIE_TEST_IRQ_VECTOR));
     qtest_writel(qts, ZX_PCIE_TEST_IRQ_MMIO + 0x64, 1);
     qtest_quit(qts);
 }
@@ -1025,76 +995,70 @@ static void test_hp_rx2660_zx2_iommu_fault(void)
     QTestState *qts = rx2660_zx2_test_start(NULL);
 
     rx2660_zx2_configure_probe(qts);
-    rx2660_zx2_write_pte(qts, RX2660_ZX2_PDIR1, 0,
-                         RX2660_ZX2_TARGET1, true);
-    rx2660_zx2_write_pte(qts, RX2660_ZX2_PDIR2, 0,
-                         RX2660_ZX2_TARGET2, true);
-    rx2660_zx2_write_pte(qts, RX2660_ZX2_PDIR2, 1,
-                         RX2660_ZX2_TARGET3, false);
+    rx2660_zx2_write_pte(qts, RX2660_ZX2_PDIR1, 0, RX2660_ZX2_TARGET1, true);
+    rx2660_zx2_write_pte(qts, RX2660_ZX2_PDIR2, 0, RX2660_ZX2_TARGET2, true);
+    rx2660_zx2_write_pte(qts, RX2660_ZX2_PDIR2, 1, RX2660_ZX2_TARGET3, false);
     rx2660_zx2_configure_context(qts, 0, RX2660_ZX2_PDIR1);
     rx2660_zx2_configure_context(qts, 2, RX2660_ZX2_PDIR2);
 
-    g_assert_cmphex(qtest_readq(qts, HP_ZX6000_MIO_BASE +
-                                HP_ZX2_MIO_GROUP_ROPES(1)), ==, 0x0c0c);
+    g_assert_cmphex(
+        qtest_readq(qts, HP_ZX6000_MIO_BASE + HP_ZX2_MIO_GROUP_ROPES(1)), ==,
+        0x0c0c);
     for (group = 0; group < HP_ZX2_MIO_GROUP_COUNT; group++) {
         uint64_t ropes = qtest_readq(qts, HP_ZX6000_MIO_BASE +
-                                     HP_ZX2_MIO_GROUP_ROPES(group));
+                                              HP_ZX2_MIO_GROUP_ROPES(group));
 
         g_assert_cmphex(ropes & ~HP_ZX2_MIO_ROPE_MASK, ==, 0);
         g_assert_cmphex(ropes & assigned_ropes, ==, 0);
         assigned_ropes |= ropes;
     }
     g_assert_cmphex(assigned_ropes, ==, HP_ZX2_MIO_ROPE_MASK);
-    g_assert_cmphex(qtest_readq(qts, HP_ZX6000_MIO_BASE +
-                                HP_ZX2_MIO_GROUP_CONTROL(1)), ==,
-                    HP_ZX2_MIO_GROUP_ENABLE);
+    g_assert_cmphex(
+        qtest_readq(qts, HP_ZX6000_MIO_BASE + HP_ZX2_MIO_GROUP_CONTROL(1)), ==,
+        HP_ZX2_MIO_GROUP_ENABLE);
     rx2660_zx2_expect_dma_success(qts, iova0, RX2660_ZX2_TARGET1);
 
-    qtest_writeq(qts, HP_ZX6000_MIO_BASE +
-                 HP_ZX2_MIO_GROUP_CONTROL(1),
+    qtest_writeq(qts, HP_ZX6000_MIO_BASE + HP_ZX2_MIO_GROUP_CONTROL(1),
                  HP_ZX2_MIO_GROUP_ENABLE |
-                 (UINT64_C(2) << HP_ZX2_MIO_GROUP_CONTEXT_SHIFT));
+                     (UINT64_C(2) << HP_ZX2_MIO_GROUP_CONTEXT_SHIFT));
     rx2660_zx2_expect_dma_success(qts, iova0, RX2660_ZX2_TARGET2);
 
     qtest_writeq(qts, HP_ZX6000_MIO_BASE + HP_ZX1_MIO_ERROR_CONFIG,
                  HP_ZX1_MIO_ERROR_CONFIG_NOTIFY);
     qtest_writeq(qts, HP_ZX6000_MIO_BASE + HP_ZX2_MIO_ERROR_INTERRUPT,
                  HP_ZX2_MIO_ERROR_INTERRUPT_ENABLE |
-                 ((uint64_t)RX2660_ZX2_ERROR_VECTOR << 8));
-    g_assert_false(rx2660_sapic_irr_has_vector(qts,
-                                               RX2660_ZX2_ERROR_VECTOR));
-    g_assert_cmpuint(qtest_readq(qts, ras_bank +
-                                IA64_RAS_RECORD_REG_LENGTH), ==, 0);
+                     ((uint64_t)RX2660_ZX2_ERROR_VECTOR << 8));
+    g_assert_false(rx2660_sapic_irr_has_vector(qts, RX2660_ZX2_ERROR_VECTOR));
+    g_assert_cmpuint(qtest_readq(qts, ras_bank + IA64_RAS_RECORD_REG_LENGTH),
+                     ==, 0);
 
     qtest_writel(qts, RX2660_ZX2_TARGET3, UINT32_C(0xa5a5a5a5));
-    g_assert_cmphex(rx2660_zx2_dma_trigger(qts, iova1,
-                                          RX2660_ZX2_TARGET3), ==,
+    g_assert_cmphex(rx2660_zx2_dma_trigger(qts, iova1, RX2660_ZX2_TARGET3), ==,
                     ITD_DMA_ERR_TX_FAIL);
-    g_assert_cmphex(qtest_readl(qts, RX2660_ZX2_TEST_MMIO +
-                               ITD_REG_DMA_MEMTX_RESULT), ==,
-                    MEMTX_DECODE_ERROR);
+    g_assert_cmphex(
+        qtest_readl(qts, RX2660_ZX2_TEST_MMIO + ITD_REG_DMA_MEMTX_RESULT), ==,
+        MEMTX_DECODE_ERROR);
     g_assert_cmphex(qtest_readl(qts, RX2660_ZX2_TARGET3), ==,
                     UINT32_C(0xa5a5a5a5));
 
-    g_assert_cmphex(qtest_readq(qts, HP_ZX6000_MIO_BASE +
-                                HP_ZX2_MIO_ERROR_STATUS), ==,
-                    HP_ZX1_MIO_ERROR_VALID | HP_ZX1_MIO_ERROR_IOMMU);
-    g_assert_cmphex(qtest_readq(qts, HP_ZX6000_MIO_BASE +
-                                HP_ZX2_MIO_ERROR_ADDRESS), ==, iova1);
-    g_assert_cmphex(qtest_readq(qts, HP_ZX6000_MIO_BASE +
-                                HP_ZX2_MIO_ERROR_INFORMATION), ==,
-                    fault_information);
-    g_assert_cmphex(qtest_readq(qts, HP_ZX6000_MIO_BASE +
-                                HP_ZX1_MIO_ERROR_STATUS), ==,
-                    HP_ZX1_MIO_ERROR_VALID | HP_ZX1_MIO_ERROR_IOMMU);
-    g_assert_true(rx2660_sapic_irr_has_vector(qts,
-                                              RX2660_ZX2_ERROR_VECTOR));
-    g_assert_cmphex(qtest_readq(qts, ras_bank +
-                                IA64_RAS_RECORD_REG_STATUS) &
-                    IA64_RAS_RECORD_STATUS_PRESENT, ==,
-                    IA64_RAS_RECORD_STATUS_PRESENT);
-    g_assert_cmpuint(qtest_readq(qts, ras_bank +
-                                IA64_RAS_RECORD_REG_LENGTH), >, 0);
+    g_assert_cmphex(
+        qtest_readq(qts, HP_ZX6000_MIO_BASE + HP_ZX2_MIO_ERROR_STATUS), ==,
+        HP_ZX1_MIO_ERROR_VALID | HP_ZX1_MIO_ERROR_IOMMU);
+    g_assert_cmphex(
+        qtest_readq(qts, HP_ZX6000_MIO_BASE + HP_ZX2_MIO_ERROR_ADDRESS), ==,
+        iova1);
+    g_assert_cmphex(
+        qtest_readq(qts, HP_ZX6000_MIO_BASE + HP_ZX2_MIO_ERROR_INFORMATION), ==,
+        fault_information);
+    g_assert_cmphex(
+        qtest_readq(qts, HP_ZX6000_MIO_BASE + HP_ZX1_MIO_ERROR_STATUS), ==,
+        HP_ZX1_MIO_ERROR_VALID | HP_ZX1_MIO_ERROR_IOMMU);
+    g_assert_true(rx2660_sapic_irr_has_vector(qts, RX2660_ZX2_ERROR_VECTOR));
+    g_assert_cmphex(qtest_readq(qts, ras_bank + IA64_RAS_RECORD_REG_STATUS) &
+                        IA64_RAS_RECORD_STATUS_PRESENT,
+                    ==, IA64_RAS_RECORD_STATUS_PRESENT);
+    g_assert_cmpuint(qtest_readq(qts, ras_bank + IA64_RAS_RECORD_REG_LENGTH), >,
+                     0);
 
     qtest_quit(qts);
 }
@@ -1128,39 +1092,32 @@ static void test_hp_rx2660_zx2_migration(void)
     qts = rx2660_zx2_test_start(args);
 
     rx2660_zx2_configure_probe(qts);
-    rx2660_zx2_write_pte(qts, RX2660_ZX2_PDIR1, 0,
-                         RX2660_ZX2_TARGET1, true);
-    rx2660_zx2_write_pte(qts, RX2660_ZX2_PDIR2, 0,
-                         RX2660_ZX2_TARGET2, true);
-    rx2660_zx2_write_pte(qts, RX2660_ZX2_PDIR2, 1,
-                         RX2660_ZX2_TARGET3, false);
+    rx2660_zx2_write_pte(qts, RX2660_ZX2_PDIR1, 0, RX2660_ZX2_TARGET1, true);
+    rx2660_zx2_write_pte(qts, RX2660_ZX2_PDIR2, 0, RX2660_ZX2_TARGET2, true);
+    rx2660_zx2_write_pte(qts, RX2660_ZX2_PDIR2, 1, RX2660_ZX2_TARGET3, false);
     rx2660_zx2_configure_context(qts, 1, RX2660_ZX2_PDIR1);
     rx2660_zx2_configure_context(qts, 2, RX2660_ZX2_PDIR2);
-    qtest_writeq(qts, HP_ZX6000_MIO_BASE +
-                 HP_ZX2_MIO_GROUP_CONTROL(1),
+    qtest_writeq(qts, HP_ZX6000_MIO_BASE + HP_ZX2_MIO_GROUP_CONTROL(1),
                  HP_ZX2_MIO_GROUP_ENABLE |
-                 (UINT64_C(2) << HP_ZX2_MIO_GROUP_CONTEXT_SHIFT));
+                     (UINT64_C(2) << HP_ZX2_MIO_GROUP_CONTEXT_SHIFT));
     rx2660_zx2_expect_dma_success(qts, iova0, RX2660_ZX2_TARGET2);
 
-    rx2660_zx2_write_pte(qts, RX2660_ZX2_PDIR2, 0,
-                         RX2660_ZX2_TARGET3, true);
+    rx2660_zx2_write_pte(qts, RX2660_ZX2_PDIR2, 0, RX2660_ZX2_TARGET3, true);
     qtest_writeq(qts, HP_ZX6000_MIO_BASE + HP_ZX1_MIO_ERROR_CONFIG,
                  HP_ZX1_MIO_ERROR_CONFIG_NOTIFY);
-    g_assert_cmphex(rx2660_zx2_dma_trigger(qts, iova1,
-                                          RX2660_ZX2_TARGET3), ==,
+    g_assert_cmphex(rx2660_zx2_dma_trigger(qts, iova1, RX2660_ZX2_TARGET3), ==,
                     ITD_DMA_ERR_TX_FAIL);
-    g_assert_cmphex(qtest_readq(qts, HP_ZX6000_MIO_BASE +
-                                HP_ZX2_MIO_ERROR_STATUS), ==,
-                    HP_ZX1_MIO_ERROR_VALID | HP_ZX1_MIO_ERROR_IOMMU);
+    g_assert_cmphex(
+        qtest_readq(qts, HP_ZX6000_MIO_BASE + HP_ZX2_MIO_ERROR_STATUS), ==,
+        HP_ZX1_MIO_ERROR_VALID | HP_ZX1_MIO_ERROR_IOMMU);
 
     response = qtest_hmp(qts, "savevm zx2-test-state");
     g_assert_cmpstr(response, ==, "");
     g_clear_pointer(&response, g_free);
 
-    qtest_writeq(qts, HP_ZX6000_MIO_BASE +
-                 HP_ZX2_MIO_GROUP_CONTROL(1),
+    qtest_writeq(qts, HP_ZX6000_MIO_BASE + HP_ZX2_MIO_GROUP_CONTROL(1),
                  HP_ZX2_MIO_GROUP_ENABLE |
-                 (UINT64_C(1) << HP_ZX2_MIO_GROUP_CONTEXT_SHIFT));
+                     (UINT64_C(1) << HP_ZX2_MIO_GROUP_CONTEXT_SHIFT));
     qtest_writeq(qts, HP_ZX6000_MIO_BASE + HP_ZX2_MIO_ERROR_STATUS,
                  HP_ZX1_MIO_ERROR_STATUS_W1C);
     qtest_writeq(qts, HP_ZX6000_MIO_BASE + HP_ZX1_MIO_ERROR_STATUS,
@@ -1170,35 +1127,33 @@ static void test_hp_rx2660_zx2_migration(void)
                      IA64_RAS_RECORD_CLEAR_VALUE);
     }
     qtest_writeq(qts, HP_ZX6000_MIO_BASE + HP_ZX2_MIO_IOMMU_SELECT, 2);
-    qtest_writeq(qts, RX2660_ZX2_IOMMU_REG(HP_ZX1_IOC_IOMMU_PCOM),
-                 iova0 | 12);
+    qtest_writeq(qts, RX2660_ZX2_IOMMU_REG(HP_ZX1_IOC_IOMMU_PCOM), iova0 | 12);
 
     response = qtest_hmp(qts, "loadvm zx2-test-state");
     g_assert_cmpstr(response, ==, "");
     g_clear_pointer(&response, g_free);
 
-    g_assert_cmphex(qtest_readq(qts, HP_ZX6000_MIO_BASE +
-                                HP_ZX2_MIO_GROUP_CONTROL(1)), ==,
-                    HP_ZX2_MIO_GROUP_ENABLE |
-                    (UINT64_C(2) << HP_ZX2_MIO_GROUP_CONTEXT_SHIFT));
-    g_assert_cmphex(qtest_readq(qts, HP_ZX6000_MIO_BASE +
-                                HP_ZX2_MIO_IOMMU_SELECT), ==, 2);
-    g_assert_cmphex(qtest_readq(qts, HP_ZX6000_MIO_BASE +
-                                HP_ZX2_MIO_ERROR_STATUS), ==,
-                    HP_ZX1_MIO_ERROR_VALID | HP_ZX1_MIO_ERROR_IOMMU);
-    g_assert_cmphex(qtest_readq(qts, HP_ZX6000_MIO_BASE +
-                                HP_ZX1_MIO_ERROR_STATUS), ==,
-                    HP_ZX1_MIO_ERROR_VALID | HP_ZX1_MIO_ERROR_IOMMU);
-    g_assert_cmphex(qtest_readq(qts, ras_bank +
-                                IA64_RAS_RECORD_REG_STATUS) &
-                    IA64_RAS_RECORD_STATUS_PRESENT, ==,
-                    IA64_RAS_RECORD_STATUS_PRESENT);
+    g_assert_cmphex(
+        qtest_readq(qts, HP_ZX6000_MIO_BASE + HP_ZX2_MIO_GROUP_CONTROL(1)), ==,
+        HP_ZX2_MIO_GROUP_ENABLE |
+            (UINT64_C(2) << HP_ZX2_MIO_GROUP_CONTEXT_SHIFT));
+    g_assert_cmphex(
+        qtest_readq(qts, HP_ZX6000_MIO_BASE + HP_ZX2_MIO_IOMMU_SELECT), ==, 2);
+    g_assert_cmphex(
+        qtest_readq(qts, HP_ZX6000_MIO_BASE + HP_ZX2_MIO_ERROR_STATUS), ==,
+        HP_ZX1_MIO_ERROR_VALID | HP_ZX1_MIO_ERROR_IOMMU);
+    g_assert_cmphex(
+        qtest_readq(qts, HP_ZX6000_MIO_BASE + HP_ZX1_MIO_ERROR_STATUS), ==,
+        HP_ZX1_MIO_ERROR_VALID | HP_ZX1_MIO_ERROR_IOMMU);
+    g_assert_cmphex(qtest_readq(qts, ras_bank + IA64_RAS_RECORD_REG_STATUS) &
+                        IA64_RAS_RECORD_STATUS_PRESENT,
+                    ==, IA64_RAS_RECORD_STATUS_PRESENT);
 
     rx2660_zx2_configure_probe(qts);
     qtest_writel(qts, RX2660_ZX2_TARGET2, UINT32_C(0xa5a5a5a5));
     qtest_writel(qts, RX2660_ZX2_TARGET3, UINT32_C(0xa5a5a5a5));
-    g_assert_cmphex(rx2660_zx2_dma_trigger(qts, iova0,
-                                          RX2660_ZX2_TARGET2), ==, 0);
+    g_assert_cmphex(rx2660_zx2_dma_trigger(qts, iova0, RX2660_ZX2_TARGET2), ==,
+                    0);
     g_assert_cmphex(qtest_readl(qts, RX2660_ZX2_TARGET2), ==,
                     ITD_DMA_WRITE_VAL);
     g_assert_cmphex(qtest_readl(qts, RX2660_ZX2_TARGET3), ==,
@@ -1224,29 +1179,28 @@ static void test_hp_rx2660_radeon_clocks(void)
         g_assert_cmphex(qtest_readl(qts, RX2660_ATI_MMIO + CLOCK_CNTL_INDEX),
                         ==, PLL_WR_EN | R100_MCLK_CNTL);
         qtest_writeb(qts, RX2660_ATI_MMIO + CLOCK_CNTL_INDEX,
-                      R100_M_SPLL_REF_FB_DIV);
+                     R100_M_SPLL_REF_FB_DIV);
         divisors = qtest_readl(qts, RX2660_ATI_MMIO + CLOCK_CNTL_DATA);
         for (clock = 0; clock < 2; clock++) {
-            uint32_t reference = qtest_readw(qts, 0xc0000 + pll +
-                                              (clock ? 0x1a : 0x26));
-            uint32_t divider = qtest_readw(qts, 0xc0000 + pll +
-                                            (clock ? 0x1c : 0x28));
+            uint32_t reference =
+                qtest_readw(qts, 0xc0000 + pll + (clock ? 0x1a : 0x26));
+            uint32_t divider =
+                qtest_readw(qts, 0xc0000 + pll + (clock ? 0x1c : 0x28));
             uint32_t feedback = (divisors >> (8 + clock * 8)) & 0xff;
 
             g_assert_cmpuint(divider, >, 0);
             g_assert_cmpuint(divisors & 0xff, ==, divider);
-            g_assert_cmpuint(qtest_readw(qts, 0xc0000 + pll +
-                                          8 + clock * 2), ==, 20000);
-            qtest_writeb(qts, RX2660_ATI_MMIO + CLOCK_CNTL_INDEX,
-                          clock ? R100_SCLK_CNTL : R100_MCLK_CNTL);
-            g_assert_cmphex(qtest_readl(qts, RX2660_ATI_MMIO +
-                                        CLOCK_CNTL_DATA) & 7, ==, 2);
-            g_assert_cmpuint(2 * reference * feedback / divider / 2,
+            g_assert_cmpuint(qtest_readw(qts, 0xc0000 + pll + 8 + clock * 2),
                              ==, 20000);
+            qtest_writeb(qts, RX2660_ATI_MMIO + CLOCK_CNTL_INDEX,
+                         clock ? R100_SCLK_CNTL : R100_MCLK_CNTL);
+            g_assert_cmphex(
+                qtest_readl(qts, RX2660_ATI_MMIO + CLOCK_CNTL_DATA) & 7, ==, 2);
+            g_assert_cmpuint(2 * reference * feedback / divider / 2, ==, 20000);
         }
         if (pass == 0) {
             qtest_writeb(qts, RX2660_ATI_MMIO + CLOCK_CNTL_INDEX,
-                          PLL_WR_EN | R100_M_SPLL_REF_FB_DIV);
+                         PLL_WR_EN | R100_M_SPLL_REF_FB_DIV);
             qtest_writel(qts, RX2660_ATI_MMIO + CLOCK_CNTL_DATA, 0);
             qtest_system_reset(qts);
         }
@@ -1256,14 +1210,12 @@ static void test_hp_rx2660_radeon_clocks(void)
 
 static void test_hp_rx2660_default_usb_input(void)
 {
-    QTestState *qts = qtest_init(
-        "-machine hp-rx2660,nvram=none,firmware=none "
-        "-m 4G -smp 2,sockets=2,cores=1,threads=1 -S "
-        "-display none -serial none -monitor none -net none");
-    g_autofree char *keyboard =
-        rx2660_find_unattached_child(qts, "usb-kbd");
-    g_autofree char *tablet =
-        rx2660_find_unattached_child(qts, "usb-tablet");
+    QTestState *qts =
+        qtest_init("-machine hp-rx2660,nvram=none,firmware=none "
+                   "-m 4G -smp 2,sockets=2,cores=1,threads=1 -S "
+                   "-display none -serial none -monitor none -net none");
+    g_autofree char *keyboard = rx2660_find_unattached_child(qts, "usb-kbd");
+    g_autofree char *tablet = rx2660_find_unattached_child(qts, "usb-tablet");
 
     g_assert_nonnull(keyboard);
     g_assert_nonnull(tablet);
@@ -1273,7 +1225,7 @@ static void test_hp_rx2660_default_usb_input(void)
 }
 
 static void rx2660_assert_usb_speed(QTestState *qts, unsigned int bus,
-                                     const char *port, unsigned int speed)
+                                    const char *port, unsigned int speed)
 {
     g_autofree char *info = qtest_hmp(qts, "info usb");
     g_auto(GStrv) lines = g_strsplit(info, "\n", -1);
@@ -1293,8 +1245,8 @@ static void rx2660_assert_usb_speed(QTestState *qts, unsigned int bus,
 }
 
 static void rx2660_assert_ehci_speed(QTestState *qts, uint64_t base,
-                                      unsigned int bus, unsigned int port,
-                                      bool usb1)
+                                     unsigned int bus, unsigned int port,
+                                     bool usb1)
 {
     uint64_t opregs = base + qtest_readb(qts, base + CAPLENGTH);
     uint64_t portsc = opregs + 0x44 + (port - 1) * 4;
@@ -1325,8 +1277,8 @@ static void test_hp_rx2660_usb1(gconstpointer data)
         "-device pci-ohci,id=extra-ohci,bus=pci.0,addr=5,"
         "masterbus=extra-usb.0,firstport=0,num-ports=6",
         usb1 ? ",usb1=on" : "");
-    uint64_t opregs = RX2660_EHCI_MMIO +
-        qtest_readb(qts, RX2660_EHCI_MMIO + CAPLENGTH);
+    uint64_t opregs =
+        RX2660_EHCI_MMIO + qtest_readb(qts, RX2660_EHCI_MMIO + CAPLENGTH);
     g_autoptr(QDict) response = NULL;
     unsigned int pass, port;
 
@@ -1335,20 +1287,20 @@ static void test_hp_rx2660_usb1(gconstpointer data)
     qtest_writel(qts, opregs + CONFIGFLAG, 1);
 
     qtest_qmp_device_add(qts, "usb-hub", "hub",
-                        "{'bus':'usb-bus.0','port':'4'}");
+                         "{'bus':'usb-bus.0','port':'4'}");
     qtest_qmp_device_add(qts, "usb-kbd", "hub-keyboard",
-                        "{'bus':'usb-bus.0','port':'4.1'}");
+                         "{'bus':'usb-bus.0','port':'4.1'}");
     qtest_qmp_device_add(qts, "usb-mouse", "mouse",
-                        "{'bus':'usb-bus.0','port':'5'}");
+                         "{'bus':'usb-bus.0','port':'5'}");
     qtest_qmp_device_add(qts, "usb-bot", "extra-storage",
-                        "{'bus':'extra-usb.0','port':'1'}");
+                         "{'bus':'extra-usb.0','port':'1'}");
     qtest_qom_set_bool(qts, "extra-storage", "attached", true);
 
     for (pass = 0; pass < 2; pass++) {
         uint64_t extra_opregs;
 
-        rx2660_config_writel(qts, 0, PCI_DEVFN(4, 0),
-                             PCI_BASE_ADDRESS_0, extra_mmio);
+        rx2660_config_writel(qts, 0, PCI_DEVFN(4, 0), PCI_BASE_ADDRESS_0,
+                             extra_mmio);
         rx2660_config_writew(qts, 0, PCI_DEVFN(4, 0), PCI_COMMAND,
                              PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
         g_assert_cmphex(qtest_readb(qts, extra_mmio + CAPLENGTH), ==, 0x20);
@@ -1367,13 +1319,13 @@ static void test_hp_rx2660_usb1(gconstpointer data)
     }
 
     qtest_qmp_device_add(qts, "usb-uas", "uas",
-                        "{'bus':'extra-usb.0','port':'2'}");
+                         "{'bus':'extra-usb.0','port':'2'}");
     if (usb1) {
-        response = qtest_qmp_assert_failure_ref(qts,
-            "{'execute':'qom-set','arguments':{'path':'uas',"
-            "'property':'attached','value':true}}");
-        g_assert_nonnull(strstr(qdict_get_str(response, "desc"),
-                                "speed mismatch"));
+        response = qtest_qmp_assert_failure_ref(
+            qts, "{'execute':'qom-set','arguments':{'path':'uas',"
+                 "'property':'attached','value':true}}");
+        g_assert_nonnull(
+            strstr(qdict_get_str(response, "desc"), "speed mismatch"));
         qobject_unref(response);
         response = NULL;
     } else {
@@ -1382,29 +1334,31 @@ static void test_hp_rx2660_usb1(gconstpointer data)
     }
     qtest_qmp_device_del(qts, "uas");
 
-    response = qtest_qmp_assert_failure_ref(qts,
+    response = qtest_qmp_assert_failure_ref(
+        qts,
         "{'execute':'qom-set','arguments':{'path':'/machine',"
-        "'property':'usb1','value':%i}}", !usb1);
-    g_assert_nonnull(strstr(qdict_get_str(response, "desc"),
-                            "machine initialization"));
+        "'property':'usb1','value':%i}}",
+        !usb1);
+    g_assert_nonnull(
+        strstr(qdict_get_str(response, "desc"), "machine initialization"));
     g_assert_cmpint(qtest_qom_get_bool(qts, "/machine", "usb1"), ==, usb1);
     qtest_quit(qts);
 }
 
 static void test_hp_rx2660_ohci_port_resume(void)
 {
-    QTestState *qts = qtest_init(
-        "-machine hp-rx2660,nvram=none,firmware=none "
-        "-m 4G -smp 1,sockets=1,cores=1,threads=1 -S "
-        "-display none -serial none -monitor none -net none");
+    QTestState *qts =
+        qtest_init("-machine hp-rx2660,nvram=none,firmware=none "
+                   "-m 4G -smp 1,sockets=1,cores=1,threads=1 -S "
+                   "-display none -serial none -monitor none -net none");
 
     qtest_qmp_assert_success(qts, "{'execute':'cont'}");
     rx2660_assert_ohci_port_resume(qts);
     qtest_quit(qts);
 }
 
-static void assert_nec_usb_connection(QTestState *qts,
-                                     const uint64_t ohci[2], int connected)
+static void assert_nec_usb_connection(QTestState *qts, const uint64_t ohci[2],
+                                      int connected)
 {
     static const unsigned int route[5][2] = {
         { 0, 0 }, { 1, 0 }, { 0, 1 }, { 1, 1 }, { 0, 2 },
@@ -1414,12 +1368,16 @@ static void assert_nec_usb_connection(QTestState *qts,
     for (function = 0; function < 2; function++) {
         for (port = 0; port < (function ? 2 : 3); port++) {
             uint32_t expected = connected >= 0 &&
-                route[connected][0] == function &&
-                route[connected][1] == port ? OHCI_PORT_CCS : 0;
+                                        route[connected][0] == function &&
+                                        route[connected][1] == port
+                                    ? OHCI_PORT_CCS
+                                    : 0;
 
-            g_assert_cmphex(qtest_readl(qts, ohci[function] +
-                                        OHCI_RH_PORT_STATUS_1 + port * 4) &
-                            OHCI_PORT_CCS, ==, expected);
+            g_assert_cmphex(
+                qtest_readl(qts,
+                            ohci[function] + OHCI_RH_PORT_STATUS_1 + port * 4) &
+                    OHCI_PORT_CCS,
+                ==, expected);
         }
     }
 }
@@ -1431,9 +1389,11 @@ static void test_hp_zx_nec_usb_routing(void)
         uint64_t ohci[2];
         uint64_t ehci;
     } cases[] = {
-        { "hp-rx2660", { RX2660_OHCI0_MMIO, RX2660_OHCI1_MMIO },
+        { "hp-rx2660",
+          { RX2660_OHCI0_MMIO, RX2660_OHCI1_MMIO },
           RX2660_EHCI_MMIO },
-        { "hp-zx6000", { UINT64_C(0x80023000), UINT64_C(0x80022000) },
+        { "hp-zx6000",
+          { UINT64_C(0x80023000), UINT64_C(0x80022000) },
           UINT64_C(0x80021000) },
     };
     unsigned int i, port;
@@ -1443,13 +1403,13 @@ static void test_hp_zx_nec_usb_routing(void)
             "-nodefaults -machine %s,usb=on,nvram=none,firmware=none "
             "-m 1G -smp 1 -S -vga ati -display none -net none",
             cases[i].machine);
-        uint64_t opregs = cases[i].ehci +
-            qtest_readb(qts, cases[i].ehci + CAPLENGTH);
+        uint64_t opregs =
+            cases[i].ehci + qtest_readb(qts, cases[i].ehci + CAPLENGTH);
         uint32_t params = qtest_readl(qts, cases[i].ehci + HCSPARAMS);
 
         g_assert_cmphex(params & 0xff8f, ==, 0x2385);
-        g_assert_cmphex(qtest_readl(qts, cases[i].ehci + HCSPPORTROUTE1),
-                        ==, 0x01010);
+        g_assert_cmphex(qtest_readl(qts, cases[i].ehci + HCSPPORTROUTE1), ==,
+                        0x01010);
         qtest_qmp_assert_success(qts, "{'execute':'cont'}");
         assert_nec_usb_connection(qts, cases[i].ohci, -1);
 
@@ -1457,9 +1417,9 @@ static void test_hp_zx_nec_usb_routing(void)
             g_autofree char *path = g_strdup_printf("%u", port + 1);
             uint64_t portsc = opregs + 0x44 + port * 4;
 
-            qtest_qmp_device_add(qts, "usb-mouse", "routing-mouse",
-                                "{'bus':'usb-bus.0','port':%s,'usb_version':1}",
-                                path);
+            qtest_qmp_device_add(
+                qts, "usb-mouse", "routing-mouse",
+                "{'bus':'usb-bus.0','port':%s,'usb_version':1}", path);
             assert_nec_usb_connection(qts, cases[i].ohci, port);
             qtest_writel(qts, portsc, 0);
             assert_nec_usb_connection(qts, cases[i].ohci, port);
@@ -1477,9 +1437,9 @@ static void test_hp_zx_nec_usb_routing(void)
             qtest_qmp_device_del(qts, "routing-mouse");
             assert_nec_usb_connection(qts, cases[i].ohci, -1);
             g_assert_cmphex(qtest_readl(qts, portsc) & PORTSC_POWNER, ==, 0);
-            qtest_qmp_device_add(qts, "usb-mouse", "routing-mouse",
-                                "{'bus':'usb-bus.0','port':%s,'usb_version':1}",
-                                path);
+            qtest_qmp_device_add(
+                qts, "usb-mouse", "routing-mouse",
+                "{'bus':'usb-bus.0','port':%s,'usb_version':1}", path);
             assert_nec_usb_connection(qts, cases[i].ohci, -1);
             qtest_writel(qts, portsc, PORTSC_POWNER);
             assert_nec_usb_connection(qts, cases[i].ohci, port);
@@ -1491,13 +1451,13 @@ static void test_hp_zx_nec_usb_routing(void)
 
             qtest_qmp_device_del(qts, "routing-mouse");
             assert_nec_usb_connection(qts, cases[i].ohci, -1);
-            g_assert_cmphex(qtest_readl(qts, portsc) & PORTSC_POWNER,
-                            ==, PORTSC_POWNER);
+            g_assert_cmphex(qtest_readl(qts, portsc) & PORTSC_POWNER, ==,
+                            PORTSC_POWNER);
 
             /* With CF clear, reconnects remain visible to the companion. */
-            qtest_qmp_device_add(qts, "usb-mouse", "routing-mouse",
-                                "{'bus':'usb-bus.0','port':%s,'usb_version':1}",
-                                path);
+            qtest_qmp_device_add(
+                qts, "usb-mouse", "routing-mouse",
+                "{'bus':'usb-bus.0','port':%s,'usb_version':1}", path);
             assert_nec_usb_connection(qts, cases[i].ohci, port);
             qtest_qmp_device_del(qts, "routing-mouse");
             assert_nec_usb_connection(qts, cases[i].ohci, -1);
@@ -1508,8 +1468,7 @@ static void test_hp_zx_nec_usb_routing(void)
 
 static void rx2660_console_assert_irq(QTestState *qts, bool asserted)
 {
-    uint16_t status = rx2660_config_readw(qts, 0, PCI_DEVFN(1, 2),
-                                         PCI_STATUS);
+    uint16_t status = rx2660_config_readw(qts, 0, PCI_DEVFN(1, 2), PCI_STATUS);
 
     g_assert_cmphex(status & PCI_STATUS_INTERRUPT, ==,
                     asserted ? PCI_STATUS_INTERRUPT : 0);
@@ -1525,9 +1484,11 @@ static bool rx2660_sapic_wait_for_vector(QTestState *qts, uint8_t vector)
         uint64_t irr[4];
 
         g_assert_nonnull(line);
-        g_assert_cmpint(sscanf(line, "SAPIC IRR: %" SCNx64 " %" SCNx64
-                              " %" SCNx64 " %" SCNx64,
-                              &irr[0], &irr[1], &irr[2], &irr[3]), ==, 4);
+        g_assert_cmpint(sscanf(line,
+                               "SAPIC IRR: %" SCNx64 " %" SCNx64 " %" SCNx64
+                               " %" SCNx64,
+                               &irr[0], &irr[1], &irr[2], &irr[3]),
+                        ==, 4);
         if (irr[vector / 64] & BIT_ULL(vector % 64)) {
             return true;
         }
@@ -1544,16 +1505,17 @@ static void test_hp_rx2660_console_interrupt_delivery(void)
     unsigned int delivery;
 
     for (delivery = 0; delivery <= 1; delivery++) {
-        QTestState *qts = qtest_init(
-            "-machine hp-rx2660,nvram=none,firmware=none -m 1G -S "
-            "-display none -serial null -monitor none -net none");
+        QTestState *qts =
+            qtest_init("-machine hp-rx2660,nvram=none,firmware=none -m 1G -S "
+                       "-display none -serial null -monitor none -net none");
 
         g_test_message("Console interrupt delivery mode %u", delivery);
         qtest_writel(qts, select, HP_IO_SAPIC_RTE_BASE + 1);
         qtest_writel(qts, window, 0);
         qtest_writel(qts, select, HP_IO_SAPIC_RTE_BASE);
-        qtest_writel(qts, window, HP_IO_SAPIC_RTE_TRIGGER |
-                     HP_IO_SAPIC_RTE_POLARITY | (delivery << 8) | vector);
+        qtest_writel(qts, window,
+                     HP_IO_SAPIC_RTE_TRIGGER | HP_IO_SAPIC_RTE_POLARITY |
+                         (delivery << 8) | vector);
 
         /* Follow PCI INTA through the I/O SAPIC to the destination CPU. */
         qtest_writeb(qts, RX2660_CONSOLE_MMIO + UART_IER_DLM, UART_IER_THRI);
@@ -1582,11 +1544,11 @@ static void test_hp_rx2660_console(void)
     path = g_build_filename(dir, "serial", NULL);
     quoted_path = g_shell_quote(path);
     listener = qtest_socket_server(path);
-    qts = qtest_initf(
-        "-machine hp-rx2660,nvram=none,firmware=none -m 1G -S "
-        "-display vnc=none -monitor none -net none "
-        "-chardev socket,id=console,path=%s "
-        "-serial chardev:console", quoted_path);
+    qts = qtest_initf("-machine hp-rx2660,nvram=none,firmware=none -m 1G -S "
+                      "-display vnc=none -monitor none -net none "
+                      "-chardev socket,id=console,path=%s "
+                      "-serial chardev:console",
+                      quoted_path);
     fd = qemu_accept(listener, NULL, NULL);
     g_assert_cmpint(fd, >=, 0);
     close(listener);
@@ -1666,22 +1628,18 @@ static void test_hp_rx2660_console(void)
 int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
-    qtest_add_func("/hp-rx2660/smoke-and-pci",
-                   test_hp_rx2660_smoke_and_pci);
-    qtest_add_func("/hp-rx2660/pcie-profile",
-                   test_hp_zx_pcie_profile);
+    qtest_add_func("/hp-rx2660/smoke-and-pci", test_hp_rx2660_smoke_and_pci);
+    qtest_add_func("/hp-rx2660/pcie-profile", test_hp_zx_pcie_profile);
     qtest_add_func("/hp-rx2660/zx2-iommu-fault",
                    test_hp_rx2660_zx2_iommu_fault);
-    qtest_add_func("/hp-rx2660/zx2-migration",
-                   test_hp_rx2660_zx2_migration);
-    qtest_add_func("/hp-rx2660/cpu-topology",
-                   test_hp_rx2660_cpu_topology);
+    qtest_add_func("/hp-rx2660/zx2-migration", test_hp_rx2660_zx2_migration);
+    qtest_add_func("/hp-rx2660/cpu-topology", test_hp_rx2660_cpu_topology);
     qtest_add_func("/hp-rx2660/default-usb-input",
                    test_hp_rx2660_default_usb_input);
     qtest_add_data_func("/hp-rx2660/usb1/default", GINT_TO_POINTER(0),
-                       test_hp_rx2660_usb1);
+                        test_hp_rx2660_usb1);
     qtest_add_data_func("/hp-rx2660/usb1/enabled", GINT_TO_POINTER(1),
-                       test_hp_rx2660_usb1);
+                        test_hp_rx2660_usb1);
     qtest_add_func("/hp-rx2660/ohci-port-resume",
                    test_hp_rx2660_ohci_port_resume);
     qtest_add_func("/hp-rx2660/nec-usb-routing", test_hp_zx_nec_usb_routing);

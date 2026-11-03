@@ -29,7 +29,7 @@ static void test_pci_bus_object_register_types(void)
 
 type_init(test_pci_bus_object_register_types)
 
-static const MemoryRegion *test_protected_ram;
+    static const MemoryRegion *test_protected_ram;
 static bool test_bypass_iommu;
 
 /* Local definitions link the policy validator into this unit test. */
@@ -42,9 +42,8 @@ void memory_region_init(MemoryRegion *mr, Object *owner, const char *name,
     mr->size = int128_make64(size);
 }
 
-void memory_region_init_alias(MemoryRegion *mr, Object *owner,
-                              const char *name, MemoryRegion *orig,
-                              hwaddr offset, uint64_t size)
+void memory_region_init_alias(MemoryRegion *mr, Object *owner, const char *name,
+                              MemoryRegion *orig, hwaddr offset, uint64_t size)
 {
     memory_region_init(mr, owner, name, size);
     mr->alias = orig;
@@ -69,8 +68,7 @@ void memory_region_add_subregion(MemoryRegion *mr, hwaddr offset,
 }
 
 void memory_region_add_subregion_overlap(MemoryRegion *mr, hwaddr offset,
-                                         MemoryRegion *subregion,
-                                         int priority)
+                                         MemoryRegion *subregion, int priority)
 {
     memory_region_add_subregion(mr, offset, subregion);
     subregion->priority = priority;
@@ -97,8 +95,7 @@ bool memory_region_is_protected(const MemoryRegion *mr)
     return mr == test_protected_ram;
 }
 
-void address_space_init(AddressSpace *as, MemoryRegion *root,
-                        const char *name)
+void address_space_init(AddressSpace *as, MemoryRegion *root, const char *name)
 {
     memset(as, 0, sizeof(*as));
     as->root = root;
@@ -155,8 +152,8 @@ static void assert_map_fails(Intel460GXDMA *dma, uint64_t dma_base,
 {
     Error *err = NULL;
 
-    g_assert_false(intel_460gx_dma_add_ram_alias(
-        dma, dma_base, size, target, target_offset, &err));
+    g_assert_false(intel_460gx_dma_add_ram_alias(dma, dma_base, size, target,
+                                                 target_offset, &err));
     g_assert_nonnull(err);
     error_free(err);
 }
@@ -265,10 +262,10 @@ static void test_alias_overlap(void)
     ram_init(&ram, 0x10000);
     dma = intel_460gx_dma_new(0x1000, 0x2000, &err);
     g_assert_nonnull(dma);
-    g_assert_true(intel_460gx_dma_add_ram_alias(
-        dma, 0x1000, 0x100, &ram, 0, &err));
-    g_assert_true(intel_460gx_dma_add_ram_alias(
-        dma, 0x1100, 0x100, &ram, 0x100, &err));
+    g_assert_true(
+        intel_460gx_dma_add_ram_alias(dma, 0x1000, 0x100, &ram, 0, &err));
+    g_assert_true(
+        intel_460gx_dma_add_ram_alias(dma, 0x1100, 0x100, &ram, 0x100, &err));
     assert_map_fails(dma, 0x1080, 0x20, &ram, 0x200);
     assert_map_fails(dma, 0x10ff, 2, &ram, 0x200);
     assert_map_fails(dma, 0x1000, 0x200, &ram, 0x200);
@@ -308,8 +305,8 @@ static void test_target_validation(void)
     assert_map_fails(dma, 0, 2, &ram, UINT64_MAX);
     assert_map_fails(dma, 0, 0x100, &ram, 0xf01);
 
-    g_assert_true(intel_460gx_dma_add_ram_alias(
-        dma, 0, 0x100, &ram, 0xf00, &err));
+    g_assert_true(
+        intel_460gx_dma_add_ram_alias(dma, 0, 0x100, &ram, 0xf00, &err));
     g_assert_null(err);
     assert_pci_map_fails(dma, 0x1000, 0x100, NULL, 0);
     assert_pci_map_fails(dma, 0x1000, 0x100, &ram, 0);
@@ -332,8 +329,7 @@ static void test_seal(void)
     ram_init(&ram, 0x2000);
     dma = intel_460gx_dma_new(0, 0x2000, &err);
     g_assert_nonnull(dma);
-    g_assert_true(intel_460gx_dma_add_ram_alias(
-        dma, 0, 0x1000, &ram, 0, &err));
+    g_assert_true(intel_460gx_dma_add_ram_alias(dma, 0, 0x1000, &ram, 0, &err));
     g_assert_true(intel_460gx_dma_seal(dma, &err));
     g_assert_true(intel_460gx_dma_seal(dma, &err));
     assert_map_fails(dma, 0x1000, 0x1000, &ram, 0x1000);
@@ -355,10 +351,10 @@ static void test_two_roots_are_independent(void)
     root_b = intel_460gx_dma_new(0, 0x4000, &err);
     g_assert_nonnull(root_a);
     g_assert_nonnull(root_b);
-    g_assert_true(intel_460gx_dma_add_ram_alias(
-        root_a, 0x1000, 0x1000, &ram_a, 0, &err));
-    g_assert_true(intel_460gx_dma_add_ram_alias(
-        root_b, 0x1000, 0x1000, &ram_b, 0x1000, &err));
+    g_assert_true(
+        intel_460gx_dma_add_ram_alias(root_a, 0x1000, 0x1000, &ram_a, 0, &err));
+    g_assert_true(intel_460gx_dma_add_ram_alias(root_b, 0x1000, 0x1000, &ram_b,
+                                                0x1000, &err));
     g_assert_cmpuint(intel_460gx_dma_alias_count(root_a), ==, 1);
     g_assert_cmpuint(intel_460gx_dma_alias_count(root_b), ==, 1);
     g_assert_true(intel_460gx_dma_address_space(root_a) !=
@@ -451,8 +447,7 @@ int main(int argc, char **argv)
 {
     module_call_init(MODULE_INIT_QOM);
     g_test_init(&argc, &argv, NULL);
-    g_test_add_func("/intel-460gx-dma/aperture-bounds",
-                    test_aperture_bounds);
+    g_test_add_func("/intel-460gx-dma/aperture-bounds", test_aperture_bounds);
     g_test_add_func("/intel-460gx-dma/deny-all", test_deny_all);
     g_test_add_func("/intel-460gx-dma/alias-outside-overflow",
                     test_alias_outside_and_overflow);
@@ -462,7 +457,6 @@ int main(int argc, char **argv)
     g_test_add_func("/intel-460gx-dma/seal", test_seal);
     g_test_add_func("/intel-460gx-dma/two-roots",
                     test_two_roots_are_independent);
-    g_test_add_func("/intel-460gx-dma/root-attach",
-                    test_root_attach_contract);
+    g_test_add_func("/intel-460gx-dma/root-attach", test_root_attach_contract);
     return g_test_run();
 }

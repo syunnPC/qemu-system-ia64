@@ -40,8 +40,7 @@ Intel82468GXIFBState *intel_82468gx_ifb_create(PCIBus *bus, int devfn,
 PCIDevice *intel_82468gx_ifb_function(Intel82468GXIFBState *s,
                                       unsigned function);
 ISABus *intel_82468gx_ifb_isa_bus(Intel82468GXIFBState *s);
-IDEBus *intel_82468gx_ifb_ide_bus(Intel82468GXIFBState *s,
-                                  unsigned channel);
+IDEBus *intel_82468gx_ifb_ide_bus(Intel82468GXIFBState *s, unsigned channel);
 I2CBus *intel_82468gx_ifb_smbus(Intel82468GXIFBState *s);
 int intel_82468gx_ifb_pic_read_irq(Intel82468GXIFBState *s);
 void intel_82468gx_ifb_configure_acpi(Intel82468GXIFBState *s,

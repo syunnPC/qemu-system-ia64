@@ -43,10 +43,12 @@ static BOOLEAN runtime_bundle_changed;
 static UINT64 *runtime_bundle;
 /* MLX: nop.m 0; movl r8 = 0x1100.  MII: three nop instructions. */
 static const UINT64 test_runtime_movl[2] = {
-    0x0000000100000005ULL, 0x6088000100000000ULL,
+    0x0000000100000005ULL,
+    0x6088000100000000ULL,
 };
 static const UINT64 test_runtime_nop[2] = {
-    0x0000000100000001ULL, 0x0004000000020000ULL,
+    0x0000000100000001ULL,
+    0x0004000000020000ULL,
 };
 
 static VOID replace_runtime_instruction(EFI_EVENT Event, VOID *Context)
@@ -108,94 +110,93 @@ static BOOLEAN load_runtime_relocation_test(EFI_HANDLE Parent,
     if (BootServices->LoadImage(0, Parent, NULL, source, sizeof(source),
                                 &image) != EFI_SUCCESS ||
         BootServices->HandleProtocol(image, loaded_image_guid,
-                                      (VOID **)&loaded) != EFI_SUCCESS ||
+                                     (VOID **)&loaded) != EFI_SUCCESS ||
         loaded == NULL) {
         return 0;
     }
     runtime_bundle = (UINT64 *)((UINT8 *)loaded->ImageBase + 0x1100);
-    return BootServices->CreateEvent(
-        0x60000202U, TPL_CALLBACK, replace_runtime_instruction,
-        runtime_bundle, &event) == EFI_SUCCESS;
+    return BootServices->CreateEvent(0x60000202U, TPL_CALLBACK,
+                                     replace_runtime_instruction,
+                                     runtime_bundle, &event) == EFI_SUCCESS;
 }
 
-__asm__(
-".text\n"
-".align 16\n"
-".global test_call_virtual_procedure\n"
-".type test_call_virtual_procedure, @function\n"
-".proc test_call_virtual_procedure\n"
-"test_call_virtual_procedure:\n"
-"    .prologue\n"
-"    .save ar.pfs, r39\n"
-"    alloc r39 = ar.pfs, 7, 8, 8, 0\n"
-"    .save rp, r40\n"
-"    mov r40 = b0\n"
-"    mov r41 = gp\n"
-"    mov r42 = psr\n"
-"    movl r14 = (1 << 44)\n"
-"    ;;\n"
-"    or r42 = r42, r14\n"
-"    mov r14 = r32\n"
-"    ;;\n"
-"    ld8 r43 = [r14], 8\n"
-"    ;;\n"
-"    ld8 r44 = [r14]\n"
-"    mov r47 = r34\n"
-"    mov r48 = r35\n"
-"    mov r49 = r36\n"
-"    mov r50 = r37\n"
-"    mov r51 = r38\n"
-"    mov r52 = r0\n"
-"    mov r53 = r0\n"
-"    mov r54 = r0\n"
-"    rsm psr.ic\n"
-"    ;;\n"
-"    srlz.d\n"
-"    ;;\n"
-"    movl r14 = 1f\n"
-"    ;;\n"
-"    mov cr.ipsr = r33\n"
-"    mov cr.iip = r14\n"
-"    mov cr.ifs = r0\n"
-"    ;;\n"
-"    rfi\n"
-"    ;;\n"
-"1:\n"
-"    srlz.i\n"
-"    ;;\n"
-"    mov gp = r44\n"
-"    mov b6 = r43\n"
-"    ;;\n"
-"    br.call.sptk.many b0 = b6\n"
-"    ;;\n"
-"    mov r45 = r8\n"
-"    mov gp = r41\n"
-"    rsm psr.ic\n"
-"    ;;\n"
-"    srlz.d\n"
-"    ;;\n"
-"    movl r14 = 2f\n"
-"    ;;\n"
-"    mov cr.ipsr = r42\n"
-"    mov cr.iip = r14\n"
-"    mov cr.ifs = r0\n"
-"    ;;\n"
-"    rfi\n"
-"    ;;\n"
-"2:\n"
-"    srlz.i\n"
-"    ;;\n"
-"    mov r8 = r45\n"
-"    mov b0 = r40\n"
-"    mov ar.pfs = r39\n"
-"    br.ret.sptk.many b0\n"
-".endp test_call_virtual_procedure\n");
+__asm__(".text\n"
+        ".align 16\n"
+        ".global test_call_virtual_procedure\n"
+        ".type test_call_virtual_procedure, @function\n"
+        ".proc test_call_virtual_procedure\n"
+        "test_call_virtual_procedure:\n"
+        "    .prologue\n"
+        "    .save ar.pfs, r39\n"
+        "    alloc r39 = ar.pfs, 7, 8, 8, 0\n"
+        "    .save rp, r40\n"
+        "    mov r40 = b0\n"
+        "    mov r41 = gp\n"
+        "    mov r42 = psr\n"
+        "    movl r14 = (1 << 44)\n"
+        "    ;;\n"
+        "    or r42 = r42, r14\n"
+        "    mov r14 = r32\n"
+        "    ;;\n"
+        "    ld8 r43 = [r14], 8\n"
+        "    ;;\n"
+        "    ld8 r44 = [r14]\n"
+        "    mov r47 = r34\n"
+        "    mov r48 = r35\n"
+        "    mov r49 = r36\n"
+        "    mov r50 = r37\n"
+        "    mov r51 = r38\n"
+        "    mov r52 = r0\n"
+        "    mov r53 = r0\n"
+        "    mov r54 = r0\n"
+        "    rsm psr.ic\n"
+        "    ;;\n"
+        "    srlz.d\n"
+        "    ;;\n"
+        "    movl r14 = 1f\n"
+        "    ;;\n"
+        "    mov cr.ipsr = r33\n"
+        "    mov cr.iip = r14\n"
+        "    mov cr.ifs = r0\n"
+        "    ;;\n"
+        "    rfi\n"
+        "    ;;\n"
+        "1:\n"
+        "    srlz.i\n"
+        "    ;;\n"
+        "    mov gp = r44\n"
+        "    mov b6 = r43\n"
+        "    ;;\n"
+        "    br.call.sptk.many b0 = b6\n"
+        "    ;;\n"
+        "    mov r45 = r8\n"
+        "    mov gp = r41\n"
+        "    rsm psr.ic\n"
+        "    ;;\n"
+        "    srlz.d\n"
+        "    ;;\n"
+        "    movl r14 = 2f\n"
+        "    ;;\n"
+        "    mov cr.ipsr = r42\n"
+        "    mov cr.iip = r14\n"
+        "    mov cr.ifs = r0\n"
+        "    ;;\n"
+        "    rfi\n"
+        "    ;;\n"
+        "2:\n"
+        "    srlz.i\n"
+        "    ;;\n"
+        "    mov r8 = r45\n"
+        "    mov b0 = r40\n"
+        "    mov ar.pfs = r39\n"
+        "    br.ret.sptk.many b0\n"
+        ".endp test_call_virtual_procedure\n");
 
 static UINT64 read_psr(void)
 {
     UINT64 value;
 
-    __asm__ volatile ("mov %0=psr" : "=r"(value));
+    __asm__ volatile("mov %0=psr" : "=r"(value));
     /* The calling convention fixes bank 1; mov-from-PSR omits its bit. */
     return value | (1ULL << 44);
 }
@@ -204,13 +205,12 @@ static UINT64 exchange_iva(UINT64 Value)
 {
     UINT64 original;
 
-    __asm__ volatile (
-        "mov %0=cr.iva;;\n\t"
-        "mov cr.iva=%1;;\n\t"
-        "srlz.i;;"
-        : "=&r"(original)
-        : "r"(Value)
-        : "memory");
+    __asm__ volatile("mov %0=cr.iva;;\n\t"
+                     "mov cr.iva=%1;;\n\t"
+                     "srlz.i;;"
+                     : "=&r"(original)
+                     : "r"(Value)
+                     : "memory");
     return original;
 }
 
@@ -224,18 +224,17 @@ static void install_instruction_mapping(UINT64 Virtual, UINT64 Physical,
 {
     UINT64 pte = mapping_pte(Physical, PteFlags);
 
-    __asm__ volatile (
-        "rsm psr.ic;;\n\t"
-        "srlz.d;;\n\t"
-        "mov cr.ifa=%0\n\t"
-        "mov cr.itir=%1;;\n\t"
-        "itc.i %2;;\n\t"
-        "srlz.i;;\n\t"
-        "ssm psr.ic;;\n\t"
-        "srlz.d;;"
-        :
-        : "r"(Virtual), "r"(TEST_MAPPING_ITIR), "r"(pte)
-        : "memory");
+    __asm__ volatile("rsm psr.ic;;\n\t"
+                     "srlz.d;;\n\t"
+                     "mov cr.ifa=%0\n\t"
+                     "mov cr.itir=%1;;\n\t"
+                     "itc.i %2;;\n\t"
+                     "srlz.i;;\n\t"
+                     "ssm psr.ic;;\n\t"
+                     "srlz.d;;"
+                     :
+                     : "r"(Virtual), "r"(TEST_MAPPING_ITIR), "r"(pte)
+                     : "memory");
 }
 
 static void install_data_mapping(UINT64 Virtual, UINT64 Physical,
@@ -243,23 +242,21 @@ static void install_data_mapping(UINT64 Virtual, UINT64 Physical,
 {
     UINT64 pte = mapping_pte(Physical, PteFlags);
 
-    __asm__ volatile (
-        "rsm psr.ic;;\n\t"
-        "srlz.d;;\n\t"
-        "mov cr.ifa=%0\n\t"
-        "mov cr.itir=%1;;\n\t"
-        "itc.d %2;;\n\t"
-        "srlz.d;;\n\t"
-        "ssm psr.ic;;\n\t"
-        "srlz.d;;"
-        :
-        : "r"(Virtual), "r"(TEST_MAPPING_ITIR), "r"(pte)
-        : "memory");
+    __asm__ volatile("rsm psr.ic;;\n\t"
+                     "srlz.d;;\n\t"
+                     "mov cr.ifa=%0\n\t"
+                     "mov cr.itir=%1;;\n\t"
+                     "itc.d %2;;\n\t"
+                     "srlz.d;;\n\t"
+                     "ssm psr.ic;;\n\t"
+                     "srlz.d;;"
+                     :
+                     : "r"(Virtual), "r"(TEST_MAPPING_ITIR), "r"(pte)
+                     : "memory");
 }
 
 static BOOLEAN prepare_runtime_virtual_map(EFI_MEMORY_DESCRIPTOR *Map,
-                                           UINTN MapSize,
-                                           UINTN DescriptorSize)
+                                           UINTN MapSize, UINTN DescriptorSize)
 {
     BOOLEAN firmware_runtime_seen = 0;
     UINTN offset;
@@ -274,8 +271,7 @@ static BOOLEAN prepare_runtime_virtual_map(EFI_MEMORY_DESCRIPTOR *Map,
             continue;
         }
         if (descriptor->NumberOfPages == 0 ||
-            descriptor->NumberOfPages >
-                (~(UINT64)0) / EFI_PAGE_SIZE) {
+            descriptor->NumberOfPages > (~(UINT64)0) / EFI_PAGE_SIZE) {
             return 0;
         }
         bytes = descriptor->NumberOfPages * EFI_PAGE_SIZE;
@@ -285,8 +281,8 @@ static BOOLEAN prepare_runtime_virtual_map(EFI_MEMORY_DESCRIPTOR *Map,
         }
         if (descriptor->PhysicalStart < TEST_MAPPING_SIZE ||
             descriptor->Type == EfiRuntimeServicesCode) {
-            if ((descriptor->Attribute &
-                 (EFI_MEMORY_UC | EFI_MEMORY_WB)) != EFI_MEMORY_WB) {
+            if ((descriptor->Attribute & (EFI_MEMORY_UC | EFI_MEMORY_WB)) !=
+                EFI_MEMORY_WB) {
                 return 0;
             }
             descriptor->VirtualStart =
@@ -299,8 +295,7 @@ static BOOLEAN prepare_runtime_virtual_map(EFI_MEMORY_DESCRIPTOR *Map,
     return firmware_runtime_seen;
 }
 
-static BOOLEAN runtime_mapping_pte_flags(UINT64 Attributes,
-                                         UINT64 *PteFlags)
+static BOOLEAN runtime_mapping_pte_flags(UINT64 Attributes, UINT64 *PteFlags)
 {
     UINT64 cacheability = Attributes & (EFI_MEMORY_UC | EFI_MEMORY_WB);
 
@@ -336,10 +331,8 @@ static BOOLEAN install_runtime_test_mappings(EFI_MEMORY_DESCRIPTOR *Map,
             continue;
         }
         if (descriptor->NumberOfPages == 0 ||
-            descriptor->NumberOfPages >
-                (~(UINT64)0) / EFI_PAGE_SIZE ||
-            !runtime_mapping_pte_flags(descriptor->Attribute,
-                                       &pte_flags)) {
+            descriptor->NumberOfPages > (~(UINT64)0) / EFI_PAGE_SIZE ||
+            !runtime_mapping_pte_flags(descriptor->Attribute, &pte_flags)) {
             return 0;
         }
         bytes = descriptor->NumberOfPages * EFI_PAGE_SIZE;
@@ -357,8 +350,8 @@ static BOOLEAN install_runtime_test_mappings(EFI_MEMORY_DESCRIPTOR *Map,
         last = (end - 1U) & ~TEST_MAPPING_MASK;
         for (;;) {
             UINTN index;
-            UINT64 virtual_base = base + descriptor->VirtualStart -
-                                  descriptor->PhysicalStart;
+            UINT64 virtual_base =
+                base + descriptor->VirtualStart - descriptor->PhysicalStart;
 
             for (index = 0; index < mapping_count; index++) {
                 if (mappings[index].VirtualBase == virtual_base) {
@@ -389,20 +382,17 @@ static BOOLEAN install_runtime_test_mappings(EFI_MEMORY_DESCRIPTOR *Map,
         }
     }
 
-    install_instruction_mapping(TEST_APPLICATION_BASE,
-                                TEST_APPLICATION_BASE,
+    install_instruction_mapping(TEST_APPLICATION_BASE, TEST_APPLICATION_BASE,
                                 TEST_MAPPING_PTE_WB);
     install_data_mapping(TEST_APPLICATION_BASE, TEST_APPLICATION_BASE,
                          TEST_MAPPING_PTE_WB);
-    install_instruction_mapping(RUNTIME_ALIAS_BASE, 0,
-                                TEST_MAPPING_PTE_WB);
+    install_instruction_mapping(RUNTIME_ALIAS_BASE, 0, TEST_MAPPING_PTE_WB);
     install_data_mapping(RUNTIME_ALIAS_BASE, 0, TEST_MAPPING_PTE_WB);
     install_data_mapping(TEST_WAKEUP_ALIAS, TEST_APPLICATION_BASE,
                          TEST_MAPPING_PTE_WB);
     for (offset = 0; offset < mapping_count; offset++) {
         install_data_mapping(mappings[offset].VirtualBase,
-                             mappings[offset].Base,
-                             mappings[offset].PteFlags);
+                             mappings[offset].Base, mappings[offset].PteFlags);
         if (mappings[offset].Code) {
             install_instruction_mapping(mappings[offset].VirtualBase,
                                         mappings[offset].Base,
@@ -425,11 +415,9 @@ static UINT16 vbe_read(UINT16 Index)
 
 static BOOLEAN legacy_text_handoff_is_ready(void)
 {
-    volatile UINT16 *text =
-        (volatile UINT16 *)(UINTN)VGA_TEXT_FB_BASE;
+    volatile UINT16 *text = (volatile UINT16 *)(UINTN)VGA_TEXT_FB_BASE;
 
-    return vbe_read(VBE_DISPI_INDEX_ENABLE) == 0 &&
-           text[0] == 0x0720U &&
+    return vbe_read(VBE_DISPI_INDEX_ENABLE) == 0 && text[0] == 0x0720U &&
            text[VGA_TEXT_COLUMNS * VGA_TEXT_ROWS - 1U] == 0x0720U;
 }
 
@@ -451,8 +439,7 @@ static UINT32 crc32_bytes(const UINT8 *Data, UINTN Size)
 
         crc ^= Data[index];
         for (bit = 0; bit < 8U; bit++) {
-            crc = (crc >> 1) ^
-                  ((crc & 1U) != 0 ? 0xedb88320U : 0U);
+            crc = (crc >> 1) ^ ((crc & 1U) != 0 ? 0xedb88320U : 0U);
         }
     }
     return ~crc;
@@ -489,8 +476,8 @@ static EFI_STATUS get_final_memory_map(EFI_BOOT_SERVICES *BootServices,
         UINTN required = *MapSize;
         EFI_MEMORY_DESCRIPTOR *new_map = NULL;
 
-        status = BootServices->GetMemoryMap(
-            &required, *Map, MapKey, DescriptorSize, DescriptorVersion);
+        status = BootServices->GetMemoryMap(&required, *Map, MapKey,
+                                            DescriptorSize, DescriptorVersion);
         if (status == EFI_SUCCESS) {
             *MapSize = required;
             return EFI_SUCCESS;
@@ -502,8 +489,8 @@ static EFI_STATUS get_final_memory_map(EFI_BOOT_SERVICES *BootServices,
             (void)BootServices->FreePool(*Map);
             *Map = NULL;
         }
-        required += 8U * (*DescriptorSize != 0 ? *DescriptorSize :
-                         sizeof(EFI_MEMORY_DESCRIPTOR));
+        required += 8U * (*DescriptorSize != 0 ? *DescriptorSize
+                                               : sizeof(EFI_MEMORY_DESCRIPTOR));
         if (BootServices->AllocatePool(EfiLoaderData, required,
                                        (VOID **)&new_map) != EFI_SUCCESS) {
             return EFI_OUT_OF_RESOURCES;
@@ -514,8 +501,8 @@ static EFI_STATUS get_final_memory_map(EFI_BOOT_SERVICES *BootServices,
     return EFI_OUT_OF_RESOURCES;
 }
 
-static BOOLEAN runtime_map_is_aligned(EFI_MEMORY_DESCRIPTOR *Map,
-                                      UINTN MapSize, UINTN DescriptorSize)
+static BOOLEAN runtime_map_is_aligned(EFI_MEMORY_DESCRIPTOR *Map, UINTN MapSize,
+                                      UINTN DescriptorSize)
 {
     UINTN offset;
     UINTN runtime_count = 0;
@@ -541,10 +528,9 @@ static BOOLEAN runtime_map_is_aligned(EFI_MEMORY_DESCRIPTOR *Map,
     return runtime_count != 0;
 }
 
-static BOOLEAN memory_map_contains(EFI_MEMORY_DESCRIPTOR *Map,
-                                   UINTN MapSize, UINTN DescriptorSize,
-                                   const VOID *Address, UINTN Size,
-                                   UINT64 RequiredAttributes)
+static BOOLEAN memory_map_contains(EFI_MEMORY_DESCRIPTOR *Map, UINTN MapSize,
+                                   UINTN DescriptorSize, const VOID *Address,
+                                   UINTN Size, UINT64 RequiredAttributes)
 {
     UINT64 start = (UINT64)(UINTN)Address;
     UINT64 end = start + Size;
@@ -578,8 +564,7 @@ static BOOLEAN memory_map_contains(EFI_MEMORY_DESCRIPTOR *Map,
 }
 
 static BOOLEAN runtime_procedure_is_mapped(EFI_MEMORY_DESCRIPTOR *Map,
-                                           UINTN MapSize,
-                                           UINTN DescriptorSize,
+                                           UINTN MapSize, UINTN DescriptorSize,
                                            const VOID *Procedure)
 {
     const UINT64 *descriptor;
@@ -591,19 +576,18 @@ static BOOLEAN runtime_procedure_is_mapped(EFI_MEMORY_DESCRIPTOR *Map,
     }
     descriptor = (const UINT64 *)Procedure;
     return descriptor[0] != 0 && descriptor[1] != 0 &&
-           memory_map_contains(
-               Map, MapSize, DescriptorSize,
-               (const VOID *)(UINTN)descriptor[0], 1,
-               EFI_MEMORY_RUNTIME) &&
-           memory_map_contains(
-               Map, MapSize, DescriptorSize,
-               (const VOID *)(UINTN)descriptor[1], 1,
-               EFI_MEMORY_RUNTIME);
+           memory_map_contains(Map, MapSize, DescriptorSize,
+                               (const VOID *)(UINTN)descriptor[0], 1,
+                               EFI_MEMORY_RUNTIME) &&
+           memory_map_contains(Map, MapSize, DescriptorSize,
+                               (const VOID *)(UINTN)descriptor[1], 1,
+                               EFI_MEMORY_RUNTIME);
 }
 
-static BOOLEAN runtime_service_procedures_are_mapped(
-    EFI_MEMORY_DESCRIPTOR *Map, UINTN MapSize, UINTN DescriptorSize,
-    EFI_RUNTIME_SERVICES *RuntimeServices)
+static BOOLEAN
+runtime_service_procedures_are_mapped(EFI_MEMORY_DESCRIPTOR *Map, UINTN MapSize,
+                                      UINTN DescriptorSize,
+                                      EFI_RUNTIME_SERVICES *RuntimeServices)
 {
     EFI_MEMORY_DESCRIPTOR *firmware_descriptor = NULL;
     UINTN offset;
@@ -631,10 +615,8 @@ static BOOLEAN runtime_service_procedures_are_mapped(
         Map, MapSize, DescriptorSize, \
         (const VOID *)(UINTN)RuntimeServices->Field)
 
-    return RuntimeServices != NULL &&
-           RUNTIME_PROCEDURE(GetTime) &&
-           RUNTIME_PROCEDURE(SetTime) &&
-           RUNTIME_PROCEDURE(GetWakeupTime) &&
+    return RuntimeServices != NULL && RUNTIME_PROCEDURE(GetTime) &&
+           RUNTIME_PROCEDURE(SetTime) && RUNTIME_PROCEDURE(GetWakeupTime) &&
            RUNTIME_PROCEDURE(SetWakeupTime) &&
            RUNTIME_PROCEDURE(SetVirtualAddressMap) &&
            RUNTIME_PROCEDURE(ConvertPointer) &&
@@ -657,11 +639,9 @@ static BOOLEAN configuration_table_ranges_are_mapped(
     BOOLEAN smbios_seen = 0;
     BOOLEAN debug_seen = 0;
 
-    if (Tables == NULL || Count == 0 ||
-        Count > (~(UINTN)0) / sizeof(*Tables) ||
+    if (Tables == NULL || Count == 0 || Count > (~(UINTN)0) / sizeof(*Tables) ||
         !memory_map_contains(Map, MapSize, DescriptorSize, Tables,
-                             Count * sizeof(*Tables),
-                             EFI_MEMORY_RUNTIME)) {
+                             Count * sizeof(*Tables), EFI_MEMORY_RUNTIME)) {
         return 0;
     }
     for (index = 0; index < Count; index++) {
@@ -674,20 +654,20 @@ static BOOLEAN configuration_table_ranges_are_mapped(
             sal_seen = 1;
             must_be_runtime = 1;
             minimum_size = 144;
-        } else if (ia64_bytes_equal(Tables[index].VendorGuid,
-                                    smbios_guid, 16)) {
+        } else if (ia64_bytes_equal(Tables[index].VendorGuid, smbios_guid,
+                                    16)) {
             smbios_seen = 1;
             must_be_runtime = 1;
             minimum_size = 31;
-        } else if (ia64_bytes_equal(Tables[index].VendorGuid,
-                                    debug_image_guid, 16)) {
+        } else if (ia64_bytes_equal(Tables[index].VendorGuid, debug_image_guid,
+                                    16)) {
             debug_seen = 1;
             must_be_runtime = 1;
             minimum_size = 16;
         }
-        if (!memory_map_contains(
-                Map, MapSize, DescriptorSize, vendor_table, minimum_size,
-                must_be_runtime ? EFI_MEMORY_RUNTIME : 0)) {
+        if (!memory_map_contains(Map, MapSize, DescriptorSize, vendor_table,
+                                 minimum_size,
+                                 must_be_runtime ? EFI_MEMORY_RUNTIME : 0)) {
             return 0;
         }
         if (ia64_bytes_equal(Tables[index].VendorGuid, sal_guid, 16)) {
@@ -702,8 +682,8 @@ static BOOLEAN configuration_table_ranges_are_mapped(
                 UINT64 address = *(const UINT64 *)(sal + entry_offset);
 
                 if (!memory_map_contains(Map, MapSize, DescriptorSize,
-                                          (const VOID *)(UINTN)address, 1,
-                                          EFI_MEMORY_RUNTIME)) {
+                                         (const VOID *)(UINTN)address, 1,
+                                         EFI_MEMORY_RUNTIME)) {
                     return 0;
                 }
             }
@@ -807,8 +787,8 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
         gop->SetMode(gop, 1U) == EFI_SUCCESS &&
         vbe_read(VBE_DISPI_INDEX_ENABLE) != 0;
 
-    runtime_relocation_ready = load_runtime_relocation_test(
-        ImageHandle, boot_services);
+    runtime_relocation_ready =
+        load_runtime_relocation_test(ImageHandle, boot_services);
     ia64_test_check(&context, "runtime-image-load", runtime_relocation_ready,
                     EFI_LOAD_ERROR, "runtime-relocation-image");
 
@@ -817,8 +797,7 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
     aligned = status == EFI_SUCCESS && descriptor_version == 1U &&
               runtime_map_is_aligned(map, map_size, descriptor_size);
     if (!aligned) {
-        ia64_test_fail(&context, "memory-map", status,
-                       "runtime-map-alignment");
+        ia64_test_fail(&context, "memory-map", status, "runtime-map-alignment");
         ia64_test_done(&context);
         return EFI_DEVICE_ERROR;
     }
@@ -831,20 +810,19 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
      */
     runtime_pointers_mapped =
         runtime_services != NULL &&
-        memory_map_contains(
-            map, map_size, descriptor_size, runtime_services,
-            sizeof(EFI_TABLE_HEADER), EFI_MEMORY_RUNTIME) &&
+        memory_map_contains(map, map_size, descriptor_size, runtime_services,
+                            sizeof(EFI_TABLE_HEADER), EFI_MEMORY_RUNTIME) &&
         runtime_services->Hdr.HeaderSize >= sizeof(EFI_TABLE_HEADER) &&
         runtime_services->Hdr.HeaderSize <= EFI_PAGE_SIZE &&
-        memory_map_contains(
-            map, map_size, descriptor_size, runtime_services,
-            runtime_services->Hdr.HeaderSize, EFI_MEMORY_RUNTIME) &&
-        memory_map_contains(
-            map, map_size, descriptor_size, SystemTable,
-            sizeof(*SystemTable), EFI_MEMORY_RUNTIME);
-    runtime_functions_mapped = runtime_pointers_mapped &&
-        runtime_service_procedures_are_mapped(
-            map, map_size, descriptor_size, runtime_services);
+        memory_map_contains(map, map_size, descriptor_size, runtime_services,
+                            runtime_services->Hdr.HeaderSize,
+                            EFI_MEMORY_RUNTIME) &&
+        memory_map_contains(map, map_size, descriptor_size, SystemTable,
+                            sizeof(*SystemTable), EFI_MEMORY_RUNTIME);
+    runtime_functions_mapped =
+        runtime_pointers_mapped &&
+        runtime_service_procedures_are_mapped(map, map_size, descriptor_size,
+                                              runtime_services);
     configuration_tables_mapped = configuration_table_ranges_are_mapped(
         map, map_size, descriptor_size, configuration_table,
         configuration_count);
@@ -859,67 +837,62 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 
     context.DirectUart = 1;
     ia64_test_pass(&context, "memory-map");
-    ia64_test_check(
-        &context, "runtime-pointer-ranges", runtime_pointers_mapped,
-        EFI_DEVICE_ERROR, "runtime-range-attributes");
-    ia64_test_check(
-        &context, "runtime-function-ranges", runtime_functions_mapped,
-        EFI_DEVICE_ERROR, "runtime-procedure-descriptors");
-    ia64_test_check(
-        &context, "configuration-table-ranges",
-        configuration_tables_mapped,
-        EFI_DEVICE_ERROR, "configuration-table-ranges");
+    ia64_test_check(&context, "runtime-pointer-ranges", runtime_pointers_mapped,
+                    EFI_DEVICE_ERROR, "runtime-range-attributes");
+    ia64_test_check(&context, "runtime-function-ranges",
+                    runtime_functions_mapped, EFI_DEVICE_ERROR,
+                    "runtime-procedure-descriptors");
+    ia64_test_check(&context, "configuration-table-ranges",
+                    configuration_tables_mapped, EFI_DEVICE_ERROR,
+                    "configuration-table-ranges");
     ia64_test_pass(&context, "exit-boot-services");
-    ia64_test_check(
-        &context, "system-table-handoff",
-        SystemTable->BootServices == NULL && SystemTable->ConsoleInHandle ==
-            NULL && SystemTable->ConIn == NULL &&
-            SystemTable->ConsoleOutHandle == NULL && SystemTable->ConOut ==
-            NULL && SystemTable->StandardErrorHandle == NULL &&
-            SystemTable->StdErr == NULL &&
-            SystemTable->RuntimeServices == runtime_services,
-        EFI_DEVICE_ERROR, "boot-fields-not-cleared");
-    ia64_test_check(
-        &context, "system-table-crc",
-        system_table_crc_is_valid(SystemTable),
-        EFI_DEVICE_ERROR, "system-table-crc-after-exit");
-    ia64_test_check(
-        &context, "configuration-tables-preserved",
-        configuration_count != 0 &&
-            SystemTable->NumberOfTableEntries == configuration_count &&
-            SystemTable->ConfigurationTable == configuration_table,
-        EFI_DEVICE_ERROR, "configuration-table-changed");
-    ia64_test_check(
-        &context, "legacy-text-handoff",
-        graphics_mode_selected && legacy_text_handoff_is_ready(),
-        EFI_DEVICE_ERROR, "vga-not-in-legacy-text-mode");
+    ia64_test_check(&context, "system-table-handoff",
+                    SystemTable->BootServices == NULL &&
+                        SystemTable->ConsoleInHandle == NULL &&
+                        SystemTable->ConIn == NULL &&
+                        SystemTable->ConsoleOutHandle == NULL &&
+                        SystemTable->ConOut == NULL &&
+                        SystemTable->StandardErrorHandle == NULL &&
+                        SystemTable->StdErr == NULL &&
+                        SystemTable->RuntimeServices == runtime_services,
+                    EFI_DEVICE_ERROR, "boot-fields-not-cleared");
+    ia64_test_check(&context, "system-table-crc",
+                    system_table_crc_is_valid(SystemTable), EFI_DEVICE_ERROR,
+                    "system-table-crc-after-exit");
+    ia64_test_check(&context, "configuration-tables-preserved",
+                    configuration_count != 0 &&
+                        SystemTable->NumberOfTableEntries ==
+                            configuration_count &&
+                        SystemTable->ConfigurationTable == configuration_table,
+                    EFI_DEVICE_ERROR, "configuration-table-changed");
+    ia64_test_check(&context, "legacy-text-handoff",
+                    graphics_mode_selected && legacy_text_handoff_is_ready(),
+                    EFI_DEVICE_ERROR, "vga-not-in-legacy-text-mode");
     convert_address = runtime_services;
     original_address = convert_address;
     status = runtime_services->ConvertPointer(2U, &convert_address);
-    ia64_test_check(
-        &context, "convert-pointer-reserved-bits",
-        status == EFI_INVALID_PARAMETER &&
-            convert_address == original_address,
-        status, "reserved-debug-disposition-accepted");
+    ia64_test_check(&context, "convert-pointer-reserved-bits",
+                    status == EFI_INVALID_PARAMETER &&
+                        convert_address == original_address,
+                    status, "reserved-debug-disposition-accepted");
     status = runtime_services->GetTime(&time, NULL);
     ia64_test_check(&context, "runtime-get-time",
-                    status == EFI_SUCCESS && time.Year >= 1998U,
-                    status, "get-time-after-exit");
+                    status == EFI_SUCCESS && time.Year >= 1998U, status,
+                    "get-time-after-exit");
 
     physical_get_variable_descriptor =
         (const UINT64 *)(UINTN)runtime_services->GetVariable;
-    virtual_map_ready = prepare_runtime_virtual_map(
-        map, map_size, descriptor_size);
+    virtual_map_ready =
+        prepare_runtime_virtual_map(map, map_size, descriptor_size);
     if (virtual_map_ready) {
-        virtual_map_ready = install_runtime_test_mappings(
-            map, map_size, descriptor_size);
+        virtual_map_ready =
+            install_runtime_test_mappings(map, map_size, descriptor_size);
     }
-    status = virtual_map_ready ?
-        runtime_services->SetVirtualAddressMap(
-            map_size, descriptor_size, descriptor_version, map) :
-        EFI_INVALID_PARAMETER;
-    ia64_test_check(&context, "set-virtual-address-map",
-                    status == EFI_SUCCESS,
+    status = virtual_map_ready
+                 ? runtime_services->SetVirtualAddressMap(
+                       map_size, descriptor_size, descriptor_version, map)
+                 : EFI_INVALID_PARAMETER;
+    ia64_test_check(&context, "set-virtual-address-map", status == EFI_SUCCESS,
                     status, "nonidentity-runtime-map");
     ia64_test_check(&context, "runtime-modified-instruction",
                     status == EFI_SUCCESS && runtime_relocation_ready &&
@@ -938,26 +911,25 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
             physical_get_variable_descriptor[1];
         saved_iva = exchange_iva(TEST_APPLICATION_BASE);
         virtual_variable_status = test_call_virtual_procedure(
-            virtual_get_variable_descriptor, target_psr,
-            (UINTN)boot0000_name, (UINTN)efi_global_variable_guid,
-            (UINTN)&boot0000_attributes, (UINTN)&boot0000_size, 0);
+            virtual_get_variable_descriptor, target_psr, (UINTN)boot0000_name,
+            (UINTN)efi_global_variable_guid, (UINTN)&boot0000_attributes,
+            (UINTN)&boot0000_size, 0);
         (void)exchange_iva(saved_iva);
         if (configuration_tables_mapped) {
-            sal_wakeup_ok = test_sal_wakeup_address(
-                configuration_table, configuration_count);
+            sal_wakeup_ok = test_sal_wakeup_address(configuration_table,
+                                                    configuration_count);
         }
     }
-    ia64_test_check(
-        &context, "runtime-virtual-boot-variable",
-        virtual_variable_status == EFI_BUFFER_TOO_SMALL &&
-            boot0000_size > sizeof(UINT32) + sizeof(UINT16),
-        virtual_variable_status, "boot0000-after-virtual-map");
+    ia64_test_check(&context, "runtime-virtual-boot-variable",
+                    virtual_variable_status == EFI_BUFFER_TOO_SMALL &&
+                        boot0000_size > sizeof(UINT32) + sizeof(UINT16),
+                    virtual_variable_status, "boot0000-after-virtual-map");
     ia64_test_check(&context, "sal-wakeup-address", sal_wakeup_ok,
                     EFI_DEVICE_ERROR, "physical-virtual-wakeup-registration");
     ia64_test_done(&context);
 
     for (;;) {
-        __asm__ volatile ("hint @pause" ::: "memory");
+        __asm__ volatile("hint @pause" ::: "memory");
     }
 }
 

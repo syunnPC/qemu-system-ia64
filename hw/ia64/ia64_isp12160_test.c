@@ -42,23 +42,18 @@ static void isp12160_test_cancel_mailbox(void *opaque, int line, int level)
 
     /* Issue SET_HOST_INT and RESET_RISC before the mailbox BH can run. */
     io = &s->isp_io_as;
-    address_space_stw_le(io,
-                         IA64_ISP12160_TEST_IO_BASE +
-                         ISP12160_REG_HOST_COMMAND,
-                         ISP12160_HC_SET_HOST_INT,
-                         MEMTXATTRS_UNSPECIFIED, &result);
+    address_space_stw_le(
+        io, IA64_ISP12160_TEST_IO_BASE + ISP12160_REG_HOST_COMMAND,
+        ISP12160_HC_SET_HOST_INT, MEMTXATTRS_UNSPECIFIED, &result);
     g_assert(result == MEMTX_OK);
-    address_space_stw_le(io,
-                         IA64_ISP12160_TEST_IO_BASE +
-                         ISP12160_REG_HOST_COMMAND,
-                         ISP12160_HC_RESET_RISC,
-                         MEMTXATTRS_UNSPECIFIED, &result);
+    address_space_stw_le(
+        io, IA64_ISP12160_TEST_IO_BASE + ISP12160_REG_HOST_COMMAND,
+        ISP12160_HC_RESET_RISC, MEMTXATTRS_UNSPECIFIED, &result);
     g_assert(result == MEMTX_OK);
 }
 
 static DeviceState *isp12160_test_add_child(DeviceState *parent,
-                                             const char *name,
-                                             const char *type)
+                                            const char *name, const char *type)
 {
     DeviceState *child = qdev_new(type);
 
@@ -132,19 +127,16 @@ static void isp12160_test_realize(DeviceState *dev, Error **errp)
     }
 
     if (!qtest_enabled()) {
-        error_setg(errp, "%s is available only under qtest",
-                   qtest_type);
+        error_setg(errp, "%s is available only under qtest", qtest_type);
         return;
     }
     if (!machine->ram) {
-        error_setg(errp, "%s requires parent-machine RAM",
-                   qtest_type);
+        error_setg(errp, "%s requires parent-machine RAM", qtest_type);
         return;
     }
 
     test_460gx = isp12160_test_add_child(
-        dev, IA64_ISP12160_TEST_460GX_TEST_CHILD,
-        TYPE_IA64_I2000_460GX_TEST);
+        dev, IA64_ISP12160_TEST_460GX_TEST_CHILD, TYPE_IA64_I2000_460GX_TEST);
     s->test_460gx = IA64_I2000_460GX_TEST(test_460gx);
     if (!object_property_set_link(OBJECT(test_460gx),
                                   IA64_I2000_460GX_TEST_PROP_RAM,
@@ -153,31 +145,27 @@ static void isp12160_test_realize(DeviceState *dev, Error **errp)
         goto fail;
     }
 
-    bus = ia64_i2000_460gx_test_root_bus(
-        s->test_460gx, IA64_ISP12160_TEST_ROOT_INDEX);
+    bus = ia64_i2000_460gx_test_root_bus(s->test_460gx,
+                                         IA64_ISP12160_TEST_ROOT_INDEX);
     if (!bus || pci_bus_num(bus) != IA64_ISP12160_TEST_PCI_BUS) {
-        error_setg(&local_err, "%s did not find root-1 bus 0x%x",
-                   qtest_type, IA64_ISP12160_TEST_PCI_BUS);
+        error_setg(&local_err, "%s did not find root-1 bus 0x%x", qtest_type,
+                   IA64_ISP12160_TEST_PCI_BUS);
         goto fail;
     }
 
     s->isp = pci_new(
-        PCI_DEVFN(IA64_ISP12160_TEST_PCI_SLOT,
-                  IA64_ISP12160_TEST_PCI_FUNCTION),
+        PCI_DEVFN(IA64_ISP12160_TEST_PCI_SLOT, IA64_ISP12160_TEST_PCI_FUNCTION),
         isp_type);
     if (!qdev_realize(DEVICE(s->isp), BUS(bus), &local_err)) {
         object_unref(OBJECT(s->isp));
         s->isp = NULL;
         goto fail;
     }
-    if (s->isp->config[PCI_INTERRUPT_PIN] !=
-        IA64_ISP12160_TEST_INTERRUPT_PIN) {
-        error_setg(&local_err, "%s did not expose INTA",
-                   isp_type);
+    if (s->isp->config[PCI_INTERRUPT_PIN] != IA64_ISP12160_TEST_INTERRUPT_PIN) {
+        error_setg(&local_err, "%s did not expose INTA", isp_type);
         goto fail;
     }
-    address_space_init(&s->isp_io_as, pci_address_space_io(s->isp),
-                       io_as_name);
+    address_space_init(&s->isp_io_as, pci_address_space_io(s->isp), io_as_name);
     s->isp_io_as_initialized = true;
 
     /* Root 1 INTA is routed to PID pin 20 without slot swizzling. */
@@ -199,9 +187,8 @@ static void isp12160_test_unrealize(DeviceState *dev)
 
 static void isp12160_mailbox_test_init(Object *obj)
 {
-    qdev_init_gpio_in_named(
-        DEVICE(obj), isp12160_test_cancel_mailbox,
-        IA64_ISP12160_TEST_GPIO_CANCEL_MAILBOX, 1);
+    qdev_init_gpio_in_named(DEVICE(obj), isp12160_test_cancel_mailbox,
+                            IA64_ISP12160_TEST_GPIO_CANCEL_MAILBOX, 1);
 }
 
 static void isp12160_queue_test_init(Object *obj)
@@ -219,7 +206,7 @@ static void isp12160_scsi_test_init(Object *obj)
 }
 
 static void isp12160_mailbox_test_class_init(ObjectClass *klass,
-                                               const void *data)
+                                             const void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
 
@@ -239,8 +226,7 @@ static const TypeInfo isp12160_mailbox_test_info = {
     .class_init = isp12160_mailbox_test_class_init,
 };
 
-static void isp12160_queue_test_class_init(ObjectClass *klass,
-                                             const void *data)
+static void isp12160_queue_test_class_init(ObjectClass *klass, const void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
 
@@ -257,8 +243,7 @@ static const TypeInfo isp12160_queue_test_info = {
     .class_init = isp12160_queue_test_class_init,
 };
 
-static void isp12160_scsi_test_class_init(ObjectClass *klass,
-                                            const void *data)
+static void isp12160_scsi_test_class_init(ObjectClass *klass, const void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
 

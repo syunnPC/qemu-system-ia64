@@ -24,8 +24,7 @@ static UINTN mShellFileSystemCount;
 static UINTN mShellCurrentFileSystem;
 static CHAR8 mShellCurrentDirectory[FW_SHELL_PATH_MAX] = { '\\', 0 };
 
-static BOOLEAN fw_shell_ascii_equal_ci(const CHAR8 *Left,
-                                       const CHAR8 *Right)
+static BOOLEAN fw_shell_ascii_equal_ci(const CHAR8 *Left, const CHAR8 *Right)
 {
     UINTN i = 0;
 
@@ -33,8 +32,7 @@ static BOOLEAN fw_shell_ascii_equal_ci(const CHAR8 *Left,
         return 0;
     }
     while (Left[i] != 0 && Right[i] != 0) {
-        if (fw_ascii_upper((UINT8)Left[i]) !=
-            fw_ascii_upper((UINT8)Right[i])) {
+        if (fw_ascii_upper((UINT8)Left[i]) != fw_ascii_upper((UINT8)Right[i])) {
             return 0;
         }
         i++;
@@ -51,9 +49,8 @@ static BOOLEAN fw_shell_ascii_starts_ci(const CHAR8 *String,
         return 0;
     }
     for (i = 0; Prefix[i] != 0; i++) {
-        if (String[i] == 0 ||
-            fw_ascii_upper((UINT8)String[i]) !=
-            fw_ascii_upper((UINT8)Prefix[i])) {
+        if (String[i] == 0 || fw_ascii_upper((UINT8)String[i]) !=
+                                  fw_ascii_upper((UINT8)Prefix[i])) {
             return 0;
         }
     }
@@ -94,8 +91,8 @@ static void fw_shell_put_char16(const CHAR16 *String, UINTN Maximum)
         return;
     }
     for (i = 0; i < Maximum && String[i] != 0; i++) {
-        fw_shell_put_char(String[i] >= 0x20U && String[i] <= 0x7eU ?
-                          (CHAR8)String[i] : '?');
+        fw_shell_put_char(
+            String[i] >= 0x20U && String[i] <= 0x7eU ? (CHAR8)String[i] : '?');
     }
 }
 
@@ -152,10 +149,8 @@ static void fw_shell_put_four_digits(UINT16 Value)
 static BOOLEAN fw_shell_hotkey(const EFI_INPUT_KEY *Key)
 {
     return Key != NULL &&
-           (Key->ScanCode == EFI_SCAN_F2 ||
-            Key->ScanCode == EFI_SCAN_F12 ||
-            Key->ScanCode == EFI_SCAN_DELETE ||
-            Key->UnicodeChar == 0x7fU);
+           (Key->ScanCode == EFI_SCAN_F2 || Key->ScanCode == EFI_SCAN_F12 ||
+            Key->ScanCode == EFI_SCAN_DELETE || Key->UnicodeChar == 0x7fU);
 }
 
 BOOLEAN fw_boot_shell_hotkey_window(VOID)
@@ -222,8 +217,7 @@ static UINTN fw_shell_read_line(CHAR8 *Line, UINTN Capacity)
     }
 }
 
-static UINTN fw_shell_split_line(CHAR8 *Line, CHAR8 **Arguments,
-                                 UINTN Capacity)
+static UINTN fw_shell_split_line(CHAR8 *Line, CHAR8 **Arguments, UINTN Capacity)
 {
     CHAR8 *source = Line;
     CHAR8 *destination = Line;
@@ -288,8 +282,8 @@ static UINTN fw_shell_refresh_file_systems(void)
         mShellFileSystems = NULL;
     }
     status = bs_allocate_pool(EfiBootServicesData,
-                               handle_count * sizeof(*mShellFileSystems),
-                               (VOID **)&mShellFileSystems);
+                              handle_count * sizeof(*mShellFileSystems),
+                              (VOID **)&mShellFileSystems);
     if (status != EFI_SUCCESS) {
         (void)bs_free_pool(handles);
         fw_shell_puts("Cannot allocate the file system map.\r\n");
@@ -383,8 +377,7 @@ static void fw_shell_pop_component(CHAR8 *Path, UINTN *Length)
     Path[*Length] = 0;
 }
 
-static EFI_STATUS fw_shell_canonical_path(const CHAR8 *Base,
-                                          const CHAR8 *Input,
+static EFI_STATUS fw_shell_canonical_path(const CHAR8 *Base, const CHAR8 *Input,
                                           CHAR8 *Output)
 {
     CHAR8 combined[FW_SHELL_PATH_MAX * 2U];
@@ -429,8 +422,7 @@ static EFI_STATUS fw_shell_canonical_path(const CHAR8 *Base,
             position++;
         }
         length = position - start;
-        if (length == 0 ||
-            (length == 1U && combined[start] == '.')) {
+        if (length == 0 || (length == 1U && combined[start] == '.')) {
             continue;
         }
         if (length == 2U && combined[start] == '.' &&
@@ -438,8 +430,8 @@ static EFI_STATUS fw_shell_canonical_path(const CHAR8 *Base,
             fw_shell_pop_component(Output, &output_length);
             continue;
         }
-        if (!fw_shell_append_component(Output, &output_length,
-                                       combined + start, length)) {
+        if (!fw_shell_append_component(Output, &output_length, combined + start,
+                                       length)) {
             return EFI_BAD_BUFFER_SIZE;
         }
     }
@@ -447,8 +439,7 @@ static EFI_STATUS fw_shell_canonical_path(const CHAR8 *Base,
 }
 
 static EFI_STATUS fw_shell_resolve_path(const CHAR8 *Specification,
-                                        UINTN *FileSystemIndex,
-                                        CHAR16 *Path,
+                                        UINTN *FileSystemIndex, CHAR16 *Path,
                                         UINTN PathCapacity)
 {
     CHAR8 normalized[FW_SHELL_PATH_MAX];
@@ -501,8 +492,7 @@ static void fw_shell_char16_to_ascii(const CHAR16 *Input, CHAR8 *Output,
     Output[i] = 0;
 }
 
-static EFI_STATUS fw_shell_open_path(UINTN FileSystemIndex,
-                                     const CHAR16 *Path,
+static EFI_STATUS fw_shell_open_path(UINTN FileSystemIndex, const CHAR16 *Path,
                                      EFI_FILE_HANDLE *Root,
                                      EFI_FILE_HANDLE *File)
 {
@@ -524,8 +514,7 @@ static EFI_STATUS fw_shell_open_path(UINTN FileSystemIndex,
     if (Path[0] == '\\' && Path[1] == 0) {
         file = root;
     } else {
-        status = root->Open(root, &file, (CHAR16 *)Path,
-                            EFI_FILE_MODE_READ, 0);
+        status = root->Open(root, &file, (CHAR16 *)Path, EFI_FILE_MODE_READ, 0);
         if (status != EFI_SUCCESS || file == NULL) {
             (void)root->Close(root);
             return status == EFI_SUCCESS ? EFI_NOT_FOUND : status;
@@ -574,12 +563,11 @@ static void fw_shell_map(void)
         status = mShellFileSystems[index].simple_fs->OpenVolume(
             mShellFileSystems[index].simple_fs, &root);
         if (status == EFI_SUCCESS && root != NULL &&
-            root->GetInfo(root, (void *)mFileSystemInfoGuid,
-                          &info_size, info_buffer) == EFI_SUCCESS) {
+            root->GetInfo(root, (void *)mFileSystemInfoGuid, &info_size,
+                          info_buffer) == EFI_SUCCESS) {
             FW_EFI_FILE_SYSTEM_INFO *info =
                 (FW_EFI_FILE_SYSTEM_INFO *)info_buffer;
-            UINTN label_length = fw_char16_bounded_len(
-                info->VolumeLabel, 24U);
+            UINTN label_length = fw_char16_bounded_len(info->VolumeLabel, 24U);
             UINTN padding;
 
             fw_shell_put_char16(info->VolumeLabel, label_length);
@@ -619,8 +607,8 @@ static EFI_STATUS fw_shell_list(const CHAR8 *Specification)
     if (status != EFI_SUCCESS) {
         return status;
     }
-    status = file->GetInfo(file, (void *)mFileInfoGuid,
-                           &info_size, info_buffer);
+    status =
+        file->GetInfo(file, (void *)mFileInfoGuid, &info_size, info_buffer);
     if (status != EFI_SUCCESS) {
         fw_shell_close_path(root, file);
         return status;
@@ -685,10 +673,9 @@ static EFI_STATUS fw_shell_change_directory(const CHAR8 *Specification)
     if (status != EFI_SUCCESS) {
         return status;
     }
-    status = file->GetInfo(file, (void *)mFileInfoGuid,
-                           &info_size, info_buffer);
-    if (status == EFI_SUCCESS &&
-        (info->Attribute & EFI_FILE_DIRECTORY) == 0) {
+    status =
+        file->GetInfo(file, (void *)mFileInfoGuid, &info_size, info_buffer);
+    if (status == EFI_SUCCESS && (info->Attribute & EFI_FILE_DIRECTORY) == 0) {
         status = EFI_NOT_FOUND;
     }
     fw_shell_close_path(root, file);
@@ -700,9 +687,10 @@ static EFI_STATUS fw_shell_change_directory(const CHAR8 *Specification)
     return status;
 }
 
-static EFI_STATUS fw_shell_make_file_device_path(
-    UINTN FileSystemIndex, const CHAR16 *Path, UINT8 *FullPath,
-    UINTN FullPathSize)
+static EFI_STATUS fw_shell_make_file_device_path(UINTN FileSystemIndex,
+                                                 const CHAR16 *Path,
+                                                 UINT8 *FullPath,
+                                                 UINTN FullPathSize)
 {
     UINT8 file_path[sizeof(FW_DEVICE_PATH_NODE) +
                     FW_SHELL_PATH_MAX * sizeof(CHAR16) +
@@ -726,8 +714,8 @@ static EFI_STATUS fw_shell_make_file_device_path(
     fw_set_mem(file_path, sizeof(file_path), 0);
     file_node->Type = 0x04U;
     file_node->SubType = 0x04U;
-    file_node->Length = (UINT16)(sizeof(*file_node) +
-                                 (chars + 1U) * sizeof(CHAR16));
+    file_node->Length =
+        (UINT16)(sizeof(*file_node) + (chars + 1U) * sizeof(CHAR16));
     destination = (CHAR16 *)(VOID *)(file_path + sizeof(*file_node));
     for (i = 0; i <= chars; i++) {
         destination[i] = Path[i];
@@ -736,9 +724,8 @@ static EFI_STATUS fw_shell_make_file_device_path(
     end->Type = 0x7fU;
     end->SubType = 0xffU;
     end->Length = sizeof(*end);
-    return fw_build_file_device_path(
-        mShellFileSystems[FileSystemIndex].handle, file_node,
-        FullPath, FullPathSize);
+    return fw_build_file_device_path(mShellFileSystems[FileSystemIndex].handle,
+                                     file_node, FullPath, FullPathSize);
 }
 
 static EFI_STATUS fw_shell_set_image_arguments(EFI_HANDLE Image,
@@ -760,8 +747,7 @@ static EFI_STATUS fw_shell_set_image_arguments(EFI_HANDLE Image,
             }
             options[length++] = ' ';
         }
-        for (character = 0; Arguments[argument][character] != 0;
-             character++) {
+        for (character = 0; Arguments[argument][character] != 0; character++) {
             if (length + 1U >= FW_ARRAY_SIZE(options)) {
                 return EFI_BAD_BUFFER_SIZE;
             }
@@ -777,8 +763,7 @@ static EFI_STATUS fw_shell_set_image_arguments(EFI_HANDLE Image,
 }
 
 static EFI_STATUS fw_shell_execute_path(const CHAR8 *Specification,
-                                        UINTN ArgumentCount,
-                                        CHAR8 **Arguments,
+                                        UINTN ArgumentCount, CHAR8 **Arguments,
                                         BOOLEAN BootPolicy)
 {
     static UINT8 full_path[FW_SHELL_DEVICE_PATH_MAX];
@@ -803,8 +788,8 @@ static EFI_STATUS fw_shell_execute_path(const CHAR8 *Specification,
         return status;
     }
     if (ArgumentCount != 0) {
-        status = fw_shell_set_image_arguments(image, ArgumentCount,
-                                              Arguments, &load_options);
+        status = fw_shell_set_image_arguments(image, ArgumentCount, Arguments,
+                                              &load_options);
     }
     /*
      * Booting optical media from the shell uses empty load options, matching
@@ -859,8 +844,7 @@ static BOOLEAN fw_shell_parse_boot_number(const CHAR8 *Text, UINT16 *Number)
     }
     if (fw_shell_ascii_starts_ci(Text, "Boot")) {
         position = 4;
-    } else if (Text[0] == '0' &&
-               (Text[1] == 'x' || Text[1] == 'X')) {
+    } else if (Text[0] == '0' && (Text[1] == 'x' || Text[1] == 'X')) {
         position = 2;
     }
     while (Text[position] != 0 && digits < 4U) {
@@ -886,8 +870,8 @@ static BOOLEAN fw_shell_boot_option_exists(UINT16 Number)
     UINT32 attributes;
 
     fw_boot_option_name(Number, name);
-    return rs_get_variable(name, (void *)mEfiGlobalVariableGuid,
-                           &attributes, &size, data) == EFI_SUCCESS;
+    return rs_get_variable(name, (void *)mEfiGlobalVariableGuid, &attributes,
+                           &size, data) == EFI_SUCCESS;
 }
 
 static void fw_shell_print_boot_option(UINT16 Number)
@@ -905,8 +889,8 @@ static void fw_shell_print_boot_option(UINT16 Number)
     fw_shell_put_hex(Number, 4U);
     fw_shell_puts("  ");
     fw_boot_option_name(Number, name);
-    status = rs_get_variable(name, (void *)mEfiGlobalVariableGuid,
-                             &attributes, &size, option);
+    status = rs_get_variable(name, (void *)mEfiGlobalVariableGuid, &attributes,
+                             &size, option);
     if (status != EFI_SUCCESS) {
         fw_shell_puts("<missing>\r\n");
         return;
@@ -920,9 +904,9 @@ static void fw_shell_print_boot_option(UINT16 Number)
     if (chars != 0) {
         chars--;
     }
-    fw_shell_put_char16(
-        (const CHAR16 *)(const VOID *)(option + sizeof(UINT32) +
-                                      sizeof(UINT16)), chars);
+    fw_shell_put_char16((const CHAR16 *)(const VOID *)(option + sizeof(UINT32) +
+                                                       sizeof(UINT16)),
+                        chars);
     fw_copy_mem(&option_attributes, option, sizeof(option_attributes));
     if ((option_attributes & 1U) == 0) {
         fw_shell_puts(" [inactive]");
@@ -932,9 +916,7 @@ static void fw_shell_print_boot_option(UINT16 Number)
 
 static EFI_STATUS fw_shell_get_boot_order(UINT16 *Order, UINTN *Count)
 {
-    static CHAR16 name[] = {
-        'B', 'o', 'o', 't', 'O', 'r', 'd', 'e', 'r', 0
-    };
+    static CHAR16 name[] = { 'B', 'o', 'o', 't', 'O', 'r', 'd', 'e', 'r', 0 };
     UINTN size;
     UINTN count;
     UINT32 attributes = 0;
@@ -945,13 +927,13 @@ static EFI_STATUS fw_shell_get_boot_order(UINT16 *Order, UINTN *Count)
     }
     count = *Count;
     size = count * sizeof(UINT16);
-    status = rs_get_variable(name, (void *)mEfiGlobalVariableGuid,
-                             &attributes, &size, Order);
+    status = rs_get_variable(name, (void *)mEfiGlobalVariableGuid, &attributes,
+                             &size, Order);
     if (status != EFI_SUCCESS) {
         return status;
     }
-    if ((attributes & EFI_VARIABLE_BOOTSERVICE_ACCESS) == 0 ||
-        size == 0 || (size % sizeof(UINT16)) != 0) {
+    if ((attributes & EFI_VARIABLE_BOOTSERVICE_ACCESS) == 0 || size == 0 ||
+        (size % sizeof(UINT16)) != 0) {
         return EFI_LOAD_ERROR;
     }
     *Count = size / sizeof(UINT16);
@@ -985,9 +967,7 @@ static void fw_shell_show_boot_order(void)
 static EFI_STATUS fw_shell_set_boot_order(UINTN ArgumentCount,
                                           CHAR8 **Arguments)
 {
-    static CHAR16 name[] = {
-        'B', 'o', 'o', 't', 'O', 'r', 'd', 'e', 'r', 0
-    };
+    static CHAR16 name[] = { 'B', 'o', 'o', 't', 'O', 'r', 'd', 'e', 'r', 0 };
     UINT16 order[FW_SHELL_BOOT_ORDER_MAX];
     UINTN data_size;
     UINTN argument;
@@ -1010,43 +990,39 @@ static EFI_STATUS fw_shell_set_boot_order(UINTN ArgumentCount,
     }
     data_size = ArgumentCount;
     data_size *= sizeof(UINT16);
-    return rs_set_variable(
-        name, (void *)mEfiGlobalVariableGuid,
-        EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_BOOTSERVICE_ACCESS |
-            EFI_VARIABLE_RUNTIME_ACCESS,
-        data_size, order);
+    return rs_set_variable(name, (void *)mEfiGlobalVariableGuid,
+                           EFI_VARIABLE_NON_VOLATILE |
+                               EFI_VARIABLE_BOOTSERVICE_ACCESS |
+                               EFI_VARIABLE_RUNTIME_ACCESS,
+                           data_size, order);
 }
 
 static EFI_STATUS fw_shell_set_boot_next(const CHAR8 *Argument)
 {
-    static CHAR16 name[] = {
-        'B', 'o', 'o', 't', 'N', 'e', 'x', 't', 0
-    };
+    static CHAR16 name[] = { 'B', 'o', 'o', 't', 'N', 'e', 'x', 't', 0 };
     UINT16 number;
 
     if (!fw_shell_parse_boot_number(Argument, &number) ||
         !fw_shell_boot_option_exists(number)) {
         return EFI_NOT_FOUND;
     }
-    return rs_set_variable(
-        name, (void *)mEfiGlobalVariableGuid,
-        EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_BOOTSERVICE_ACCESS |
-            EFI_VARIABLE_RUNTIME_ACCESS,
-        sizeof(number), &number);
+    return rs_set_variable(name, (void *)mEfiGlobalVariableGuid,
+                           EFI_VARIABLE_NON_VOLATILE |
+                               EFI_VARIABLE_BOOTSERVICE_ACCESS |
+                               EFI_VARIABLE_RUNTIME_ACCESS,
+                           sizeof(number), &number);
 }
 
 static void fw_shell_show_boot_next(void)
 {
-    static CHAR16 name[] = {
-        'B', 'o', 'o', 't', 'N', 'e', 'x', 't', 0
-    };
+    static CHAR16 name[] = { 'B', 'o', 'o', 't', 'N', 'e', 'x', 't', 0 };
     UINT16 number;
     UINTN size = sizeof(number);
     UINT32 attributes = 0;
     EFI_STATUS status;
 
-    status = rs_get_variable(name, (void *)mEfiGlobalVariableGuid,
-                             &attributes, &size, &number);
+    status = rs_get_variable(name, (void *)mEfiGlobalVariableGuid, &attributes,
+                             &size, &number);
     if (status == EFI_NOT_FOUND) {
         fw_shell_puts("BootNext is not set.\r\n");
         return;
@@ -1114,13 +1090,11 @@ static BOOLEAN fw_shell_parse_time(const CHAR8 *Text, EFI_TIME *Time)
     UINTN second = 0;
     UINTN length = fw_shell_ascii_length(Text);
 
-    if (Text == NULL || Time == NULL ||
-        (length != 5U && length != 8U) || Text[2] != ':' ||
-        (length == 8U && Text[5] != ':') ||
+    if (Text == NULL || Time == NULL || (length != 5U && length != 8U) ||
+        Text[2] != ':' || (length == 8U && Text[5] != ':') ||
         !fw_shell_parse_decimal(Text, 2U, &hour) ||
         !fw_shell_parse_decimal(Text + 3U, 2U, &minute) ||
-        (length == 8U &&
-         !fw_shell_parse_decimal(Text + 6U, 2U, &second))) {
+        (length == 8U && !fw_shell_parse_decimal(Text + 6U, 2U, &second))) {
         return 0;
     }
     next = *Time;
@@ -1197,8 +1171,7 @@ static void fw_shell_system_info(void)
     fw_shell_puts("\r\nInstalled RAM:  ");
     fw_shell_put_uint64(fw_installed_ram_size() / (1024U * 1024U));
     fw_shell_puts(" MiB\r\nConsole:        ");
-    fw_shell_puts(fw_handoff_vga_console_primary() ?
-                  "graphics" : "serial");
+    fw_shell_puts(fw_handoff_vga_console_primary() ? "graphics" : "serial");
     fw_shell_puts("\r\nGraphics:       ");
     fw_shell_put_uint64(fw_graphics_width());
     fw_shell_put_char('x');
@@ -1212,8 +1185,7 @@ static void fw_shell_system_info(void)
     fw_shell_puts("\r\nFile systems:   ");
     fw_shell_put_uint64(mShellFileSystemCount);
     fw_shell_puts("\r\nNVRAM backing:  ");
-    fw_shell_puts(fw_handoff_nvram_persistent() ?
-                  "persistent" : "volatile");
+    fw_shell_puts(fw_handoff_nvram_persistent() ? "persistent" : "volatile");
     fw_shell_puts("\r\nDate and time:  ");
     fw_shell_show_date_time();
 }
@@ -1231,8 +1203,8 @@ static EFI_STATUS fw_shell_edd30(UINTN Count, CHAR8 **Arguments)
         return EFI_UNSUPPORTED;
     }
     if (Count == 1) {
-        status = rs_get_variable(name, (VOID *)mBlockIoProtocolGuid,
-                                  NULL, &size, &value);
+        status = rs_get_variable(name, (VOID *)mBlockIoProtocolGuid, NULL,
+                                 &size, &value);
         if (status != EFI_SUCCESS) {
             return status;
         }
@@ -1242,18 +1214,17 @@ static EFI_STATUS fw_shell_edd30(UINTN Count, CHAR8 **Arguments)
         fw_shell_puts(value ? "EDD30: on\r\n" : "EDD30: off\r\n");
         return EFI_SUCCESS;
     }
-    if (Count != 2 ||
-        (!fw_shell_ascii_equal_ci(Arguments[1], "on") &&
-         !fw_shell_ascii_equal_ci(Arguments[1], "off"))) {
+    if (Count != 2 || (!fw_shell_ascii_equal_ci(Arguments[1], "on") &&
+                       !fw_shell_ascii_equal_ci(Arguments[1], "off"))) {
         fw_shell_puts("Usage: edd30 [on|off]\r\n");
         return EFI_INVALID_PARAMETER;
     }
     value = fw_shell_ascii_equal_ci(Arguments[1], "on");
     status = rs_set_variable(name, (VOID *)mBlockIoProtocolGuid,
-                              EFI_VARIABLE_NON_VOLATILE |
-                              EFI_VARIABLE_BOOTSERVICE_ACCESS |
-                              EFI_VARIABLE_RUNTIME_ACCESS,
-                              sizeof(value), &value);
+                             EFI_VARIABLE_NON_VOLATILE |
+                                 EFI_VARIABLE_BOOTSERVICE_ACCESS |
+                                 EFI_VARIABLE_RUNTIME_ACCESS,
+                             sizeof(value), &value);
     if (status == EFI_SUCCESS) {
         fw_shell_puts("EDD30 saved; reset to apply.\r\n");
     }
@@ -1340,24 +1311,23 @@ static BOOLEAN fw_shell_dispatch(UINTN ArgumentCount, CHAR8 **Arguments)
                fw_shell_ascii_equal_ci(Arguments[0], "dir")) {
         status = fw_shell_list(ArgumentCount > 1U ? Arguments[1] : NULL);
     } else if (fw_shell_ascii_equal_ci(Arguments[0], "cd")) {
-        status = ArgumentCount == 2U ?
-                 fw_shell_change_directory(Arguments[1]) :
-                 EFI_INVALID_PARAMETER;
+        status = ArgumentCount == 2U ? fw_shell_change_directory(Arguments[1])
+                                     : EFI_INVALID_PARAMETER;
     } else if (fw_shell_ascii_equal_ci(Arguments[0], "run")) {
-        status = ArgumentCount >= 2U ?
-                 fw_shell_execute_path(Arguments[1], ArgumentCount - 2U,
-                                       Arguments + 2U, 0) :
-                 EFI_INVALID_PARAMETER;
+        status = ArgumentCount >= 2U
+                     ? fw_shell_execute_path(Arguments[1], ArgumentCount - 2U,
+                                             Arguments + 2U, 0)
+                     : EFI_INVALID_PARAMETER;
     } else if (fw_shell_ascii_equal_ci(Arguments[0], "bootorder")) {
         if (ArgumentCount == 1U) {
             fw_shell_show_boot_order();
         } else {
-            status = fw_shell_set_boot_order(ArgumentCount - 1U,
-                                             Arguments + 1U);
+            status =
+                fw_shell_set_boot_order(ArgumentCount - 1U, Arguments + 1U);
             if (status == EFI_SUCCESS) {
-                fw_shell_puts(fw_handoff_nvram_persistent() ?
-                              "BootOrder saved to persistent NVRAM.\r\n" :
-                              "BootOrder saved for this session.\r\n");
+                fw_shell_puts(fw_handoff_nvram_persistent()
+                                  ? "BootOrder saved to persistent NVRAM.\r\n"
+                                  : "BootOrder saved for this session.\r\n");
                 fw_shell_show_boot_order();
             }
         }
@@ -1365,13 +1335,12 @@ static BOOLEAN fw_shell_dispatch(UINTN ArgumentCount, CHAR8 **Arguments)
         if (ArgumentCount == 1U) {
             fw_shell_show_boot_next();
         } else {
-            status = ArgumentCount == 2U ?
-                     fw_shell_set_boot_next(Arguments[1]) :
-                     EFI_INVALID_PARAMETER;
+            status = ArgumentCount == 2U ? fw_shell_set_boot_next(Arguments[1])
+                                         : EFI_INVALID_PARAMETER;
             if (status == EFI_SUCCESS) {
-                fw_shell_puts(fw_handoff_nvram_persistent() ?
-                              "BootNext saved to persistent NVRAM.\r\n" :
-                              "BootNext saved for this session.\r\n");
+                fw_shell_puts(fw_handoff_nvram_persistent()
+                                  ? "BootNext saved to persistent NVRAM.\r\n"
+                                  : "BootNext saved for this session.\r\n");
             }
         }
     } else if (fw_shell_ascii_equal_ci(Arguments[0], "boot")) {
@@ -1385,11 +1354,10 @@ static BOOLEAN fw_shell_dispatch(UINTN ArgumentCount, CHAR8 **Arguments)
 
             if (fw_shell_parse_boot_number(Arguments[1], &number)) {
                 status = fw_boot_image_from_boot_option(number);
-            } else if (fw_shell_parse_fs_prefix(
-                           Arguments[1], &fs_index, &remaining) &&
+            } else if (fw_shell_parse_fs_prefix(Arguments[1], &fs_index,
+                                                &remaining) &&
                        remaining[0] == 0) {
-                static CHAR8 default_path[] =
-                    "\\EFI\\BOOT\\BOOTIA64.EFI";
+                static CHAR8 default_path[] = "\\EFI\\BOOT\\BOOTIA64.EFI";
                 CHAR8 specification[FW_SHELL_PATH_MAX];
                 UINTN length = 0;
                 UINTN i;
@@ -1412,8 +1380,7 @@ static BOOLEAN fw_shell_dispatch(UINTN ArgumentCount, CHAR8 **Arguments)
                 specification[length] = 0;
                 status = fw_shell_execute_path(specification, 0, NULL, 1);
             } else {
-                status = fw_shell_execute_path(Arguments[1],
-                                               ArgumentCount - 2U,
+                status = fw_shell_execute_path(Arguments[1], ArgumentCount - 2U,
                                                Arguments + 2U, 1);
             }
         }
@@ -1421,9 +1388,8 @@ static BOOLEAN fw_shell_dispatch(UINTN ArgumentCount, CHAR8 **Arguments)
         if (ArgumentCount == 1U) {
             fw_shell_show_date_time();
         } else {
-            status = ArgumentCount == 2U ?
-                     fw_shell_set_date(Arguments[1]) :
-                     EFI_INVALID_PARAMETER;
+            status = ArgumentCount == 2U ? fw_shell_set_date(Arguments[1])
+                                         : EFI_INVALID_PARAMETER;
             if (status == EFI_SUCCESS) {
                 fw_shell_show_date_time();
             }
@@ -1432,9 +1398,8 @@ static BOOLEAN fw_shell_dispatch(UINTN ArgumentCount, CHAR8 **Arguments)
         if (ArgumentCount == 1U) {
             fw_shell_show_date_time();
         } else {
-            status = ArgumentCount == 2U ?
-                     fw_shell_set_time(Arguments[1]) :
-                     EFI_INVALID_PARAMETER;
+            status = ArgumentCount == 2U ? fw_shell_set_time(Arguments[1])
+                                         : EFI_INVALID_PARAMETER;
             if (status == EFI_SUCCESS) {
                 fw_shell_show_date_time();
             }
@@ -1481,8 +1446,8 @@ void fw_boot_shell_run(VOID)
 
         fw_shell_prompt();
         (void)fw_shell_read_line(line, sizeof(line));
-        argument_count = fw_shell_split_line(
-            line, arguments, FW_ARRAY_SIZE(arguments));
+        argument_count =
+            fw_shell_split_line(line, arguments, FW_ARRAY_SIZE(arguments));
         if (!fw_shell_dispatch(argument_count, arguments)) {
             break;
         }

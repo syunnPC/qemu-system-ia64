@@ -74,8 +74,7 @@ static inline bool ia64_fpreg_is_nat(const CPUIA64State *env, unsigned reg)
            ((env->fp.fr_nat[reg / 64] >> (reg % 64)) & 1);
 }
 
-static inline bool ia64_fpreg_is_integer(const CPUIA64State *env,
-                                         unsigned reg)
+static inline bool ia64_fpreg_is_integer(const CPUIA64State *env, unsigned reg)
 {
     return reg > 1 && reg < IA64_FR_COUNT &&
            ((env->fp.fr_sig[reg / 64] >> (reg % 64)) & 1);
@@ -99,18 +98,17 @@ static inline void ia64_fpreg_from_binary64(CPUIA64State *env, unsigned reg,
  * 128-bit spill/fill representation.  Bits above bit 17 of high are reserved
  * and are ignored on fill, as required by the spill format.
  */
-void ia64_fpreg_to_spill(const CPUIA64State *env, unsigned reg,
-                         uint64_t *low, uint64_t *high);
-void ia64_fpreg_from_spill(CPUIA64State *env, unsigned reg,
-                           uint64_t low, uint64_t high);
+void ia64_fpreg_to_spill(const CPUIA64State *env, unsigned reg, uint64_t *low,
+                         uint64_t *high);
+void ia64_fpreg_from_spill(CPUIA64State *env, unsigned reg, uint64_t low,
+                           uint64_t high);
 
 /* Exact extended-format state is retained separately from the float64 cache. */
-bool ia64_fpreg_get_extended(const CPUIA64State *env, unsigned reg,
-                             bool *sign, uint32_t *exp, uint64_t *mant);
+bool ia64_fpreg_get_extended(const CPUIA64State *env, unsigned reg, bool *sign,
+                             uint32_t *exp, uint64_t *mant);
 
 /* IEEE interchange helpers used by setf/getf and the pure unit test. */
-void ia64_fpreg_from_binary32(CPUIA64State *env, unsigned reg,
-                              uint32_t value);
+void ia64_fpreg_from_binary32(CPUIA64State *env, unsigned reg, uint32_t value);
 uint32_t ia64_fpreg_to_binary32(const CPUIA64State *env, unsigned reg);
 uint64_t ia64_fpreg_to_binary64(const CPUIA64State *env, unsigned reg);
 

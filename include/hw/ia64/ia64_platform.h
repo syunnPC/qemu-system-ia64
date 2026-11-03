@@ -32,8 +32,7 @@ typedef struct IA64PlatformDescriptorArrays {
 } IA64PlatformDescriptorArrays;
 
 /* Initialize the fixed little-endian i2000 profile entry. */
-void ia64_platform_i2000_profile_init(
-    IA64PlatformI2000Profile *profile);
+void ia64_platform_i2000_profile_init(IA64PlatformI2000Profile *profile);
 
 /*
  * Complete the firmware entry transport.  descriptor_size is the
@@ -48,8 +47,7 @@ typedef struct IA64PlatformFirmwareArgs {
 
 bool ia64_platform_desc_validate(const IA64PlatformDescriptor *descriptor,
                                  size_t available_size,
-                                 uint32_t expected_platform_id,
-                                 Error **errp);
+                                 uint32_t expected_platform_id, Error **errp);
 void ia64_platform_desc_finalize(IA64PlatformDescriptor *descriptor,
                                  size_t available_size);
 
@@ -81,9 +79,8 @@ bool ia64_platform_desc_mapping_valid(hwaddr gpa, size_t descriptor_size);
  * Check that its complete outward-rounded EFI reservation lies in one of its
  * declared RAM ranges.
  */
-bool ia64_platform_desc_mapping_in_ram(
-    const IA64PlatformDescriptor *descriptor, hwaddr gpa,
-    size_t descriptor_size);
+bool ia64_platform_desc_mapping_in_ram(const IA64PlatformDescriptor *descriptor,
+                                       hwaddr gpa, size_t descriptor_size);
 
 /*
  * Install one immutable, zero-padded firmware-assist page over existing
@@ -102,10 +99,11 @@ bool ia64_platform_desc_install_rom(MemoryRegion *region, Object *owner,
  * already back the complete descriptor page.  Machine-specific placement and
  * collision checks remain the caller's responsibility.
  */
-IA64PlatformDescriptorDevice *ia64_platform_desc_device_create(
-    Object *parent, const char *name, hwaddr gpa,
-    const IA64PlatformDescriptor *header,
-    const IA64PlatformDescriptorArrays *arrays, Error **errp);
+IA64PlatformDescriptorDevice *
+ia64_platform_desc_device_create(Object *parent, const char *name, hwaddr gpa,
+                                 const IA64PlatformDescriptor *header,
+                                 const IA64PlatformDescriptorArrays *arrays,
+                                 Error **errp);
 
 /*
  * Remove and unrealize a descriptor created above.  The borrowed pointer is
@@ -115,7 +113,6 @@ void ia64_platform_desc_device_destroy(IA64PlatformDescriptorDevice *device);
 
 /* Leave @args unchanged unless the descriptor is successfully installed. */
 bool ia64_platform_desc_device_get_firmware_args(
-    const IA64PlatformDescriptorDevice *device,
-    IA64PlatformFirmwareArgs *args);
+    const IA64PlatformDescriptorDevice *device, IA64PlatformFirmwareArgs *args);
 
 #endif /* HW_IA64_PLATFORM_H */

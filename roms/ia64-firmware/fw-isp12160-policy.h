@@ -51,9 +51,9 @@ typedef struct {
     FW_ISP12160_DMA_REGION Bounce;
 } FW_ISP12160_DMA_LAYOUT;
 
-static inline BOOLEAN fw_isp12160_policy_init(
-    BOOLEAN FixedI2000Capability, UINT32 Capabilities,
-    FW_ISP12160_POLICY *Policy)
+static inline BOOLEAN fw_isp12160_policy_init(BOOLEAN FixedI2000Capability,
+                                              UINT32 Capabilities,
+                                              FW_ISP12160_POLICY *Policy)
 {
     FW_ISP12160_POLICY result = { 0 };
 
@@ -81,8 +81,7 @@ static inline BOOLEAN fw_isp12160_policy_init(
     result.RequestQueueBytes = ISP12160_QEMU_I2000_REQUEST_QUEUE_BYTES;
     result.ResponseQueueBytes = ISP12160_QEMU_I2000_RESPONSE_QUEUE_BYTES;
     result.TokenBytes = ISP12160_QEMU_TOKEN_BYTES;
-    result.TokenAllocationBytes =
-        ISP12160_QEMU_I2000_TOKEN_ALLOCATION_BYTES;
+    result.TokenAllocationBytes = ISP12160_QEMU_I2000_TOKEN_ALLOCATION_BYTES;
     result.BounceBytes = ISP12160_QEMU_I2000_BOUNCE_BYTES;
     result.DmaAlignment = ISP12160_QEMU_I2000_DMA_ALIGNMENT;
     result.DmaApertureBase = ISP12160_QEMU_I2000_DMA_APERTURE_BASE;
@@ -94,20 +93,20 @@ static inline BOOLEAN fw_isp12160_policy_init(
 }
 
 static inline BOOLEAN fw_isp12160_policy_pci_identity_matches(
-    const FW_ISP12160_POLICY *Policy, UINT32 VendorDevice,
-    UINT32 ClassRevision)
+    const FW_ISP12160_POLICY *Policy, UINT32 VendorDevice, UINT32 ClassRevision)
 {
     if (Policy == NULL) {
         return 0;
     }
 
     return (UINT16)VendorDevice == Policy->VendorId &&
-        (UINT16)(VendorDevice >> 16) == Policy->DeviceId &&
-        (UINT16)(ClassRevision >> 16) == Policy->Class;
+           (UINT16)(VendorDevice >> 16) == Policy->DeviceId &&
+           (UINT16)(ClassRevision >> 16) == Policy->Class;
 }
 
-static inline BOOLEAN fw_isp12160_policy_bar_matches(
-    const FW_ISP12160_POLICY *Policy, UINT32 BarValue)
+static inline BOOLEAN
+fw_isp12160_policy_bar_matches(const FW_ISP12160_POLICY *Policy,
+                               UINT32 BarValue)
 {
     if (Policy == NULL || Policy->MmioBase > 0xffffffffU) {
         return 0;
@@ -115,18 +114,20 @@ static inline BOOLEAN fw_isp12160_policy_bar_matches(
 
     /* The fixed BAR is non-prefetchable, 32-bit memory. */
     return (BarValue & 0x0fU) == 0 &&
-        (BarValue & ~0x0fU) == (UINT32)Policy->MmioBase;
+           (BarValue & ~0x0fU) == (UINT32)Policy->MmioBase;
 }
 
-static inline BOOLEAN fw_isp12160_policy_interrupt_matches(
-    const FW_ISP12160_POLICY *Policy, UINT8 InterruptPin, UINT32 Gsi)
+static inline BOOLEAN
+fw_isp12160_policy_interrupt_matches(const FW_ISP12160_POLICY *Policy,
+                                     UINT8 InterruptPin, UINT32 Gsi)
 {
     return Policy != NULL && InterruptPin == Policy->InterruptPin &&
-        Gsi == Policy->Gsi;
+           Gsi == Policy->Gsi;
 }
 
-static inline BOOLEAN fw_isp12160_dma_range_contains(
-    UINT64 Base, UINT64 Length, UINT64 Address, UINT64 Size)
+static inline BOOLEAN fw_isp12160_dma_range_contains(UINT64 Base, UINT64 Length,
+                                                     UINT64 Address,
+                                                     UINT64 Size)
 {
     UINT64 offset;
 
@@ -137,9 +138,10 @@ static inline BOOLEAN fw_isp12160_dma_range_contains(
     return offset < Length && Size <= Length - offset;
 }
 
-static inline BOOLEAN fw_isp12160_dma_region_valid(
-    const FW_ISP12160_POLICY *Policy,
-    const FW_ISP12160_DMA_REGION *Region, UINT32 ExpectedSize)
+static inline BOOLEAN
+fw_isp12160_dma_region_valid(const FW_ISP12160_POLICY *Policy,
+                             const FW_ISP12160_DMA_REGION *Region,
+                             UINT32 ExpectedSize)
 {
     if (Policy == NULL || Region == NULL || ExpectedSize == 0 ||
         Region->Size != ExpectedSize || Policy->DmaAlignment == 0 ||
@@ -155,15 +157,14 @@ static inline BOOLEAN fw_isp12160_dma_region_valid(
         Region->PhysicalAddress, Region->Size);
 }
 
-static inline BOOLEAN fw_isp12160_dma_regions_overlap(
-    const FW_ISP12160_DMA_REGION *Left,
-    const FW_ISP12160_DMA_REGION *Right)
+static inline BOOLEAN
+fw_isp12160_dma_regions_overlap(const FW_ISP12160_DMA_REGION *Left,
+                                const FW_ISP12160_DMA_REGION *Right)
 {
     UINT64 left_end;
     UINT64 right_end;
 
-    if (Left == NULL || Right == NULL || Left->Size == 0 ||
-        Right->Size == 0 ||
+    if (Left == NULL || Right == NULL || Left->Size == 0 || Right->Size == 0 ||
         Left->PhysicalAddress > ~(UINT64)0 - Left->Size ||
         Right->PhysicalAddress > ~(UINT64)0 - Right->Size) {
         return 1;
@@ -171,42 +172,42 @@ static inline BOOLEAN fw_isp12160_dma_regions_overlap(
     left_end = Left->PhysicalAddress + Left->Size;
     right_end = Right->PhysicalAddress + Right->Size;
     return Left->PhysicalAddress < right_end &&
-        Right->PhysicalAddress < left_end;
+           Right->PhysicalAddress < left_end;
 }
 
-static inline BOOLEAN fw_isp12160_dma_layout_valid(
-    const FW_ISP12160_POLICY *Policy,
-    const FW_ISP12160_DMA_LAYOUT *Layout)
+static inline BOOLEAN
+fw_isp12160_dma_layout_valid(const FW_ISP12160_POLICY *Policy,
+                             const FW_ISP12160_DMA_LAYOUT *Layout)
 {
     if (Policy == NULL || Layout == NULL ||
-        !fw_isp12160_dma_region_valid(
-            Policy, &Layout->RequestQueue, Policy->RequestQueueBytes) ||
-        !fw_isp12160_dma_region_valid(
-            Policy, &Layout->ResponseQueue, Policy->ResponseQueueBytes) ||
-        !fw_isp12160_dma_region_valid(
-            Policy, &Layout->Token, Policy->TokenAllocationBytes) ||
-        !fw_isp12160_dma_region_valid(
-            Policy, &Layout->Bounce, Policy->BounceBytes)) {
+        !fw_isp12160_dma_region_valid(Policy, &Layout->RequestQueue,
+                                      Policy->RequestQueueBytes) ||
+        !fw_isp12160_dma_region_valid(Policy, &Layout->ResponseQueue,
+                                      Policy->ResponseQueueBytes) ||
+        !fw_isp12160_dma_region_valid(Policy, &Layout->Token,
+                                      Policy->TokenAllocationBytes) ||
+        !fw_isp12160_dma_region_valid(Policy, &Layout->Bounce,
+                                      Policy->BounceBytes)) {
         return 0;
     }
 
     return !fw_isp12160_dma_regions_overlap(&Layout->RequestQueue,
-                                             &Layout->ResponseQueue) &&
-        !fw_isp12160_dma_regions_overlap(&Layout->RequestQueue,
-                                         &Layout->Token) &&
-        !fw_isp12160_dma_regions_overlap(&Layout->RequestQueue,
-                                         &Layout->Bounce) &&
-        !fw_isp12160_dma_regions_overlap(&Layout->ResponseQueue,
-                                         &Layout->Token) &&
-        !fw_isp12160_dma_regions_overlap(&Layout->ResponseQueue,
-                                         &Layout->Bounce) &&
-        !fw_isp12160_dma_regions_overlap(&Layout->Token,
-                                         &Layout->Bounce);
+                                            &Layout->ResponseQueue) &&
+           !fw_isp12160_dma_regions_overlap(&Layout->RequestQueue,
+                                            &Layout->Token) &&
+           !fw_isp12160_dma_regions_overlap(&Layout->RequestQueue,
+                                            &Layout->Bounce) &&
+           !fw_isp12160_dma_regions_overlap(&Layout->ResponseQueue,
+                                            &Layout->Token) &&
+           !fw_isp12160_dma_regions_overlap(&Layout->ResponseQueue,
+                                            &Layout->Bounce) &&
+           !fw_isp12160_dma_regions_overlap(&Layout->Token, &Layout->Bounce);
 }
 
-static inline BOOLEAN fw_isp12160_request_fits_policy(
-    const FW_ISP12160_POLICY *Policy, UINTN Outstanding,
-    UINTN DataSegments, UINT64 TransferBytes)
+static inline BOOLEAN
+fw_isp12160_request_fits_policy(const FW_ISP12160_POLICY *Policy,
+                                UINTN Outstanding, UINTN DataSegments,
+                                UINT64 TransferBytes)
 {
     if (Policy == NULL || Outstanding >= Policy->MaxOutstanding ||
         DataSegments > Policy->MaxDataSegments ||

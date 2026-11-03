@@ -100,20 +100,20 @@ static const VMStateDescription vmstate_io_test_ifb_f0 = {
     .name = TYPE_IA64_I2000_IO_TEST_IFB_F0,
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (const VMStateField[]) {
-        VMSTATE_PCI_DEVICE(parent_obj, IA64I2000IoTestIFBF0State),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) {
+            VMSTATE_PCI_DEVICE(parent_obj, IA64I2000IoTestIFBF0State),
+            VMSTATE_END_OF_LIST() },
 };
 
 static const VMStateDescription vmstate_io_test_ifb_f1 = {
     .name = TYPE_IA64_I2000_IO_TEST_IFB_F1,
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (const VMStateField[]) {
-        VMSTATE_PCI_DEVICE(parent_obj, IA64I2000IoTestIFBF1State),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) {
+            VMSTATE_PCI_DEVICE(parent_obj, IA64I2000IoTestIFBF1State),
+            VMSTATE_END_OF_LIST() },
 };
 
 static void io_test_ifb_f0_class_init(ObjectClass *klass, const void *data)
@@ -183,7 +183,7 @@ static void io_test_cleanup(IA64I2000IoTestState *s)
 }
 
 static bool io_test_irq_aggregate_level(const IA64I2000IoTestState *s,
-                                   unsigned irq)
+                                        unsigned irq)
 {
     uint16_t mask = BIT(irq);
 
@@ -191,10 +191,9 @@ static bool io_test_irq_aggregate_level(const IA64I2000IoTestState *s,
 }
 
 static void io_test_set_router_input(IA64I2000IoTestState *s, unsigned irq,
-                                int level, bool dynamic)
+                                     int level, bool dynamic)
 {
-    uint16_t *levels = dynamic ? &s->dynamic_irq_levels :
-                                 &s->static_irq_levels;
+    uint16_t *levels = dynamic ? &s->dynamic_irq_levels : &s->static_irq_levels;
     uint16_t mask;
     bool old_output;
     bool new_output;
@@ -229,8 +228,8 @@ static void io_test_set_dynamic_irq(void *opaque, int irq, int level)
     io_test_set_router_input(opaque, irq, level, true);
 }
 
-static bool io_test_create_pci_functions(IA64I2000IoTestState *s,
-                                    PCIBus *root, Error **errp)
+static bool io_test_create_pci_functions(IA64I2000IoTestState *s, PCIBus *root,
+                                         Error **errp)
 {
     PCIDevice *pci;
 
@@ -252,25 +251,20 @@ static bool io_test_create_pci_functions(IA64I2000IoTestState *s,
 }
 
 static bool io_test_create_i82559(IA64I2000IoTestState *s, PCIBus *root,
-                             Error **errp)
+                                  Error **errp)
 {
     uint8_t mac[6] = {
-        s->layout.i82559_mac_word0,
-        s->layout.i82559_mac_word0 >> 8,
-        s->layout.i82559_mac_word1,
-        s->layout.i82559_mac_word1 >> 8,
-        s->layout.i82559_mac_word2,
-        s->layout.i82559_mac_word2 >> 8,
+        s->layout.i82559_mac_word0, s->layout.i82559_mac_word0 >> 8,
+        s->layout.i82559_mac_word1, s->layout.i82559_mac_word1 >> 8,
+        s->layout.i82559_mac_word2, s->layout.i82559_mac_word2 >> 8,
     };
     PCIDevice *pci = pci_new(
-        PCI_DEVFN(s->layout.i82559_slot, s->layout.i82559.function),
-        "i82559c");
+        PCI_DEVFN(s->layout.i82559_slot, s->layout.i82559.function), "i82559c");
 
     qdev_prop_set_string(DEVICE(pci), "romfile", "");
     qdev_prop_set_macaddr(DEVICE(pci), "mac", mac);
     if (s->i82559_peers.ncs[0]) {
-        qdev_prop_set_netdev(DEVICE(pci), "netdev",
-                            s->i82559_peers.ncs[0]);
+        qdev_prop_set_netdev(DEVICE(pci), "netdev", s->i82559_peers.ncs[0]);
     }
     if (!pci_realize_and_unref(pci, root, errp)) {
         return false;
@@ -280,7 +274,7 @@ static bool io_test_create_i82559(IA64I2000IoTestState *s, PCIBus *root,
 }
 
 static bool io_test_create_isp12160(IA64I2000IoTestState *s, PCIBus *root,
-                               Error **errp)
+                                    Error **errp)
 {
     PCIDevice *pci;
     BusState *child_bus;
@@ -292,10 +286,9 @@ static bool io_test_create_isp12160(IA64I2000IoTestState *s, PCIBus *root,
         return false;
     }
 
-    pci = pci_new(
-        PCI_DEVFN(s->layout.isp12160_slot,
-                  s->layout.isp12160.function),
-        TYPE_ISP12160_SCSI);
+    pci =
+        pci_new(PCI_DEVFN(s->layout.isp12160_slot, s->layout.isp12160.function),
+                TYPE_ISP12160_SCSI);
     if (!pci_realize_and_unref(pci, root, errp)) {
         return false;
     }
@@ -311,8 +304,7 @@ static bool io_test_create_isp12160(IA64I2000IoTestState *s, PCIBus *root,
     return true;
 }
 
-void ia64_i2000_io_test_restore_pci_resources(
-    IA64I2000IoTestState *s)
+void ia64_i2000_io_test_restore_pci_resources(IA64I2000IoTestState *s)
 {
     if (!s || !s->isp12160) {
         return;
@@ -337,10 +329,9 @@ static bool io_test_create_lpc47b27(IA64I2000IoTestState *s, Error **errp)
     ISADevice *lpc = isa_new(TYPE_LPC47B27_ISA);
 
     qdev_prop_set_uint16(DEVICE(lpc), LPC47B27_ISA_PROP_CONFIG_IOBASE,
-                        s->layout.superio_config.base);
-    qdev_prop_set_uint32(DEVICE(lpc),
-                        LPC47B27_ISA_PROP_UART_INPUT_CLOCK_HZ,
-                        s->layout.uart_input_clock_hz);
+                         s->layout.superio_config.base);
+    qdev_prop_set_uint32(DEVICE(lpc), LPC47B27_ISA_PROP_UART_INPUT_CLOCK_HZ,
+                         s->layout.uart_input_clock_hz);
     if (s->uart_chardev) {
         qdev_prop_set_chr(DEVICE(lpc), "chardev", s->uart_chardev);
     }
@@ -353,8 +344,7 @@ static bool io_test_create_rtc(IA64I2000IoTestState *s, Error **errp)
 
     rtc = isa_new(TYPE_MC146818_RTC);
     qdev_prop_set_int32(DEVICE(rtc), "base_year", s->layout.rtc_base_year);
-    qdev_prop_set_uint16(DEVICE(rtc), "iobase",
-                        s->layout.rtc_bank0.base);
+    qdev_prop_set_uint16(DEVICE(rtc), "iobase", s->layout.rtc_bank0.base);
     qdev_prop_set_uint8(DEVICE(rtc), "irq", s->layout.rtc_irq);
     if (!isa_realize_and_unref(rtc, s->isa_bus, errp)) {
         return false;
@@ -363,7 +353,7 @@ static bool io_test_create_rtc(IA64I2000IoTestState *s, Error **errp)
 
     rtc = isa_new(TYPE_IA64_I2000_RTC_BANK1);
     qdev_prop_set_uint16(DEVICE(rtc), IA64_I2000_RTC_BANK1_PROP_IOBASE,
-                        s->layout.rtc_bank1.base);
+                         s->layout.rtc_bank1.base);
     return isa_realize_and_unref(rtc, s->isa_bus, errp);
 }
 
@@ -372,10 +362,8 @@ static bool io_test_create_ide(IA64I2000IoTestState *s, Error **errp)
     ISADevice *isadev = isa_new(TYPE_ISA_IDE);
     DeviceState *cd;
 
-    qdev_prop_set_uint32(DEVICE(isadev), "iobase",
-                        s->layout.ide_command.base);
-    qdev_prop_set_uint32(DEVICE(isadev), "iobase2",
-                        s->layout.ide_control.base);
+    qdev_prop_set_uint32(DEVICE(isadev), "iobase", s->layout.ide_command.base);
+    qdev_prop_set_uint32(DEVICE(isadev), "iobase2", s->layout.ide_control.base);
     qdev_prop_set_uint32(DEVICE(isadev), "irq", s->layout.ide_irq);
     qdev_prop_set_bit(DEVICE(isadev), "pio-only", true);
     if (!isa_realize_and_unref(isadev, s->isa_bus, errp)) {
@@ -386,8 +374,8 @@ static bool io_test_create_ide(IA64I2000IoTestState *s, Error **errp)
     cd = qdev_new("ide-cd");
     qdev_prop_set_uint32(cd, "unit", s->layout.ide_master_unit);
     if (s->cd_drive &&
-        !qdev_prop_set_drive_err(cd, "drive",
-                                 blk_by_legacy_dinfo(s->cd_drive), errp)) {
+        !qdev_prop_set_drive_err(cd, "drive", blk_by_legacy_dinfo(s->cd_drive),
+                                 errp)) {
         object_unref(OBJECT(cd));
         return false;
     }
@@ -398,12 +386,10 @@ static bool io_test_create_isa(IA64I2000IoTestState *s, Error **errp)
 {
     ISADevice *pit;
 
-    s->isa_bus = isa_bus_new_non_default(DEVICE(s->f0),
-                                         pci_address_space(s->f0),
-                                         pci_address_space_io(s->f0));
-    s->lpc_bus = isa_bus_new_non_default(DEVICE(s->f0),
-                                         pci_address_space(s->f0),
-                                         pci_address_space_io(s->f0));
+    s->isa_bus = isa_bus_new_non_default(
+        DEVICE(s->f0), pci_address_space(s->f0), pci_address_space_io(s->f0));
+    s->lpc_bus = isa_bus_new_non_default(
+        DEVICE(s->f0), pci_address_space(s->f0), pci_address_space_io(s->f0));
     /* F0 was already realized before these explicitly owned buses exist. */
     if (!qbus_realize(BUS(s->isa_bus), errp) ||
         !qbus_realize(BUS(s->lpc_bus), errp)) {
@@ -412,16 +398,16 @@ static bool io_test_create_isa(IA64I2000IoTestState *s, Error **errp)
     s->pic_irqs = i8259_init_pair(
         s->isa_bus, ia64_i2000_460gx_test_legacy_irq(s->test_460gx),
         &s->master_pic);
-    s->static_irqs = qemu_allocate_irqs(io_test_set_static_irq, s,
-                                        ISA_NUM_IRQS);
-    s->dynamic_irqs = qemu_allocate_irqs(io_test_set_dynamic_irq, s,
-                                         ISA_NUM_IRQS);
+    s->static_irqs =
+        qemu_allocate_irqs(io_test_set_static_irq, s, ISA_NUM_IRQS);
+    s->dynamic_irqs =
+        qemu_allocate_irqs(io_test_set_dynamic_irq, s, ISA_NUM_IRQS);
     isa_bus_register_input_irqs(s->isa_bus, s->static_irqs);
     isa_bus_register_input_irqs(s->lpc_bus, s->dynamic_irqs);
     s->router_active = true;
 
-    pit = i8254_pit_init(s->isa_bus, s->layout.pit.base,
-                         s->layout.pit_irq, NULL);
+    pit =
+        i8254_pit_init(s->isa_bus, s->layout.pit.base, s->layout.pit_irq, NULL);
     if (!pit) {
         error_setg(errp, "failed to create i2000 I/O test PIT");
         return false;
@@ -442,8 +428,7 @@ static void io_test_realize(DeviceState *dev, Error **errp)
     Error *local_err = NULL;
 
     if (!s->test_460gx) {
-        error_setg(errp, "%s requires the '%s' link",
-                   TYPE_IA64_I2000_IO_TEST,
+        error_setg(errp, "%s requires the '%s' link", TYPE_IA64_I2000_IO_TEST,
                    IA64_I2000_IO_TEST_PROP_460GX_TEST);
         return;
     }
@@ -458,16 +443,15 @@ static void io_test_realize(DeviceState *dev, Error **errp)
                    s->layout.pid_legacy_pin);
         return;
     }
-    root = ia64_i2000_460gx_test_root_bus(s->test_460gx,
-                                          s->layout.parent_root);
+    root = ia64_i2000_460gx_test_root_bus(s->test_460gx, s->layout.parent_root);
     if (!root) {
         error_setg(errp,
                    "i2000 I/O test requires a realized 460GX test root %u",
                    s->layout.parent_root);
         return;
     }
-    i82559_root = ia64_i2000_460gx_test_root_bus(
-        s->test_460gx, s->layout.i82559_parent_root);
+    i82559_root = ia64_i2000_460gx_test_root_bus(s->test_460gx,
+                                                 s->layout.i82559_parent_root);
     if (!i82559_root) {
         error_setg(errp,
                    "i2000 I/O test device requires a realized i82559 root %u",
@@ -524,203 +508,176 @@ static const VMStateDescription vmstate_io_test_port_range = {
     .name = TYPE_IA64_I2000_IO_TEST "/port-range",
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (const VMStateField[]) {
-        VMSTATE_UINT32_EQUAL(base, IA64I2000IoTestIOPortRange),
-        VMSTATE_UINT32_EQUAL(size, IA64I2000IoTestIOPortRange),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) {
+            VMSTATE_UINT32_EQUAL(base, IA64I2000IoTestIOPortRange),
+            VMSTATE_UINT32_EQUAL(size, IA64I2000IoTestIOPortRange),
+            VMSTATE_END_OF_LIST() },
 };
 
 static const VMStateDescription vmstate_io_test_pci_function = {
     .name = TYPE_IA64_I2000_IO_TEST "/pci-function",
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (const VMStateField[]) {
-        VMSTATE_UINT16_EQUAL(vendor_id, IA64I2000IoTestPCIFunction),
-        VMSTATE_UINT16_EQUAL(device_id, IA64I2000IoTestPCIFunction),
-        VMSTATE_UINT16_EQUAL(class_id, IA64I2000IoTestPCIFunction),
-        VMSTATE_UINT16_EQUAL(subsystem_vendor_id,
-                             IA64I2000IoTestPCIFunction),
-        VMSTATE_UINT16_EQUAL(subsystem_id, IA64I2000IoTestPCIFunction),
-        VMSTATE_UINT8_EQUAL(revision, IA64I2000IoTestPCIFunction),
-        VMSTATE_UINT8_EQUAL(prog_if, IA64I2000IoTestPCIFunction),
-        VMSTATE_UINT8_EQUAL(function, IA64I2000IoTestPCIFunction),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) {
+            VMSTATE_UINT16_EQUAL(vendor_id, IA64I2000IoTestPCIFunction),
+            VMSTATE_UINT16_EQUAL(device_id, IA64I2000IoTestPCIFunction),
+            VMSTATE_UINT16_EQUAL(class_id, IA64I2000IoTestPCIFunction),
+            VMSTATE_UINT16_EQUAL(subsystem_vendor_id,
+                                 IA64I2000IoTestPCIFunction),
+            VMSTATE_UINT16_EQUAL(subsystem_id, IA64I2000IoTestPCIFunction),
+            VMSTATE_UINT8_EQUAL(revision, IA64I2000IoTestPCIFunction),
+            VMSTATE_UINT8_EQUAL(prog_if, IA64I2000IoTestPCIFunction),
+            VMSTATE_UINT8_EQUAL(function, IA64I2000IoTestPCIFunction),
+            VMSTATE_END_OF_LIST() },
 };
 
 static const VMStateDescription vmstate_io_test_layout = {
     .name = TYPE_IA64_I2000_IO_TEST "/layout",
     .version_id = 3,
     .minimum_version_id = 3,
-    .fields = (const VMStateField[]) {
-        VMSTATE_UINT8_EQUAL(parent_root, IA64I2000IoTestLayout),
-        VMSTATE_STRUCT(parent_io, IA64I2000IoTestLayout, 1,
-                       vmstate_io_test_port_range, IA64I2000IoTestIOPortRange),
-        VMSTATE_STRUCT(parent_cf8, IA64I2000IoTestLayout, 1,
-                       vmstate_io_test_port_range, IA64I2000IoTestIOPortRange),
-        VMSTATE_STRUCT(parent_cfc, IA64I2000IoTestLayout, 1,
-                       vmstate_io_test_port_range, IA64I2000IoTestIOPortRange),
-        VMSTATE_UINT8_EQUAL(pci_slot, IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(pci_function_count,
-                            IA64I2000IoTestLayout),
-        VMSTATE_STRUCT(f0, IA64I2000IoTestLayout, 1,
-                       vmstate_io_test_pci_function,
-                       IA64I2000IoTestPCIFunction),
-        VMSTATE_STRUCT(f1, IA64I2000IoTestLayout, 1,
-                       vmstate_io_test_pci_function,
-                       IA64I2000IoTestPCIFunction),
-        VMSTATE_UINT8_EQUAL(i82559_parent_root,
-                            IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(i82559_slot, IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(i82559_interrupt_pin,
-                            IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(i82559_pid_pin,
-                            IA64I2000IoTestLayout),
-        VMSTATE_STRUCT(i82559, IA64I2000IoTestLayout, 1,
-                       vmstate_io_test_pci_function,
-                       IA64I2000IoTestPCIFunction),
-        VMSTATE_UINT32_EQUAL(i82559_mmio_bar_size,
-                             IA64I2000IoTestLayout),
-        VMSTATE_UINT32_EQUAL(i82559_io_bar_size,
-                             IA64I2000IoTestLayout),
-        VMSTATE_UINT32_EQUAL(i82559_flash_bar_size,
-                             IA64I2000IoTestLayout),
-        VMSTATE_UINT16_EQUAL(i82559_eeprom_words,
-                             IA64I2000IoTestLayout),
-        VMSTATE_UINT16_EQUAL(i82559_eeprom_checksum,
-                             IA64I2000IoTestLayout),
-        VMSTATE_UINT16_EQUAL(i82559_mac_word0,
-                             IA64I2000IoTestLayout),
-        VMSTATE_UINT16_EQUAL(i82559_mac_word1,
-                             IA64I2000IoTestLayout),
-        VMSTATE_UINT16_EQUAL(i82559_mac_word2,
-                             IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(i82559_option_rom_enabled,
-                            IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(isp12160_parent_root,
-                            IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(isp12160_bus, IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(isp12160_slot, IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(isp12160_interrupt_pin,
-                            IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(isp12160_pid_pin,
-                            IA64I2000IoTestLayout),
-        VMSTATE_STRUCT(isp12160, IA64I2000IoTestLayout, 1,
-                       vmstate_io_test_pci_function,
-                       IA64I2000IoTestPCIFunction),
-        VMSTATE_UINT32_EQUAL(isp12160_io_bar_base,
-                             IA64I2000IoTestLayout),
-        VMSTATE_UINT32_EQUAL(isp12160_io_bar_size,
-                             IA64I2000IoTestLayout),
-        VMSTATE_UINT32_EQUAL(isp12160_mmio_bar_base,
-                             IA64I2000IoTestLayout),
-        VMSTATE_UINT32_EQUAL(isp12160_mmio_bar_size,
-                             IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(isp12160_option_rom_enabled,
-                            IA64I2000IoTestLayout),
-        VMSTATE_STRUCT(pic_master, IA64I2000IoTestLayout, 1,
-                       vmstate_io_test_port_range, IA64I2000IoTestIOPortRange),
-        VMSTATE_STRUCT(pic_slave, IA64I2000IoTestLayout, 1,
-                       vmstate_io_test_port_range, IA64I2000IoTestIOPortRange),
-        VMSTATE_STRUCT(elcr_master, IA64I2000IoTestLayout, 1,
-                       vmstate_io_test_port_range, IA64I2000IoTestIOPortRange),
-        VMSTATE_STRUCT(elcr_slave, IA64I2000IoTestLayout, 1,
-                       vmstate_io_test_port_range, IA64I2000IoTestIOPortRange),
-        VMSTATE_UINT8_EQUAL(pic_cascade_irq,
-                            IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(pid_legacy_pin,
-                            IA64I2000IoTestLayout),
-        VMSTATE_STRUCT(pit, IA64I2000IoTestLayout, 1,
-                       vmstate_io_test_port_range, IA64I2000IoTestIOPortRange),
-        VMSTATE_UINT8_EQUAL(pit_irq, IA64I2000IoTestLayout),
-        VMSTATE_STRUCT(superio_config, IA64I2000IoTestLayout, 1,
-                       vmstate_io_test_port_range, IA64I2000IoTestIOPortRange),
-        VMSTATE_UINT8_EQUAL(superio_sysopt,
-                            IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(superio_enter_key,
-                            IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(superio_enter_count,
-                            IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(superio_exit_key,
-                            IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(superio_ldn_select_cr,
-                            IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(superio_device_id_cr,
-                            IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(superio_device_id,
-                            IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(uart_ldn, IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(uart_activate_cr,
-                            IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(uart_base_msb_cr,
-                            IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(uart_base_lsb_cr,
-                            IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(uart_irq_cr, IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(uart_mode_cr, IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(uart_reset_active,
-                            IA64I2000IoTestLayout),
-        VMSTATE_STRUCT(uart, IA64I2000IoTestLayout, 1,
-                       vmstate_io_test_port_range, IA64I2000IoTestIOPortRange),
-        VMSTATE_UINT8_EQUAL(uart_irq, IA64I2000IoTestLayout),
-        VMSTATE_UINT32_EQUAL(uart_input_clock_hz,
-                             IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(i8042_ldn, IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(i8042_activate_cr,
-                            IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(i8042_kbd_irq_cr,
-                            IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(i8042_mouse_irq_cr,
-                            IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(i8042_reset_active,
-                            IA64I2000IoTestLayout),
-        VMSTATE_STRUCT(i8042_data, IA64I2000IoTestLayout, 1,
-                       vmstate_io_test_port_range, IA64I2000IoTestIOPortRange),
-        VMSTATE_STRUCT(i8042_command, IA64I2000IoTestLayout, 1,
-                       vmstate_io_test_port_range, IA64I2000IoTestIOPortRange),
-        VMSTATE_UINT8_EQUAL(i8042_kbd_irq,
-                            IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(i8042_mouse_irq,
-                            IA64I2000IoTestLayout),
-        VMSTATE_STRUCT(rtc_bank0, IA64I2000IoTestLayout, 1,
-                       vmstate_io_test_port_range, IA64I2000IoTestIOPortRange),
-        VMSTATE_STRUCT(rtc_bank1, IA64I2000IoTestLayout, 1,
-                       vmstate_io_test_port_range, IA64I2000IoTestIOPortRange),
-        VMSTATE_UINT8_EQUAL(rtc_irq, IA64I2000IoTestLayout),
-        VMSTATE_INT32_EQUAL(rtc_base_year, IA64I2000IoTestLayout),
-        VMSTATE_STRUCT(ide_command, IA64I2000IoTestLayout, 1,
-                       vmstate_io_test_port_range, IA64I2000IoTestIOPortRange),
-        VMSTATE_STRUCT(ide_control, IA64I2000IoTestLayout, 1,
-                       vmstate_io_test_port_range, IA64I2000IoTestIOPortRange),
-        VMSTATE_UINT8_EQUAL(ide_irq, IA64I2000IoTestLayout),
-        VMSTATE_UINT8_EQUAL(ide_master_unit,
-                            IA64I2000IoTestLayout),
-        VMSTATE_UINT32_EQUAL(enabled_features,
-                             IA64I2000IoTestLayout),
-        VMSTATE_UINT32_EQUAL(disabled_features,
-                             IA64I2000IoTestLayout),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) {
+            VMSTATE_UINT8_EQUAL(parent_root, IA64I2000IoTestLayout),
+            VMSTATE_STRUCT(parent_io, IA64I2000IoTestLayout, 1,
+                           vmstate_io_test_port_range,
+                           IA64I2000IoTestIOPortRange),
+            VMSTATE_STRUCT(parent_cf8, IA64I2000IoTestLayout, 1,
+                           vmstate_io_test_port_range,
+                           IA64I2000IoTestIOPortRange),
+            VMSTATE_STRUCT(parent_cfc, IA64I2000IoTestLayout, 1,
+                           vmstate_io_test_port_range,
+                           IA64I2000IoTestIOPortRange),
+            VMSTATE_UINT8_EQUAL(pci_slot, IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(pci_function_count, IA64I2000IoTestLayout),
+            VMSTATE_STRUCT(f0, IA64I2000IoTestLayout, 1,
+                           vmstate_io_test_pci_function,
+                           IA64I2000IoTestPCIFunction),
+            VMSTATE_STRUCT(f1, IA64I2000IoTestLayout, 1,
+                           vmstate_io_test_pci_function,
+                           IA64I2000IoTestPCIFunction),
+            VMSTATE_UINT8_EQUAL(i82559_parent_root, IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(i82559_slot, IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(i82559_interrupt_pin, IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(i82559_pid_pin, IA64I2000IoTestLayout),
+            VMSTATE_STRUCT(i82559, IA64I2000IoTestLayout, 1,
+                           vmstate_io_test_pci_function,
+                           IA64I2000IoTestPCIFunction),
+            VMSTATE_UINT32_EQUAL(i82559_mmio_bar_size, IA64I2000IoTestLayout),
+            VMSTATE_UINT32_EQUAL(i82559_io_bar_size, IA64I2000IoTestLayout),
+            VMSTATE_UINT32_EQUAL(i82559_flash_bar_size, IA64I2000IoTestLayout),
+            VMSTATE_UINT16_EQUAL(i82559_eeprom_words, IA64I2000IoTestLayout),
+            VMSTATE_UINT16_EQUAL(i82559_eeprom_checksum, IA64I2000IoTestLayout),
+            VMSTATE_UINT16_EQUAL(i82559_mac_word0, IA64I2000IoTestLayout),
+            VMSTATE_UINT16_EQUAL(i82559_mac_word1, IA64I2000IoTestLayout),
+            VMSTATE_UINT16_EQUAL(i82559_mac_word2, IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(i82559_option_rom_enabled,
+                                IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(isp12160_parent_root, IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(isp12160_bus, IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(isp12160_slot, IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(isp12160_interrupt_pin, IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(isp12160_pid_pin, IA64I2000IoTestLayout),
+            VMSTATE_STRUCT(isp12160, IA64I2000IoTestLayout, 1,
+                           vmstate_io_test_pci_function,
+                           IA64I2000IoTestPCIFunction),
+            VMSTATE_UINT32_EQUAL(isp12160_io_bar_base, IA64I2000IoTestLayout),
+            VMSTATE_UINT32_EQUAL(isp12160_io_bar_size, IA64I2000IoTestLayout),
+            VMSTATE_UINT32_EQUAL(isp12160_mmio_bar_base, IA64I2000IoTestLayout),
+            VMSTATE_UINT32_EQUAL(isp12160_mmio_bar_size, IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(isp12160_option_rom_enabled,
+                                IA64I2000IoTestLayout),
+            VMSTATE_STRUCT(pic_master, IA64I2000IoTestLayout, 1,
+                           vmstate_io_test_port_range,
+                           IA64I2000IoTestIOPortRange),
+            VMSTATE_STRUCT(pic_slave, IA64I2000IoTestLayout, 1,
+                           vmstate_io_test_port_range,
+                           IA64I2000IoTestIOPortRange),
+            VMSTATE_STRUCT(elcr_master, IA64I2000IoTestLayout, 1,
+                           vmstate_io_test_port_range,
+                           IA64I2000IoTestIOPortRange),
+            VMSTATE_STRUCT(elcr_slave, IA64I2000IoTestLayout, 1,
+                           vmstate_io_test_port_range,
+                           IA64I2000IoTestIOPortRange),
+            VMSTATE_UINT8_EQUAL(pic_cascade_irq, IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(pid_legacy_pin, IA64I2000IoTestLayout),
+            VMSTATE_STRUCT(pit, IA64I2000IoTestLayout, 1,
+                           vmstate_io_test_port_range,
+                           IA64I2000IoTestIOPortRange),
+            VMSTATE_UINT8_EQUAL(pit_irq, IA64I2000IoTestLayout),
+            VMSTATE_STRUCT(superio_config, IA64I2000IoTestLayout, 1,
+                           vmstate_io_test_port_range,
+                           IA64I2000IoTestIOPortRange),
+            VMSTATE_UINT8_EQUAL(superio_sysopt, IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(superio_enter_key, IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(superio_enter_count, IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(superio_exit_key, IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(superio_ldn_select_cr, IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(superio_device_id_cr, IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(superio_device_id, IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(uart_ldn, IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(uart_activate_cr, IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(uart_base_msb_cr, IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(uart_base_lsb_cr, IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(uart_irq_cr, IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(uart_mode_cr, IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(uart_reset_active, IA64I2000IoTestLayout),
+            VMSTATE_STRUCT(uart, IA64I2000IoTestLayout, 1,
+                           vmstate_io_test_port_range,
+                           IA64I2000IoTestIOPortRange),
+            VMSTATE_UINT8_EQUAL(uart_irq, IA64I2000IoTestLayout),
+            VMSTATE_UINT32_EQUAL(uart_input_clock_hz, IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(i8042_ldn, IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(i8042_activate_cr, IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(i8042_kbd_irq_cr, IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(i8042_mouse_irq_cr, IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(i8042_reset_active, IA64I2000IoTestLayout),
+            VMSTATE_STRUCT(i8042_data, IA64I2000IoTestLayout, 1,
+                           vmstate_io_test_port_range,
+                           IA64I2000IoTestIOPortRange),
+            VMSTATE_STRUCT(i8042_command, IA64I2000IoTestLayout, 1,
+                           vmstate_io_test_port_range,
+                           IA64I2000IoTestIOPortRange),
+            VMSTATE_UINT8_EQUAL(i8042_kbd_irq, IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(i8042_mouse_irq, IA64I2000IoTestLayout),
+            VMSTATE_STRUCT(rtc_bank0, IA64I2000IoTestLayout, 1,
+                           vmstate_io_test_port_range,
+                           IA64I2000IoTestIOPortRange),
+            VMSTATE_STRUCT(rtc_bank1, IA64I2000IoTestLayout, 1,
+                           vmstate_io_test_port_range,
+                           IA64I2000IoTestIOPortRange),
+            VMSTATE_UINT8_EQUAL(rtc_irq, IA64I2000IoTestLayout),
+            VMSTATE_INT32_EQUAL(rtc_base_year, IA64I2000IoTestLayout),
+            VMSTATE_STRUCT(ide_command, IA64I2000IoTestLayout, 1,
+                           vmstate_io_test_port_range,
+                           IA64I2000IoTestIOPortRange),
+            VMSTATE_STRUCT(ide_control, IA64I2000IoTestLayout, 1,
+                           vmstate_io_test_port_range,
+                           IA64I2000IoTestIOPortRange),
+            VMSTATE_UINT8_EQUAL(ide_irq, IA64I2000IoTestLayout),
+            VMSTATE_UINT8_EQUAL(ide_master_unit, IA64I2000IoTestLayout),
+            VMSTATE_UINT32_EQUAL(enabled_features, IA64I2000IoTestLayout),
+            VMSTATE_UINT32_EQUAL(disabled_features, IA64I2000IoTestLayout),
+            VMSTATE_END_OF_LIST() },
 };
 
 static const VMStateDescription vmstate_io_test = {
     .name = TYPE_IA64_I2000_IO_TEST,
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (const VMStateField[]) {
-        VMSTATE_STRUCT(layout, IA64I2000IoTestState, 1,
-                       vmstate_io_test_layout, IA64I2000IoTestLayout),
-        VMSTATE_UINT16(static_irq_levels, IA64I2000IoTestState),
-        VMSTATE_UINT16(dynamic_irq_levels, IA64I2000IoTestState),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) {
+            VMSTATE_STRUCT(layout, IA64I2000IoTestState, 1,
+                           vmstate_io_test_layout, IA64I2000IoTestLayout),
+            VMSTATE_UINT16(static_irq_levels, IA64I2000IoTestState),
+            VMSTATE_UINT16(dynamic_irq_levels, IA64I2000IoTestState),
+            VMSTATE_END_OF_LIST() },
 };
 
 static const Property io_test_properties[] = {
-    DEFINE_PROP_LINK(IA64_I2000_IO_TEST_PROP_460GX_TEST,
-                     IA64I2000IoTestState, test_460gx,
-                     TYPE_IA64_I2000_460GX_TEST,
+    DEFINE_PROP_LINK(IA64_I2000_IO_TEST_PROP_460GX_TEST, IA64I2000IoTestState,
+                     test_460gx, TYPE_IA64_I2000_460GX_TEST,
                      IA64I2000460GXTestState *),
     DEFINE_PROP_NETDEV(IA64_I2000_IO_TEST_PROP_I82559_NETDEV,
                        IA64I2000IoTestState, i82559_peers),
@@ -740,20 +697,18 @@ static void io_test_class_init(ObjectClass *klass, const void *data)
     device_class_set_props(dc, io_test_properties);
 }
 
-ISABus *ia64_i2000_io_test_isa_bus(
-    IA64I2000IoTestState *io_test)
+ISABus *ia64_i2000_io_test_isa_bus(IA64I2000IoTestState *io_test)
 {
     return io_test ? io_test->isa_bus : NULL;
 }
 
-IDEBus *ia64_i2000_io_test_ide_bus(
-    IA64I2000IoTestState *io_test)
+IDEBus *ia64_i2000_io_test_ide_bus(IA64I2000IoTestState *io_test)
 {
     return io_test && io_test->ide ? isa_ide_bus(io_test->ide) : NULL;
 }
 
-bool ia64_i2000_io_test_set_uart_chardev(
-    IA64I2000IoTestState *io_test, Chardev *chardev, Error **errp)
+bool ia64_i2000_io_test_set_uart_chardev(IA64I2000IoTestState *io_test,
+                                         Chardev *chardev, Error **errp)
 {
     if (!io_test) {
         error_setg(errp, "missing i2000 I/O test device");
@@ -769,8 +724,8 @@ bool ia64_i2000_io_test_set_uart_chardev(
     return true;
 }
 
-bool ia64_i2000_io_test_set_cd_drive(
-    IA64I2000IoTestState *io_test, DriveInfo *drive, Error **errp)
+bool ia64_i2000_io_test_set_cd_drive(IA64I2000IoTestState *io_test,
+                                     DriveInfo *drive, Error **errp)
 {
     if (!io_test) {
         error_setg(errp, "missing i2000 I/O test device");
@@ -780,9 +735,9 @@ bool ia64_i2000_io_test_set_cd_drive(
         error_setg(errp, "i2000 I/O test CD drive must be set before realize");
         return false;
     }
-    if (drive && (drive->type != IF_IDE || drive->bus != 0 ||
-                  drive->unit != io_test->layout.ide_master_unit ||
-                  !drive->media_cd)) {
+    if (drive &&
+        (drive->type != IF_IDE || drive->bus != 0 ||
+         drive->unit != io_test->layout.ide_master_unit || !drive->media_cd)) {
         error_setg(errp,
                    "i2000 I/O test accepts only IDE bus 0 unit %u CD media",
                    io_test->layout.ide_master_unit);
@@ -793,8 +748,8 @@ bool ia64_i2000_io_test_set_cd_drive(
     return true;
 }
 
-static DeviceState *io_qtest_add_child(DeviceState *parent,
-                                       const char *name, const char *type)
+static DeviceState *io_qtest_add_child(DeviceState *parent, const char *name,
+                                       const char *type)
 {
     DeviceState *child = qdev_new(type);
 
@@ -839,9 +794,8 @@ static void io_qtest_realize(DeviceState *dev, Error **errp)
                                TYPE_IA64_I2000_460GX_TEST);
     s->test_460gx = IA64_I2000_460GX_TEST(child);
     qdev_prop_set_uint32(child, IA64_I2000_460GX_TEST_PROP_LEGACY_PIN,
-                        layout.pid_legacy_pin);
-    if (!object_property_set_link(OBJECT(child),
-                                  IA64_I2000_460GX_TEST_PROP_RAM,
+                         layout.pid_legacy_pin);
+    if (!object_property_set_link(OBJECT(child), IA64_I2000_460GX_TEST_PROP_RAM,
                                   OBJECT(machine->ram), &local_err) ||
         !qdev_realize(child, NULL, &local_err)) {
         goto fail;
@@ -851,9 +805,8 @@ static void io_qtest_realize(DeviceState *dev, Error **errp)
                                TYPE_IA64_I2000_IO_TEST);
     s->io_test = IA64_I2000_IO_TEST(child);
     if (s->i82559_peers.ncs[0]) {
-        qdev_prop_set_netdev(child,
-                            IA64_I2000_IO_TEST_PROP_I82559_NETDEV,
-                            s->i82559_peers.ncs[0]);
+        qdev_prop_set_netdev(child, IA64_I2000_IO_TEST_PROP_I82559_NETDEV,
+                             s->i82559_peers.ncs[0]);
     }
     if (!object_property_set_link(OBJECT(child),
                                   IA64_I2000_IO_TEST_PROP_460GX_TEST,
@@ -909,26 +862,31 @@ static const TypeInfo io_test_types[] = {
         .parent = TYPE_PCI_DEVICE,
         .instance_size = sizeof(IA64I2000IoTestIFBF0State),
         .class_init = io_test_ifb_f0_class_init,
-        .interfaces = (const InterfaceInfo[]) {
-            { INTERFACE_CONVENTIONAL_PCI_DEVICE },
-            { },
-        },
-    }, {
+        .interfaces =
+            (const InterfaceInfo[]) {
+                { INTERFACE_CONVENTIONAL_PCI_DEVICE },
+                {},
+            },
+    },
+    {
         .name = TYPE_IA64_I2000_IO_TEST_IFB_F1,
         .parent = TYPE_PCI_DEVICE,
         .instance_size = sizeof(IA64I2000IoTestIFBF1State),
         .class_init = io_test_ifb_f1_class_init,
-        .interfaces = (const InterfaceInfo[]) {
-            { INTERFACE_CONVENTIONAL_PCI_DEVICE },
-            { },
-        },
-    }, {
+        .interfaces =
+            (const InterfaceInfo[]) {
+                { INTERFACE_CONVENTIONAL_PCI_DEVICE },
+                {},
+            },
+    },
+    {
         .name = TYPE_IA64_I2000_IO_TEST,
         .parent = TYPE_DEVICE,
         .instance_size = sizeof(IA64I2000IoTestState),
         .instance_init = io_test_init,
         .class_init = io_test_class_init,
-    }, {
+    },
+    {
         .name = TYPE_IA64_I2000_IO_QTEST,
         .parent = TYPE_DEVICE,
         .instance_size = sizeof(IA64I2000IoQTestState),

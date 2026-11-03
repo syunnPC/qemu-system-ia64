@@ -23,8 +23,7 @@ void helper_ia32_rdpmc(CPUIA64State *env);
 static uint64_t ia32_io_address(CPUIA64State *env, uint32_t port)
 {
     /* Preserve bit 16 for the three architected bytes beyond port 0xffff. */
-    return env->ar_kr0 | ((uint64_t)(port & ~3U) << 10) |
-           (port & 0xfff);
+    return env->ar_kr0 | ((uint64_t)(port & ~3U) << 10) | (port & 0xfff);
 }
 
 static uint64_t ia32_io_checked_address(CPUX86State *xenv, uint32_t port,
@@ -39,15 +38,13 @@ static uint64_t ia32_io_checked_address(CPUX86State *xenv, uint32_t port,
     return addr;
 }
 
-static void ia32_io_prepare(CPUX86State *xenv, uint32_t port,
-                            unsigned size, MMUAccessType type,
-                            uintptr_t retaddr)
+static void ia32_io_prepare(CPUX86State *xenv, uint32_t port, unsigned size,
+                            MMUAccessType type, uintptr_t retaddr)
 {
     CPUIA64State *env = (CPUIA64State *)xenv;
     int mmu_idx = cpu_mmu_index(env_cpu(env), false);
-    unsigned access = type == MMU_DATA_STORE ?
-                      IA64_IA32_SEG_ACCESS_WRITE :
-                      IA64_IA32_SEG_ACCESS_READ;
+    unsigned access = type == MMU_DATA_STORE ? IA64_IA32_SEG_ACCESS_WRITE
+                                             : IA64_IA32_SEG_ACCESS_READ;
     uint64_t first = ia32_io_checked_address(xenv, port, retaddr);
     unsigned i;
 
@@ -66,15 +63,13 @@ static void ia32_io_prepare(CPUX86State *xenv, uint32_t port,
     }
 }
 
-static uint16_t ia32_tss_lduw(CPUX86State *xenv, uint32_t addr,
-                              int mmu_idx, uintptr_t retaddr)
+static uint16_t ia32_tss_lduw(CPUX86State *xenv, uint32_t addr, int mmu_idx,
+                              uintptr_t retaddr)
 {
     CPUIA64State *env = (CPUIA64State *)xenv;
 
-    ia64_ia32_probe_access(env, addr, 2, MMU_DATA_LOAD, mmu_idx,
-                           retaddr);
-    ia64_ia32_record_data_access(env, addr, 2,
-                                 IA64_IA32_SEG_ACCESS_READ);
+    ia64_ia32_probe_access(env, addr, 2, MMU_DATA_LOAD, mmu_idx, retaddr);
+    ia64_ia32_record_data_access(env, addr, 2, IA64_IA32_SEG_ACCESS_READ);
     ia64_ia32_check_psr_alignment(xenv, addr, 2, retaddr);
     return cpu_lduw_le_mmuidx_ra(env, addr, mmu_idx, retaddr);
 }
@@ -84,8 +79,8 @@ static uint16_t ia32_tss_lduw(CPUX86State *xenv, uint32_t addr,
  * calls, it would not lead back into the translated code, and a fault would
  * leave EIP at an earlier instruction.
  */
-static uint32_t ia32_io_read(CPUX86State *xenv, uint32_t port,
-                             unsigned size, uintptr_t retaddr)
+static uint32_t ia32_io_read(CPUX86State *xenv, uint32_t port, unsigned size,
+                             uintptr_t retaddr)
 {
     CPUIA64State *env = (CPUIA64State *)xenv;
     CPUState *cs = env_cpu(env);
@@ -104,8 +99,7 @@ static uint32_t ia32_io_read(CPUX86State *xenv, uint32_t port,
 
         for (i = 0; i < size; i++) {
             addr = ia32_io_checked_address(xenv, port + i, retaddr);
-            value |= cpu_ldub_mmuidx_ra(env, addr, mmu_idx, retaddr)
-                     << (i * 8);
+            value |= cpu_ldub_mmuidx_ra(env, addr, mmu_idx, retaddr) << (i * 8);
         }
         return value;
     }
@@ -121,8 +115,8 @@ static uint32_t ia32_io_read(CPUX86State *xenv, uint32_t port,
     }
 }
 
-static void ia32_io_write(CPUX86State *xenv, uint32_t port,
-                          uint32_t value, unsigned size, uintptr_t retaddr)
+static void ia32_io_write(CPUX86State *xenv, uint32_t port, uint32_t value,
+                          unsigned size, uintptr_t retaddr)
 {
     CPUIA64State *env = (CPUIA64State *)xenv;
     CPUState *cs = env_cpu(env);
@@ -140,8 +134,7 @@ static void ia32_io_write(CPUX86State *xenv, uint32_t port,
 
         for (i = 0; i < size; i++) {
             addr = ia32_io_checked_address(xenv, port + i, retaddr);
-            cpu_stb_mmuidx_ra(env, addr, value >> (i * 8), mmu_idx,
-                              retaddr);
+            cpu_stb_mmuidx_ra(env, addr, value >> (i * 8), mmu_idx, retaddr);
         }
         return;
     }
@@ -206,14 +199,12 @@ void helper_check_io(CPUX86State *xenv, uint32_t port, uint32_t size)
         (type != 9 && type != 11) || xenv->tr.limit < 103) {
         raise_exception_err_ra(xenv, EXCP0D_GPF, 0, retaddr);
     }
-    io_offset = ia32_tss_lduw(xenv, xenv->tr.base + 0x66,
-                              mmu_idx, retaddr);
+    io_offset = ia32_tss_lduw(xenv, xenv->tr.base + 0x66, mmu_idx, retaddr);
     io_offset += port >> 3;
     if (io_offset + 1 > xenv->tr.limit) {
         raise_exception_err_ra(xenv, EXCP0D_GPF, 0, retaddr);
     }
-    bits = ia32_tss_lduw(xenv, xenv->tr.base + io_offset,
-                         mmu_idx, retaddr);
+    bits = ia32_tss_lduw(xenv, xenv->tr.base + io_offset, mmu_idx, retaddr);
     bits >>= port & 7;
     mask = (1u << size) - 1;
     if (bits & mask) {
@@ -245,11 +236,10 @@ void helper_ia32_rdpmc(CPUIA64State *env)
     uint64_t value;
 
     /* Native IA-32 execution exposes the four generic PMD4..PMD7 counters. */
-    if (counter >= 4 ||
-        (ia64_psr_cpl(env->psr) != 0 &&
-         ((env->psr & IA64_PSR_SP) ||
-          !(xenv->cr[IA32_CR4_INDEX] & CR4_PCE_MASK) ||
-          (env->pmc[index] & (1ULL << 6))))) {
+    if (counter >= 4 || (ia64_psr_cpl(env->psr) != 0 &&
+                         ((env->psr & IA64_PSR_SP) ||
+                          !(xenv->cr[IA32_CR4_INDEX] & CR4_PCE_MASK) ||
+                          (env->pmc[index] & (1ULL << 6))))) {
         raise_exception_err_ra(xenv, EXCP0D_GPF, 0, GETPC());
     }
 
@@ -307,8 +297,8 @@ void helper_svm_check_intercept(CPUX86State *xenv, uint32_t type)
 {
 }
 
-void helper_svm_check_io(CPUX86State *xenv, uint32_t port,
-                         uint32_t param, uint32_t next_eip_addend)
+void helper_svm_check_io(CPUX86State *xenv, uint32_t port, uint32_t param,
+                         uint32_t next_eip_addend)
 {
 }
 
@@ -367,14 +357,12 @@ void helper_bndck(CPUX86State *xenv, uint32_t op)
     ia32_instruction_intercept(xenv);
 }
 
-uint64_t helper_bndldx32(CPUX86State *xenv, target_ulong base,
-                         target_ulong ptr)
+uint64_t helper_bndldx32(CPUX86State *xenv, target_ulong base, target_ulong ptr)
 {
     ia32_instruction_intercept(xenv);
 }
 
-uint64_t helper_bndldx64(CPUX86State *xenv, target_ulong base,
-                         target_ulong ptr)
+uint64_t helper_bndldx64(CPUX86State *xenv, target_ulong base, target_ulong ptr)
 {
     ia32_instruction_intercept(xenv);
 }
@@ -441,8 +429,8 @@ void x86_stl_phys(CPUState *cs, hwaddr addr, uint32_t value)
                          MEMTXATTRS_UNSPECIFIED, NULL);
 }
 
-void handle_even_inj(CPUX86State *xenv, int intno, int is_int,
-                     int error_code, int is_hw, int rm)
+void handle_even_inj(CPUX86State *xenv, int intno, int is_int, int error_code,
+                     int is_hw, int rm)
 {
 }
 
@@ -460,8 +448,7 @@ uint32_t xsave_area_size(uint64_t mask, bool compacted)
 }
 
 void cpu_x86_cpuid(CPUX86State *xenv, uint32_t index, uint32_t count,
-                   uint32_t *eax, uint32_t *ebx, uint32_t *ecx,
-                   uint32_t *edx)
+                   uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *edx)
 {
     *eax = *ebx = *ecx = *edx = 0;
     switch (index) {
@@ -477,8 +464,7 @@ void cpu_x86_cpuid(CPUX86State *xenv, uint32_t index, uint32_t count,
         *edx = xenv->features[FEAT_1_EDX];
         break;
     case 2: {
-        IA64CPUClass *icc =
-            ia64_env_cpu_class((CPUIA64State *)xenv);
+        IA64CPUClass *icc = ia64_env_cpu_class((CPUIA64State *)xenv);
 
         *eax = icc->ia32_cpuid_leaf2[0];
         *ebx = icc->ia32_cpuid_leaf2[1];

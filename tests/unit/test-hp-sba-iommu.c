@@ -66,8 +66,8 @@ static void test_disabled_bypass(void)
     HPSBAIOMMUEntry entry;
 
     params.ibase &= ~UINT64_C(1);
-    g_assert_true(hp_sba_iommu_translate(
-                      &params, UINT64_C(0x40012345), &entry));
+    g_assert_true(
+        hp_sba_iommu_translate(&params, UINT64_C(0x40012345), &entry));
     g_assert_cmphex(entry.iova, ==, UINT64_C(0x40012000));
     g_assert_cmphex(entry.translated_addr, ==, context.bypass_value);
     g_assert_cmphex(entry.addr_mask, ==, UINT64_C(0xfff));
@@ -83,8 +83,8 @@ static void test_nonmatching_bypass(void)
     HPSBAIOMMUEntry entry;
 
     params.ibase = UINT64_C(0x50000001);
-    g_assert_true(hp_sba_iommu_translate(
-                      &params, UINT64_C(0x40012345), &entry));
+    g_assert_true(
+        hp_sba_iommu_translate(&params, UINT64_C(0x40012345), &entry));
     g_assert_cmphex(entry.iova, ==, UINT64_C(0x40012000));
     g_assert_cmphex(entry.translated_addr, ==, context.bypass_value);
     g_assert_cmphex(entry.addr_mask, ==, UINT64_C(0xfff));
@@ -100,8 +100,8 @@ static void test_valid_pte_absolute_index(void)
     HPSBAIOMMUEntry entry;
 
     context.pdir_entry = HP_SBA_IOPDIR_VALID_BIT | UINT64_C(0x12345abc);
-    g_assert_true(hp_sba_iommu_translate(
-                      &params, UINT64_C(0x40012345), &entry));
+    g_assert_true(
+        hp_sba_iommu_translate(&params, UINT64_C(0x40012345), &entry));
     g_assert_cmphex(entry.iova, ==, UINT64_C(0x40012000));
     g_assert_cmphex(entry.translated_addr, ==, UINT64_C(0x12345000));
     g_assert_cmphex(entry.addr_mask, ==, UINT64_C(0xfff));
@@ -117,8 +117,8 @@ static void test_invalid_pte(void)
     HPSBAIOMMUEntry entry;
 
     context.pdir_entry = UINT64_C(0x12345000);
-    g_assert_false(hp_sba_iommu_translate(
-                       &params, UINT64_C(0x40012345), &entry));
+    g_assert_false(
+        hp_sba_iommu_translate(&params, UINT64_C(0x40012345), &entry));
     g_assert_cmpuint(context.bypass_count, ==, 1);
     g_assert_cmpuint(context.pdir_read_count, ==, 1);
 }
@@ -131,8 +131,8 @@ static void test_pdir_read_failure(void)
 
     context.pdir_entry = HP_SBA_IOPDIR_VALID_BIT | UINT64_C(0x12345000);
     context.pdir_read_ok = false;
-    g_assert_false(hp_sba_iommu_translate(
-                       &params, UINT64_C(0x40012345), &entry));
+    g_assert_false(
+        hp_sba_iommu_translate(&params, UINT64_C(0x40012345), &entry));
     g_assert_cmpuint(context.bypass_count, ==, 1);
     g_assert_cmpuint(context.pdir_read_count, ==, 1);
 }
@@ -162,11 +162,11 @@ static void test_page_sizes_and_index_mask(void)
         params.pdir_base = UINT64_C(0x800);
         params.pdir_index_mask = UINT64_C(0xff);
         params.page_shift = cases[i].page_shift;
-        context.pdir_entry = HP_SBA_IOPDIR_VALID_BIT |
-                             UINT64_C(0x123456789abcdef0);
+        context.pdir_entry =
+            HP_SBA_IOPDIR_VALID_BIT | UINT64_C(0x123456789abcdef0);
 
         g_assert_true(hp_sba_iommu_translate(
-                          &params, UINT64_C(0x123456789abcdef0), &entry));
+            &params, UINT64_C(0x123456789abcdef0), &entry));
         page_mask = (UINT64_C(1) << cases[i].page_shift) - 1;
         g_assert_cmphex(entry.iova, ==, cases[i].iova);
         g_assert_cmphex(entry.translated_addr, ==,
@@ -188,8 +188,7 @@ static void test_pdir_pointer_wrap(void)
     context.pdir_entry = HP_SBA_IOPDIR_VALID_BIT | UINT64_C(0x12345fff);
 
     g_assert_true(hp_sba_iommu_translate(&params, UINT64_MAX, &entry));
-    g_assert_cmphex(context.last_bypass_addr, ==,
-                    UINT64_C(0xfffffffffffff000));
+    g_assert_cmphex(context.last_bypass_addr, ==, UINT64_C(0xfffffffffffff000));
     g_assert_cmphex(context.last_pdir_addr, ==, UINT64_C(8));
     g_assert_cmphex(entry.iova, ==, UINT64_C(0xfffffffffffff000));
     g_assert_cmphex(entry.translated_addr, ==, UINT64_C(0x12345000));
@@ -202,39 +201,38 @@ static void test_invalid_configuration(void)
     HPSBAIOMMUEntry entry;
 
     params.page_shift = 0;
-    g_assert_false(hp_sba_iommu_translate(
-                       &params, UINT64_C(0x40012345), &entry));
+    g_assert_false(
+        hp_sba_iommu_translate(&params, UINT64_C(0x40012345), &entry));
     g_assert_cmpuint(context.bypass_count, ==, 0);
     g_assert_cmpuint(context.pdir_read_count, ==, 0);
 
     params.page_shift = 64;
-    g_assert_false(hp_sba_iommu_translate(
-                       &params, UINT64_C(0x40012345), &entry));
+    g_assert_false(
+        hp_sba_iommu_translate(&params, UINT64_C(0x40012345), &entry));
     g_assert_cmpuint(context.bypass_count, ==, 0);
     g_assert_cmpuint(context.pdir_read_count, ==, 0);
 
     params = test_params(&context);
     params.bypass = NULL;
-    g_assert_false(hp_sba_iommu_translate(
-                       &params, UINT64_C(0x40012345), &entry));
+    g_assert_false(
+        hp_sba_iommu_translate(&params, UINT64_C(0x40012345), &entry));
     g_assert_cmpuint(context.bypass_count, ==, 0);
 
     params = test_params(&context);
     params.pdir_read = NULL;
-    g_assert_false(hp_sba_iommu_translate(
-                       &params, UINT64_C(0x40012345), &entry));
+    g_assert_false(
+        hp_sba_iommu_translate(&params, UINT64_C(0x40012345), &entry));
     g_assert_cmpuint(context.bypass_count, ==, 1);
     g_assert_cmpuint(context.pdir_read_count, ==, 0);
 }
 
-static HPZX1IOMMUWindow test_zx1_window(bool enabled,
-                                       unsigned int page_shift)
+static HPZX1IOMMUWindow test_zx1_window(bool enabled, unsigned int page_shift)
 {
     HPZX1IOMMUWindow window;
 
-    g_assert_true(hp_zx1_iommu_decode_window(
-                      UINT64_C(0x40000000) | enabled,
-                      UINT64_C(0xf0000000), page_shift, &window));
+    g_assert_true(hp_zx1_iommu_decode_window(UINT64_C(0x40000000) | enabled,
+                                             UINT64_C(0xf0000000), page_shift,
+                                             &window));
     return window;
 }
 
@@ -259,15 +257,13 @@ static void test_zx1_tcnfg(void)
 
     for (i = 0; i < G_N_ELEMENTS(valid); i++) {
         page_shift = 0;
-        g_assert_true(hp_zx1_iommu_decode_tcnfg(valid[i].tcnfg,
-                                                &page_shift));
+        g_assert_true(hp_zx1_iommu_decode_tcnfg(valid[i].tcnfg, &page_shift));
         g_assert_cmpuint(page_shift, ==, valid[i].page_shift);
     }
 
     for (i = 0; i < G_N_ELEMENTS(invalid); i++) {
         page_shift = 42;
-        g_assert_false(hp_zx1_iommu_decode_tcnfg(invalid[i],
-                                                 &page_shift));
+        g_assert_false(hp_zx1_iommu_decode_tcnfg(invalid[i], &page_shift));
         g_assert_cmpuint(page_shift, ==, 42);
     }
 
@@ -288,21 +284,18 @@ static void test_zx1_window_decode(void)
         g_assert_true(window.enabled);
         g_assert_cmphex(window.base, ==, UINT64_C(0x40000000));
         g_assert_cmphex(window.mask, ==, UINT64_C(0xfffffffff0000000));
-        g_assert_cmphex(window.aperture_size, ==,
-                        UINT64_C(0x10000000));
+        g_assert_cmphex(window.aperture_size, ==, UINT64_C(0x10000000));
         g_assert_cmphex(window.pdir_index_mask, ==, page_count - 1);
         g_assert_cmpuint(window.page_shift, ==, page_shifts[i]);
     }
 
     g_assert_true(hp_zx1_iommu_decode_window(
-                      UINT64_C(0x40000000),
-                      UINT64_C(0x12345678f0000000), 12, &window));
+        UINT64_C(0x40000000), UINT64_C(0x12345678f0000000), 12, &window));
     g_assert_false(window.enabled);
     g_assert_cmphex(window.mask, ==, UINT64_C(0xfffffffff0000000));
 
     g_assert_true(hp_zx1_iommu_decode_window(
-                      UINT64_C(0x40000001), UINT64_C(0xc0000000), 12,
-                      &window));
+        UINT64_C(0x40000001), UINT64_C(0xc0000000), 12, &window));
     g_assert_true(window.enabled);
     g_assert_cmphex(window.base, ==, UINT64_C(0x40000000));
     g_assert_cmphex(window.mask, ==, UINT64_C(0xffffffffc0000000));
@@ -324,69 +317,62 @@ static void test_zx1_window_invalid(void)
 
     window = unchanged;
     g_assert_false(hp_zx1_iommu_decode_window(
-                       UINT64_C(0x40000001), UINT64_C(0xf0000000), 0,
-                       &window));
+        UINT64_C(0x40000001), UINT64_C(0xf0000000), 0, &window));
     g_assert_cmpmem(&window, sizeof(window), &unchanged, sizeof(unchanged));
 
     window = unchanged;
     g_assert_false(hp_zx1_iommu_decode_window(
-                       UINT64_C(0x40000001), UINT64_C(0xf0000000), 64,
-                       &window));
+        UINT64_C(0x40000001), UINT64_C(0xf0000000), 64, &window));
     g_assert_cmpmem(&window, sizeof(window), &unchanged, sizeof(unchanged));
 
     window = unchanged;
     g_assert_false(hp_zx1_iommu_decode_window(
-                       UINT64_C(0x40000001), UINT64_C(0xe8000000), 12,
-                       &window));
+        UINT64_C(0x40000001), UINT64_C(0xe8000000), 12, &window));
     g_assert_cmpmem(&window, sizeof(window), &unchanged, sizeof(unchanged));
 
     window = unchanged;
     g_assert_false(hp_zx1_iommu_decode_window(
-                       UINT64_C(0x48000001), UINT64_C(0xf0000000), 12,
-                       &window));
+        UINT64_C(0x48000001), UINT64_C(0xf0000000), 12, &window));
     g_assert_cmpmem(&window, sizeof(window), &unchanged, sizeof(unchanged));
 
     window = unchanged;
     g_assert_false(hp_zx1_iommu_decode_window(
-                       UINT64_C(0x40000001), UINT64_C(0xfffff000), 13,
-                       &window));
+        UINT64_C(0x40000001), UINT64_C(0xfffff000), 13, &window));
     g_assert_cmpmem(&window, sizeof(window), &unchanged, sizeof(unchanged));
 
     window = unchanged;
     g_assert_false(hp_zx1_iommu_decode_window(
-                       UINT64_C(0xfffffffff0000001),
-                       UINT64_C(0xf0000000), 12, &window));
+        UINT64_C(0xfffffffff0000001), UINT64_C(0xf0000000), 12, &window));
     g_assert_cmpmem(&window, sizeof(window), &unchanged, sizeof(unchanged));
 
-    g_assert_false(hp_zx1_iommu_decode_window(
-                       UINT64_C(0x40000001), UINT64_C(0xf0000000), 12,
-                       NULL));
+    g_assert_false(hp_zx1_iommu_decode_window(UINT64_C(0x40000001),
+                                              UINT64_C(0xf0000000), 12, NULL));
 }
 
 static void test_zx1_bypass(void)
 {
     HPZX1IOMMUWindow window = test_zx1_window(true, 12);
 
-    g_assert_false(hp_zx1_iommu_iova_is_bypass(
-                       &window, UINT64_C(0x40000000), false));
-    g_assert_false(hp_zx1_iommu_iova_is_bypass(
-                       &window, UINT64_C(0x4fffffff), false));
-    g_assert_true(hp_zx1_iommu_iova_is_bypass(
-                      &window, UINT64_C(0x3fffffff), false));
-    g_assert_true(hp_zx1_iommu_iova_is_bypass(
-                      &window, UINT64_C(0x50000000), false));
+    g_assert_false(
+        hp_zx1_iommu_iova_is_bypass(&window, UINT64_C(0x40000000), false));
+    g_assert_false(
+        hp_zx1_iommu_iova_is_bypass(&window, UINT64_C(0x4fffffff), false));
+    g_assert_true(
+        hp_zx1_iommu_iova_is_bypass(&window, UINT64_C(0x3fffffff), false));
+    g_assert_true(
+        hp_zx1_iommu_iova_is_bypass(&window, UINT64_C(0x50000000), false));
 
     /* High IMASK bits prevent a 64-bit DAC from aliasing the window. */
     g_assert_true(hp_zx1_iommu_iova_is_bypass(
-                      &window, UINT64_C(0x0000000140001000), false));
-    g_assert_true(hp_zx1_iommu_iova_is_bypass(
-                      &window, UINT64_C(0x40001000), true));
+        &window, UINT64_C(0x0000000140001000), false));
+    g_assert_true(
+        hp_zx1_iommu_iova_is_bypass(&window, UINT64_C(0x40001000), true));
 
     window.enabled = false;
-    g_assert_true(hp_zx1_iommu_iova_is_bypass(
-                      &window, UINT64_C(0x40001000), false));
-    g_assert_true(hp_zx1_iommu_iova_is_bypass(
-                      NULL, UINT64_C(0x40001000), false));
+    g_assert_true(
+        hp_zx1_iommu_iova_is_bypass(&window, UINT64_C(0x40001000), false));
+    g_assert_true(
+        hp_zx1_iommu_iova_is_bypass(NULL, UINT64_C(0x40001000), false));
 }
 
 static void test_zx1_pdir_index(void)
@@ -394,32 +380,31 @@ static void test_zx1_pdir_index(void)
     HPZX1IOMMUWindow window = test_zx1_window(true, 12);
     uint64_t index;
 
-    g_assert_true(hp_zx1_iommu_pdir_index(
-                      &window, UINT64_C(0x40012345), false, &index));
+    g_assert_true(
+        hp_zx1_iommu_pdir_index(&window, UINT64_C(0x40012345), false, &index));
     g_assert_cmphex(index, ==, UINT64_C(0x12));
 
-    g_assert_true(hp_zx1_iommu_pdir_index(
-                      &window, UINT64_C(0x4fffffff), false, &index));
+    g_assert_true(
+        hp_zx1_iommu_pdir_index(&window, UINT64_C(0x4fffffff), false, &index));
     g_assert_cmphex(index, ==, UINT64_C(0xffff));
 
     index = UINT64_C(0xdeadbeef);
-    g_assert_false(hp_zx1_iommu_pdir_index(
-                       &window, UINT64_C(0x40012345), true, &index));
+    g_assert_false(
+        hp_zx1_iommu_pdir_index(&window, UINT64_C(0x40012345), true, &index));
+    g_assert_cmphex(index, ==, UINT64_C(0xdeadbeef));
+    g_assert_false(
+        hp_zx1_iommu_pdir_index(&window, UINT64_C(0x50000000), false, &index));
     g_assert_cmphex(index, ==, UINT64_C(0xdeadbeef));
     g_assert_false(hp_zx1_iommu_pdir_index(
-                       &window, UINT64_C(0x50000000), false, &index));
-    g_assert_cmphex(index, ==, UINT64_C(0xdeadbeef));
-    g_assert_false(hp_zx1_iommu_pdir_index(
-                       &window, UINT64_C(0x0000000140001000), false,
-                       &index));
+        &window, UINT64_C(0x0000000140001000), false, &index));
     g_assert_cmphex(index, ==, UINT64_C(0xdeadbeef));
 
     window.enabled = false;
-    g_assert_false(hp_zx1_iommu_pdir_index(
-                       &window, UINT64_C(0x40012345), false, &index));
+    g_assert_false(
+        hp_zx1_iommu_pdir_index(&window, UINT64_C(0x40012345), false, &index));
     g_assert_cmphex(index, ==, UINT64_C(0xdeadbeef));
-    g_assert_false(hp_zx1_iommu_pdir_index(
-                       &window, UINT64_C(0x40012345), false, NULL));
+    g_assert_false(
+        hp_zx1_iommu_pdir_index(&window, UINT64_C(0x40012345), false, NULL));
 }
 
 static void test_zx1_window_page_walk_composition(void)
@@ -449,8 +434,7 @@ static void test_zx1_window_page_walk_composition(void)
         context.pdir_entry = HP_SBA_IOPDIR_VALID_BIT | target | 0x123;
         g_assert_true(hp_sba_iommu_translate(&params, iova, &entry));
         g_assert_cmphex(entry.iova, ==, iova & ~(page_size - 1));
-        g_assert_cmphex(entry.translated_addr, ==,
-                        target & ~(page_size - 1));
+        g_assert_cmphex(entry.translated_addr, ==, target & ~(page_size - 1));
         g_assert_cmphex(entry.addr_mask, ==, page_size - 1);
         g_assert_cmphex(context.last_pdir_addr, ==, pdir_base + 5 * 8);
 
@@ -458,10 +442,9 @@ static void test_zx1_window_page_walk_composition(void)
         g_assert_false(hp_sba_iommu_translate(&params, iova, &entry));
 
         context.pdir_read_count = 0;
-        context.bypass_value = UINT64_C(0x0000000140001234) &
-                               ~(page_size - 1);
+        context.bypass_value = UINT64_C(0x0000000140001234) & ~(page_size - 1);
         g_assert_true(hp_sba_iommu_translate(
-                          &params, UINT64_C(0x0000000140001234), &entry));
+            &params, UINT64_C(0x0000000140001234), &entry));
         g_assert_cmphex(entry.translated_addr, ==, context.bypass_value);
         g_assert_cmpuint(context.pdir_read_count, ==, 0);
     }
@@ -472,50 +455,50 @@ static void test_zx1_pcom(void)
     HPZX1IOMMUWindow window = test_zx1_window(true, 12);
     HPZX1IOMMUPurge purge;
 
-    g_assert_true(hp_zx1_iommu_decode_pcom(
-                      &window, UINT64_C(0x40012000) | 12, &purge));
+    g_assert_true(
+        hp_zx1_iommu_decode_pcom(&window, UINT64_C(0x40012000) | 12, &purge));
     g_assert_cmphex(purge.iova, ==, UINT64_C(0x40012000));
     g_assert_cmphex(purge.size, ==, UINT64_C(0x1000));
 
-    g_assert_true(hp_zx1_iommu_decode_pcom(
-                      &window, UINT64_C(0x48000000) | 27, &purge));
+    g_assert_true(
+        hp_zx1_iommu_decode_pcom(&window, UINT64_C(0x48000000) | 27, &purge));
     g_assert_cmphex(purge.iova, ==, UINT64_C(0x48000000));
     g_assert_cmphex(purge.size, ==, UINT64_C(0x08000000));
 
-    g_assert_true(hp_zx1_iommu_decode_pcom(
-                      &window, UINT64_C(0x40000000) | 28, &purge));
+    g_assert_true(
+        hp_zx1_iommu_decode_pcom(&window, UINT64_C(0x40000000) | 28, &purge));
     g_assert_cmphex(purge.iova, ==, UINT64_C(0x40000000));
     g_assert_cmphex(purge.size, ==, UINT64_C(0x10000000));
 
     /* PCOM invalidates tags and may safely cover outside the aperture. */
-    g_assert_true(hp_zx1_iommu_decode_pcom(
-                      &window, UINT64_C(0x40000000) | 29, &purge));
+    g_assert_true(
+        hp_zx1_iommu_decode_pcom(&window, UINT64_C(0x40000000) | 29, &purge));
     g_assert_cmphex(purge.iova, ==, UINT64_C(0x40000000));
     g_assert_cmphex(purge.size, ==, UINT64_C(0x20000000));
-    g_assert_true(hp_zx1_iommu_decode_pcom(
-                      &window, UINT64_C(0x50000000) | 12, &purge));
+    g_assert_true(
+        hp_zx1_iommu_decode_pcom(&window, UINT64_C(0x50000000) | 12, &purge));
     g_assert_cmphex(purge.iova, ==, UINT64_C(0x50000000));
     g_assert_cmphex(purge.size, ==, UINT64_C(0x1000));
 
     window.enabled = false;
-    g_assert_true(hp_zx1_iommu_decode_pcom(
-                      &window, UINT64_C(0x40010000) | 16, &purge));
+    g_assert_true(
+        hp_zx1_iommu_decode_pcom(&window, UINT64_C(0x40010000) | 16, &purge));
 
-    g_assert_true(hp_zx1_iommu_decode_window(
-                      UINT64_C(1), UINT64_C(0), 12, &window));
-    g_assert_true(hp_zx1_iommu_decode_pcom(
-                      &window, UINT64_C(0x80000000) | 31, &purge));
+    g_assert_true(
+        hp_zx1_iommu_decode_window(UINT64_C(1), UINT64_C(0), 12, &window));
+    g_assert_true(
+        hp_zx1_iommu_decode_pcom(&window, UINT64_C(0x80000000) | 31, &purge));
     g_assert_cmphex(purge.iova, ==, UINT64_C(0x80000000));
     g_assert_cmphex(purge.size, ==, UINT64_C(0x80000000));
 
-    g_assert_true(hp_sba_iommu_decode_pcom(
-                      UINT64_C(0x0000000100000000) | 16, 16, &purge));
+    g_assert_true(hp_sba_iommu_decode_pcom(UINT64_C(0x0000000100000000) | 16,
+                                           16, &purge));
     g_assert_cmphex(purge.iova, ==, UINT64_C(0x0000000100000000));
     g_assert_cmphex(purge.size, ==, UINT64_C(0x10000));
 
     /* The last naturally aligned page ends at UINT64_MAX without wrapping. */
-    g_assert_true(hp_sba_iommu_decode_pcom(
-                      UINT64_C(0xfffffffffffff000) | 12, 12, &purge));
+    g_assert_true(hp_sba_iommu_decode_pcom(UINT64_C(0xfffffffffffff000) | 12,
+                                           12, &purge));
     g_assert_cmphex(purge.iova, ==, UINT64_C(0xfffffffffffff000));
     g_assert_cmphex(purge.size, ==, UINT64_C(0x1000));
 }
@@ -530,32 +513,32 @@ static void test_zx1_pcom_invalid(void)
     HPZX1IOMMUPurge purge;
 
     purge = unchanged;
-    g_assert_false(hp_zx1_iommu_decode_pcom(
-                       &window, UINT64_C(0x40000000) | 11, &purge));
+    g_assert_false(
+        hp_zx1_iommu_decode_pcom(&window, UINT64_C(0x40000000) | 11, &purge));
     g_assert_cmpmem(&purge, sizeof(purge), &unchanged, sizeof(unchanged));
 
     purge = unchanged;
-    g_assert_false(hp_zx1_iommu_decode_pcom(
-                       &window, UINT64_C(0x40001000) | 13, &purge));
+    g_assert_false(
+        hp_zx1_iommu_decode_pcom(&window, UINT64_C(0x40001000) | 13, &purge));
     g_assert_cmpmem(&purge, sizeof(purge), &unchanged, sizeof(unchanged));
 
-    g_assert_false(hp_zx1_iommu_decode_pcom(
-                       NULL, UINT64_C(0x40000000) | 12, &purge));
-    g_assert_false(hp_zx1_iommu_decode_pcom(
-                       &window, UINT64_C(0x40000000) | 12, NULL));
+    g_assert_false(
+        hp_zx1_iommu_decode_pcom(NULL, UINT64_C(0x40000000) | 12, &purge));
+    g_assert_false(
+        hp_zx1_iommu_decode_pcom(&window, UINT64_C(0x40000000) | 12, NULL));
 
     purge = unchanged;
-    g_assert_false(hp_sba_iommu_decode_pcom(
-                       UINT64_C(0x40000000) | 12, 0, &purge));
+    g_assert_false(
+        hp_sba_iommu_decode_pcom(UINT64_C(0x40000000) | 12, 0, &purge));
     g_assert_cmpmem(&purge, sizeof(purge), &unchanged, sizeof(unchanged));
 
     purge = unchanged;
-    g_assert_false(hp_sba_iommu_decode_pcom(
-                       UINT64_C(0x40000000) | 31, 32, &purge));
+    g_assert_false(
+        hp_sba_iommu_decode_pcom(UINT64_C(0x40000000) | 31, 32, &purge));
     g_assert_cmpmem(&purge, sizeof(purge), &unchanged, sizeof(unchanged));
 
-    g_assert_false(hp_sba_iommu_decode_pcom(
-                       UINT64_C(0x40000000) | 12, 12, NULL));
+    g_assert_false(
+        hp_sba_iommu_decode_pcom(UINT64_C(0x40000000) | 12, 12, NULL));
 }
 
 static HPSBAIOMMUEntry test_iotlb_entry(uint64_t iova, uint64_t target,
@@ -593,45 +576,36 @@ static void test_zx1_iotlb_policy_free_slots(void)
     /* Every slot participates in a fully-associative lookup. */
     for (i = 0; i < HP_ZX1_IOTLB_SLOT_COUNT; i++) {
         g_assert_true(hp_zx1_iotlb_lookup(
-                          &iotlb,
-                          UINT64_C(0x40000000) + i * 0x1000 + 0xabc,
-                          &result));
-        g_assert_cmphex(result.iova, ==,
-                        UINT64_C(0x40000000) + i * 0x1000);
+            &iotlb, UINT64_C(0x40000000) + i * 0x1000 + 0xabc, &result));
+        g_assert_cmphex(result.iova, ==, UINT64_C(0x40000000) + i * 0x1000);
         g_assert_cmphex(result.translated_addr, ==,
                         UINT64_C(0x10000000) + i * 0x1000);
         g_assert_cmphex(result.addr_mask, ==, UINT64_C(0xfff));
     }
 
     result = unchanged;
-    g_assert_false(hp_zx1_iotlb_lookup(
-                       &iotlb, UINT64_C(0x50000000), &result));
+    g_assert_false(hp_zx1_iotlb_lookup(&iotlb, UINT64_C(0x50000000), &result));
     g_assert_cmpmem(&result, sizeof(result), &unchanged, sizeof(unchanged));
 
     /* Capacity does not imply a victim: the caller must name a valid slot. */
-    entry = test_iotlb_entry(UINT64_C(0x50000000),
-                             UINT64_C(0x20000000), UINT64_C(0xfff));
-    g_assert_false(hp_zx1_iotlb_store_slot(
-                       &iotlb, HP_ZX1_IOTLB_SLOT_COUNT, &entry));
+    entry = test_iotlb_entry(UINT64_C(0x50000000), UINT64_C(0x20000000),
+                             UINT64_C(0xfff));
+    g_assert_false(
+        hp_zx1_iotlb_store_slot(&iotlb, HP_ZX1_IOTLB_SLOT_COUNT, &entry));
     result = unchanged;
-    g_assert_false(hp_zx1_iotlb_lookup(
-                       &iotlb, UINT64_C(0x50000000), &result));
+    g_assert_false(hp_zx1_iotlb_lookup(&iotlb, UINT64_C(0x50000000), &result));
     g_assert_cmpmem(&result, sizeof(result), &unchanged, sizeof(unchanged));
 
     /* Replacing an explicitly selected slot does not disturb other slots. */
     g_assert_true(hp_zx1_iotlb_store_slot(&iotlb, 3, &entry));
-    g_assert_true(hp_zx1_iotlb_lookup(
-                      &iotlb, UINT64_C(0x50000abc), &result));
+    g_assert_true(hp_zx1_iotlb_lookup(&iotlb, UINT64_C(0x50000abc), &result));
     g_assert_cmpmem(&result, sizeof(result), &entry, sizeof(entry));
-    g_assert_false(hp_zx1_iotlb_lookup(
-                       &iotlb, UINT64_C(0x40007000), &result));
-    g_assert_true(hp_zx1_iotlb_lookup(
-                      &iotlb, UINT64_C(0x40006000), &result));
+    g_assert_false(hp_zx1_iotlb_lookup(&iotlb, UINT64_C(0x40007000), &result));
+    g_assert_true(hp_zx1_iotlb_lookup(&iotlb, UINT64_C(0x40006000), &result));
 
     entry.addr_mask = UINT64_C(0xffe);
     g_assert_false(hp_zx1_iotlb_store_slot(&iotlb, 3, &entry));
-    g_assert_true(hp_zx1_iotlb_lookup(
-                      &iotlb, UINT64_C(0x50000000), &result));
+    g_assert_true(hp_zx1_iotlb_lookup(&iotlb, UINT64_C(0x50000000), &result));
 
     g_assert_false(hp_zx1_iotlb_store_slot(NULL, 0, &entry));
     g_assert_false(hp_zx1_iotlb_store_slot(&iotlb, 0, NULL));
@@ -640,8 +614,7 @@ static void test_zx1_iotlb_policy_free_slots(void)
 
     hp_zx1_iotlb_clear(&iotlb);
     result = unchanged;
-    g_assert_false(hp_zx1_iotlb_lookup(
-                       &iotlb, UINT64_C(0x50000000), &result));
+    g_assert_false(hp_zx1_iotlb_lookup(&iotlb, UINT64_C(0x50000000), &result));
     g_assert_cmpmem(&result, sizeof(result), &unchanged, sizeof(unchanged));
     hp_zx1_iotlb_clear(NULL);
 }
@@ -662,14 +635,13 @@ static void test_zx1_iotlb_pcom_range(void)
 
     hp_zx1_iotlb_clear(&iotlb);
     for (i = 0; i < G_N_ELEMENTS(iovas); i++) {
-        entry = test_iotlb_entry(iovas[i],
-                                 UINT64_C(0x10000000) + i * 0x1000,
+        entry = test_iotlb_entry(iovas[i], UINT64_C(0x10000000) + i * 0x1000,
                                  UINT64_C(0xfff));
         g_assert_true(hp_zx1_iotlb_store_slot(&iotlb, i, &entry));
     }
 
-    g_assert_true(hp_sba_iommu_decode_pcom(
-                      UINT64_C(0x40000000) | 13, 12, &purge));
+    g_assert_true(
+        hp_sba_iommu_decode_pcom(UINT64_C(0x40000000) | 13, 12, &purge));
     g_assert_true(hp_zx1_iotlb_invalidate(&iotlb, &purge));
     g_assert_true(hp_zx1_iotlb_lookup(&iotlb, iovas[0], &result));
     g_assert_false(hp_zx1_iotlb_lookup(&iotlb, iovas[1], &result));
@@ -711,28 +683,24 @@ static void test_zx1_iotlb_stale_until_pcom(void)
     HPSBAIOMMUEntry entry;
 
     hp_zx1_iotlb_clear(&iotlb);
-    context.pdir_entry = HP_SBA_IOPDIR_VALID_BIT |
-                         UINT64_C(0x0000000012345000);
+    context.pdir_entry = HP_SBA_IOPDIR_VALID_BIT | UINT64_C(0x0000000012345000);
     g_assert_true(hp_sba_iommu_translate(&params, iova, &entry));
     g_assert_true(hp_zx1_iotlb_store_slot(&iotlb, 9, &entry));
 
-    context.pdir_entry = HP_SBA_IOPDIR_VALID_BIT |
-                         UINT64_C(0x0000000023456000);
+    context.pdir_entry = HP_SBA_IOPDIR_VALID_BIT | UINT64_C(0x0000000023456000);
     entry = unchanged;
     g_assert_true(hp_zx1_iotlb_lookup(&iotlb, iova, &entry));
-    g_assert_cmphex(entry.translated_addr, ==,
-                    UINT64_C(0x0000000012345000));
+    g_assert_cmphex(entry.translated_addr, ==, UINT64_C(0x0000000012345000));
 
-    g_assert_true(hp_sba_iommu_decode_pcom(
-                      UINT64_C(0x40005000) | 12, 12, &purge));
+    g_assert_true(
+        hp_sba_iommu_decode_pcom(UINT64_C(0x40005000) | 12, 12, &purge));
     g_assert_true(hp_zx1_iotlb_invalidate(&iotlb, &purge));
     entry = unchanged;
     g_assert_false(hp_zx1_iotlb_lookup(&iotlb, iova, &entry));
     g_assert_cmpmem(&entry, sizeof(entry), &unchanged, sizeof(unchanged));
 
     g_assert_true(hp_sba_iommu_translate(&params, iova, &entry));
-    g_assert_cmphex(entry.translated_addr, ==,
-                    UINT64_C(0x0000000023456000));
+    g_assert_cmphex(entry.translated_addr, ==, UINT64_C(0x0000000023456000));
     g_assert_true(hp_zx1_iotlb_store_slot(&iotlb, 9, &entry));
 
     g_assert_true(hp_zx1_iotlb_invalidate(&iotlb, &purge));
@@ -750,17 +718,14 @@ int main(int argc, char **argv)
     g_test_add_func("/hp-sba-iommu/valid-pte-absolute-index",
                     test_valid_pte_absolute_index);
     g_test_add_func("/hp-sba-iommu/invalid-pte", test_invalid_pte);
-    g_test_add_func("/hp-sba-iommu/pdir-read-failure",
-                    test_pdir_read_failure);
+    g_test_add_func("/hp-sba-iommu/pdir-read-failure", test_pdir_read_failure);
     g_test_add_func("/hp-sba-iommu/page-sizes-index-mask",
                     test_page_sizes_and_index_mask);
-    g_test_add_func("/hp-sba-iommu/pdir-pointer-wrap",
-                    test_pdir_pointer_wrap);
+    g_test_add_func("/hp-sba-iommu/pdir-pointer-wrap", test_pdir_pointer_wrap);
     g_test_add_func("/hp-sba-iommu/invalid-configuration",
                     test_invalid_configuration);
     g_test_add_func("/hp-sba-iommu/zx1/tcnfg", test_zx1_tcnfg);
-    g_test_add_func("/hp-sba-iommu/zx1/window-decode",
-                    test_zx1_window_decode);
+    g_test_add_func("/hp-sba-iommu/zx1/window-decode", test_zx1_window_decode);
     g_test_add_func("/hp-sba-iommu/zx1/window-invalid",
                     test_zx1_window_invalid);
     g_test_add_func("/hp-sba-iommu/zx1/bypass", test_zx1_bypass);
@@ -768,8 +733,7 @@ int main(int argc, char **argv)
     g_test_add_func("/hp-sba-iommu/zx1/window-page-walk-composition",
                     test_zx1_window_page_walk_composition);
     g_test_add_func("/hp-sba-iommu/zx1/pcom", test_zx1_pcom);
-    g_test_add_func("/hp-sba-iommu/zx1/pcom-invalid",
-                    test_zx1_pcom_invalid);
+    g_test_add_func("/hp-sba-iommu/zx1/pcom-invalid", test_zx1_pcom_invalid);
     g_test_add_func("/hp-sba-iommu/zx1/iotlb/policy-free-slots",
                     test_zx1_iotlb_policy_free_slots);
     g_test_add_func("/hp-sba-iommu/zx1/iotlb/pcom-range",

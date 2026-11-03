@@ -79,24 +79,20 @@ MemOp ia64_runtime_data_memop(CPUIA64State *env, MemOp memop)
     if ((memop & MO_SIZE) == MO_8) {
         return memop & ~MO_BSWAP;
     }
-    return (memop & ~MO_BSWAP) |
-           (ia64_data_big_endian(env) ? MO_BE : MO_LE);
+    return (memop & ~MO_BSWAP) | (ia64_data_big_endian(env) ? MO_BE : MO_LE);
 }
 
-uint32_t ia64_lduw_data_ra(CPUIA64State *env, uint64_t addr,
-                           uintptr_t ra)
+uint32_t ia64_lduw_data_ra(CPUIA64State *env, uint64_t addr, uintptr_t ra)
 {
     return ia64_exec_load_data(env, addr, 2, ia64_data_big_endian(env), ra);
 }
 
-uint32_t ia64_ldl_data_ra(CPUIA64State *env, uint64_t addr,
-                          uintptr_t ra)
+uint32_t ia64_ldl_data_ra(CPUIA64State *env, uint64_t addr, uintptr_t ra)
 {
     return ia64_exec_load_data(env, addr, 4, ia64_data_big_endian(env), ra);
 }
 
-uint64_t ia64_ldq_data_ra(CPUIA64State *env, uint64_t addr,
-                          uintptr_t ra)
+uint64_t ia64_ldq_data_ra(CPUIA64State *env, uint64_t addr, uintptr_t ra)
 {
     return ia64_exec_load_data(env, addr, 8, ia64_data_big_endian(env), ra);
 }
@@ -123,9 +119,8 @@ static bool ia64_cmpxchg_compare_representable(uint64_t cmp, uint32_t size)
     }
 }
 
-uint64_t ia64_memory_cmpxchg(CPUIA64State *env, uint64_t addr,
-                             uint64_t cmp, uint64_t val, uint32_t size,
-                             uintptr_t ra)
+uint64_t ia64_memory_cmpxchg(CPUIA64State *env, uint64_t addr, uint64_t cmp,
+                             uint64_t val, uint32_t size, uintptr_t ra)
 {
     int mmu_idx = ia64_exec_mmu_index(env, false);
     uint64_t old;
@@ -142,8 +137,8 @@ uint64_t ia64_memory_cmpxchg(CPUIA64State *env, uint64_t addr,
         return old;
     case 2:
         if (cmp_representable) {
-            MemOpIdx oi = make_memop_idx(ia64_runtime_data_memop(env, MO_LEUW),
-                                         mmu_idx);
+            MemOpIdx oi =
+                make_memop_idx(ia64_runtime_data_memop(env, MO_LEUW), mmu_idx);
 
             old = ia64_exec_cmpxchg(env, addr, cmp, val, 2,
                                     ia64_data_big_endian(env), oi, ra);
@@ -153,8 +148,8 @@ uint64_t ia64_memory_cmpxchg(CPUIA64State *env, uint64_t addr,
         return old;
     case 4:
         if (cmp_representable) {
-            MemOpIdx oi = make_memop_idx(ia64_runtime_data_memop(env, MO_LEUL),
-                                         mmu_idx);
+            MemOpIdx oi =
+                make_memop_idx(ia64_runtime_data_memop(env, MO_LEUL), mmu_idx);
 
             old = ia64_exec_cmpxchg(env, addr, cmp, val, 4,
                                     ia64_data_big_endian(env), oi, ra);
@@ -163,8 +158,8 @@ uint64_t ia64_memory_cmpxchg(CPUIA64State *env, uint64_t addr,
         }
         return old;
     case 8: {
-        MemOpIdx oi = make_memop_idx(ia64_runtime_data_memop(env, MO_LEUQ),
-                                     mmu_idx);
+        MemOpIdx oi =
+            make_memop_idx(ia64_runtime_data_memop(env, MO_LEUQ), mmu_idx);
 
         old = ia64_exec_cmpxchg(env, addr, cmp, val, 8,
                                 ia64_data_big_endian(env), oi, ra);
@@ -175,9 +170,8 @@ uint64_t ia64_memory_cmpxchg(CPUIA64State *env, uint64_t addr,
     }
 }
 
-uint64_t ia64_memory_cmp8xchg16(CPUIA64State *env, uint64_t addr,
-                                uint64_t cmp, uint64_t val, uint64_t csd,
-                                uintptr_t ra)
+uint64_t ia64_memory_cmp8xchg16(CPUIA64State *env, uint64_t addr, uint64_t cmp,
+                                uint64_t val, uint64_t csd, uintptr_t ra)
 {
     uint64_t base = addr & ~8ULL;
     uint64_t old;
@@ -189,19 +183,19 @@ uint64_t ia64_memory_cmp8xchg16(CPUIA64State *env, uint64_t addr,
         bool big_endian = ia64_data_big_endian(env);
         MemOpIdx oi = make_memop_idx(
             ia64_runtime_data_memop(env, MO_UO | MO_ALIGN_16), mmu_idx);
-        Int128 desired = big_endian ? int128_make128(csd, val) :
-                                     int128_make128(val, csd);
+        Int128 desired =
+            big_endian ? int128_make128(csd, val) : int128_make128(val, csd);
         Int128 observed = ia64_exec_load_16(env, base, oi, ra);
 
         for (;;) {
             Int128 expected = observed;
 
             if (big_endian) {
-                old = (addr & 8) ? int128_getlo(expected) :
-                                   int128_gethi(expected);
+                old = (addr & 8) ? int128_getlo(expected)
+                                 : int128_gethi(expected);
             } else {
-                old = (addr & 8) ? int128_gethi(expected) :
-                                   int128_getlo(expected);
+                old = (addr & 8) ? int128_gethi(expected)
+                                 : int128_getlo(expected);
             }
             if (old != cmp) {
                 return old;

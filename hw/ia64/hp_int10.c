@@ -127,66 +127,46 @@ typedef struct HPIA64VgaLegacyMode {
 } HPIA64VgaLegacyMode;
 
 static const HPIA64VbeMode hp_int10_legacy_modes[] = {
-    { 0x111,  640,  480, 16 },
-    { 0x112,  640,  480, 24 },
-    { 0x114,  800,  600, 16 },
-    { 0x115,  800,  600, 24 },
-    { 0x117, 1024,  768, 16 },
-    { 0x118, 1024,  768, 24 },
-    { 0x11a, 1280, 1024, 16 },
-    { 0x11b, 1280, 1024, 24 },
-    { 0x141,  640,  400, 32 },
-    { 0x142,  640,  480, 32 },
-    { 0x143,  800,  600, 32 },
-    { 0x144, 1024,  768, 32 },
+    { 0x111, 640, 480, 16 },   { 0x112, 640, 480, 24 },
+    { 0x114, 800, 600, 16 },   { 0x115, 800, 600, 24 },
+    { 0x117, 1024, 768, 16 },  { 0x118, 1024, 768, 24 },
+    { 0x11a, 1280, 1024, 16 }, { 0x11b, 1280, 1024, 24 },
+    { 0x141, 640, 400, 32 },   { 0x142, 640, 480, 32 },
+    { 0x143, 800, 600, 32 },   { 0x144, 1024, 768, 32 },
     { 0x145, 1280, 1024, 32 },
 };
 
 static const HPIA64VbeResolution hp_int10_oem_resolutions[] = {
-    { 0x146, 1152,  864 },
-    { 0x149, 1280,  720 },
-    { 0x14c, 1280,  768 },
-    { 0x14f, 1280,  800 },
-    { 0x152, 1280,  960 },
-    { 0x155, 1360,  768 },
-    { 0x158, 1400, 1050 },
-    { 0x15b, 1440,  900 },
-    { 0x15e, 1600,  900 },
-    { 0x161, 1600, 1200 },
-    { 0x164, 1680, 1050 },
-    { 0x167, 1920, 1080 },
-    { 0x16a, 1920, 1200 },
-    { 0x16d, 2048, 1152 },
-    { 0x170, 2048, 1536 },
-    { 0x173, 2560, 1080 },
-    { 0x176, 2560, 1440 },
-    { 0x179, 2560, 1600 },
-    { 0x17c, 3440, 1440 },
-    { 0x17f, 3840, 2160 },
-    { 0x182, 4096, 2160 },
+    { 0x146, 1152, 864 },  { 0x149, 1280, 720 },  { 0x14c, 1280, 768 },
+    { 0x14f, 1280, 800 },  { 0x152, 1280, 960 },  { 0x155, 1360, 768 },
+    { 0x158, 1400, 1050 }, { 0x15b, 1440, 900 },  { 0x15e, 1600, 900 },
+    { 0x161, 1600, 1200 }, { 0x164, 1680, 1050 }, { 0x167, 1920, 1080 },
+    { 0x16a, 1920, 1200 }, { 0x16d, 2048, 1152 }, { 0x170, 2048, 1536 },
+    { 0x173, 2560, 1080 }, { 0x176, 2560, 1440 }, { 0x179, 2560, 1600 },
+    { 0x17c, 3440, 1440 }, { 0x17f, 3840, 2160 }, { 0x182, 4096, 2160 },
     { 0x185, 5120, 2880 },
 };
 
 static const uint8_t hp_int10_mode_12_sequencer[] = {
-    0x01, 0x0f, 0x00, 0x06,
+    0x01,
+    0x0f,
+    0x00,
+    0x06,
 };
 
 static const uint8_t hp_int10_mode_12_crtc[] = {
-    0x5f, 0x4f, 0x50, 0x82, 0x54, 0x80, 0x0b, 0x3e,
-    0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0xea, 0x8c, 0xdf, 0x28, 0x00, 0xe7, 0x04, 0xe3,
-    0xff,
+    0x5f, 0x4f, 0x50, 0x82, 0x54, 0x80, 0x0b, 0x3e, 0x00,
+    0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xea, 0x8c,
+    0xdf, 0x28, 0x00, 0xe7, 0x04, 0xe3, 0xff,
 };
 
 static const uint8_t hp_int10_mode_12_attribute[] = {
-    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x14, 0x07,
-    0x38, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f,
-    0x01, 0x00, 0x0f, 0x00, 0x00,
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x14, 0x07, 0x38, 0x39, 0x3a,
+    0x3b, 0x3c, 0x3d, 0x3e, 0x3f, 0x01, 0x00, 0x0f, 0x00, 0x00,
 };
 
 static const uint8_t hp_int10_mode_12_graphics[] = {
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05, 0x0f,
-    0xff,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05, 0x0f, 0xff,
 };
 
 static const HPIA64VgaLegacyMode hp_int10_vga_modes[] = {
@@ -215,32 +195,25 @@ static const char hp_int10_revision[] = "1.0";
  * are returned through 1eeh.  Keep this in sync with HP_IA64_INT10_IO_BASE.
  */
 static const uint8_t hp_int10_handler[] = {
-    0x55, 0x89, 0xe5, 0x50, 0x52, 0xba, 0xe0, 0x01,
-    0xef, 0x83, 0xc2, 0x02, 0x89, 0xd8, 0xef, 0x83,
-    0xc2, 0x02, 0x89, 0xc8, 0xef, 0x83, 0xc2, 0x02,
-    0x8b, 0x46, 0xfc, 0xef, 0x83, 0xc2, 0x02, 0x89,
-    0xf8, 0xef, 0x83, 0xc2, 0x02, 0x8c, 0xc0, 0xef,
-    0x83, 0xc2, 0x02, 0x81, 0x7e, 0xfe, 0x00, 0x4f,
-    0x75, 0x0f, 0x83, 0xc2, 0x02, 0x26, 0x8b, 0x05,
-    0xef, 0x26, 0x8b, 0x45, 0x02, 0xef, 0x83, 0xea,
-    0x02, 0xb8, 0x41, 0x49, 0xef, 0xed, 0x89, 0xc1,
-    0xe3, 0x0a, 0x57, 0x83, 0xc2, 0x02, 0xfc, 0xed,
-    0xab, 0xe2, 0xfc, 0x5f, 0xba, 0xe0, 0x01, 0xed,
-    0x89, 0x46, 0xfe, 0x83, 0xc2, 0x02, 0xed, 0x89,
-    0xc3, 0x83, 0xc2, 0x02, 0xed, 0x89, 0xc1, 0x83,
-    0xc2, 0x02, 0xed, 0x89, 0xc2, 0x8b, 0x46, 0xfe,
-    0x89, 0xec, 0x5d, 0xcf,
+    0x55, 0x89, 0xe5, 0x50, 0x52, 0xba, 0xe0, 0x01, 0xef, 0x83, 0xc2, 0x02,
+    0x89, 0xd8, 0xef, 0x83, 0xc2, 0x02, 0x89, 0xc8, 0xef, 0x83, 0xc2, 0x02,
+    0x8b, 0x46, 0xfc, 0xef, 0x83, 0xc2, 0x02, 0x89, 0xf8, 0xef, 0x83, 0xc2,
+    0x02, 0x8c, 0xc0, 0xef, 0x83, 0xc2, 0x02, 0x81, 0x7e, 0xfe, 0x00, 0x4f,
+    0x75, 0x0f, 0x83, 0xc2, 0x02, 0x26, 0x8b, 0x05, 0xef, 0x26, 0x8b, 0x45,
+    0x02, 0xef, 0x83, 0xea, 0x02, 0xb8, 0x41, 0x49, 0xef, 0xed, 0x89, 0xc1,
+    0xe3, 0x0a, 0x57, 0x83, 0xc2, 0x02, 0xfc, 0xed, 0xab, 0xe2, 0xfc, 0x5f,
+    0xba, 0xe0, 0x01, 0xed, 0x89, 0x46, 0xfe, 0x83, 0xc2, 0x02, 0xed, 0x89,
+    0xc3, 0x83, 0xc2, 0x02, 0xed, 0x89, 0xc1, 0x83, 0xc2, 0x02, 0xed, 0x89,
+    0xc2, 0x8b, 0x46, 0xfe, 0x89, 0xec, 0x5d, 0xcf,
 };
 
 /* Option-ROM initialization entry: install C000:0100 as vector 10h. */
 static const uint8_t hp_int10_rom_init[] = {
-    0x50, 0x1e, 0x31, 0xc0, 0x8e, 0xd8, 0xc7, 0x06,
-    0x40, 0x00, 0x00, 0x01, 0xc7, 0x06, 0x42, 0x00,
-    0x00, 0xc0, 0x1f, 0x58, 0xcb,
+    0x50, 0x1e, 0x31, 0xc0, 0x8e, 0xd8, 0xc7, 0x06, 0x40, 0x00, 0x00,
+    0x01, 0xc7, 0x06, 0x42, 0x00, 0x00, 0xc0, 0x1f, 0x58, 0xcb,
 };
 
-static const HPIA64VbeMode *hp_int10_find_mode(HPIA64Int10 *s,
-                                                uint16_t number)
+static const HPIA64VbeMode *hp_int10_find_mode(HPIA64Int10 *s, uint16_t number)
 {
     size_t i;
 
@@ -264,8 +237,7 @@ static const HPIA64VgaLegacyMode *hp_int10_find_legacy_mode(uint8_t number)
     return NULL;
 }
 
-static void hp_int10_vbe_write(HPIA64Int10 *s, uint16_t index,
-                               uint16_t value)
+static void hp_int10_vbe_write(HPIA64Int10 *s, uint16_t index, uint16_t value)
 {
     address_space_stw_le(s->vga_io, HP_INT10_VBE_INDEX, index,
                          MEMTXATTRS_UNSPECIFIED, NULL);
@@ -281,8 +253,7 @@ static uint16_t hp_int10_vbe_read(HPIA64Int10 *s, uint16_t index)
                                  MEMTXATTRS_UNSPECIFIED, NULL);
 }
 
-static void hp_int10_vga_writeb(HPIA64Int10 *s, uint16_t port,
-                                uint8_t value)
+static void hp_int10_vga_writeb(HPIA64Int10 *s, uint16_t port, uint8_t value)
 {
     address_space_stb(s->vga_io, port, value, MEMTXATTRS_UNSPECIFIED, NULL);
 }
@@ -292,10 +263,9 @@ static uint8_t hp_int10_vga_readb(HPIA64Int10 *s, uint16_t port)
     return address_space_ldub(s->vga_io, port, MEMTXATTRS_UNSPECIFIED, NULL);
 }
 
-static void hp_int10_vga_indexed_write(HPIA64Int10 *s,
-                                       uint16_t index_port,
-                                       uint16_t data_port,
-                                       uint8_t index, uint8_t value)
+static void hp_int10_vga_indexed_write(HPIA64Int10 *s, uint16_t index_port,
+                                       uint16_t data_port, uint8_t index,
+                                       uint8_t value)
 {
     hp_int10_vga_writeb(s, index_port, index);
     hp_int10_vga_writeb(s, data_port, value);
@@ -303,14 +273,13 @@ static void hp_int10_vga_indexed_write(HPIA64Int10 *s,
 
 static uint32_t hp_int10_vbe_memory_size(HPIA64Int10 *s)
 {
-    return (uint32_t)hp_int10_vbe_read(
-        s, VBE_DISPI_INDEX_VIDEO_MEMORY_64K) * (64 * KiB);
+    return (uint32_t)hp_int10_vbe_read(s, VBE_DISPI_INDEX_VIDEO_MEMORY_64K) *
+           (64 * KiB);
 }
 
 static uint64_t hp_int10_mode_size(const HPIA64VbeMode *mode)
 {
-    return (uint64_t)mode->width * mode->height *
-           DIV_ROUND_UP(mode->bpp, 8);
+    return (uint64_t)mode->width * mode->height * DIV_ROUND_UP(mode->bpp, 8);
 }
 
 static bool hp_int10_has_geometry(HPIA64Int10 *s,
@@ -322,16 +291,14 @@ static bool hp_int10_has_geometry(HPIA64Int10 *s,
         const HPIA64VbeMode *mode = &s->modes[i];
 
         if (mode->width == candidate->width &&
-            mode->height == candidate->height &&
-            mode->bpp == candidate->bpp) {
+            mode->height == candidate->height && mode->bpp == candidate->bpp) {
             return true;
         }
     }
     return false;
 }
 
-static void hp_int10_add_mode(HPIA64Int10 *s,
-                              const HPIA64VbeMode *mode)
+static void hp_int10_add_mode(HPIA64Int10 *s, const HPIA64VbeMode *mode)
 {
     g_assert(s->mode_count < HP_IA64_INT10_MAX_MODES);
     s->modes[s->mode_count++] = *mode;
@@ -360,8 +327,7 @@ static void hp_int10_add_oem_modes(HPIA64Int10 *s, uint32_t memory_size)
     size_t depth;
 
     for (i = 0; i < G_N_ELEMENTS(hp_int10_oem_resolutions); i++) {
-        const HPIA64VbeResolution *resolution =
-            &hp_int10_oem_resolutions[i];
+        const HPIA64VbeResolution *resolution = &hp_int10_oem_resolutions[i];
 
         for (depth = 0; depth < G_N_ELEMENTS(bpps); depth++) {
             HPIA64VbeMode mode = {
@@ -382,7 +348,7 @@ static void hp_int10_add_oem_modes(HPIA64Int10 *s, uint32_t memory_size)
 static bool hp_int10_read_properties(HPIA64Int10 *s, Error **errp)
 {
     Object *obj = OBJECT(s->vga);
-    static const char * const required[] = {
+    static const char *const required[] = {
         "xres", "yres", "xmax", "ymax", "vgamem_mb",
     };
     uint64_t xres;
@@ -435,8 +401,8 @@ static bool hp_int10_read_properties(HPIA64Int10 *s, Error **errp)
         ymax = yres;
     }
 
-    if (xres < 8 || yres < 1 ||
-        xres > VBE_DISPI_MAX_XRES || yres > VBE_DISPI_MAX_YRES) {
+    if (xres < 8 || yres < 1 || xres > VBE_DISPI_MAX_XRES ||
+        yres > VBE_DISPI_MAX_YRES) {
         error_setg(errp,
                    "VGA preferred resolution %" PRIu64 "x%" PRIu64
                    " is outside the Bochs VBE range 8x1 to %ux%u",
@@ -460,7 +426,8 @@ static bool hp_int10_read_properties(HPIA64Int10 *s, Error **errp)
     if (xres & 7) {
         error_setg(errp,
                    "VGA preferred horizontal resolution %" PRIu64
-                   " is not a multiple of 8", xres);
+                   " is not a multiple of 8",
+                   xres);
         return false;
     }
 
@@ -496,22 +463,22 @@ static bool hp_int10_build_vbe_config(HPIA64Int10 *s, Error **errp)
     size_t i;
 
     _Static_assert(G_N_ELEMENTS(hp_int10_legacy_modes) +
-                   G_N_ELEMENTS(hp_int10_oem_resolutions) * 3 +
-                   G_N_ELEMENTS(native_bpps) <= HP_IA64_INT10_MAX_MODES,
+                           G_N_ELEMENTS(hp_int10_oem_resolutions) * 3 +
+                           G_N_ELEMENTS(native_bpps) <=
+                       HP_IA64_INT10_MAX_MODES,
                    "HP IA-64 VBE mode array is too small");
 
     if (fb->memory == NULL || mmio->memory == NULL) {
         error_setg(errp,
                    "VGA device '%s' does not provide framebuffer BAR %u "
                    "and MMIO BAR %u",
-                   object_get_typename(OBJECT(s->vga)),
-                   s->framebuffer_bar, s->mmio_bar);
+                   object_get_typename(OBJECT(s->vga)), s->framebuffer_bar,
+                   s->mmio_bar);
         return false;
     }
     s->framebuffer_size = fb->size;
     if (s->framebuffer_base > UINT32_MAX ||
-        s->framebuffer_size > (UINT64_C(1) << 32) -
-                              s->framebuffer_base) {
+        s->framebuffer_size > (UINT64_C(1) << 32) - s->framebuffer_base) {
         error_setg(errp,
                    "HP IA-64 VBE framebuffer is outside 32-bit PCI memory");
         return false;
@@ -537,8 +504,7 @@ static bool hp_int10_build_vbe_config(HPIA64Int10 *s, Error **errp)
 
     s->mode_count = 0;
     if (s->prefx == HP_INT10_DEFAULT_XRES &&
-        s->prefy == HP_INT10_DEFAULT_YRES &&
-        s->maxx == HP_INT10_DEFAULT_XRES &&
+        s->prefy == HP_INT10_DEFAULT_YRES && s->maxx == HP_INT10_DEFAULT_XRES &&
         s->maxy == HP_INT10_DEFAULT_YRES) {
         for (i = 0; i < G_N_ELEMENTS(hp_int10_legacy_modes); i++) {
             hp_int10_add_mode(s, &hp_int10_legacy_modes[i]);
@@ -564,18 +530,18 @@ static bool hp_int10_build_vbe_config(HPIA64Int10 *s, Error **errp)
 
     memset(s->edid, 0, sizeof(s->edid));
     edid_size = s->prefx == HP_INT10_DEFAULT_XRES &&
-                s->prefy == HP_INT10_DEFAULT_YRES &&
-                s->maxx == HP_INT10_DEFAULT_XRES &&
-                s->maxy == HP_INT10_DEFAULT_YRES ?
-                128 : sizeof(s->edid);
+                        s->prefy == HP_INT10_DEFAULT_YRES &&
+                        s->maxx == HP_INT10_DEFAULT_XRES &&
+                        s->maxy == HP_INT10_DEFAULT_YRES
+                    ? 128
+                    : sizeof(s->edid);
     qemu_edid_generate(s->edid, edid_size, &edid_info);
     s->edid_blocks = 1 + s->edid[126];
     g_assert(s->edid_blocks <= sizeof(s->edid) / 128);
     return true;
 }
 
-static void hp_int10_update_bda(const HPIA64VgaLegacyMode *mode,
-                                bool no_clear)
+static void hp_int10_update_bda(const HPIA64VgaLegacyMode *mode, bool no_clear)
 {
     address_space_stb(&address_space_memory, HP_INT10_BDA_VIDEO_MODE,
                       mode->number, MEMTXATTRS_UNSPECIFIED, NULL);
@@ -585,25 +551,23 @@ static void hp_int10_update_bda(const HPIA64VgaLegacyMode *mode,
                          mode->page_size, MEMTXATTRS_UNSPECIFIED, NULL);
     address_space_stw_le(&address_space_memory, HP_INT10_BDA_VIDEO_PAGE_START,
                          0, MEMTXATTRS_UNSPECIFIED, NULL);
-    address_space_set(&address_space_memory, HP_INT10_BDA_CURSOR_POSITIONS,
-                      0, 16, MEMTXATTRS_UNSPECIFIED);
-    address_space_stw_le(&address_space_memory, HP_INT10_BDA_CURSOR_TYPE,
-                         0, MEMTXATTRS_UNSPECIFIED, NULL);
-    address_space_stb(&address_space_memory, HP_INT10_BDA_VIDEO_PAGE,
-                      0, MEMTXATTRS_UNSPECIFIED, NULL);
+    address_space_set(&address_space_memory, HP_INT10_BDA_CURSOR_POSITIONS, 0,
+                      16, MEMTXATTRS_UNSPECIFIED);
+    address_space_stw_le(&address_space_memory, HP_INT10_BDA_CURSOR_TYPE, 0,
+                         MEMTXATTRS_UNSPECIFIED, NULL);
+    address_space_stb(&address_space_memory, HP_INT10_BDA_VIDEO_PAGE, 0,
+                      MEMTXATTRS_UNSPECIFIED, NULL);
     address_space_stw_le(&address_space_memory, HP_INT10_BDA_CRTC_ADDRESS,
                          VGA_CRT_IC, MEMTXATTRS_UNSPECIFIED, NULL);
     address_space_stb(&address_space_memory, HP_INT10_BDA_VIDEO_ROWS,
                       mode->rows - 1, MEMTXATTRS_UNSPECIFIED, NULL);
-    address_space_stw_le(&address_space_memory,
-                         HP_INT10_BDA_CHARACTER_HEIGHT,
-                         mode->character_height,
-                         MEMTXATTRS_UNSPECIFIED, NULL);
+    address_space_stw_le(&address_space_memory, HP_INT10_BDA_CHARACTER_HEIGHT,
+                         mode->character_height, MEMTXATTRS_UNSPECIFIED, NULL);
     address_space_stb(&address_space_memory, HP_INT10_BDA_VIDEO_CONTROL,
-                      0x60 | (no_clear ? 0x80 : 0),
+                      0x60 | (no_clear ? 0x80 : 0), MEMTXATTRS_UNSPECIFIED,
+                      NULL);
+    address_space_stb(&address_space_memory, HP_INT10_BDA_VIDEO_SWITCHES, 0xf9,
                       MEMTXATTRS_UNSPECIFIED, NULL);
-    address_space_stb(&address_space_memory, HP_INT10_BDA_VIDEO_SWITCHES,
-                      0xf9, MEMTXATTRS_UNSPECIFIED, NULL);
 }
 
 static void hp_int10_load_ega_palette(HPIA64Int10 *s)
@@ -613,12 +577,9 @@ static void hp_int10_load_ega_palette(HPIA64Int10 *s)
     hp_int10_vga_writeb(s, VGA_PEL_MSK, 0xff);
     hp_int10_vga_writeb(s, VGA_PEL_IW, 0);
     for (color = 0; color < 64; color++) {
-        uint8_t red = (color & 0x04 ? 0x2a : 0) |
-                      (color & 0x20 ? 0x15 : 0);
-        uint8_t green = (color & 0x02 ? 0x2a : 0) |
-                        (color & 0x10 ? 0x15 : 0);
-        uint8_t blue = (color & 0x01 ? 0x2a : 0) |
-                       (color & 0x08 ? 0x15 : 0);
+        uint8_t red = (color & 0x04 ? 0x2a : 0) | (color & 0x20 ? 0x15 : 0);
+        uint8_t green = (color & 0x02 ? 0x2a : 0) | (color & 0x10 ? 0x15 : 0);
+        uint8_t blue = (color & 0x01 ? 0x2a : 0) | (color & 0x08 ? 0x15 : 0);
 
         hp_int10_vga_writeb(s, VGA_PEL_D, red);
         hp_int10_vga_writeb(s, VGA_PEL_D, green);
@@ -633,8 +594,7 @@ static void hp_int10_program_legacy_mode(HPIA64Int10 *s,
     size_t i;
 
     hp_int10_vbe_write(s, VBE_DISPI_INDEX_ENABLE, VBE_DISPI_DISABLED);
-    hp_int10_vga_indexed_write(s, VGA_SEQ_I, VGA_SEQ_D,
-                               VGA_SEQ_RESET, 0x01);
+    hp_int10_vga_indexed_write(s, VGA_SEQ_I, VGA_SEQ_D, VGA_SEQ_RESET, 0x01);
     for (i = 0; i < VGA_SEQ_C - 1; i++) {
         hp_int10_vga_indexed_write(s, VGA_SEQ_I, VGA_SEQ_D, i + 1,
                                    mode->sequencer[i]);
@@ -642,18 +602,16 @@ static void hp_int10_program_legacy_mode(HPIA64Int10 *s,
     hp_int10_vga_writeb(s, VGA_MIS_W, mode->misc);
     hp_int10_vga_indexed_write(s, VGA_GFX_I, VGA_GFX_D, VGA_GFX_MISC,
                                mode->graphics[VGA_GFX_MISC]);
-    hp_int10_vga_indexed_write(s, VGA_SEQ_I, VGA_SEQ_D,
-                               VGA_SEQ_RESET, 0x03);
+    hp_int10_vga_indexed_write(s, VGA_SEQ_I, VGA_SEQ_D, VGA_SEQ_RESET, 0x03);
     for (i = 0; i < VGA_GFX_C; i++) {
         hp_int10_vga_indexed_write(s, VGA_GFX_I, VGA_GFX_D, i,
                                    mode->graphics[i]);
     }
 
-    hp_int10_vga_indexed_write(s, VGA_CRT_IC, VGA_CRT_DC,
-                               VGA_CRTC_V_SYNC_END, 0);
+    hp_int10_vga_indexed_write(s, VGA_CRT_IC, VGA_CRT_DC, VGA_CRTC_V_SYNC_END,
+                               0);
     for (i = 0; i < VGA_CRT_C; i++) {
-        hp_int10_vga_indexed_write(s, VGA_CRT_IC, VGA_CRT_DC, i,
-                                   mode->crtc[i]);
+        hp_int10_vga_indexed_write(s, VGA_CRT_IC, VGA_CRT_DC, i, mode->crtc[i]);
     }
     for (i = 0; i < VGA_ATT_C; i++) {
         (void)hp_int10_vga_readb(s, VGA_IS1_RC);
@@ -664,8 +622,7 @@ static void hp_int10_program_legacy_mode(HPIA64Int10 *s,
 
     if (!no_clear) {
         address_space_set(&address_space_memory, s->framebuffer_base, 0,
-                          MIN(s->framebuffer_size,
-                              HP_INT10_PLANAR_MEMORY_SIZE),
+                          MIN(s->framebuffer_size, HP_INT10_PLANAR_MEMORY_SIZE),
                           MEMTXATTRS_UNSPECIFIED);
     }
     (void)hp_int10_vga_readb(s, VGA_IS1_RC);
@@ -743,8 +700,7 @@ static void hp_int10_controller_info(HPIA64Int10 *s)
     size_t response_size;
     uint8_t *info;
 
-    response_size = s->input_signature == HP_INT10_VBE2_SIGNATURE ?
-                    512 : 256;
+    response_size = s->input_signature == HP_INT10_VBE2_SIGNATURE ? 512 : 256;
     hp_int10_response_size(s, response_size);
     info = s->response;
     memcpy(info, "VESA", 4);
@@ -752,8 +708,7 @@ static void hp_int10_controller_info(HPIA64Int10 *s)
     stl_le_p(info + 6, hp_int10_rom_pointer(HP_INT10_ROM_OEM));
     stl_le_p(info + 10, 0);
     stl_le_p(info + 14, hp_int10_rom_pointer(HP_INT10_ROM_MODES));
-    stw_le_p(info + 18,
-             hp_int10_vbe_read(s, VBE_DISPI_INDEX_VIDEO_MEMORY_64K));
+    stw_le_p(info + 18, hp_int10_vbe_read(s, VBE_DISPI_INDEX_VIDEO_MEMORY_64K));
     stw_le_p(info + 20, 0x0100);
     stl_le_p(info + 22, hp_int10_rom_pointer(HP_INT10_ROM_VENDOR));
     stl_le_p(info + 26, hp_int10_rom_pointer(HP_INT10_ROM_PRODUCT));
@@ -763,8 +718,7 @@ static void hp_int10_controller_info(HPIA64Int10 *s)
 
 static void hp_int10_mode_info(HPIA64Int10 *s)
 {
-    const HPIA64VbeMode *mode =
-        hp_int10_find_mode(s, s->request.cx & 0x01ff);
+    const HPIA64VbeMode *mode = hp_int10_find_mode(s, s->request.cx & 0x01ff);
     uint32_t pitch;
     uint32_t image_size;
     uint32_t memory_size;
@@ -790,8 +744,7 @@ static void hp_int10_mode_info(HPIA64Int10 *s)
         hp_int10_vbe_failure(s);
         return;
     }
-    pages = memory_size /
-            ((image_size + 64 * KiB - 1) & ~((64 * KiB) - 1));
+    pages = memory_size / ((image_size + 64 * KiB - 1) & ~((64 * KiB) - 1));
     pages = CLAMP(pages, 1, 256) - 1;
 
     stw_le_p(info + 0, 0x00bb);
@@ -837,7 +790,7 @@ static void hp_int10_mode_info(HPIA64Int10 *s)
 }
 
 static const HPIA64VbeMode *hp_int10_current_mode(HPIA64Int10 *s,
-                                                   uint16_t *number)
+                                                  uint16_t *number)
 {
     const HPIA64VbeMode *mode = NULL;
     uint16_t enable = hp_int10_vbe_read(s, VBE_DISPI_INDEX_ENABLE);
@@ -854,8 +807,7 @@ static const HPIA64VbeMode *hp_int10_current_mode(HPIA64Int10 *s,
     height = hp_int10_vbe_read(s, VBE_DISPI_INDEX_YRES);
     bpp = hp_int10_vbe_read(s, VBE_DISPI_INDEX_BPP);
     for (i = 0; i < s->mode_count; i++) {
-        if (s->modes[i].width == width &&
-            s->modes[i].height == height &&
+        if (s->modes[i].width == width && s->modes[i].height == height &&
             s->modes[i].bpp == bpp) {
             mode = &s->modes[i];
             break;
@@ -873,8 +825,7 @@ static const HPIA64VbeMode *hp_int10_current_mode(HPIA64Int10 *s,
 
 static void hp_int10_set_mode(HPIA64Int10 *s)
 {
-    const HPIA64VbeMode *mode =
-        hp_int10_find_mode(s, s->request.bx & 0x01ff);
+    const HPIA64VbeMode *mode = hp_int10_find_mode(s, s->request.bx & 0x01ff);
     uint32_t image_size;
     uint16_t enable;
 
@@ -882,8 +833,7 @@ static void hp_int10_set_mode(HPIA64Int10 *s)
         hp_int10_vbe_failure(s);
         return;
     }
-    image_size = mode->width * mode->height *
-                 DIV_ROUND_UP(mode->bpp, 8);
+    image_size = mode->width * mode->height * DIV_ROUND_UP(mode->bpp, 8);
     if (image_size > hp_int10_vbe_memory_size(s)) {
         hp_int10_vbe_failure(s);
         return;
@@ -918,8 +868,7 @@ static void hp_int10_window_control(HPIA64Int10 *s)
         hp_int10_vbe_failure(s);
         return;
     }
-    if (hp_int10_vbe_read(s, VBE_DISPI_INDEX_ENABLE) &
-        VBE_DISPI_LFB_ENABLED) {
+    if (hp_int10_vbe_read(s, VBE_DISPI_INDEX_ENABLE) & VBE_DISPI_LFB_ENABLED) {
         hp_int10_vbe_invalid_mode(s);
         return;
     }
@@ -950,7 +899,8 @@ static void hp_int10_scanline(HPIA64Int10 *s)
     bytes_per_pixel = DIV_ROUND_UP(mode->bpp, 8);
     memory_size = hp_int10_vbe_memory_size(s);
     max_width = MIN((uint32_t)VBE_DISPI_MAX_XRES,
-                    memory_size / mode->height / bytes_per_pixel) & ~7U;
+                    memory_size / mode->height / bytes_per_pixel) &
+                ~7U;
     if (max_width < mode->width) {
         hp_int10_vbe_failure(s);
         return;
@@ -1116,12 +1066,10 @@ static void hp_int10_execute(HPIA64Int10 *s)
         hp_int10_set_legacy_mode(s, s->request.ax);
         break;
     case 0x0f:
-        if (hp_int10_vbe_read(s, VBE_DISPI_INDEX_ENABLE) &
-            VBE_DISPI_ENABLED) {
+        if (hp_int10_vbe_read(s, VBE_DISPI_INDEX_ENABLE) & VBE_DISPI_ENABLED) {
             s->result.ax = 80 << 8 | 3;
         } else {
-            s->result.ax = (uint16_t)s->legacy_columns << 8 |
-                           s->legacy_mode;
+            s->result.ax = (uint16_t)s->legacy_columns << 8 | s->legacy_mode;
         }
         s->result.bx &= 0x00ff;
         break;
@@ -1209,9 +1157,8 @@ static void hp_int10_io_write(void *opaque, hwaddr addr, uint64_t value,
         break;
     case HP_INT10_REG_DATA:
         if (s->input_signature_words < 2) {
-            s->input_signature |=
-                (uint32_t)(uint16_t)value <<
-                (s->input_signature_words * 16);
+            s->input_signature |= (uint32_t)(uint16_t)value
+                                  << (s->input_signature_words * 16);
             s->input_signature_words++;
         }
         break;
@@ -1237,10 +1184,9 @@ static const MemoryRegionOps hp_int10_io_ops = {
 };
 
 static void hp_int10_install_ati_clock_range(uint8_t *pll, size_t offset,
-                                              uint16_t reference,
-                                              uint16_t divider,
-                                              uint32_t minimum,
-                                              uint32_t maximum)
+                                             uint16_t reference,
+                                             uint16_t divider, uint32_t minimum,
+                                             uint32_t maximum)
 {
     stw_le_p(pll + offset, reference);
     stw_le_p(pll + offset + 2, divider);
@@ -1262,8 +1208,8 @@ static bool hp_int10_default_radeon(PCIDevice *vga)
     uint16_t device = pci_get_word(vga->config + PCI_DEVICE_ID);
 
     return hp_int10_default_ati_vga(vga) &&
-        (device == HP_INT10_ATI_RV100_DEVICE_ID ||
-         device == HP_INT10_ATI_ES1000_DEVICE_ID);
+           (device == HP_INT10_ATI_RV100_DEVICE_ID ||
+            device == HP_INT10_ATI_ES1000_DEVICE_ID);
 }
 
 static void hp_int10_post_ati(PCIDevice *vga)
@@ -1288,17 +1234,17 @@ static void hp_int10_post_ati(PCIDevice *vga)
      */
     feedback = clock * HP_INT10_ATI_CLOCK_REF_DIV / HP_INT10_ATI_CLOCK_REF;
     g_assert(feedback <= UINT8_MAX);
-    ati_mmio_write(ati, CLOCK_CNTL_INDEX,
-                   PLL_WR_EN | R100_M_SPLL_REF_FB_DIV, 4);
+    ati_mmio_write(ati, CLOCK_CNTL_INDEX, PLL_WR_EN | R100_M_SPLL_REF_FB_DIV,
+                   4);
     ati_mmio_write(ati, CLOCK_CNTL_DATA,
                    HP_INT10_ATI_CLOCK_REF_DIV | feedback << 8 | feedback << 16,
                    4);
     ati_mmio_write(ati, CLOCK_CNTL_INDEX, PLL_WR_EN | R100_SCLK_CNTL, 4);
     ati_mmio_write(ati, CLOCK_CNTL_DATA, R100_PLL_SRC_DIV2, 4);
     ati_mmio_write(ati, CLOCK_CNTL_INDEX, PLL_WR_EN | R100_MCLK_CNTL, 4);
-    ati_mmio_write(ati, CLOCK_CNTL_DATA,
-                   R100_PLL_SRC_DIV2 |
-                   R100_PLL_SRC_DIV2 << R100_YCLKA_SRC_SHIFT, 4);
+    ati_mmio_write(
+        ati, CLOCK_CNTL_DATA,
+        R100_PLL_SRC_DIV2 | R100_PLL_SRC_DIV2 << R100_YCLKA_SRC_SHIFT, 4);
 }
 
 static void hp_int10_install_ati_bios_info(uint8_t *rom, PCIDevice *vga,
@@ -1306,15 +1252,19 @@ static void hp_int10_install_ati_bios_info(uint8_t *rom, PCIDevice *vga,
 {
     static const char ati_bios_signature[] = "761295520";
     static const uint8_t ati_rage128_header[] = {
-        0x02, 0xa0, 0x01, 0x01, 0x03, 0x01,
-        HP_INT10_ROM_ATI_RAGE128_HEADER_SIZE, 0x00,
+        0x02,
+        0xa0,
+        0x01,
+        0x01,
+        0x03,
+        0x01,
+        HP_INT10_ROM_ATI_RAGE128_HEADER_SIZE,
+        0x00,
     };
     static const char ati_rage128_misc[] = "R128AGP SGS1UN";
-    static const uint8_t
-        ati_rage128_crt[HP_INT10_ROM_ATI_RAGE128_CRT_SIZE] = {
-        0x12, 0x00, 0x80, 0x00, 0x00, 0x00, 0x63, 0x4f,
-        0x51, 0x8c, 0x0c, 0x02, 0xdf, 0x01, 0xe9, 0x01,
-        0x82, 0x00, 0xd6, 0x09,
+    static const uint8_t ati_rage128_crt[HP_INT10_ROM_ATI_RAGE128_CRT_SIZE] = {
+        0x12, 0x00, 0x80, 0x00, 0x00, 0x00, 0x63, 0x4f, 0x51, 0x8c,
+        0x0c, 0x02, 0xdf, 0x01, 0xe9, 0x01, 0x82, 0x00, 0xd6, 0x09,
     };
     static const uint8_t ati_vga_connector[] = {
         0x11, 0x11, 0x00, 0x23, 0x00, 0x00,
@@ -1327,8 +1277,8 @@ static void hp_int10_install_ati_bios_info(uint8_t *rom, PCIDevice *vga,
     bool es1000 = device == HP_INT10_ATI_ES1000_DEVICE_ID;
     uint32_t memory_mb = MIN(memory_size / MiB, 256U);
     uint32_t memory_units = memory_mb / 2;
-    uint16_t clock_divider = hp_int10_default_radeon(vga) ?
-        HP_INT10_ATI_CLOCK_REF_DIV : 12;
+    uint16_t clock_divider =
+        hp_int10_default_radeon(vga) ? HP_INT10_ATI_CLOCK_REF_DIV : 12;
 
     if (vendor != HP_INT10_ATI_VENDOR_ID) {
         return;
@@ -1337,8 +1287,8 @@ static void hp_int10_install_ati_bios_info(uint8_t *rom, PCIDevice *vga,
     g_assert(memory_mb != 0 && memory_mb % 2 == 0);
     g_assert(memory_units != 0 && memory_units <= UINT8_MAX);
 
-    memcpy(rom + HP_INT10_ROM_ATI_SIGNATURE,
-           ati_bios_signature, sizeof(ati_bios_signature));
+    memcpy(rom + HP_INT10_ROM_ATI_SIGNATURE, ati_bios_signature,
+           sizeof(ati_bios_signature));
     stw_le_p(rom + 0x48, HP_INT10_ROM_ATI_HEADER);
     if (rage128) {
         memcpy(header, ati_rage128_header, sizeof(ati_rage128_header));
@@ -1350,8 +1300,7 @@ static void hp_int10_install_ati_bios_info(uint8_t *rom, PCIDevice *vga,
     stw_le_p(header + 0x0c, HP_INT10_ROM_ATI_INIT);
     stw_le_p(header + 0x1c,
              pci_get_word(vga->config + PCI_SUBSYSTEM_VENDOR_ID));
-    stw_le_p(header + 0x1e,
-             pci_get_word(vga->config + PCI_SUBSYSTEM_ID));
+    stw_le_p(header + 0x1e, pci_get_word(vga->config + PCI_SUBSYSTEM_ID));
     stw_le_p(header + 0x30, HP_INT10_ROM_ATI_PLL);
     if (rage128) {
         stw_le_p(header + 0x14, HP_INT10_ROM_ATI_RAGE128_MISC);
@@ -1373,8 +1322,7 @@ static void hp_int10_install_ati_bios_info(uint8_t *rom, PCIDevice *vga,
         stw_le_p(header + 0x5e, HP_INT10_ROM_ATI_MISC);
     }
 
-    rom[HP_INT10_ROM_ATI_MEM_CONFIG - 3] =
-        HP_INT10_ROM_ATI_MEM_RESET_OFFSET;
+    rom[HP_INT10_ROM_ATI_MEM_CONFIG - 3] = HP_INT10_ROM_ATI_MEM_RESET_OFFSET;
     rom[HP_INT10_ROM_ATI_MEM_CONFIG - 2] = 0;
     /* Revision 1 expresses memory size in 2 MiB units. */
     rom[HP_INT10_ROM_ATI_MEM_CONFIG - 1] = 1;
@@ -1389,29 +1337,21 @@ static void hp_int10_install_ati_bios_info(uint8_t *rom, PCIDevice *vga,
     pll[1] = rage128 ? 0x32 : 0x46;
     pll[2] = 3;
     pll[3] = rage128 ? 2 : 3;
-    stw_le_p(pll + 0x04, rage128 ? 0x0600 :
-             (es1000 ? 0x05ee : 0x05a6));
-    stw_le_p(pll + 0x06, rage128 ? 0x05f8 :
-             (es1000 ? 0x05e6 : 0x059e));
+    stw_le_p(pll + 0x04, rage128 ? 0x0600 : (es1000 ? 0x05ee : 0x05a6));
+    stw_le_p(pll + 0x06, rage128 ? 0x05f8 : (es1000 ? 0x05e6 : 0x059e));
     stw_le_p(pll + 0x08, rage128 ? 12000 : (es1000 ? 20000 : 16600));
     stw_le_p(pll + 0x0a, rage128 ? 12000 : (es1000 ? 20000 : 16600));
     pll[0x0c] = 3;
     pll[0x0d] = 12;
     if (rage128) {
-        hp_int10_install_ati_clock_range(pll, 0x0e,
-                                         2950, 65, 12500, 40000);
-        hp_int10_install_ati_clock_range(pll, 0x1a,
-                                         2950, 29, 12500, 26041);
-        hp_int10_install_ati_clock_range(pll, 0x26,
-                                         2950, 29, 12500, 26041);
+        hp_int10_install_ati_clock_range(pll, 0x0e, 2950, 65, 12500, 40000);
+        hp_int10_install_ati_clock_range(pll, 0x1a, 2950, 29, 12500, 26041);
+        hp_int10_install_ati_clock_range(pll, 0x26, 2950, 29, 12500, 26041);
     } else {
-        hp_int10_install_ati_clock_range(pll, 0x0e,
-                                         2700, 60, 12000, 35000);
-        hp_int10_install_ati_clock_range(pll, 0x1a,
-                                         HP_INT10_ATI_CLOCK_REF,
+        hp_int10_install_ati_clock_range(pll, 0x0e, 2700, 60, 12000, 35000);
+        hp_int10_install_ati_clock_range(pll, 0x1a, HP_INT10_ATI_CLOCK_REF,
                                          clock_divider, 20000, 40000);
-        hp_int10_install_ati_clock_range(pll, 0x26,
-                                         HP_INT10_ATI_CLOCK_REF,
+        hp_int10_install_ati_clock_range(pll, 0x26, HP_INT10_ATI_CLOCK_REF,
                                          clock_divider, 20000, 40000);
         pll[0x32] = 1;
         pll[0x33] = 0x12;
@@ -1434,7 +1374,10 @@ static void hp_int10_install_nvidia_bios_info(uint8_t *rom, uint16_t vendor)
     }
 
     /* NV15 metadata with zero init-script pointers. */
-    memcpy(bmp, "\xff\x7f" "NV\0", 5);
+    memcpy(bmp,
+           "\xff\x7f"
+           "NV\0",
+           5);
     bmp[5] = HP_INT10_NVIDIA_BMP_MAJOR;
     bmp[6] = HP_INT10_NVIDIA_BMP_MINOR;
     for (i = 0; i < 7; i++) {
@@ -1469,8 +1412,7 @@ static void hp_int10_install_rom(HPIA64Int10 *s)
 
     g_assert(HP_INT10_ROM_HANDLER + sizeof(hp_int10_handler) <=
              HP_INT10_ROM_OEM);
-    g_assert(HP_INT10_ROM_OEM + sizeof(hp_int10_oem) <=
-             HP_INT10_ROM_VENDOR);
+    g_assert(HP_INT10_ROM_OEM + sizeof(hp_int10_oem) <= HP_INT10_ROM_VENDOR);
     g_assert(HP_INT10_ROM_VENDOR + sizeof(hp_int10_vendor) <=
              HP_INT10_ROM_PRODUCT);
     g_assert(HP_INT10_ROM_PRODUCT + sizeof(hp_int10_product) <=
@@ -1482,25 +1424,23 @@ static void hp_int10_install_rom(HPIA64Int10 *s)
     g_assert(HP_INT10_ROM_ATI_INIT + HP_INT10_ROM_ATI_INIT_READ <=
              HP_INT10_ROM_ATI_BIOS_SUPPORT);
     g_assert(HP_INT10_ROM_ATI_BIOS_SUPPORT +
-             HP_INT10_ROM_ATI_BIOS_SUPPORT_SIZE <=
+                 HP_INT10_ROM_ATI_BIOS_SUPPORT_SIZE <=
              HP_INT10_ROM_ATI_MISC);
     g_assert(HP_INT10_ROM_ATI_RAGE128_MISC +
-             HP_INT10_ROM_ATI_RAGE128_MISC_SIZE <=
+                 HP_INT10_ROM_ATI_RAGE128_MISC_SIZE <=
              HP_INT10_ROM_HANDLER);
     g_assert(HP_INT10_ROM_ATI_MISC + HP_INT10_ROM_ATI_MISC_SIZE <=
              HP_INT10_ROM_HANDLER);
     g_assert(HP_INT10_ROM_MODES + (s->mode_count + 1) * 2 <=
              HP_INT10_ROM_ATI_CONNECTOR);
-    g_assert(HP_INT10_ROM_ATI_CONNECTOR +
-             HP_INT10_ROM_ATI_CONNECTOR_SIZE <= HP_INT10_ROM_ATI_PLL);
-    g_assert(HP_INT10_ROM_ATI_RAGE128_CRT +
-             HP_INT10_ROM_ATI_RAGE128_CRT_SIZE <= HP_INT10_ROM_ATI_PLL);
+    g_assert(HP_INT10_ROM_ATI_CONNECTOR + HP_INT10_ROM_ATI_CONNECTOR_SIZE <=
+             HP_INT10_ROM_ATI_PLL);
+    g_assert(HP_INT10_ROM_ATI_RAGE128_CRT + HP_INT10_ROM_ATI_RAGE128_CRT_SIZE <=
+             HP_INT10_ROM_ATI_PLL);
     g_assert(HP_INT10_ROM_ATI_PLL + HP_INT10_ROM_ATI_PLL_READ_SIZE <=
-             HP_INT10_ROM_ATI_MEM_CONFIG -
-             HP_INT10_ROM_ATI_MEM_PREFIX_SIZE);
-    g_assert(HP_INT10_ROM_ATI_MEM_CONFIG +
-             HP_INT10_ROM_ATI_MEM_RESET_OFFSET +
-             HP_INT10_ROM_ATI_MEM_RESET_SIZE <=
+             HP_INT10_ROM_ATI_MEM_CONFIG - HP_INT10_ROM_ATI_MEM_PREFIX_SIZE);
+    g_assert(HP_INT10_ROM_ATI_MEM_CONFIG + HP_INT10_ROM_ATI_MEM_RESET_OFFSET +
+                 HP_INT10_ROM_ATI_MEM_RESET_SIZE <=
              HP_INT10_ROM_NVIDIA_BMP);
 
     rom[0] = 0x55;
@@ -1517,23 +1457,18 @@ static void hp_int10_install_rom(HPIA64Int10 *s)
     rom[HP_INT10_ROM_PCIR_OFFSET + 0x0c] = 0;
     rom[HP_INT10_ROM_PCIR_OFFSET + 0x0d] = 0;
     rom[HP_INT10_ROM_PCIR_OFFSET + 0x0e] = 0;
-    rom[HP_INT10_ROM_PCIR_OFFSET + 0x0f] =
-        PCI_CLASS_DISPLAY_VGA >> 8;
-    stw_le_p(rom + HP_INT10_ROM_PCIR_OFFSET + 0x10,
-             HP_INT10_ROM_SIZE / 512);
+    rom[HP_INT10_ROM_PCIR_OFFSET + 0x0f] = PCI_CLASS_DISPLAY_VGA >> 8;
+    stw_le_p(rom + HP_INT10_ROM_PCIR_OFFSET + 0x10, HP_INT10_ROM_SIZE / 512);
     stw_le_p(rom + HP_INT10_ROM_PCIR_OFFSET + 0x12, 0x0100);
     rom[HP_INT10_ROM_PCIR_OFFSET + 0x14] = 0;
     rom[HP_INT10_ROM_PCIR_OFFSET + 0x15] = 0x80;
     memcpy(rom + 0x60, "QEMU HP IA64 INT10", 19);
-    hp_int10_install_ati_bios_info(rom, s->vga,
-                                   hp_int10_vbe_memory_size(s));
+    hp_int10_install_ati_bios_info(rom, s->vga, hp_int10_vbe_memory_size(s));
     hp_int10_install_nvidia_bios_info(rom, vendor);
     memcpy(rom + HP_INT10_ROM_HANDLER, hp_int10_handler,
            sizeof(hp_int10_handler));
-    memcpy(rom + HP_INT10_ROM_OEM, hp_int10_oem,
-           sizeof(hp_int10_oem));
-    memcpy(rom + HP_INT10_ROM_VENDOR, hp_int10_vendor,
-           sizeof(hp_int10_vendor));
+    memcpy(rom + HP_INT10_ROM_OEM, hp_int10_oem, sizeof(hp_int10_oem));
+    memcpy(rom + HP_INT10_ROM_VENDOR, hp_int10_vendor, sizeof(hp_int10_vendor));
     memcpy(rom + HP_INT10_ROM_PRODUCT, hp_int10_product,
            sizeof(hp_int10_product));
     memcpy(rom + HP_INT10_ROM_REVISION, hp_int10_revision,
@@ -1574,15 +1509,13 @@ static const VMStateDescription vmstate_hp_int10_registers = {
     .name = "hp-ia64-int10/registers",
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (const VMStateField[]) {
-        VMSTATE_UINT16(ax, HPIA64Int10Registers),
-        VMSTATE_UINT16(bx, HPIA64Int10Registers),
-        VMSTATE_UINT16(cx, HPIA64Int10Registers),
-        VMSTATE_UINT16(dx, HPIA64Int10Registers),
-        VMSTATE_UINT16(di, HPIA64Int10Registers),
-        VMSTATE_UINT16(es, HPIA64Int10Registers),
-        VMSTATE_END_OF_LIST()
-    }
+    .fields = (const VMStateField[]) { VMSTATE_UINT16(ax, HPIA64Int10Registers),
+                                       VMSTATE_UINT16(bx, HPIA64Int10Registers),
+                                       VMSTATE_UINT16(cx, HPIA64Int10Registers),
+                                       VMSTATE_UINT16(dx, HPIA64Int10Registers),
+                                       VMSTATE_UINT16(di, HPIA64Int10Registers),
+                                       VMSTATE_UINT16(es, HPIA64Int10Registers),
+                                       VMSTATE_END_OF_LIST() }
 };
 
 static int hp_int10_post_load(void *opaque, int version_id)
@@ -1604,23 +1537,20 @@ static const VMStateDescription vmstate_hp_int10 = {
     .version_id = 1,
     .minimum_version_id = 1,
     .post_load = hp_int10_post_load,
-    .fields = (const VMStateField[]) {
-        VMSTATE_STRUCT(request, HPIA64Int10, 1,
-                       vmstate_hp_int10_registers,
-                       HPIA64Int10Registers),
-        VMSTATE_STRUCT(result, HPIA64Int10, 1,
-                       vmstate_hp_int10_registers,
-                       HPIA64Int10Registers),
-        VMSTATE_UINT32(input_signature, HPIA64Int10),
-        VMSTATE_UINT8_ARRAY(response, HPIA64Int10, 512),
-        VMSTATE_UINT16(response_length, HPIA64Int10),
-        VMSTATE_UINT16(response_offset, HPIA64Int10),
-        VMSTATE_UINT8(input_signature_words, HPIA64Int10),
-        VMSTATE_UINT8(dpms_state, HPIA64Int10),
-        VMSTATE_UINT8(legacy_mode, HPIA64Int10),
-        VMSTATE_UINT8(legacy_columns, HPIA64Int10),
-        VMSTATE_END_OF_LIST()
-    }
+    .fields =
+        (const VMStateField[]) {
+            VMSTATE_STRUCT(request, HPIA64Int10, 1, vmstate_hp_int10_registers,
+                           HPIA64Int10Registers),
+            VMSTATE_STRUCT(result, HPIA64Int10, 1, vmstate_hp_int10_registers,
+                           HPIA64Int10Registers),
+            VMSTATE_UINT32(input_signature, HPIA64Int10),
+            VMSTATE_UINT8_ARRAY(response, HPIA64Int10, 512),
+            VMSTATE_UINT16(response_length, HPIA64Int10),
+            VMSTATE_UINT16(response_offset, HPIA64Int10),
+            VMSTATE_UINT8(input_signature_words, HPIA64Int10),
+            VMSTATE_UINT8(dpms_state, HPIA64Int10),
+            VMSTATE_UINT8(legacy_mode, HPIA64Int10),
+            VMSTATE_UINT8(legacy_columns, HPIA64Int10), VMSTATE_END_OF_LIST() }
 };
 
 void hp_ia64_int10_reset(HPIA64Int10 *s)
@@ -1640,8 +1570,7 @@ void hp_ia64_int10_reset(HPIA64Int10 *s)
     hp_int10_install_rom(s);
 }
 
-bool hp_ia64_int10_init(HPIA64Int10 *s,
-                        const HPIA64Int10Config *config,
+bool hp_ia64_int10_init(HPIA64Int10 *s, const HPIA64Int10Config *config,
                         Error **errp)
 {
     g_assert(!s->initialized);
@@ -1663,8 +1592,7 @@ bool hp_ia64_int10_init(HPIA64Int10 *s,
         return false;
     }
 
-    memory_region_init_io(&s->service_io, config->owner,
-                          &hp_int10_io_ops, s,
+    memory_region_init_io(&s->service_io, config->owner, &hp_int10_io_ops, s,
                           config->region_name, HP_IA64_INT10_IO_SIZE);
     s->service_parent = config->service_io;
     memory_region_add_subregion(s->service_parent, HP_IA64_INT10_IO_BASE,
@@ -1672,8 +1600,8 @@ bool hp_ia64_int10_init(HPIA64Int10 *s,
     s->initialized = true;
     hp_ia64_int10_reset(s);
 
-    if (vmstate_register_with_alias_id(NULL, 0, &vmstate_hp_int10, s,
-                                       -1, 0, errp) < 0) {
+    if (vmstate_register_with_alias_id(NULL, 0, &vmstate_hp_int10, s, -1, 0,
+                                       errp) < 0) {
         memory_region_del_subregion(s->service_parent, &s->service_io);
         s->service_parent = NULL;
         s->initialized = false;

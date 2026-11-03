@@ -91,7 +91,7 @@ static void test_register_types(void)
 
 type_init(test_register_types)
 
-static void test_map_reset(void)
+    static void test_map_reset(void)
 {
     g_assert_null(test_mapped_rom);
     g_assert_null(test_rom_ptr);
@@ -130,7 +130,7 @@ static void test_ram_init(MemoryRegion *mr, const char *name)
 }
 
 static MemoryRegionSection test_make_section(const TestMapSection *map,
-                                              hwaddr addr, uint64_t size)
+                                             hwaddr addr, uint64_t size)
 {
     MemoryRegionSection section = { 0 };
     hwaddr start = MAX(addr, map->base);
@@ -146,8 +146,8 @@ static MemoryRegionSection test_make_section(const TestMapSection *map,
     return section;
 }
 
-MemoryRegionSection memory_region_find(MemoryRegion *mr,
-                                       hwaddr addr, uint64_t size)
+MemoryRegionSection memory_region_find(MemoryRegion *mr, hwaddr addr,
+                                       uint64_t size)
 {
     uint64_t query_end = addr + size;
     size_t i;
@@ -163,14 +163,12 @@ MemoryRegionSection memory_region_find(MemoryRegion *mr,
             .readonly = true,
         };
 
-        if (test_post_add_obstacle &&
-            addr >= test_post_add_obstacle->base &&
-            addr < test_post_add_obstacle->base +
-                   test_post_add_obstacle->size) {
+        if (test_post_add_obstacle && addr >= test_post_add_obstacle->base &&
+            addr <
+                test_post_add_obstacle->base + test_post_add_obstacle->size) {
             return test_make_section(test_post_add_obstacle, addr, size);
         }
-        if (test_post_add_obstacle &&
-            addr < test_post_add_obstacle->base &&
+        if (test_post_add_obstacle && addr < test_post_add_obstacle->base &&
             query_end > test_post_add_obstacle->base) {
             rom.size = test_post_add_obstacle->base - test_mapped_gpa;
         }
@@ -213,8 +211,8 @@ bool memory_region_is_protected(const MemoryRegion *mr)
     return mr == test_protected_ram;
 }
 
-bool memory_region_init_rom(MemoryRegion *mr, Object *owner,
-                            const char *name, uint64_t size, Error **errp)
+bool memory_region_init_rom(MemoryRegion *mr, Object *owner, const char *name,
+                            uint64_t size, Error **errp)
 {
     (void)errp;
     g_assert_cmpuint(size, ==, IA64_PLATFORM_DESC_MAX_SIZE);
@@ -239,8 +237,7 @@ void *memory_region_get_ram_ptr(const MemoryRegion *mr)
 }
 
 void memory_region_add_subregion_overlap(MemoryRegion *mr, hwaddr offset,
-                                         MemoryRegion *subregion,
-                                         int priority)
+                                         MemoryRegion *subregion, int priority)
 {
     g_assert_true(mr == &test_sysmem);
     g_assert_null(test_mapped_rom);
@@ -292,22 +289,20 @@ static void test_install_fragmented_ram(void)
     test_map_reset();
     test_ram_init(&first_ram, "first-ram");
     test_ram_init(&second_ram, "second-ram");
-    test_map_add(TEST_GPA, IA64_PLATFORM_DESC_MAX_SIZE / 2,
-                 &first_ram, false);
+    test_map_add(TEST_GPA, IA64_PLATFORM_DESC_MAX_SIZE / 2, &first_ram, false);
     test_map_add(TEST_GPA + IA64_PLATFORM_DESC_MAX_SIZE / 2,
                  IA64_PLATFORM_DESC_MAX_SIZE / 2, &second_ram, false);
     memset(descriptor, 0x5a, sizeof(descriptor));
 
-    g_assert_true(ia64_platform_desc_install_rom(
-        &rom, owner, "test-descriptor", TEST_GPA, descriptor,
-        sizeof(descriptor), &err));
+    g_assert_true(ia64_platform_desc_install_rom(&rom, owner, "test-descriptor",
+                                                 TEST_GPA, descriptor,
+                                                 sizeof(descriptor), &err));
     g_assert_null(err);
     g_assert_cmpint(test_add_count, ==, 1);
     g_assert_cmpint(test_priority, >, 0);
-    g_assert_cmpmem(test_rom_ptr, sizeof(descriptor),
-                    descriptor, sizeof(descriptor));
-    for (size_t i = sizeof(descriptor);
-         i < IA64_PLATFORM_DESC_MAX_SIZE; i++) {
+    g_assert_cmpmem(test_rom_ptr, sizeof(descriptor), descriptor,
+                    sizeof(descriptor));
+    for (size_t i = sizeof(descriptor); i < IA64_PLATFORM_DESC_MAX_SIZE; i++) {
         g_assert_cmpuint(test_rom_ptr[i], ==, 0);
     }
 
@@ -330,9 +325,9 @@ static void test_reject_gap(void)
     test_map_add(TEST_GPA + IA64_PLATFORM_DESC_MAX_SIZE / 2 + 1,
                  IA64_PLATFORM_DESC_MAX_SIZE / 2 - 1, &ram, false);
 
-    g_assert_false(ia64_platform_desc_install_rom(
-        &rom, owner, "test-gap", TEST_GPA, descriptor,
-        sizeof(descriptor), &err));
+    g_assert_false(ia64_platform_desc_install_rom(&rom, owner, "test-gap",
+                                                  TEST_GPA, descriptor,
+                                                  sizeof(descriptor), &err));
     g_assert_nonnull(err);
     g_assert_nonnull(strstr(error_get_pretty(err), "no RAM backing"));
     g_assert_cmpint(test_add_count, ==, 0);
@@ -355,9 +350,9 @@ static void test_assert_backing_rejected(MemoryRegion *backing,
     }
     test_map_add(TEST_GPA, IA64_PLATFORM_DESC_MAX_SIZE, backing,
                  effective_readonly);
-    g_assert_false(ia64_platform_desc_install_rom(
-        &rom, owner, "test-reject", TEST_GPA, descriptor,
-        sizeof(descriptor), &err));
+    g_assert_false(ia64_platform_desc_install_rom(&rom, owner, "test-reject",
+                                                  TEST_GPA, descriptor,
+                                                  sizeof(descriptor), &err));
     g_assert_nonnull(err);
     g_assert_cmpint(test_add_count, ==, 0);
     error_free(err);
@@ -405,9 +400,9 @@ static void test_reject_nondevice_owner(void)
     test_map_reset();
     test_ram_init(&ram, "ram");
     test_map_add(TEST_GPA, IA64_PLATFORM_DESC_MAX_SIZE, &ram, false);
-    g_assert_false(ia64_platform_desc_install_rom(
-        &rom, owner, "test-owner", TEST_GPA, descriptor,
-        sizeof(descriptor), &err));
+    g_assert_false(ia64_platform_desc_install_rom(&rom, owner, "test-owner",
+                                                  TEST_GPA, descriptor,
+                                                  sizeof(descriptor), &err));
     g_assert_nonnull(err);
     g_assert_nonnull(strstr(error_get_pretty(err), "DeviceState"));
     g_assert_cmpint(test_add_count, ==, 0);
@@ -427,18 +422,16 @@ static void test_obscured_rom_rolls_back(void)
     test_map_reset();
     test_ram_init(&base_ram, "base-ram");
     test_ram_init(&high_priority_ram, "high-priority-ram");
-    test_map_add(TEST_GPA, IA64_PLATFORM_DESC_MAX_SIZE / 2,
-                 &base_ram, false);
-    test_post_add_obstacle = test_map_add(
-        TEST_GPA + IA64_PLATFORM_DESC_MAX_SIZE / 2, 0x100,
-        &high_priority_ram, false);
+    test_map_add(TEST_GPA, IA64_PLATFORM_DESC_MAX_SIZE / 2, &base_ram, false);
+    test_post_add_obstacle =
+        test_map_add(TEST_GPA + IA64_PLATFORM_DESC_MAX_SIZE / 2, 0x100,
+                     &high_priority_ram, false);
     test_map_add(TEST_GPA + IA64_PLATFORM_DESC_MAX_SIZE / 2 + 0x100,
-                 IA64_PLATFORM_DESC_MAX_SIZE / 2 - 0x100,
-                 &base_ram, false);
+                 IA64_PLATFORM_DESC_MAX_SIZE / 2 - 0x100, &base_ram, false);
 
-    g_assert_false(ia64_platform_desc_install_rom(
-        &rom, owner, "test-obscured", TEST_GPA, descriptor,
-        sizeof(descriptor), &err));
+    g_assert_false(ia64_platform_desc_install_rom(&rom, owner, "test-obscured",
+                                                  TEST_GPA, descriptor,
+                                                  sizeof(descriptor), &err));
     g_assert_nonnull(err);
     g_assert_nonnull(strstr(error_get_pretty(err), "obscured"));
     g_assert_cmpint(test_add_count, ==, 1);

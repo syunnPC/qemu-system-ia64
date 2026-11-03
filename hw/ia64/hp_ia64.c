@@ -13,8 +13,8 @@
 
 #define HP_IA64_DESCRIPTOR_CHILD "platform-descriptor"
 
-bool hp_ia64_machine_create_ras(HPIA64MachineState *machine,
-                                hwaddr base, Error **errp)
+bool hp_ia64_machine_create_ras(HPIA64MachineState *machine, hwaddr base,
+                                Error **errp)
 {
     if (!machine) {
         error_setg(errp, "invalid HP IA-64 machine for RAS setup");
@@ -29,8 +29,7 @@ bool hp_ia64_machine_create_ras(HPIA64MachineState *machine,
 }
 
 bool hp_ia64_machine_install_platform_descriptor(
-    HPIA64MachineState *machine,
-    const IA64PlatformDescriptor *header,
+    HPIA64MachineState *machine, const IA64PlatformDescriptor *header,
     const IA64PlatformDescriptorArrays *arrays, Error **errp)
 {
     HPIA64MachineClass *hmc;
@@ -68,10 +67,10 @@ bool hp_ia64_machine_install_platform_descriptor(
     }
 
     placed_header = *header;
-    if (machine->firmware.base < hmc->descriptor_gpa +
-                                 IA64_PLATFORM_DESC_MAX_SIZE &&
-        hmc->descriptor_gpa < machine->firmware.base +
-                              ROUND_UP(machine->firmware.size, 0x2000)) {
+    if (machine->firmware.base <
+            hmc->descriptor_gpa + IA64_PLATFORM_DESC_MAX_SIZE &&
+        hmc->descriptor_gpa <
+            machine->firmware.base + ROUND_UP(machine->firmware.size, 0x2000)) {
         error_setg(errp, "firmware-base overlaps the platform descriptor");
         return false;
     }
@@ -108,11 +107,10 @@ bool hp_ia64_machine_apply_platform_firmware_args(
     IA64PlatformFirmwareArgs installed_args;
     IA64BootInfo result;
 
-    if (machine == NULL || info == NULL ||
-        !machine->firmware_args_valid ||
+    if (machine == NULL || info == NULL || !machine->firmware_args_valid ||
         machine->descriptor_device == NULL ||
-        !ia64_platform_desc_device_get_firmware_args(
-            machine->descriptor_device, &installed_args) ||
+        !ia64_platform_desc_device_get_firmware_args(machine->descriptor_device,
+                                                     &installed_args) ||
         installed_args.descriptor_gpa !=
             machine->firmware_args.descriptor_gpa ||
         installed_args.descriptor_size !=
@@ -154,8 +152,8 @@ bool hp_ia64_machine_validate(HPIA64MachineState *machine, Error **errp)
         error_setg(errp, "Invalid RAM size, should be at most %s", size);
         return false;
     }
-    if (hmc->validate_smp ? !hmc->validate_smp(ms, errp) :
-        !ia64_machine_validate_socket_smp(ms, 2, errp)) {
+    if (hmc->validate_smp ? !hmc->validate_smp(ms, errp)
+                          : !ia64_machine_validate_socket_smp(ms, 2, errp)) {
         return false;
     }
     return true;
@@ -167,8 +165,9 @@ static char *hp_ia64_machine_get_alat(Object *obj, Error **errp)
     MachineState *machine = MACHINE(obj);
 
     (void)errp;
-    return g_strdup(ia64_machine_effective_alat_full(machine, s->alat_full) ?
-                    "full" : "zero");
+    return g_strdup(ia64_machine_effective_alat_full(machine, s->alat_full)
+                        ? "full"
+                        : "zero");
 }
 
 static void hp_ia64_machine_set_alat(Object *obj, const char *value,
@@ -213,8 +212,8 @@ static void hp_ia64_machine_class_init(ObjectClass *oc, const void *data)
     mc->no_floppy = 1;
     object_class_property_add_str(oc, "alat", hp_ia64_machine_get_alat,
                                   hp_ia64_machine_set_alat);
-    object_class_property_set_description(oc, "alat",
-        "Set the IA-64 ALAT model to 'zero' (default) or 'full'");
+    object_class_property_set_description(
+        oc, "alat", "Set the IA-64 ALAT model to 'zero' (default) or 'full'");
 }
 
 static const TypeInfo hp_ia64_machine_type = {

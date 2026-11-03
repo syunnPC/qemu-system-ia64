@@ -22,9 +22,10 @@ typedef VOID *EFI_EVENT;
 typedef UINT8 BOOLEAN;
 typedef UINTN EFI_TPL;
 
-EFI_STATUS test_call_virtual_procedure(
-    const UINT64 *Descriptor, UINT64 TargetPsr, UINT64 Arg1, UINT64 Arg2,
-    UINT64 Arg3, UINT64 Arg4, UINT64 Arg5);
+EFI_STATUS test_call_virtual_procedure(const UINT64 *Descriptor,
+                                       UINT64 TargetPsr, UINT64 Arg1,
+                                       UINT64 Arg2, UINT64 Arg3, UINT64 Arg4,
+                                       UINT64 Arg5);
 
 #define NULL ((VOID *)0)
 #define EFI_ERROR_BIT                 0x8000000000000000ULL
@@ -242,8 +243,8 @@ struct _EFI_SIMPLE_TEXT_OUT_PROTOCOL {
     EFI_STATUS (*Reset)(EFI_SIMPLE_TEXT_OUT_PROTOCOL *, BOOLEAN);
     EFI_STATUS (*OutputString)(EFI_SIMPLE_TEXT_OUT_PROTOCOL *, CHAR16 *);
     VOID *TestString;
-    EFI_STATUS (*QueryMode)(EFI_SIMPLE_TEXT_OUT_PROTOCOL *, UINTN,
-                            UINTN *, UINTN *);
+    EFI_STATUS (*QueryMode)(EFI_SIMPLE_TEXT_OUT_PROTOCOL *, UINTN, UINTN *,
+                            UINTN *);
     VOID *SetMode;
     VOID *SetAttribute;
     VOID *ClearScreen;
@@ -292,28 +293,23 @@ typedef struct _EFI_RUNTIME_SERVICES EFI_RUNTIME_SERVICES;
 typedef struct _EFI_SYSTEM_TABLE EFI_SYSTEM_TABLE;
 typedef EFI_STATUS (*EFI_PROTOCOLS_PER_HANDLE)(EFI_HANDLE, VOID ***, UINTN *);
 typedef struct _EFI_FILE_PROTOCOL EFI_FILE_PROTOCOL;
-typedef struct _EFI_SIMPLE_FILE_SYSTEM_PROTOCOL
-    EFI_SIMPLE_FILE_SYSTEM_PROTOCOL;
-typedef struct _EFI_UNICODE_COLLATION_PROTOCOL
-    EFI_UNICODE_COLLATION_PROTOCOL;
+typedef struct _EFI_SIMPLE_FILE_SYSTEM_PROTOCOL EFI_SIMPLE_FILE_SYSTEM_PROTOCOL;
+typedef struct _EFI_UNICODE_COLLATION_PROTOCOL EFI_UNICODE_COLLATION_PROTOCOL;
 typedef struct _EFI_DRIVER_BINDING_PROTOCOL EFI_DRIVER_BINDING_PROTOCOL;
 
 struct _EFI_UNICODE_COLLATION_PROTOCOL {
     INTN (*StriColl)(EFI_UNICODE_COLLATION_PROTOCOL *, CHAR16 *, CHAR16 *);
-    BOOLEAN (*MetaiMatch)(EFI_UNICODE_COLLATION_PROTOCOL *, CHAR16 *,
-                          CHAR16 *);
+    BOOLEAN (*MetaiMatch)(EFI_UNICODE_COLLATION_PROTOCOL *, CHAR16 *, CHAR16 *);
     VOID (*StrLwr)(EFI_UNICODE_COLLATION_PROTOCOL *, CHAR16 *);
     VOID (*StrUpr)(EFI_UNICODE_COLLATION_PROTOCOL *, CHAR16 *);
-    VOID (*FatToStr)(EFI_UNICODE_COLLATION_PROTOCOL *, UINTN, char *,
-                     CHAR16 *);
+    VOID (*FatToStr)(EFI_UNICODE_COLLATION_PROTOCOL *, UINTN, char *, CHAR16 *);
     BOOLEAN (*StrToFat)(EFI_UNICODE_COLLATION_PROTOCOL *, CHAR16 *, UINTN,
                         char *);
     char *SupportedLanguages;
 };
 
 struct _EFI_DRIVER_BINDING_PROTOCOL {
-    EFI_STATUS (*Supported)(EFI_DRIVER_BINDING_PROTOCOL *, EFI_HANDLE,
-                            VOID *);
+    EFI_STATUS (*Supported)(EFI_DRIVER_BINDING_PROTOCOL *, EFI_HANDLE, VOID *);
     EFI_STATUS (*Start)(EFI_DRIVER_BINDING_PROTOCOL *, EFI_HANDLE, VOID *);
     EFI_STATUS (*Stop)(EFI_DRIVER_BINDING_PROTOCOL *, EFI_HANDLE, UINTN,
                        EFI_HANDLE *);
@@ -328,8 +324,7 @@ struct _EFI_BOOT_SERVICES {
     EFI_TABLE_HEADER Hdr;
     EFI_TPL (*RaiseTPL)(EFI_TPL);
     VOID (*RestoreTPL)(EFI_TPL);
-    EFI_STATUS (*AllocatePages)(UINTN, UINT32, UINTN,
-                                EFI_PHYSICAL_ADDRESS *);
+    EFI_STATUS (*AllocatePages)(UINTN, UINT32, UINTN, EFI_PHYSICAL_ADDRESS *);
     EFI_STATUS (*FreePages)(EFI_PHYSICAL_ADDRESS, UINTN);
     EFI_STATUS (*GetMemoryMap)(UINTN *, EFI_MEMORY_DESCRIPTOR *, UINTN *,
                                UINTN *, UINT32 *);
@@ -342,10 +337,9 @@ struct _EFI_BOOT_SERVICES {
     EFI_STATUS (*SignalEvent)(EFI_EVENT);
     EFI_STATUS (*CloseEvent)(EFI_EVENT);
     EFI_STATUS (*CheckEvent)(EFI_EVENT);
-    EFI_STATUS (*InstallProtocolInterface)(EFI_HANDLE *, VOID *, UINTN,
-                                            VOID *);
+    EFI_STATUS (*InstallProtocolInterface)(EFI_HANDLE *, VOID *, UINTN, VOID *);
     EFI_STATUS (*ReinstallProtocolInterface)(EFI_HANDLE, VOID *, VOID *,
-                                              VOID *);
+                                             VOID *);
     EFI_STATUS (*UninstallProtocolInterface)(EFI_HANDLE, VOID *, VOID *);
     EFI_STATUS (*HandleProtocol)(EFI_HANDLE, VOID *, VOID **);
     VOID *Reserved;
@@ -362,8 +356,7 @@ struct _EFI_BOOT_SERVICES {
     EFI_STATUS (*GetNextMonotonicCount)(UINT64 *);
     EFI_STATUS (*Stall)(UINTN);
     EFI_STATUS (*SetWatchdogTimer)(UINTN, UINT64, UINTN, CHAR16 *);
-    EFI_STATUS (*ConnectController)(EFI_HANDLE, EFI_HANDLE *, VOID *,
-                                    BOOLEAN);
+    EFI_STATUS (*ConnectController)(EFI_HANDLE, EFI_HANDLE *, VOID *, BOOLEAN);
     EFI_STATUS (*DisconnectController)(EFI_HANDLE, EFI_HANDLE, EFI_HANDLE);
     EFI_STATUS (*OpenProtocol)(EFI_HANDLE, VOID *, VOID **, EFI_HANDLE,
                                EFI_HANDLE, UINT32);
@@ -543,25 +536,23 @@ struct _EFI_GRAPHICS_OUTPUT_PROTOCOL {
     EFI_STATUS (*SetMode)(EFI_GRAPHICS_OUTPUT_PROTOCOL *, UINT32);
     EFI_STATUS (*Blt)(EFI_GRAPHICS_OUTPUT_PROTOCOL *,
                       EFI_GRAPHICS_OUTPUT_BLT_PIXEL *,
-                      EFI_GRAPHICS_OUTPUT_BLT_OPERATION, UINTN, UINTN,
-                      UINTN, UINTN, UINTN, UINTN, UINTN);
+                      EFI_GRAPHICS_OUTPUT_BLT_OPERATION, UINTN, UINTN, UINTN,
+                      UINTN, UINTN, UINTN, UINTN);
     EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE *Mode;
 };
 
 typedef struct _EFI_UGA_DRAW_PROTOCOL EFI_UGA_DRAW_PROTOCOL;
 struct _EFI_UGA_DRAW_PROTOCOL {
-    EFI_STATUS (*GetMode)(EFI_UGA_DRAW_PROTOCOL *, UINT32 *, UINT32 *,
-                          UINT32 *, UINT32 *);
-    EFI_STATUS (*SetMode)(EFI_UGA_DRAW_PROTOCOL *, UINT32, UINT32,
-                          UINT32, UINT32);
-    EFI_STATUS (*Blt)(EFI_UGA_DRAW_PROTOCOL *,
-                      EFI_GRAPHICS_OUTPUT_BLT_PIXEL *,
-                      EFI_GRAPHICS_OUTPUT_BLT_OPERATION, UINTN, UINTN,
-                      UINTN, UINTN, UINTN, UINTN, UINTN);
+    EFI_STATUS (*GetMode)(EFI_UGA_DRAW_PROTOCOL *, UINT32 *, UINT32 *, UINT32 *,
+                          UINT32 *);
+    EFI_STATUS (*SetMode)(EFI_UGA_DRAW_PROTOCOL *, UINT32, UINT32, UINT32,
+                          UINT32);
+    EFI_STATUS (*Blt)(EFI_UGA_DRAW_PROTOCOL *, EFI_GRAPHICS_OUTPUT_BLT_PIXEL *,
+                      EFI_GRAPHICS_OUTPUT_BLT_OPERATION, UINTN, UINTN, UINTN,
+                      UINTN, UINTN, UINTN, UINTN);
 };
 
-typedef struct _EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL
-    EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL;
+typedef struct _EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL;
 
 typedef enum {
     EfiPciWidthUint8,
@@ -591,12 +582,12 @@ typedef enum {
 
 typedef EFI_STATUS EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_POLL_IO_MEM(
     EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL *self,
-    EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_WIDTH width, UINT64 address,
-    UINT64 mask, UINT64 value, UINT64 delay, UINT64 *result);
+    EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_WIDTH width, UINT64 address, UINT64 mask,
+    UINT64 value, UINT64 delay, UINT64 *result);
 
 typedef EFI_STATUS (*EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_IO_MEM)(
-    EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL *,
-    EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_WIDTH, UINT64, UINTN, VOID *);
+    EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL *, EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_WIDTH,
+    UINT64, UINTN, VOID *);
 
 typedef struct {
     EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_IO_MEM Read;
@@ -612,15 +603,16 @@ typedef EFI_STATUS EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_MAP(
     EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_OPERATION operation, VOID *host_address,
     UINTN *number_of_bytes, EFI_PHYSICAL_ADDRESS *device_address,
     VOID **mapping);
-typedef EFI_STATUS EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_UNMAP(
-    EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL *self, VOID *mapping);
+typedef EFI_STATUS
+EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_UNMAP(EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL *self,
+                                      VOID *mapping);
 typedef EFI_STATUS EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_ALLOCATE_BUFFER(
     EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL *self, UINT32 type, UINT32 memory_type,
     UINTN pages, VOID **host_address, UINT64 attributes);
 typedef EFI_STATUS EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_FREE_BUFFER(
     EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL *self, UINTN pages, VOID *host_address);
-typedef EFI_STATUS EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_FLUSH(
-    EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL *self);
+typedef EFI_STATUS
+EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_FLUSH(EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL *self);
 typedef EFI_STATUS EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_GET_ATTRIBUTES(
     EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL *self, UINT64 *supports,
     UINT64 *attributes);
@@ -717,8 +709,8 @@ struct _EFI_PCI_HOST_BRIDGE_RESOURCE_ALLOCATION_PROTOCOL {
 typedef struct _EFI_PCI_IO_PROTOCOL EFI_PCI_IO_PROTOCOL;
 
 typedef EFI_STATUS (*EFI_PCI_IO_PROTOCOL_CONFIG)(
-    EFI_PCI_IO_PROTOCOL *, EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_WIDTH,
-    UINT32, UINTN, VOID *);
+    EFI_PCI_IO_PROTOCOL *, EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_WIDTH, UINT32, UINTN,
+    VOID *);
 
 typedef struct {
     EFI_PCI_IO_PROTOCOL_CONFIG Read;
@@ -726,8 +718,8 @@ typedef struct {
 } EFI_PCI_IO_PROTOCOL_CONFIG_ACCESS;
 
 typedef EFI_STATUS (*EFI_PCI_IO_PROTOCOL_IO_MEM)(
-    EFI_PCI_IO_PROTOCOL *, EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_WIDTH,
-    UINT8, UINT64, UINTN, VOID *);
+    EFI_PCI_IO_PROTOCOL *, EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_WIDTH, UINT8, UINT64,
+    UINTN, VOID *);
 
 typedef struct {
     EFI_PCI_IO_PROTOCOL_IO_MEM Read;
@@ -735,14 +727,14 @@ typedef struct {
 } EFI_PCI_IO_PROTOCOL_IO_MEM_ACCESS;
 
 typedef EFI_STATUS (*EFI_PCI_IO_PROTOCOL_MAP)(
-    EFI_PCI_IO_PROTOCOL *, EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_OPERATION,
-    VOID *, UINTN *, EFI_PHYSICAL_ADDRESS *, VOID **);
-typedef EFI_STATUS (*EFI_PCI_IO_PROTOCOL_UNMAP)(
-    EFI_PCI_IO_PROTOCOL *, VOID *);
-typedef EFI_STATUS (*EFI_PCI_IO_PROTOCOL_ALLOCATE_BUFFER)(
-    EFI_PCI_IO_PROTOCOL *, UINT32, UINT32, UINTN, VOID **, UINT64);
-typedef EFI_STATUS (*EFI_PCI_IO_PROTOCOL_FREE_BUFFER)(
-    EFI_PCI_IO_PROTOCOL *, UINTN, VOID *);
+    EFI_PCI_IO_PROTOCOL *, EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_OPERATION, VOID *,
+    UINTN *, EFI_PHYSICAL_ADDRESS *, VOID **);
+typedef EFI_STATUS (*EFI_PCI_IO_PROTOCOL_UNMAP)(EFI_PCI_IO_PROTOCOL *, VOID *);
+typedef EFI_STATUS (*EFI_PCI_IO_PROTOCOL_ALLOCATE_BUFFER)(EFI_PCI_IO_PROTOCOL *,
+                                                          UINT32, UINT32, UINTN,
+                                                          VOID **, UINT64);
+typedef EFI_STATUS (*EFI_PCI_IO_PROTOCOL_FREE_BUFFER)(EFI_PCI_IO_PROTOCOL *,
+                                                      UINTN, VOID *);
 typedef EFI_STATUS (*EFI_PCI_IO_PROTOCOL_FLUSH)(EFI_PCI_IO_PROTOCOL *);
 
 typedef enum {
@@ -755,8 +747,8 @@ typedef enum {
 } EFI_PCI_IO_PROTOCOL_ATTRIBUTE_OPERATION;
 
 typedef EFI_STATUS (*EFI_PCI_IO_PROTOCOL_ATTRIBUTES)(
-    EFI_PCI_IO_PROTOCOL *, EFI_PCI_IO_PROTOCOL_ATTRIBUTE_OPERATION,
-    UINT64, UINT64 *);
+    EFI_PCI_IO_PROTOCOL *, EFI_PCI_IO_PROTOCOL_ATTRIBUTE_OPERATION, UINT64,
+    UINT64 *);
 typedef EFI_STATUS (*EFI_PCI_IO_PROTOCOL_GET_BAR_ATTRIBUTES)(
     EFI_PCI_IO_PROTOCOL *, UINT8, UINT64 *, VOID **);
 
@@ -772,8 +764,8 @@ struct _EFI_PCI_IO_PROTOCOL {
     EFI_PCI_IO_PROTOCOL_ALLOCATE_BUFFER AllocateBuffer;
     EFI_PCI_IO_PROTOCOL_FREE_BUFFER FreeBuffer;
     EFI_PCI_IO_PROTOCOL_FLUSH Flush;
-    EFI_STATUS (*GetLocation)(EFI_PCI_IO_PROTOCOL *, UINTN *, UINTN *,
-                              UINTN *, UINTN *);
+    EFI_STATUS (*GetLocation)(EFI_PCI_IO_PROTOCOL *, UINTN *, UINTN *, UINTN *,
+                              UINTN *);
     EFI_PCI_IO_PROTOCOL_ATTRIBUTES Attributes;
     EFI_PCI_IO_PROTOCOL_GET_BAR_ATTRIBUTES GetBarAttributes;
     VOID *SetBarAttributes;
@@ -800,11 +792,11 @@ struct _EFI_TCG_PROTOCOL {
     EFI_STATUS (*StatusCheck)(EFI_TCG_PROTOCOL *,
                               TCG_EFI_BOOT_SERVICE_CAPABILITY *, UINT32 *,
                               EFI_PHYSICAL_ADDRESS *, EFI_PHYSICAL_ADDRESS *);
-    EFI_STATUS (*HashAll)(EFI_TCG_PROTOCOL *, UINT8 *, UINT64, UINT32,
-                          UINT64 *, UINT8 **);
+    EFI_STATUS (*HashAll)(EFI_TCG_PROTOCOL *, UINT8 *, UINT64, UINT32, UINT64 *,
+                          UINT8 **);
     VOID *LogEvent;
-    EFI_STATUS (*PassThroughToTpm)(EFI_TCG_PROTOCOL *, UINT32, UINT8 *,
-                                   UINT32, UINT8 *);
+    EFI_STATUS (*PassThroughToTpm)(EFI_TCG_PROTOCOL *, UINT32, UINT8 *, UINT32,
+                                   UINT8 *);
     VOID *HashLogExtendEvent;
 };
 
@@ -826,8 +818,7 @@ static inline UINTN ia64_ascii_len(const char *String)
     return length;
 }
 
-static inline VOID ia64_copy(VOID *Destination, const VOID *Source,
-                             UINTN Size)
+static inline VOID ia64_copy(VOID *Destination, const VOID *Source, UINTN Size)
 {
     UINT8 *dst = (UINT8 *)Destination;
     const UINT8 *src = (const UINT8 *)Source;
@@ -839,7 +830,7 @@ static inline VOID ia64_copy(VOID *Destination, const VOID *Source,
 }
 
 static inline BOOLEAN ia64_bytes_equal(const VOID *Left, const VOID *Right,
-                                        UINTN Size)
+                                       UINTN Size)
 {
     const UINT8 *left = (const UINT8 *)Left;
     const UINT8 *right = (const UINT8 *)Right;
@@ -855,19 +846,16 @@ static inline BOOLEAN ia64_bytes_equal(const VOID *Left, const VOID *Right,
 
 static inline VOID ia64_uart_putc(char Character)
 {
-    volatile UINT8 *uart =
-        (volatile UINT8 *)(UINTN)IA64_TEST_UART_BASE;
+    volatile UINT8 *uart = (volatile UINT8 *)(UINTN)IA64_TEST_UART_BASE;
 
     if (Character == '\n') {
-        while ((uart[IA64_TEST_UART_LSR] &
-                IA64_TEST_UART_LSR_THRE) == 0) {
-            __asm__ volatile ("hint @pause" ::: "memory");
+        while ((uart[IA64_TEST_UART_LSR] & IA64_TEST_UART_LSR_THRE) == 0) {
+            __asm__ volatile("hint @pause" ::: "memory");
         }
         uart[IA64_TEST_UART_THR] = '\r';
     }
-    while ((uart[IA64_TEST_UART_LSR] &
-            IA64_TEST_UART_LSR_THRE) == 0) {
-        __asm__ volatile ("hint @pause" ::: "memory");
+    while ((uart[IA64_TEST_UART_LSR] & IA64_TEST_UART_LSR_THRE) == 0) {
+        __asm__ volatile("hint @pause" ::: "memory");
     }
     uart[IA64_TEST_UART_THR] = (UINT8)Character;
 }
@@ -895,8 +883,8 @@ static inline VOID ia64_test_write(IA64_TEST_CONTEXT *Context,
             buffer[count++] = (UINT8)*String++;
         }
         buffer[count] = 0;
-        Context->SystemTable->ConOut->OutputString(
-            Context->SystemTable->ConOut, buffer);
+        Context->SystemTable->ConOut->OutputString(Context->SystemTable->ConOut,
+                                                   buffer);
     }
 }
 
@@ -926,8 +914,7 @@ static inline VOID ia64_test_uint(IA64_TEST_CONTEXT *Context, UINTN Value)
     ia64_test_write(Context, &text[offset]);
 }
 
-static inline VOID ia64_test_pass(IA64_TEST_CONTEXT *Context,
-                                  const char *Case)
+static inline VOID ia64_test_pass(IA64_TEST_CONTEXT *Context, const char *Case)
 {
     ia64_test_write(Context, "IA64TEST suite=");
     ia64_test_write(Context, Context->Suite);
@@ -937,9 +924,8 @@ static inline VOID ia64_test_pass(IA64_TEST_CONTEXT *Context,
     Context->Passed++;
 }
 
-static inline VOID ia64_test_fail(IA64_TEST_CONTEXT *Context,
-                                  const char *Case, EFI_STATUS Code,
-                                  const char *Detail)
+static inline VOID ia64_test_fail(IA64_TEST_CONTEXT *Context, const char *Case,
+                                  EFI_STATUS Code, const char *Detail)
 {
     ia64_test_write(Context, "IA64TEST suite=");
     ia64_test_write(Context, Context->Suite);
@@ -953,9 +939,9 @@ static inline VOID ia64_test_fail(IA64_TEST_CONTEXT *Context,
     Context->Failed++;
 }
 
-static inline VOID ia64_test_check(IA64_TEST_CONTEXT *Context,
-                                   const char *Case, BOOLEAN Passed,
-                                   EFI_STATUS Code, const char *Detail)
+static inline VOID ia64_test_check(IA64_TEST_CONTEXT *Context, const char *Case,
+                                   BOOLEAN Passed, EFI_STATUS Code,
+                                   const char *Detail)
 {
     if (Passed) {
         ia64_test_pass(Context, Case);

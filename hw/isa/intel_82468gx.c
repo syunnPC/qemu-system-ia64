@@ -55,8 +55,7 @@ struct Intel82468GXIFBState {
 
 static void ifb_acpi_update_sci(ACPIREGS *ar)
 {
-    Intel82468GXIFBState *s = container_of(ar, Intel82468GXIFBState,
-                                           acpi_regs);
+    Intel82468GXIFBState *s = container_of(ar, Intel82468GXIFBState, acpi_regs);
 
     if (ar->pm1.cnt.cnt & ACPI_BITMASK_SCI_ENABLE) {
         acpi_update_sci(ar, s->sci);
@@ -81,7 +80,7 @@ static uint64_t ifb_acpi_gpe_read(void *opaque, hwaddr addr, unsigned size)
 
     for (i = 0; i < size; i++) {
         value |= (uint64_t)acpi_gpe_ioport_readb(&s->acpi_regs, addr + i)
-            << (i * 8);
+                 << (i * 8);
     }
     return value;
 }
@@ -93,8 +92,7 @@ static void ifb_acpi_gpe_write(void *opaque, hwaddr addr, uint64_t value,
     unsigned i;
 
     for (i = 0; i < size; i++) {
-        acpi_gpe_ioport_writeb(&s->acpi_regs, addr + i,
-                               value >> (i * 8));
+        acpi_gpe_ioport_writeb(&s->acpi_regs, addr + i, value >> (i * 8));
     }
     ifb_acpi_update_sci(&s->acpi_regs);
 }
@@ -124,9 +122,8 @@ static void ifb_acpi_io_update(Intel82468GXIFBState *s)
 
 static void ifb_acpi_powerdown(Notifier *notifier, void *opaque)
 {
-    Intel82468GXIFBState *s = container_of(notifier,
-                                           Intel82468GXIFBState,
-                                           powerdown_notifier);
+    Intel82468GXIFBState *s =
+        container_of(notifier, Intel82468GXIFBState, powerdown_notifier);
 
     (void)opaque;
     acpi_pm1_evt_power_down(&s->acpi_regs);
@@ -218,9 +215,8 @@ static void ifb_lpc_init_config(PCIDevice *pci)
 }
 
 static PCIDevice *ifb_realize_function(Intel82468GXIFBState *s,
-                                       unsigned function,
-                                       const char *name, const char *type,
-                                       Error **errp)
+                                       unsigned function, const char *name,
+                                       const char *type, Error **errp)
 {
     PCIDevice *pci = pci_new(s->parent_obj.devfn + function, type);
 
@@ -261,36 +257,28 @@ static void ifb_lpc_realize(PCIDevice *pci, Error **errp)
     s->functions[0] = pci;
     s->isa_bus = isa_bus_new_non_default(DEVICE(s), pci_address_space(pci),
                                          pci_address_space_io(pci));
-    s->pic_irqs = i8259_init_pair(s->isa_bus, s->legacy_irq,
-                                  &s->master_pic);
-    s->isa_irqs = qemu_allocate_irqs(ifb_isa_irq_handler, s,
-                                     ISA_NUM_IRQS);
+    s->pic_irqs = i8259_init_pair(s->isa_bus, s->legacy_irq, &s->master_pic);
+    s->isa_irqs = qemu_allocate_irqs(ifb_isa_irq_handler, s, ISA_NUM_IRQS);
     isa_bus_register_input_irqs(s->isa_bus, s->isa_irqs);
 
     memory_region_init(&s->acpi_pm, OBJECT(s),
-                       TYPE_INTEL_82468GX_IFB ".acpi-pm",
-                       IFB_ACPI_PM_IO_SIZE);
-    memory_region_add_subregion(pci_address_space_io(pci), 0,
-                                &s->acpi_pm);
+                       TYPE_INTEL_82468GX_IFB ".acpi-pm", IFB_ACPI_PM_IO_SIZE);
+    memory_region_add_subregion(pci_address_space_io(pci), 0, &s->acpi_pm);
     memory_region_set_enabled(&s->acpi_pm, false);
     acpi_pm1_evt_init(&s->acpi_regs, ifb_acpi_update_sci, &s->acpi_pm);
-    acpi_pm1_cnt_init(&s->acpi_regs, &s->acpi_pm,
-                      false, false, 4, false);
+    acpi_pm1_cnt_init(&s->acpi_regs, &s->acpi_pm, false, false, 4, false);
     acpi_pm_tmr_init(&s->acpi_regs, ifb_acpi_update_sci, &s->acpi_pm);
     acpi_gpe_init(&s->acpi_regs, IFB_ACPI_GPE_LENGTH);
     memory_region_init_io(&s->acpi_gpe, OBJECT(s), &ifb_acpi_gpe_ops, s,
                           TYPE_INTEL_82468GX_IFB ".acpi-gpe",
                           IFB_ACPI_GPE_LENGTH);
-    memory_region_add_subregion(&s->acpi_pm, IFB_ACPI_GPE_OFFSET,
-                                &s->acpi_gpe);
+    memory_region_add_subregion(&s->acpi_pm, IFB_ACPI_GPE_OFFSET, &s->acpi_gpe);
     s->powerdown_notifier.notify = ifb_acpi_powerdown;
     qemu_register_powerdown_notifier(&s->powerdown_notifier);
     ifb_lpc_reset(DEVICE(pci));
 
-    if (!ifb_realize_function(s, 1, "ide", TYPE_INTEL_82468GX_IFB_IDE,
-                              errp) ||
-        !ifb_realize_function(s, 2, "usb", TYPE_INTEL_82468GX_IFB_USB,
-                              errp) ||
+    if (!ifb_realize_function(s, 1, "ide", TYPE_INTEL_82468GX_IFB_IDE, errp) ||
+        !ifb_realize_function(s, 2, "usb", TYPE_INTEL_82468GX_IFB_USB, errp) ||
         !ifb_realize_function(s, 3, "smbus", TYPE_INTEL_82468GX_IFB_SMBUS,
                               errp)) {
         ifb_remove_function(&s->functions[3]);
@@ -326,12 +314,10 @@ static int ifb_lpc_post_load(void *opaque, int version_id)
     uint16_t pm_enable = s->acpi_regs.pm1.evt.en;
 
     (void)version_id;
-    qemu_system_wakeup_enable(
-        QEMU_WAKEUP_REASON_RTC,
-        (pm_enable & ACPI_BITMASK_RT_CLOCK_ENABLE) != 0);
-    qemu_system_wakeup_enable(
-        QEMU_WAKEUP_REASON_PMTIMER,
-        (pm_enable & ACPI_BITMASK_TIMER_ENABLE) != 0);
+    qemu_system_wakeup_enable(QEMU_WAKEUP_REASON_RTC,
+                              (pm_enable & ACPI_BITMASK_RT_CLOCK_ENABLE) != 0);
+    qemu_system_wakeup_enable(QEMU_WAKEUP_REASON_PMTIMER,
+                              (pm_enable & ACPI_BITMASK_TIMER_ENABLE) != 0);
     ifb_acpi_io_update(s);
     ifb_acpi_update_sci(&s->acpi_regs);
     return 0;
@@ -342,21 +328,20 @@ static const VMStateDescription vmstate_ifb_lpc = {
     .version_id = 1,
     .minimum_version_id = 1,
     .post_load = ifb_lpc_post_load,
-    .fields = (const VMStateField[]) {
-        VMSTATE_PCI_DEVICE(parent_obj, Intel82468GXIFBState),
-        VMSTATE_UINT16(acpi_regs.pm1.evt.sts, Intel82468GXIFBState),
-        VMSTATE_UINT16(acpi_regs.pm1.evt.en, Intel82468GXIFBState),
-        VMSTATE_UINT16(acpi_regs.pm1.cnt.cnt, Intel82468GXIFBState),
-        VMSTATE_TIMER_PTR(acpi_regs.tmr.timer, Intel82468GXIFBState),
-        VMSTATE_INT64(acpi_regs.tmr.overflow_time, Intel82468GXIFBState),
-        VMSTATE_BUFFER_POINTER_UNSAFE(acpi_regs.gpe.sts,
-                                      Intel82468GXIFBState, 1,
-                                      IFB_ACPI_GPE_LENGTH),
-        VMSTATE_BUFFER_POINTER_UNSAFE(acpi_regs.gpe.en,
-                                      Intel82468GXIFBState, 1,
-                                      IFB_ACPI_GPE_LENGTH),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) {
+            VMSTATE_PCI_DEVICE(parent_obj, Intel82468GXIFBState),
+            VMSTATE_UINT16(acpi_regs.pm1.evt.sts, Intel82468GXIFBState),
+            VMSTATE_UINT16(acpi_regs.pm1.evt.en, Intel82468GXIFBState),
+            VMSTATE_UINT16(acpi_regs.pm1.cnt.cnt, Intel82468GXIFBState),
+            VMSTATE_TIMER_PTR(acpi_regs.tmr.timer, Intel82468GXIFBState),
+            VMSTATE_INT64(acpi_regs.tmr.overflow_time, Intel82468GXIFBState),
+            VMSTATE_BUFFER_POINTER_UNSAFE(acpi_regs.gpe.sts,
+                                          Intel82468GXIFBState, 1,
+                                          IFB_ACPI_GPE_LENGTH),
+            VMSTATE_BUFFER_POINTER_UNSAFE(
+                acpi_regs.gpe.en, Intel82468GXIFBState, 1, IFB_ACPI_GPE_LENGTH),
+            VMSTATE_END_OF_LIST() },
 };
 
 static void ifb_lpc_init(Object *obj)
@@ -366,10 +351,9 @@ static void ifb_lpc_init(Object *obj)
     qdev_init_gpio_out_named(DEVICE(obj), &s->legacy_irq,
                              INTEL_82468GX_IFB_GPIO_LEGACY, 1);
     qdev_init_gpio_out_named(DEVICE(obj), s->isa_irq,
-                             INTEL_82468GX_IFB_GPIO_ISA_IRQ,
-                             ISA_NUM_IRQS);
-    qdev_init_gpio_out_named(DEVICE(obj), &s->sci,
-                             INTEL_82468GX_IFB_GPIO_SCI, 1);
+                             INTEL_82468GX_IFB_GPIO_ISA_IRQ, ISA_NUM_IRQS);
+    qdev_init_gpio_out_named(DEVICE(obj), &s->sci, INTEL_82468GX_IFB_GPIO_SCI,
+                             1);
 }
 
 static void ifb_lpc_class_init(ObjectClass *klass, const void *data)
@@ -419,7 +403,7 @@ static void ifb_smbus_reset(DeviceState *dev)
 }
 
 static void ifb_smbus_write_config(PCIDevice *pci, uint32_t address,
-                                    uint32_t value, int length)
+                                   uint32_t value, int length)
 {
     Intel82468GXSMBusState *s = INTEL_82468GX_IFB_SMBUS(pci);
 
@@ -445,8 +429,8 @@ static void ifb_smbus_realize(PCIDevice *pci, Error **errp)
     s->smb.opaque = s;
     s->smb.set_irq = ifb_smbus_set_irq;
     memory_region_init_alias(&s->io_alias, OBJECT(s),
-                             TYPE_INTEL_82468GX_IFB_SMBUS ".io",
-                             &s->smb.io, 0, 0x10);
+                             TYPE_INTEL_82468GX_IFB_SMBUS ".io", &s->smb.io, 0,
+                             0x10);
     pci_register_bar(pci, 4, PCI_BASE_ADDRESS_SPACE_IO, &s->io_alias);
     ifb_smbus_reset(DEVICE(pci));
 }
@@ -465,20 +449,20 @@ static const VMStateDescription vmstate_ifb_smbus = {
     .version_id = 1,
     .minimum_version_id = 1,
     .post_load = ifb_smbus_post_load,
-    .fields = (const VMStateField[]) {
-        VMSTATE_PCI_DEVICE(parent_obj, Intel82468GXSMBusState),
-        VMSTATE_STRUCT(smb, Intel82468GXSMBusState, 1,
-                       pmsmb_vmstate, PMSMBus),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) {
+            VMSTATE_PCI_DEVICE(parent_obj, Intel82468GXSMBusState),
+            VMSTATE_STRUCT(smb, Intel82468GXSMBusState, 1, pmsmb_vmstate,
+                           PMSMBus),
+            VMSTATE_END_OF_LIST() },
 };
 
 static void ifb_smbus_init(Object *obj)
 {
     Intel82468GXSMBusState *s = INTEL_82468GX_IFB_SMBUS(obj);
 
-    qdev_init_gpio_out_named(DEVICE(obj), &s->smi,
-                             INTEL_82468GX_IFB_GPIO_SMI, 1);
+    qdev_init_gpio_out_named(DEVICE(obj), &s->smi, INTEL_82468GX_IFB_GPIO_SMI,
+                             1);
 }
 
 static void ifb_smbus_class_init(ObjectClass *klass, const void *data)
@@ -507,20 +491,23 @@ static const TypeInfo intel_82468gx_ifb_types[] = {
         .instance_size = sizeof(Intel82468GXIFBState),
         .instance_init = ifb_lpc_init,
         .class_init = ifb_lpc_class_init,
-        .interfaces = (const InterfaceInfo[]) {
-            { INTERFACE_CONVENTIONAL_PCI_DEVICE },
-            { },
-        },
-    }, {
+        .interfaces =
+            (const InterfaceInfo[]) {
+                { INTERFACE_CONVENTIONAL_PCI_DEVICE },
+                {},
+            },
+    },
+    {
         .name = TYPE_INTEL_82468GX_IFB_SMBUS,
         .parent = TYPE_PCI_DEVICE,
         .instance_size = sizeof(Intel82468GXSMBusState),
         .instance_init = ifb_smbus_init,
         .class_init = ifb_smbus_class_init,
-        .interfaces = (const InterfaceInfo[]) {
-            { INTERFACE_CONVENTIONAL_PCI_DEVICE },
-            { },
-        },
+        .interfaces =
+            (const InterfaceInfo[]) {
+                { INTERFACE_CONVENTIONAL_PCI_DEVICE },
+                {},
+            },
     },
 };
 
@@ -550,8 +537,8 @@ Intel82468GXIFBState *intel_82468gx_ifb_create(PCIBus *bus, int devfn,
 PCIDevice *intel_82468gx_ifb_function(Intel82468GXIFBState *s,
                                       unsigned function)
 {
-    return s && function < INTEL_82468GX_IFB_FUNCTIONS ?
-           s->functions[function] : NULL;
+    return s && function < INTEL_82468GX_IFB_FUNCTIONS ? s->functions[function]
+                                                       : NULL;
 }
 
 ISABus *intel_82468gx_ifb_isa_bus(Intel82468GXIFBState *s)
@@ -559,8 +546,7 @@ ISABus *intel_82468gx_ifb_isa_bus(Intel82468GXIFBState *s)
     return s ? s->isa_bus : NULL;
 }
 
-IDEBus *intel_82468gx_ifb_ide_bus(Intel82468GXIFBState *s,
-                                  unsigned channel)
+IDEBus *intel_82468gx_ifb_ide_bus(Intel82468GXIFBState *s, unsigned channel)
 {
     PCIDevice *pci;
 
@@ -587,8 +573,7 @@ int intel_82468gx_ifb_pic_read_irq(Intel82468GXIFBState *s)
     return s && s->master_pic ? pic_read_irq(s->master_pic) : -1;
 }
 
-void intel_82468gx_ifb_configure_acpi(Intel82468GXIFBState *s,
-                                      uint16_t io_base)
+void intel_82468gx_ifb_configure_acpi(Intel82468GXIFBState *s, uint16_t io_base)
 {
     PCIDevice *pci;
 

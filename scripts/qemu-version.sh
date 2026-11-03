@@ -3,6 +3,7 @@
 set -eu
 
 dir="$1"
+source_commit=$(sh "$dir/scripts/git-source-commit.sh" "$dir")
 pkgversion="$2"
 version="$3"
 
@@ -20,6 +21,7 @@ else
 fi
 
 cat <<EOF
+#define QEMU_BUILD_COMMIT "$source_commit"
 #define QEMU_PKGVERSION "$pkgversion"
 #define QEMU_FULL_VERSION "$fullversion"
 EOF

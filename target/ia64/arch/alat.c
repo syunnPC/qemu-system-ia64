@@ -10,8 +10,7 @@
 
 #define IA64_ROTATING_FR_BASE 32
 
-static void ia64_alat_invalidate_entry(CPUIA64State *env,
-                                       IA64AlatEntry *entry)
+static void ia64_alat_invalidate_entry(CPUIA64State *env, IA64AlatEntry *entry)
 {
     if (!entry->valid) {
         return;
@@ -81,7 +80,7 @@ static uint64_t ia64_alat_memory_generation(CPUIA64State *env)
 }
 
 static bool ia64_alat_memory_generation_changed(CPUIA64State *env,
-                                                  uint64_t generation)
+                                                uint64_t generation)
 {
     uint64_t external;
     uint64_t current;
@@ -109,21 +108,19 @@ static bool ia64_alat_sync_memory_writes(CPUIA64State *env)
 }
 
 static bool ia64_alat_memory_window_changed(CPUIA64State *env,
-                                             uint64_t generation)
+                                            uint64_t generation)
 {
     if (!ia64_alat_memory_generation_changed(env, generation)) {
         return false;
     }
 
     ia64_alat_clear(env);
-    env->alat_state.memory_write_generation =
-        ia64_alat_memory_generation(env);
+    env->alat_state.memory_write_generation = ia64_alat_memory_generation(env);
     return true;
 }
 
-void ia64_invalidate_alat_reg_range(CPUIA64State *env,
-                                    uint32_t first, uint32_t last,
-                                    bool fp)
+void ia64_invalidate_alat_reg_range(CPUIA64State *env, uint32_t first,
+                                    uint32_t last, bool fp)
 {
     uint32_t occupied = env->alat_state.alat_occupied;
 
@@ -161,8 +158,8 @@ static bool ia64_ranges_overlap(uint64_t start, uint64_t size,
     return start <= other_end && other_start <= end;
 }
 
-void ia64_invalidate_alat_phys_range(CPUIA64State *env,
-                                     uint64_t pa, uint64_t size)
+void ia64_invalidate_alat_phys_range(CPUIA64State *env, uint64_t pa,
+                                     uint64_t size)
 {
     uint32_t occupied;
 
@@ -208,9 +205,8 @@ uint64_t ia64_alat_chk_a(CPUIA64State *env, uint64_t va, uint32_t reg)
         !ia64_alat_sync_memory_writes(env)) {
         generation = env->alat_state.memory_write_generation;
         /* This API intentionally accepts either integer or FP entries. */
-        found = reg < IA64_GR_COUNT &&
-                (env->alat_state.alat_reg_slot[0][reg] ||
-                 env->alat_state.alat_reg_slot[1][reg]);
+        found = reg < IA64_GR_COUNT && (env->alat_state.alat_reg_slot[0][reg] ||
+                                        env->alat_state.alat_reg_slot[1][reg]);
     }
     if (found && !ia64_alat_memory_window_changed(env, generation)) {
         return 0;
@@ -225,8 +221,7 @@ uint64_t ia64_alat_chk_a(CPUIA64State *env, uint64_t va, uint32_t reg)
 void ia64_alat_invala(CPUIA64State *env)
 {
     ia64_alat_clear(env);
-    env->alat_state.memory_write_generation =
-        ia64_alat_memory_generation(env);
+    env->alat_state.memory_write_generation = ia64_alat_memory_generation(env);
 }
 
 uint64_t ia64_alat_load_begin(CPUIA64State *env)
@@ -300,8 +295,7 @@ void ia64_alat_set_fp(CPUIA64State *env, uint32_t reg, uint64_t addr,
  * missing qualified PA retains the architectural translation fallback.
  */
 void ia64_alat_set_pa(CPUIA64State *env, uint32_t reg, uint64_t addr,
-                       uint32_t size, uint64_t generation, uint64_t pa,
-                       bool fp)
+                      uint32_t size, uint64_t generation, uint64_t pa, bool fp)
 {
     if (!fp || reg > 1) {
         ia64_set_alat(env, reg, addr, size, fp, generation, pa);
@@ -331,8 +325,8 @@ static int ia64_find_alat_reg(CPUIA64State *env, uint32_t reg, bool fp,
 }
 
 static bool ia64_alat_matches_addr(CPUIA64State *env,
-                                   const IA64AlatEntry *entry,
-                                   uint64_t addr, uint32_t size)
+                                   const IA64AlatEntry *entry, uint64_t addr,
+                                   uint32_t size)
 {
     uint64_t pa;
 
@@ -345,10 +339,9 @@ static bool ia64_alat_matches_addr(CPUIA64State *env,
     return entry->phys_addr == pa;
 }
 
-static uint64_t ia64_check_load_alat(CPUIA64State *env, uint32_t reg,
-                                     bool fp, bool verify_addr,
-                                     uint64_t addr, uint32_t size,
-                                     uint32_t clear)
+static uint64_t ia64_check_load_alat(CPUIA64State *env, uint32_t reg, bool fp,
+                                     bool verify_addr, uint64_t addr,
+                                     uint32_t size, uint32_t clear)
 {
     uint64_t generation;
     int i;
@@ -362,8 +355,8 @@ static uint64_t ia64_check_load_alat(CPUIA64State *env, uint32_t reg,
     if (i < 0) {
         return 0;
     }
-    if (verify_addr && !ia64_alat_matches_addr(env, &env->alat_state.alat[i],
-                                               addr, size)) {
+    if (verify_addr &&
+        !ia64_alat_matches_addr(env, &env->alat_state.alat[i], addr, size)) {
         if (clear) {
             ia64_alat_invalidate_entry(env, &env->alat_state.alat[i]);
         }
@@ -403,28 +396,26 @@ void ia64_alat_invalidate_fp_reg(CPUIA64State *env, uint32_t reg)
     ia64_alat_invalidate_register(env, reg, true);
 }
 
-uint64_t ia64_alat_check_load(CPUIA64State *env, uint32_t reg,
-                                uint32_t clear)
+uint64_t ia64_alat_check_load(CPUIA64State *env, uint32_t reg, uint32_t clear)
 {
     return ia64_check_load_alat(env, reg, false, false, 0, 0, clear);
 }
 
 uint64_t ia64_alat_check_load_addr(CPUIA64State *env, uint32_t reg,
-                                     uint64_t addr, uint32_t size,
-                                     uint32_t clear)
+                                   uint64_t addr, uint32_t size, uint32_t clear)
 {
     return ia64_check_load_alat(env, reg, false, true, addr, size, clear);
 }
 
 uint64_t ia64_alat_check_load_fp(CPUIA64State *env, uint32_t reg,
-                                   uint32_t clear)
+                                 uint32_t clear)
 {
     return ia64_check_load_alat(env, reg, true, false, 0, 0, clear);
 }
 
 uint64_t ia64_alat_check_load_fp_addr(CPUIA64State *env, uint32_t reg,
-                                        uint64_t addr, uint32_t size,
-                                        uint32_t clear)
+                                      uint64_t addr, uint32_t size,
+                                      uint32_t clear)
 {
     return ia64_check_load_alat(env, reg, true, true, addr, size, clear);
 }
@@ -445,8 +436,7 @@ void ia64_alat_write_begin(CPUIA64State *env)
     IA64CPU *cpu = ia64_cpu_from_cpu_state(env_cpu(env));
 
     g_assert(!env->alat_state.write_active);
-    env->alat_state.write_generation =
-        env->alat_state.memory_write_generation;
+    env->alat_state.write_generation = env->alat_state.memory_write_generation;
     env->alat_state.write_observed = env->alat_state.alat_full;
     env->alat_state.write_active = true;
     if (env->alat_state.write_observed) {
@@ -486,8 +476,7 @@ static void ia64_alat_write_finish(CPUIA64State *env, uint64_t addr,
     uint64_t expected = generation + 2;
 
     if (observed && env->alat_state.alat_active_count != 0) {
-        if (!precise ||
-            env->alat_state.memory_write_generation != generation ||
+        if (!precise || env->alat_state.memory_write_generation != generation ||
             ia64_alat_memory_generation_changed(env, expected)) {
             ia64_alat_invala(env);
             return;
@@ -520,8 +509,7 @@ void ia64_alat_write_abort(CPUIA64State *env)
     }
 }
 
-void ia64_invalidate_alat_store(CPUIA64State *env, uint64_t addr,
-                                uint32_t size)
+void ia64_invalidate_alat_store(CPUIA64State *env, uint64_t addr, uint32_t size)
 {
     uint64_t pa;
 

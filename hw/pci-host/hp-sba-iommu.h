@@ -18,7 +18,7 @@
 
 typedef uint64_t (*HPSBAIOMMUBypassFn)(void *opaque, uint64_t addr);
 typedef bool (*HPSBAIOMMUPdirReadFn)(void *opaque, uint64_t addr,
-                                    uint64_t *entry);
+                                     uint64_t *entry);
 
 typedef struct HPSBAIOMMUParams {
     uint64_t ibase;
@@ -83,11 +83,10 @@ bool hp_sba_iommu_decode_pcom(uint64_t pcom, unsigned int page_shift,
 
 void hp_zx1_iotlb_clear(HPZX1IOTLB *iotlb);
 bool hp_zx1_iotlb_lookup(const HPZX1IOTLB *iotlb, uint64_t iova,
-                          HPSBAIOMMUEntry *result);
+                         HPSBAIOMMUEntry *result);
 bool hp_zx1_iotlb_store_slot(HPZX1IOTLB *iotlb, unsigned int slot,
-                              const HPSBAIOMMUEntry *entry);
-bool hp_zx1_iotlb_invalidate(HPZX1IOTLB *iotlb,
-                              const HPSBAIOMMUPurge *purge);
+                             const HPSBAIOMMUEntry *entry);
+bool hp_zx1_iotlb_invalidate(HPZX1IOTLB *iotlb, const HPSBAIOMMUPurge *purge);
 
 /*
  * zx1 register decoders.  Outputs are initialized only on success.
@@ -95,13 +94,12 @@ bool hp_zx1_iotlb_invalidate(HPZX1IOTLB *iotlb,
  * IBASE write mask and a nonwrapping, physically addressable PDIR range, and
  * owns register effects, cache invalidation, and IOMMU notifier delivery.
  */
-bool hp_zx1_iommu_decode_tcnfg(uint64_t tcnfg,
-                               unsigned int *page_shift);
+bool hp_zx1_iommu_decode_tcnfg(uint64_t tcnfg, unsigned int *page_shift);
 bool hp_zx1_iommu_decode_window(uint64_t ibase, uint64_t imask,
                                 unsigned int page_shift,
                                 HPZX1IOMMUWindow *window);
-bool hp_zx1_iommu_iova_is_bypass(const HPZX1IOMMUWindow *window,
-                                  uint64_t iova, bool dvi);
+bool hp_zx1_iommu_iova_is_bypass(const HPZX1IOMMUWindow *window, uint64_t iova,
+                                 bool dvi);
 bool hp_zx1_iommu_pdir_index(const HPZX1IOMMUWindow *window, uint64_t iova,
                              bool dvi, uint64_t *index);
 bool hp_zx1_iommu_decode_pcom(const HPZX1IOMMUWindow *window, uint64_t pcom,

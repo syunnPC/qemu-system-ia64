@@ -26,6 +26,7 @@ ia64_firmware_bin = custom_target(
     '@DEPFILE@',
   ],
   depfile: 'ia64-firmware.d',
+  depends: qemu_version,
   env: {'PYTHON': python.full_path()},
   build_by_default: true,
   install: get_option('install_blobs'),

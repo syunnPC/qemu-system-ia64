@@ -164,8 +164,7 @@ static unsigned int ia64_ras_bank(unsigned int cpu, unsigned int type)
     return cpu * IA64_RAS_RECORD_TYPE_COUNT + type;
 }
 
-static IA64RasRecordSlot *ia64_ras_slot(IA64RasHubState *s,
-                                        unsigned int bank,
+static IA64RasRecordSlot *ia64_ras_slot(IA64RasHubState *s, unsigned int bank,
                                         unsigned int queue_index)
 {
     unsigned int slot = bank * IA64_RAS_RECORD_DEPTH + queue_index;
@@ -328,17 +327,15 @@ static bool ia64_ras_queue_init_record(IA64RasHubState *s,
     IA64CPU *cpu;
     size_t length;
 
-    if (cpu_index >= IA64_RAS_MAX_CPUS ||
-        !(cs = qemu_get_cpu(cpu_index))) {
+    if (cpu_index >= IA64_RAS_MAX_CPUS || !(cs = qemu_get_cpu(cpu_index))) {
         return false;
     }
     cpu = IA64_CPU(cs);
     length = ia64_ras_record_begin(
-        s, record, IA64_RAS_SEVERITY_RECOVERABLE,
-        ia64_sal_processor_guid,
+        s, record, IA64_RAS_SEVERITY_RECOVERABLE, ia64_sal_processor_guid,
         sizeof(IA64SalSectionHeader) + sizeof(IA64SalProcessorBody));
     body = (IA64SalProcessorBody *)(record + sizeof(IA64SalRecordHeader) +
-                                   sizeof(IA64SalSectionHeader));
+                                    sizeof(IA64SalSectionHeader));
     body->validation = cpu_to_le64(BIT_ULL(2));
     body->cr_lid = cpu_to_le64(cpu->env.cr[IA64_CR_SAPIC_LID]);
     return ia64_ras_queue_record(s, cpu_index, IA64_RAS_RECORD_TYPE_INIT,
@@ -426,8 +423,8 @@ static uint64_t ia64_ras_mmio_read(void *opaque, hwaddr addr, unsigned size)
     case IA64_RAS_RECORD_REG_LENGTH:
         return slot ? slot->length : 0;
     case IA64_RAS_RECORD_REG_ID:
-        return slot && slot->length >= sizeof(uint64_t) ?
-            ldq_le_p(slot->data) : 0;
+        return slot && slot->length >= sizeof(uint64_t) ? ldq_le_p(slot->data)
+                                                        : 0;
     case IA64_RAS_RECORD_REG_STATUS:
         return (slot ? IA64_RAS_RECORD_STATUS_PRESENT : 0) |
                (s->count[bank] > 1 ? IA64_RAS_RECORD_STATUS_MORE : 0) |
@@ -450,8 +447,7 @@ static void ia64_ras_try_deliver_mca(IA64RasHubState *s)
     }
     for (cpu = 0; cpu < IA64_RAS_MAX_CPUS; cpu++) {
         CPUState *cs = qemu_get_cpu(cpu);
-        unsigned int bank = ia64_ras_bank(cpu,
-                                         IA64_RAS_RECORD_TYPE_MCA);
+        unsigned int bank = ia64_ras_bank(cpu, IA64_RAS_RECORD_TYPE_MCA);
         IA64RasRecordSlot *slot = ia64_ras_head_slot(s, bank);
         const IA64SalRecordHeader *header;
 
@@ -460,8 +456,7 @@ static void ia64_ras_try_deliver_mca(IA64RasHubState *s)
         }
         header = (const IA64SalRecordHeader *)slot->data;
         ia64_cpu_request_mca(cs, s->mca_entry, s->mca_gp,
-                             le64_to_cpu(header->record_id),
-                             header->severity);
+                             le64_to_cpu(header->record_id), header->severity);
     }
 }
 
@@ -515,21 +510,19 @@ static void ia64_ras_signal_mask(uint64_t mask, uint8_t vector)
     }
 }
 
-static void ia64_ras_begin_rendezvous(IA64RasHubState *s,
-                                      uint64_t initiator)
+static void ia64_ras_begin_rendezvous(IA64RasHubState *s, uint64_t initiator)
 {
     if (initiator >= IA64_RAS_MAX_CPUS || !qemu_get_cpu(initiator)) {
         return;
     }
-    s->rendezvous_required = s->cpu_online & ia64_ras_present_cpus() &
-                             ~BIT_ULL(initiator);
+    s->rendezvous_required =
+        s->cpu_online & ia64_ras_present_cpus() & ~BIT_ULL(initiator);
     s->rendezvous_arrived = 0;
     s->rendezvous_fallback = false;
     s->rendezvous_active = s->rendezvous_required != 0;
     if (s->rendezvous_active) {
         if (ia64_ras_vector_valid(s->rendezvous_vector)) {
-            ia64_ras_signal_mask(s->rendezvous_required,
-                                 s->rendezvous_vector);
+            ia64_ras_signal_mask(s->rendezvous_required, s->rendezvous_vector);
         } else {
             s->rendezvous_fallback = true;
             ia64_ras_signal_init_mask(s->rendezvous_required);
@@ -548,8 +541,8 @@ static void ia64_ras_start_memory_wakeup(IA64RasHubState *s)
     cpu = ctz64(s->wakeup_pending);
     s->wakeup_current = cpu;
     address_space_stq_le(&address_space_memory,
-                         s->wakeup_value & ~IA64_PHYS_UC_BIT,
-                         cpu + 1, MEMTXATTRS_UNSPECIFIED, &result);
+                         s->wakeup_value & ~IA64_PHYS_UC_BIT, cpu + 1,
+                         MEMTXATTRS_UNSPECIFIED, &result);
     if (result != MEMTX_OK) {
         s->wakeup_pending = 0;
     }
@@ -562,8 +555,7 @@ static void ia64_ras_release_rendezvous(IA64RasHubState *s)
     s->rendezvous_active = false;
     s->rendezvous_required = 0;
     s->rendezvous_arrived = 0;
-    if (s->wakeup_mechanism == 1 &&
-        ia64_ras_vector_valid(s->wakeup_value)) {
+    if (s->wakeup_mechanism == 1 && ia64_ras_vector_valid(s->wakeup_value)) {
         ia64_ras_signal_mask(participants, (uint8_t)s->wakeup_value);
     } else if (s->wakeup_mechanism == 2) {
         s->wakeup_pending = participants;
@@ -605,17 +597,16 @@ static void ia64_ras_mmio_write(void *opaque, hwaddr addr, uint64_t value,
         }
         return;
     case IA64_RAS_REG_CPE_VECTOR:
-        s->cpe_vector = value == 0 ||
-            ia64_ras_vector_valid(value) ? value : 0;
+        s->cpe_vector = value == 0 || ia64_ras_vector_valid(value) ? value : 0;
         if (s->cpe_vector &&
-            ia64_ras_head_slot(s, ia64_ras_bank(
-                0, IA64_RAS_RECORD_TYPE_CPE)) != NULL) {
+            ia64_ras_head_slot(s, ia64_ras_bank(0, IA64_RAS_RECORD_TYPE_CPE)) !=
+                NULL) {
             ia64_ras_signal_mask(BIT_ULL(0), s->cpe_vector);
         }
         return;
     case IA64_RAS_REG_RENDEZVOUS_VECTOR:
-        s->rendezvous_vector = value == 0 ||
-            ia64_ras_vector_valid(value) ? value : 0;
+        s->rendezvous_vector =
+            value == 0 || ia64_ras_vector_valid(value) ? value : 0;
         return;
     case IA64_RAS_REG_RENDEZVOUS_TIMEOUT:
         s->rendezvous_timeout = value;
@@ -671,8 +662,7 @@ static void ia64_ras_mmio_write(void *opaque, hwaddr addr, uint64_t value,
         offset == IA64_RAS_RECORD_REG_CLEAR &&
         value == IA64_RAS_RECORD_CLEAR_VALUE) {
         ia64_ras_pop_record(s, bank);
-        if (bank % IA64_RAS_RECORD_TYPE_COUNT ==
-            IA64_RAS_RECORD_TYPE_MCA) {
+        if (bank % IA64_RAS_RECORD_TYPE_COUNT == IA64_RAS_RECORD_TYPE_MCA) {
             ia64_ras_try_deliver_mca(s);
         }
     }
@@ -771,14 +761,13 @@ static int ia64_ras_hub_post_load(void *opaque, int version_id)
                 continue;
             }
             if (slot->length < sizeof(IA64SalRecordHeader) +
-                               sizeof(IA64SalSectionHeader) ||
+                                   sizeof(IA64SalSectionHeader) ||
                 slot->length > IA64_RAS_MAX_RECORD_SIZE ||
                 (slot->length & 7) != 0) {
                 return -EINVAL;
             }
             {
-                IA64SalRecordHeader *header =
-                    (IA64SalRecordHeader *)slot->data;
+                IA64SalRecordHeader *header = (IA64SalRecordHeader *)slot->data;
                 IA64SalSectionHeader *section =
                     (IA64SalSectionHeader *)(slot->data + sizeof(*header));
 
@@ -805,8 +794,7 @@ static int ia64_ras_hub_post_load(void *opaque, int version_id)
         return -EINVAL;
     }
     if (s->rendezvous_active) {
-        uint64_t missing = s->rendezvous_required &
-                           ~s->rendezvous_arrived;
+        uint64_t missing = s->rendezvous_required & ~s->rendezvous_arrived;
 
         if (s->rendezvous_fallback) {
             ia64_ras_signal_init_mask(missing);
@@ -815,8 +803,7 @@ static int ia64_ras_hub_post_load(void *opaque, int version_id)
         }
     }
     for (unsigned int cpu = 0; cpu < IA64_RAS_MAX_CPUS; cpu++) {
-        ia64_cpu_set_init_entry(qemu_get_cpu(cpu), s->init_entry,
-                                s->init_gp);
+        ia64_cpu_set_init_entry(qemu_get_cpu(cpu), s->init_entry, s->init_gp);
     }
     ia64_ras_start_memory_wakeup(s);
     ia64_ras_try_deliver_mca(s);
@@ -827,12 +814,11 @@ static const VMStateDescription vmstate_ia64_ras_slot = {
     .name = "ia64-ras-hub/slot",
     .version_id = 2,
     .minimum_version_id = 2,
-    .fields = (const VMStateField[]) {
-        VMSTATE_UINT16(length, IA64RasRecordSlot),
-        VMSTATE_UINT8_ARRAY(data, IA64RasRecordSlot,
-                            IA64_RAS_MAX_RECORD_SIZE),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) { VMSTATE_UINT16(length, IA64RasRecordSlot),
+                                 VMSTATE_UINT8_ARRAY(data, IA64RasRecordSlot,
+                                                     IA64_RAS_MAX_RECORD_SIZE),
+                                 VMSTATE_END_OF_LIST() },
 };
 
 static const VMStateDescription vmstate_ia64_ras_hub = {
@@ -840,32 +826,32 @@ static const VMStateDescription vmstate_ia64_ras_hub = {
     .version_id = 2,
     .minimum_version_id = 2,
     .post_load = ia64_ras_hub_post_load,
-    .fields = (const VMStateField[]) {
-        VMSTATE_UINT64(mca_entry, IA64RasHubState),
-        VMSTATE_UINT64(mca_gp, IA64RasHubState),
-        VMSTATE_UINT64(init_entry, IA64RasHubState),
-        VMSTATE_UINT64(init_gp, IA64RasHubState),
-        VMSTATE_UINT64(cpe_vector, IA64RasHubState),
-        VMSTATE_UINT64(rendezvous_vector, IA64RasHubState),
-        VMSTATE_UINT64(rendezvous_timeout, IA64RasHubState),
-        VMSTATE_UINT64(rendezvous_options, IA64RasHubState),
-        VMSTATE_UINT64(wakeup_mechanism, IA64RasHubState),
-        VMSTATE_UINT64(wakeup_value, IA64RasHubState),
-        VMSTATE_UINT64(cpu_online, IA64RasHubState),
-        VMSTATE_UINT64(rendezvous_required, IA64RasHubState),
-        VMSTATE_UINT64(rendezvous_arrived, IA64RasHubState),
-        VMSTATE_BOOL(rendezvous_active, IA64RasHubState),
-        VMSTATE_BOOL(rendezvous_fallback, IA64RasHubState),
-        VMSTATE_UINT64(wakeup_pending, IA64RasHubState),
-        VMSTATE_UINT8(wakeup_current, IA64RasHubState),
-        VMSTATE_UINT64(next_record_id, IA64RasHubState),
-        VMSTATE_UINT8_ARRAY(head, IA64RasHubState, IA64_RAS_BANK_COUNT),
-        VMSTATE_UINT8_ARRAY(count, IA64RasHubState, IA64_RAS_BANK_COUNT),
-        VMSTATE_BOOL_ARRAY(overflow, IA64RasHubState, IA64_RAS_BANK_COUNT),
-        VMSTATE_STRUCT_ARRAY(slots, IA64RasHubState, IA64_RAS_SLOT_COUNT, 1,
-                             vmstate_ia64_ras_slot, IA64RasRecordSlot),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) {
+            VMSTATE_UINT64(mca_entry, IA64RasHubState),
+            VMSTATE_UINT64(mca_gp, IA64RasHubState),
+            VMSTATE_UINT64(init_entry, IA64RasHubState),
+            VMSTATE_UINT64(init_gp, IA64RasHubState),
+            VMSTATE_UINT64(cpe_vector, IA64RasHubState),
+            VMSTATE_UINT64(rendezvous_vector, IA64RasHubState),
+            VMSTATE_UINT64(rendezvous_timeout, IA64RasHubState),
+            VMSTATE_UINT64(rendezvous_options, IA64RasHubState),
+            VMSTATE_UINT64(wakeup_mechanism, IA64RasHubState),
+            VMSTATE_UINT64(wakeup_value, IA64RasHubState),
+            VMSTATE_UINT64(cpu_online, IA64RasHubState),
+            VMSTATE_UINT64(rendezvous_required, IA64RasHubState),
+            VMSTATE_UINT64(rendezvous_arrived, IA64RasHubState),
+            VMSTATE_BOOL(rendezvous_active, IA64RasHubState),
+            VMSTATE_BOOL(rendezvous_fallback, IA64RasHubState),
+            VMSTATE_UINT64(wakeup_pending, IA64RasHubState),
+            VMSTATE_UINT8(wakeup_current, IA64RasHubState),
+            VMSTATE_UINT64(next_record_id, IA64RasHubState),
+            VMSTATE_UINT8_ARRAY(head, IA64RasHubState, IA64_RAS_BANK_COUNT),
+            VMSTATE_UINT8_ARRAY(count, IA64RasHubState, IA64_RAS_BANK_COUNT),
+            VMSTATE_BOOL_ARRAY(overflow, IA64RasHubState, IA64_RAS_BANK_COUNT),
+            VMSTATE_STRUCT_ARRAY(slots, IA64RasHubState, IA64_RAS_SLOT_COUNT, 1,
+                                 vmstate_ia64_ras_slot, IA64RasRecordSlot),
+            VMSTATE_END_OF_LIST() },
 };
 
 static void ia64_ras_hub_class_init(ObjectClass *klass, const void *data)
@@ -914,8 +900,8 @@ bool ia64_ras_hub_report_chipset_fault(void *opaque,
         return false;
     }
     severity = fault->severity;
-    type = severity == IA64_RAS_SEVERITY_CORRECTED ?
-        IA64_RAS_RECORD_TYPE_CPE : IA64_RAS_RECORD_TYPE_MCA;
+    type = severity == IA64_RAS_SEVERITY_CORRECTED ? IA64_RAS_RECORD_TYPE_CPE
+                                                   : IA64_RAS_RECORD_TYPE_MCA;
 
     if (fault->reason == IA64_CHIPSET_FAULT_MEMORY_CORRECTED ||
         fault->reason == IA64_CHIPSET_FAULT_MEMORY_UNCORRECTED) {
@@ -925,37 +911,32 @@ bool ia64_ras_hub_report_chipset_fault(void *opaque,
             s, record, severity, ia64_sal_memory_guid,
             sizeof(IA64SalSectionHeader) + sizeof(IA64SalMemoryBody));
         body = (IA64SalMemoryBody *)(record + sizeof(IA64SalRecordHeader) +
-                                    sizeof(IA64SalSectionHeader));
-        body->validation = cpu_to_le64(BIT_ULL(0) | BIT_ULL(1) |
-                                       BIT_ULL(11) | BIT_ULL(13) |
-                                       BIT_ULL(14));
-        body->error_status = cpu_to_le64(
-            ia64_ras_error_status(fault->reason));
+                                     sizeof(IA64SalSectionHeader));
+        body->validation = cpu_to_le64(BIT_ULL(0) | BIT_ULL(1) | BIT_ULL(11) |
+                                       BIT_ULL(13) | BIT_ULL(14));
+        body->error_status = cpu_to_le64(ia64_ras_error_status(fault->reason));
         body->address = cpu_to_le64(fault->address);
         body->requestor = cpu_to_le64(fault->requester);
         body->target = cpu_to_le64(fault->address);
         body->bus_data = cpu_to_le64(fault->information);
     } else if (fault->source == IA64_CHIPSET_FAULT_PCIE &&
-               fault->reason == IA64_CHIPSET_FAULT_AER &&
-               fault->pcie.valid) {
+               fault->reason == IA64_CHIPSET_FAULT_AER && fault->pcie.valid) {
         IA64SalPCIeBody *body;
 
-        length = ia64_ras_record_begin(
-            s, record, severity, ia64_sal_pcie_guid,
-            sizeof(IA64SalSectionHeader) + sizeof(IA64SalPCIeBody));
+        length = ia64_ras_record_begin(s, record, severity, ia64_sal_pcie_guid,
+                                       sizeof(IA64SalSectionHeader) +
+                                           sizeof(IA64SalPCIeBody));
         body = (IA64SalPCIeBody *)(record + sizeof(IA64SalRecordHeader) +
-                                  sizeof(IA64SalSectionHeader));
-        body->validation = cpu_to_le64(BIT_ULL(0) | BIT_ULL(1) |
-                                       BIT_ULL(2) | BIT_ULL(3) |
-                                       BIT_ULL(5) | BIT_ULL(6) |
-                                       BIT_ULL(7));
+                                   sizeof(IA64SalSectionHeader));
+        body->validation =
+            cpu_to_le64(BIT_ULL(0) | BIT_ULL(1) | BIT_ULL(2) | BIT_ULL(3) |
+                        BIT_ULL(5) | BIT_ULL(6) | BIT_ULL(7));
         body->port_type = cpu_to_le32(fault->pcie.port_type);
         body->version = cpu_to_le32(fault->pcie.version);
         body->command_status = cpu_to_le32(fault->pcie.command_status);
-        memcpy(body->device_id, fault->pcie.device_id,
-               sizeof(body->device_id));
-        body->bridge_control_status = cpu_to_le32(
-            fault->pcie.bridge_control_status);
+        memcpy(body->device_id, fault->pcie.device_id, sizeof(body->device_id));
+        body->bridge_control_status =
+            cpu_to_le32(fault->pcie.bridge_control_status);
         memcpy(body->capability, fault->pcie.capability,
                sizeof(body->capability));
         memcpy(body->aer, fault->pcie.aer, sizeof(body->aer));
@@ -966,15 +947,12 @@ bool ia64_ras_hub_report_chipset_fault(void *opaque,
             s, record, severity, ia64_sal_pci_bus_guid,
             sizeof(IA64SalSectionHeader) + sizeof(IA64SalPciBusBody));
         body = (IA64SalPciBusBody *)(record + sizeof(IA64SalRecordHeader) +
-                                    sizeof(IA64SalSectionHeader));
-        body->validation = cpu_to_le64(BIT_ULL(0) | BIT_ULL(1) |
-                                       BIT_ULL(2) | BIT_ULL(3) |
-                                       BIT_ULL(4) | BIT_ULL(6) |
-                                       BIT_ULL(8));
-        body->error_status = cpu_to_le64(
-            ia64_ras_error_status(fault->reason));
-        body->error_type = cpu_to_le16(
-            ia64_ras_pci_error_type(fault->reason));
+                                     sizeof(IA64SalSectionHeader));
+        body->validation =
+            cpu_to_le64(BIT_ULL(0) | BIT_ULL(1) | BIT_ULL(2) | BIT_ULL(3) |
+                        BIT_ULL(4) | BIT_ULL(6) | BIT_ULL(8));
+        body->error_status = cpu_to_le64(ia64_ras_error_status(fault->reason));
+        body->error_type = cpu_to_le16(ia64_ras_pci_error_type(fault->reason));
         body->bus_id = cpu_to_le16((fault->segment << 8) | fault->bus);
         body->address = cpu_to_le64(fault->address);
         body->data = cpu_to_le64(fault->information);
@@ -997,11 +975,9 @@ bool ia64_ras_hub_report_chipset_fault(void *opaque,
     return true;
 }
 
-bool ia64_ras_hub_report_processor_error(IA64RasHubState *s,
-                                         CPUState *cs,
+bool ia64_ras_hub_report_processor_error(IA64RasHubState *s, CPUState *cs,
                                          IA64RasSeverity severity,
-                                         uint64_t status,
-                                         uint64_t address,
+                                         uint64_t status, uint64_t address,
                                          uint64_t information)
 {
     uint8_t record[IA64_RAS_MAX_RECORD_SIZE];
@@ -1021,30 +997,29 @@ bool ia64_ras_hub_report_processor_error(IA64RasHubState *s,
         return false;
     }
     cpu = IA64_CPU(cs);
-    type = severity == IA64_RAS_SEVERITY_CORRECTED ?
-        IA64_RAS_RECORD_TYPE_CMC : IA64_RAS_RECORD_TYPE_MCA;
-    length = ia64_ras_record_begin(
-        s, record, severity, ia64_sal_processor_guid,
-        sizeof(IA64SalSectionHeader) + sizeof(IA64SalProcessorBody));
+    type = severity == IA64_RAS_SEVERITY_CORRECTED ? IA64_RAS_RECORD_TYPE_CMC
+                                                   : IA64_RAS_RECORD_TYPE_MCA;
+    length = ia64_ras_record_begin(s, record, severity, ia64_sal_processor_guid,
+                                   sizeof(IA64SalSectionHeader) +
+                                       sizeof(IA64SalProcessorBody));
     body = (IA64SalProcessorBody *)(record + sizeof(IA64SalRecordHeader) +
-                                   sizeof(IA64SalSectionHeader));
-    psp = BIT_ULL(5) | BIT_ULL(6) | BIT_ULL(7) | BIT_ULL(8) |
-          BIT_ULL(12) | BIT_ULL(13) | BIT_ULL(14) | BIT_ULL(17) |
-          BIT_ULL(20) | BIT_ULL(24) | BIT_ULL(25) | BIT_ULL(26) |
-          BIT_ULL(27) | BIT_ULL(29) | BIT_ULL(30) | BIT_ULL(31) |
-          BIT_ULL(61);
+                                    sizeof(IA64SalSectionHeader));
+    psp = BIT_ULL(5) | BIT_ULL(6) | BIT_ULL(7) | BIT_ULL(8) | BIT_ULL(12) |
+          BIT_ULL(13) | BIT_ULL(14) | BIT_ULL(17) | BIT_ULL(20) | BIT_ULL(24) |
+          BIT_ULL(25) | BIT_ULL(26) | BIT_ULL(27) | BIT_ULL(29) | BIT_ULL(30) |
+          BIT_ULL(31) | BIT_ULL(61);
     if (severity == IA64_RAS_SEVERITY_CORRECTED) {
         psp |= BIT_ULL(18);
     }
-    body->validation = cpu_to_le64(BIT_ULL(0) | BIT_ULL(1) | BIT_ULL(2) |
-                                   BIT_ULL(12));
-    body->error_map = cpu_to_le64(
-        BIT_ULL(24) | ((uint64_t)(cpu->thread_id & 0xf) << 4) |
-        (cpu->core_id & 0xf));
+    body->validation =
+        cpu_to_le64(BIT_ULL(0) | BIT_ULL(1) | BIT_ULL(2) | BIT_ULL(12));
+    body->error_map =
+        cpu_to_le64(BIT_ULL(24) | ((uint64_t)(cpu->thread_id & 0xf) << 4) |
+                    (cpu->core_id & 0xf));
     body->state_parameter = cpu_to_le64(psp);
     body->cr_lid = cpu_to_le64(cpu->env.cr[IA64_CR_SAPIC_LID]);
-    body->machine_specific.validation = cpu_to_le64(
-        BIT_ULL(0) | BIT_ULL(1) | BIT_ULL(3) | BIT_ULL(4));
+    body->machine_specific.validation =
+        cpu_to_le64(BIT_ULL(0) | BIT_ULL(1) | BIT_ULL(3) | BIT_ULL(4));
     body->machine_specific.check_info = cpu_to_le64(status);
     body->machine_specific.requestor = cpu_to_le64(information);
     body->machine_specific.target = cpu_to_le64(address);

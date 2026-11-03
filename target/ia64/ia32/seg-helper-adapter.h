@@ -28,9 +28,8 @@ static void ia32_stack_access_prepare(CPUX86State *xenv, vaddr addr,
 {
     CPUIA64State *env = IA32_ARCH_ENV(xenv);
     int mmu_idx = IA32_MMU_IDX(xenv);
-    unsigned access = type == MMU_DATA_STORE ?
-                      IA64_IA32_SEG_ACCESS_WRITE :
-                      IA64_IA32_SEG_ACCESS_READ;
+    unsigned access = type == MMU_DATA_STORE ? IA64_IA32_SEG_ACCESS_WRITE
+                                             : IA64_IA32_SEG_ACCESS_READ;
 
     if (type == MMU_DATA_STORE) {
         ia64_exec_ensure_alat_exclusive(env, retaddr);
@@ -46,26 +45,25 @@ static uint16_t ia32_stack_lduw(CPUX86State *xenv, vaddr addr,
 {
     addr = (uint32_t)addr;
     ia32_stack_access_prepare(xenv, addr, 2, MMU_DATA_LOAD, retaddr);
-    return cpu_lduw_le_mmuidx_ra(IA32_ARCH_ENV(xenv), addr,
-                                 IA32_MMU_IDX(xenv), retaddr);
+    return cpu_lduw_le_mmuidx_ra(IA32_ARCH_ENV(xenv), addr, IA32_MMU_IDX(xenv),
+                                 retaddr);
 }
 
-static uint32_t ia32_stack_ldl(CPUX86State *xenv, vaddr addr,
-                               uintptr_t retaddr)
+static uint32_t ia32_stack_ldl(CPUX86State *xenv, vaddr addr, uintptr_t retaddr)
 {
     addr = (uint32_t)addr;
     ia32_stack_access_prepare(xenv, addr, 4, MMU_DATA_LOAD, retaddr);
-    return cpu_ldl_le_mmuidx_ra(IA32_ARCH_ENV(xenv), addr,
-                                IA32_MMU_IDX(xenv), retaddr);
+    return cpu_ldl_le_mmuidx_ra(IA32_ARCH_ENV(xenv), addr, IA32_MMU_IDX(xenv),
+                                retaddr);
 }
 
 static G_GNUC_UNUSED uint64_t ia32_stack_ldq(CPUX86State *xenv, vaddr addr,
-                                              uintptr_t retaddr)
+                                             uintptr_t retaddr)
 {
     addr = (uint32_t)addr;
     ia32_stack_access_prepare(xenv, addr, 8, MMU_DATA_LOAD, retaddr);
-    return cpu_ldq_le_mmuidx_ra(IA32_ARCH_ENV(xenv), addr,
-                                IA32_MMU_IDX(xenv), retaddr);
+    return cpu_ldq_le_mmuidx_ra(IA32_ARCH_ENV(xenv), addr, IA32_MMU_IDX(xenv),
+                                retaddr);
 }
 
 static void ia32_stack_stw(CPUX86State *xenv, vaddr addr, uint16_t value,
@@ -73,8 +71,8 @@ static void ia32_stack_stw(CPUX86State *xenv, vaddr addr, uint16_t value,
 {
     addr = (uint32_t)addr;
     ia32_stack_access_prepare(xenv, addr, 2, MMU_DATA_STORE, retaddr);
-    cpu_stw_le_mmuidx_ra(IA32_ARCH_ENV(xenv), addr, value,
-                         IA32_MMU_IDX(xenv), retaddr);
+    cpu_stw_le_mmuidx_ra(IA32_ARCH_ENV(xenv), addr, value, IA32_MMU_IDX(xenv),
+                         retaddr);
     ia64_alat_notify_store(IA32_ARCH_ENV(xenv));
 }
 
@@ -83,8 +81,8 @@ static void ia32_stack_stl(CPUX86State *xenv, vaddr addr, uint32_t value,
 {
     addr = (uint32_t)addr;
     ia32_stack_access_prepare(xenv, addr, 4, MMU_DATA_STORE, retaddr);
-    cpu_stl_le_mmuidx_ra(IA32_ARCH_ENV(xenv), addr, value,
-                         IA32_MMU_IDX(xenv), retaddr);
+    cpu_stl_le_mmuidx_ra(IA32_ARCH_ENV(xenv), addr, value, IA32_MMU_IDX(xenv),
+                         retaddr);
     ia64_alat_notify_store(IA32_ARCH_ENV(xenv));
 }
 
@@ -93,21 +91,19 @@ static G_GNUC_UNUSED void ia32_stack_stq(CPUX86State *xenv, vaddr addr,
 {
     addr = (uint32_t)addr;
     ia32_stack_access_prepare(xenv, addr, 8, MMU_DATA_STORE, retaddr);
-    cpu_stq_le_mmuidx_ra(IA32_ARCH_ENV(xenv), addr, value,
-                         IA32_MMU_IDX(xenv), retaddr);
+    cpu_stq_le_mmuidx_ra(IA32_ARCH_ENV(xenv), addr, value, IA32_MMU_IDX(xenv),
+                         retaddr);
     ia64_alat_notify_store(IA32_ARCH_ENV(xenv));
 }
 
 static void ia32_supervisor_access_prepare(CPUX86State *xenv, vaddr addr,
-                                           unsigned size,
-                                           MMUAccessType type,
+                                           unsigned size, MMUAccessType type,
                                            uintptr_t retaddr)
 {
     CPUIA64State *env = IA32_ARCH_ENV(xenv);
     int mmu_idx = IA32_MMU_IDX(xenv);
-    unsigned access = type == MMU_DATA_STORE ?
-                      IA64_IA32_SEG_ACCESS_WRITE :
-                      IA64_IA32_SEG_ACCESS_READ;
+    unsigned access = type == MMU_DATA_STORE ? IA64_IA32_SEG_ACCESS_WRITE
+                                             : IA64_IA32_SEG_ACCESS_READ;
 
     if (type == MMU_DATA_STORE) {
         ia64_exec_ensure_alat_exclusive(env, retaddr);
@@ -120,13 +116,11 @@ static void ia32_supervisor_access_prepare(CPUX86State *xenv, vaddr addr,
 
 static void ia32_system_descriptor_check(CPUX86State *xenv,
                                          const SegmentCache *dt,
-                                         uint16_t selector,
-                                         uintptr_t retaddr)
+                                         uint16_t selector, uintptr_t retaddr)
 {
     /* IA-64 adds run-time integrity checks to GDT/LDT references. */
     if ((dt->flags & (DESC_S_MASK | DESC_P_MASK)) != DESC_P_MASK) {
-        raise_exception_err_ra(xenv, EXCP0D_GPF, selector & 0xfffc,
-                               retaddr);
+        raise_exception_err_ra(xenv, EXCP0D_GPF, selector & 0xfffc, retaddr);
     }
 }
 
@@ -150,9 +144,8 @@ static uint32_t ia32_supervisor_ldl(CPUX86State *xenv, vaddr addr,
     return cpu_ldl_le_mmuidx_ra(env, addr, IA32_MMU_IDX(xenv), retaddr);
 }
 
-static G_GNUC_UNUSED uint64_t ia32_supervisor_ldq(CPUX86State *xenv,
-                                                   vaddr addr,
-                                                   uintptr_t retaddr)
+static G_GNUC_UNUSED uint64_t ia32_supervisor_ldq(CPUX86State *xenv, vaddr addr,
+                                                  uintptr_t retaddr)
 {
     CPUIA64State *env = IA32_ARCH_ENV(xenv);
 
@@ -161,9 +154,8 @@ static G_GNUC_UNUSED uint64_t ia32_supervisor_ldq(CPUX86State *xenv,
     return cpu_ldq_le_mmuidx_ra(env, addr, IA32_MMU_IDX(xenv), retaddr);
 }
 
-static G_GNUC_UNUSED void ia32_supervisor_stw(CPUX86State *xenv,
-                                               vaddr addr, uint16_t value,
-                                               uintptr_t retaddr)
+static G_GNUC_UNUSED void ia32_supervisor_stw(CPUX86State *xenv, vaddr addr,
+                                              uint16_t value, uintptr_t retaddr)
 {
     CPUIA64State *env = IA32_ARCH_ENV(xenv);
 
@@ -173,8 +165,8 @@ static G_GNUC_UNUSED void ia32_supervisor_stw(CPUX86State *xenv,
     ia64_alat_notify_store(env);
 }
 
-static void ia32_supervisor_stl(CPUX86State *xenv, vaddr addr,
-                                uint32_t value, uintptr_t retaddr)
+static void ia32_supervisor_stl(CPUX86State *xenv, vaddr addr, uint32_t value,
+                                uintptr_t retaddr)
 {
     CPUIA64State *env = IA32_ARCH_ENV(xenv);
 
@@ -184,9 +176,8 @@ static void ia32_supervisor_stl(CPUX86State *xenv, vaddr addr,
     ia64_alat_notify_store(env);
 }
 
-static G_GNUC_UNUSED void ia32_supervisor_stq(CPUX86State *xenv,
-                                               vaddr addr, uint64_t value,
-                                               uintptr_t retaddr)
+static G_GNUC_UNUSED void ia32_supervisor_stq(CPUX86State *xenv, vaddr addr,
+                                              uint64_t value, uintptr_t retaddr)
 {
     CPUIA64State *env = IA32_ARCH_ENV(xenv);
 

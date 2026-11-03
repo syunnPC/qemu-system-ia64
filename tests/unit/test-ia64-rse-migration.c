@@ -67,8 +67,7 @@ static void init_firmware_state(IA64FirmwareDebugRseState *state)
 static const char *expect_live(const char *label, const CPUIA64State *env,
                                bool has_clean_partition, bool expected)
 {
-    bool actual = ia64_rse_migration_state_valid(env,
-                                                  has_clean_partition);
+    bool actual = ia64_rse_migration_state_valid(env, has_clean_partition);
 
     if (actual == expected) {
         return NULL;
@@ -78,9 +77,9 @@ static const char *expect_live(const char *label, const CPUIA64State *env,
     return failure;
 }
 
-static const char *expect_firmware(
-    const char *label, const IA64FirmwareDebugRseState *state,
-    bool has_clean_partition, bool expected)
+static const char *expect_firmware(const char *label,
+                                   const IA64FirmwareDebugRseState *state,
+                                   bool has_clean_partition, bool expected)
 {
     bool actual = ia64_firmware_debug_rse_migration_state_valid(
         state, has_clean_partition);
@@ -160,8 +159,7 @@ static const char *test_frame_and_rotation_rejection(void)
 
     RESET_AND_REJECT("RRB.FR overflow", env.cfm_rrb_fr = 96);
     RESET_AND_REJECT("RRB.PR overflow", env.cfm_rrb_pr = 48);
-    RESET_AND_REJECT("BOL overflow",
-                     env.rse.rse_bol = IA64_STACKED_GR_COUNT);
+    RESET_AND_REJECT("BOL overflow", env.rse.rse_bol = IA64_STACKED_GR_COUNT);
     RESET_AND_REJECT("partition total", env.rse.rse_invalid = 1);
     RESET_AND_REJECT("negative clean partition", env.rse.rse_clean = -1);
     RESET_AND_REJECT("physical NaT high bits",
@@ -306,15 +304,13 @@ static const char *test_completion_and_firmware_state(void)
     EXPECT_LIVE("completion source IP", true, false);
 
     init_firmware_state(&firmware);
-    error = expect_firmware("firmware reset snapshot", &firmware,
-                            false, true);
+    error = expect_firmware("firmware reset snapshot", &firmware, false, true);
     if (error != NULL) {
         return error;
     }
 
     firmware.cfm_sof = 97;
-    error = expect_firmware("firmware SOF overflow", &firmware,
-                            false, false);
+    error = expect_firmware("firmware SOF overflow", &firmware, false, false);
     if (error != NULL) {
         return error;
     }
@@ -324,14 +320,13 @@ static const char *test_completion_and_firmware_state(void)
     firmware.rnat_shadow[0].valid = true;
     firmware.rnat_shadow[0].addr = 0x11f8;
     firmware.rnat_shadow[0].defined = 1;
-    error = expect_firmware("firmware RNAT snapshot", &firmware,
-                            false, true);
+    error = expect_firmware("firmware RNAT snapshot", &firmware, false, true);
     if (error != NULL) {
         return error;
     }
     firmware.rnat_shadow[0].value = 2;
-    return expect_firmware("firmware corrupt RNAT snapshot", &firmware,
-                           false, false);
+    return expect_firmware("firmware corrupt RNAT snapshot", &firmware, false,
+                           false);
 }
 
 int main(void)

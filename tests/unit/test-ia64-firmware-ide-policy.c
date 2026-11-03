@@ -36,14 +36,13 @@ static int test_fixed_policy(void)
     FW_IDE_POLICY policy;
 
     init_profile(&profile);
-    if (!fw_i2000_ide_policy_init(&profile, &policy) ||
-        policy.Segment != 0 || policy.Bus != 0 || policy.Device != 3 ||
-        policy.Function != 1 || policy.VendorId != 0x8086U ||
-        policy.DeviceId != 0x7601U || policy.Class != 0x0101U ||
-        policy.ProgIf != 0x80U || policy.CommandPort != 0x01f0U ||
-        policy.CommandSize != 8 || policy.ControlPort != 0x03f6U ||
-        policy.ControlSize != 1 || policy.Irq != 14 ||
-        policy.UnitMask != 3 ||
+    if (!fw_i2000_ide_policy_init(&profile, &policy) || policy.Segment != 0 ||
+        policy.Bus != 0 || policy.Device != 3 || policy.Function != 1 ||
+        policy.VendorId != 0x8086U || policy.DeviceId != 0x7601U ||
+        policy.Class != 0x0101U || policy.ProgIf != 0x80U ||
+        policy.CommandPort != 0x01f0U || policy.CommandSize != 8 ||
+        policy.ControlPort != 0x03f6U || policy.ControlSize != 1 ||
+        policy.Irq != 14 || policy.UnitMask != 3 ||
         !fw_ide_policy_unit_enabled(&policy, 0) ||
         !fw_ide_policy_unit_enabled(&policy, 1) ||
         fw_ide_policy_unit_enabled(&policy, 2)) {
@@ -61,16 +60,14 @@ static int test_pci_identity(void)
 
     init_profile(&profile);
     if (!fw_i2000_ide_policy_init(&profile, &policy) ||
-        !fw_ide_policy_pci_identity_matches(&policy, id,
-                                             class_revision) ||
-        fw_ide_policy_pci_identity_matches(&policy, id ^ 1U,
-                                            class_revision) ||
+        !fw_ide_policy_pci_identity_matches(&policy, id, class_revision) ||
+        fw_ide_policy_pci_identity_matches(&policy, id ^ 1U, class_revision) ||
         fw_ide_policy_pci_identity_matches(&policy, id ^ (1U << 16),
-                                            class_revision) ||
+                                           class_revision) ||
         fw_ide_policy_pci_identity_matches(&policy, id,
-                                            class_revision ^ (1U << 16)) ||
+                                           class_revision ^ (1U << 16)) ||
         fw_ide_policy_pci_identity_matches(&policy, id,
-                                            class_revision ^ (1U << 8)) ||
+                                           class_revision ^ (1U << 8)) ||
         fw_ide_policy_pci_identity_matches(NULL, id, class_revision)) {
         return 1;
     }
@@ -142,10 +139,8 @@ static int test_i2000_udma_selection(void)
     UINT16 identify[256] = { 0 };
     UINT8 mode = 0xff;
 
-    identify[FW_ATA_IDENTIFY_CAPABILITIES_WORD] =
-        FW_ATA_IDENTIFY_DMA_SUPPORTED;
-    identify[FW_ATA_IDENTIFY_VALIDITY_WORD] =
-        FW_ATA_IDENTIFY_UDMA_VALID;
+    identify[FW_ATA_IDENTIFY_CAPABILITIES_WORD] = FW_ATA_IDENTIFY_DMA_SUPPORTED;
+    identify[FW_ATA_IDENTIFY_VALIDITY_WORD] = FW_ATA_IDENTIFY_UDMA_VALID;
     identify[FW_ATA_IDENTIFY_UDMA_WORD] = 0x003f;
     if (!fw_ide_i2000_select_udma(identify, &mode) || mode != 2) {
         return 1;

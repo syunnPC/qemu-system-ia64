@@ -1,0 +1,57 @@
+# QEMU formatting rules from docs/devel/style.rst.
+BasedOnStyle: LLVM
+IndentWidth: 4
+ContinuationIndentWidth: 4
+TabWidth: 8
+UseTab: Never
+ColumnLimit: 80
+BreakBeforeBraces: Linux
+Cpp11BracedListStyle: false
+SpaceBeforeCpp11BracedList: true
+InsertBraces: true
+IndentCaseLabels: false
+AlignAfterOpenBracket: Align
+AlignOperands: Align
+BreakBeforeBinaryOperators: None
+PointerAlignment: Right
+SpaceBeforeParens: Custom
+SpaceBeforeParensOptions:
+  AfterControlStatements: true
+  AfterForeachMacros: false
+SpacesBeforeTrailingComments: 1
+AllowShortBlocksOnASingleLine: Never
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: false
+# Keep qemu/osdep.h first and preserve intentional include grouping.
+SortIncludes: Never
+IncludeBlocks: Preserve
+ReflowComments: false
+IndentPPDirectives: None
+# Preserve type-dependent casts and token-sensitive expressions in macros.
+SkipMacroDefinitionBody: true
+WhitespaceSensitiveMacros:
+  - G_STATIC_ASSERT
+  - G_STATIC_ASSERT_EXPR
+  - QEMU_BUILD_BUG_ON
+  - STRINGIZE
+ForEachMacros:
+  - CPU_FOREACH
+  - CPU_FOREACH_SAFE
+  - QLIST_FOREACH
+  - QLIST_FOREACH_ENTRY
+  - QLIST_FOREACH_SAFE
+  - QSLIST_FOREACH
+  - QSLIST_FOREACH_SAFE
+  - QSIMPLEQ_FOREACH
+  - QSIMPLEQ_FOREACH_SAFE
+  - QTAILQ_FOREACH
+  - QTAILQ_FOREACH_SAFE
+  - QTAILQ_FOREACH_REVERSE
+  - QTAILQ_FOREACH_REVERSE_SAFE
+StatementMacros:
+  - DECLARE_INSTANCE_CHECKER
+  - OBJECT_DECLARE_TYPE
+  - OBJECT_DECLARE_SIMPLE_TYPE
+  - OBJECT_DECLARE_CPU_TYPE

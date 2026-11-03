@@ -73,8 +73,8 @@ typedef EFI_STATUS (*EFI_REGISTER_EXCEPTION_CALLBACK)(
     EFI_DEBUG_SUPPORT_PROTOCOL *This, UINTN ProcessorIndex,
     EFI_EXCEPTION_CALLBACK ExceptionCallback, EFI_EXCEPTION_TYPE ExceptionType);
 typedef EFI_STATUS (*EFI_INVALIDATE_INSTRUCTION_CACHE)(
-    EFI_DEBUG_SUPPORT_PROTOCOL *This, UINTN ProcessorIndex,
-    VOID *Start, UINT64 Length);
+    EFI_DEBUG_SUPPORT_PROTOCOL *This, UINTN ProcessorIndex, VOID *Start,
+    UINT64 Length);
 
 struct _EFI_DEBUG_SUPPORT_PROTOCOL {
     UINT32 Isa;
@@ -112,8 +112,7 @@ static EFI_HANDLE mDebugSupportHandle;
 static EFI_PERIODIC_CALLBACK mDebugPeriodicCallback;
 static EFI_EXCEPTION_CALLBACK
     mDebugExceptionCallbacks[DEBUG_SUPPORT_EXCEPTION_COUNT];
-static DEBUG_SUPPORT_IVT_HOOK
-    mDebugIvtHooks[DEBUG_SUPPORT_EXCEPTION_COUNT];
+static DEBUG_SUPPORT_IVT_HOOK mDebugIvtHooks[DEBUG_SUPPORT_EXCEPTION_COUNT];
 static BOOLEAN mDebugDispatchActive[FW_MAX_CPUS];
 static BOOLEAN mDebugTimerOwned;
 static UINT64 mDebugSavedItv;
@@ -155,14 +154,14 @@ static UINT64 debug_support_interrupt_save(VOID)
 {
     UINT64 psr = fw_read_psr();
 
-    __asm__ volatile ("rsm psr.i;;\n\tsrlz.d;;" ::: "memory");
+    __asm__ volatile("rsm psr.i;;\n\tsrlz.d;;" ::: "memory");
     return psr;
 }
 
 static VOID debug_support_interrupt_restore(UINT64 SavedPsr)
 {
     if ((SavedPsr & IA64_PSR_I) != 0) {
-        __asm__ volatile ("ssm psr.i;;\n\tsrlz.d;;" ::: "memory");
+        __asm__ volatile("ssm psr.i;;\n\tsrlz.d;;" ::: "memory");
     }
 }
 
@@ -171,10 +170,9 @@ static VOID debug_support_collection_acquire(VOID)
     if (mDebugCollectionOwned) {
         return;
     }
-    mDebugCollectionWasEnabled =
-        (fw_read_psr() & IA64_PSR_IC) != 0;
+    mDebugCollectionWasEnabled = (fw_read_psr() & IA64_PSR_IC) != 0;
     if (!mDebugCollectionWasEnabled) {
-        __asm__ volatile ("ssm psr.ic;;\n\tsrlz.d;;" ::: "memory");
+        __asm__ volatile("ssm psr.ic;;\n\tsrlz.d;;" ::: "memory");
     }
     mDebugCollectionOwned = 1;
 }
@@ -186,15 +184,14 @@ static VOID debug_support_collection_release(VOID)
     if (!mDebugCollectionOwned) {
         return;
     }
-    for (exception_type = 0;
-         exception_type < DEBUG_SUPPORT_EXCEPTION_COUNT;
+    for (exception_type = 0; exception_type < DEBUG_SUPPORT_EXCEPTION_COUNT;
          exception_type++) {
         if (mDebugIvtHooks[exception_type].installed) {
             return;
         }
     }
     if (!mDebugCollectionWasEnabled) {
-        __asm__ volatile ("rsm psr.ic;;\n\tsrlz.d;;" ::: "memory");
+        __asm__ volatile("rsm psr.ic;;\n\tsrlz.d;;" ::: "memory");
     }
     mDebugCollectionOwned = 0;
 }
@@ -203,7 +200,7 @@ static UINT64 debug_support_read_itv(VOID)
 {
     UINT64 value;
 
-    __asm__ volatile ("mov %0 = cr.itv;;" : "=r"(value));
+    __asm__ volatile("mov %0 = cr.itv;;" : "=r"(value));
     return value;
 }
 
@@ -211,20 +208,18 @@ static UINT64 debug_support_read_itm(VOID)
 {
     UINT64 value;
 
-    __asm__ volatile ("mov %0 = cr.itm;;" : "=r"(value));
+    __asm__ volatile("mov %0 = cr.itm;;" : "=r"(value));
     return value;
 }
 
 static VOID debug_support_write_itv(UINT64 Value)
 {
-    __asm__ volatile ("mov cr.itv = %0;;\n\tsrlz.d;;"
-                      : : "r"(Value) : "memory");
+    __asm__ volatile("mov cr.itv = %0;;\n\tsrlz.d;;" : : "r"(Value) : "memory");
 }
 
 static VOID debug_support_write_itm(UINT64 Value)
 {
-    __asm__ volatile ("mov cr.itm = %0;;\n\tsrlz.d;;"
-                      : : "r"(Value) : "memory");
+    __asm__ volatile("mov cr.itm = %0;;\n\tsrlz.d;;" : : "r"(Value) : "memory");
 }
 
 static BOOLEAN debug_support_hook_install(EFI_EXCEPTION_TYPE ExceptionType)
@@ -242,8 +237,7 @@ static BOOLEAN debug_support_hook_install(EFI_EXCEPTION_TYPE ExceptionType)
     if (hook->installed) {
         return 1;
     }
-    stub_length = (UINTN)(fw_debug_ivt_stub_end -
-                          fw_debug_ivt_stub_start);
+    stub_length = (UINTN)(fw_debug_ivt_stub_end - fw_debug_ivt_stub_start);
     slot_length = ExceptionType < 20 ? 0x400U : 0x100U;
     if (stub_length == 0 || stub_length > sizeof(hook->original) ||
         stub_length > slot_length) {
@@ -255,7 +249,7 @@ static BOOLEAN debug_support_hook_install(EFI_EXCEPTION_TYPE ExceptionType)
     saved_psr = debug_support_interrupt_save();
     fw_copy_mem(hook->original, vector, stub_length);
     fw_copy_mem(vector, fw_debug_ivt_stub_start, stub_length);
-    __asm__ volatile ("mf;;" ::: "memory");
+    __asm__ volatile("mf;;" ::: "memory");
     fw_flush_instruction_cache(vector, stub_length);
     hook->length = stub_length;
     hook->installed = 1;
@@ -270,8 +264,7 @@ static VOID debug_support_hook_remove(EFI_EXCEPTION_TYPE ExceptionType)
     UINT8 *vector;
     UINT64 saved_psr;
 
-    if (ExceptionType < 0 ||
-        ExceptionType >= DEBUG_SUPPORT_EXCEPTION_COUNT) {
+    if (ExceptionType < 0 || ExceptionType >= DEBUG_SUPPORT_EXCEPTION_COUNT) {
         return;
     }
     hook = &mDebugIvtHooks[ExceptionType];
@@ -282,7 +275,7 @@ static VOID debug_support_hook_remove(EFI_EXCEPTION_TYPE ExceptionType)
                               debug_support_ivt_offset(ExceptionType));
     saved_psr = debug_support_interrupt_save();
     fw_copy_mem(vector, hook->original, hook->length);
-    __asm__ volatile ("mf;;" ::: "memory");
+    __asm__ volatile("mf;;" ::: "memory");
     fw_flush_instruction_cache(vector, hook->length);
     hook->installed = 0;
     hook->length = 0;
@@ -313,8 +306,7 @@ static VOID debug_support_timer_start(VOID)
     mDebugTimerOwned = 1;
     debug_support_write_itv(DEBUG_SUPPORT_ITV_MASK |
                             DEBUG_SUPPORT_TIMER_VECTOR);
-    debug_support_write_itm(fw_read_itc() +
-                            DEBUG_SUPPORT_TIMER_INTERVAL);
+    debug_support_write_itm(fw_read_itc() + DEBUG_SUPPORT_TIMER_INTERVAL);
     debug_support_write_itv(DEBUG_SUPPORT_TIMER_VECTOR);
 }
 
@@ -330,8 +322,9 @@ static VOID debug_support_timer_stop(VOID)
     mDebugTimerOwned = 0;
 }
 
-static EFI_STATUS debug_support_get_maximum_processor_index(
-    EFI_DEBUG_SUPPORT_PROTOCOL *This, UINTN *MaxProcessorIndex)
+static EFI_STATUS
+debug_support_get_maximum_processor_index(EFI_DEBUG_SUPPORT_PROTOCOL *This,
+                                          UINTN *MaxProcessorIndex)
 {
     if (This != &mDebugSupportProtocol || MaxProcessorIndex == NULL) {
         return EFI_INVALID_PARAMETER;
@@ -341,9 +334,10 @@ static EFI_STATUS debug_support_get_maximum_processor_index(
     return EFI_SUCCESS;
 }
 
-static EFI_STATUS debug_support_register_periodic_callback(
-    EFI_DEBUG_SUPPORT_PROTOCOL *This, UINTN ProcessorIndex,
-    EFI_PERIODIC_CALLBACK PeriodicCallback)
+static EFI_STATUS
+debug_support_register_periodic_callback(EFI_DEBUG_SUPPORT_PROTOCOL *This,
+                                         UINTN ProcessorIndex,
+                                         EFI_PERIODIC_CALLBACK PeriodicCallback)
 {
     UINT64 saved_psr;
 
@@ -357,8 +351,7 @@ static EFI_STATUS debug_support_register_periodic_callback(
             return EFI_ALREADY_STARTED;
         }
         mDebugPeriodicCallback = PeriodicCallback;
-        if (!debug_support_update_hook(
-                DEBUG_SUPPORT_EXTERNAL_INTERRUPT)) {
+        if (!debug_support_update_hook(DEBUG_SUPPORT_EXTERNAL_INTERRUPT)) {
             mDebugPeriodicCallback = NULL;
             debug_support_interrupt_restore(saved_psr);
             return EFI_OUT_OF_RESOURCES;
@@ -367,8 +360,7 @@ static EFI_STATUS debug_support_register_periodic_callback(
     } else {
         mDebugPeriodicCallback = NULL;
         debug_support_timer_stop();
-        (void)debug_support_update_hook(
-            DEBUG_SUPPORT_EXTERNAL_INTERRUPT);
+        (void)debug_support_update_hook(DEBUG_SUPPORT_EXTERNAL_INTERRUPT);
     }
     debug_support_interrupt_restore(saved_psr);
     return EFI_SUCCESS;
@@ -376,8 +368,7 @@ static EFI_STATUS debug_support_register_periodic_callback(
 
 static EFI_STATUS debug_support_register_exception_callback(
     EFI_DEBUG_SUPPORT_PROTOCOL *This, UINTN ProcessorIndex,
-    EFI_EXCEPTION_CALLBACK ExceptionCallback,
-    EFI_EXCEPTION_TYPE ExceptionType)
+    EFI_EXCEPTION_CALLBACK ExceptionCallback, EFI_EXCEPTION_TYPE ExceptionType)
 {
     EFI_EXCEPTION_CALLBACK old_callback;
     UINT64 saved_psr;
@@ -402,9 +393,10 @@ static EFI_STATUS debug_support_register_exception_callback(
     return EFI_SUCCESS;
 }
 
-static EFI_STATUS debug_support_invalidate_instruction_cache(
-    EFI_DEBUG_SUPPORT_PROTOCOL *This, UINTN ProcessorIndex,
-    VOID *Start, UINT64 Length)
+static EFI_STATUS
+debug_support_invalidate_instruction_cache(EFI_DEBUG_SUPPORT_PROTOCOL *This,
+                                           UINTN ProcessorIndex, VOID *Start,
+                                           UINT64 Length)
 {
     if (This != &mDebugSupportProtocol || ProcessorIndex != 0 ||
         (Start == NULL && Length != 0) ||
@@ -447,18 +439,17 @@ VOID fw_debug_support_dispatch(EFI_EXCEPTION_TYPE ExceptionType,
         if (ProcessorIndex == 0 &&
             mDebugExceptionCallbacks[ExceptionType] != NULL) {
             mDebugExceptionCallbacks[ExceptionType](ExceptionType,
-                                                     system_context);
+                                                    system_context);
         }
         if (periodic) {
-            Context->CrItm = mDebugPeriodicCallback != NULL ?
-                fw_read_itc() + DEBUG_SUPPORT_TIMER_INTERVAL :
-                mDebugSavedItm;
+            Context->CrItm = mDebugPeriodicCallback != NULL
+                                 ? fw_read_itc() + DEBUG_SUPPORT_TIMER_INTERVAL
+                                 : mDebugSavedItm;
         }
         fw_write_eoi();
     } else if (ProcessorIndex == 0 &&
                mDebugExceptionCallbacks[ExceptionType] != NULL) {
-        mDebugExceptionCallbacks[ExceptionType](ExceptionType,
-                                                 system_context);
+        mDebugExceptionCallbacks[ExceptionType](ExceptionType, system_context);
     }
 
     /*
@@ -478,8 +469,7 @@ BOOLEAN fw_debug_support_install(VOID)
     EFI_HANDLE handle = NULL;
 
     fw_set_mem(&mDebugSupportProtocol, sizeof(mDebugSupportProtocol), 0);
-    fw_set_mem(mDebugExceptionCallbacks,
-               sizeof(mDebugExceptionCallbacks), 0);
+    fw_set_mem(mDebugExceptionCallbacks, sizeof(mDebugExceptionCallbacks), 0);
     fw_set_mem(mDebugIvtHooks, sizeof(mDebugIvtHooks), 0);
     fw_set_mem(mDebugDispatchActive, sizeof(mDebugDispatchActive), 0);
     mDebugPeriodicCallback = NULL;
@@ -511,8 +501,7 @@ VOID fw_debug_support_exit_boot_services(VOID)
 
     mDebugPeriodicCallback = NULL;
     debug_support_timer_stop();
-    for (exception_type = 0;
-         exception_type < DEBUG_SUPPORT_EXCEPTION_COUNT;
+    for (exception_type = 0; exception_type < DEBUG_SUPPORT_EXCEPTION_COUNT;
          exception_type++) {
         mDebugExceptionCallbacks[exception_type] = NULL;
         debug_support_hook_remove((EFI_EXCEPTION_TYPE)exception_type);

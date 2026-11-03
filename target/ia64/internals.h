@@ -17,7 +17,6 @@
 #define PAL_PROC_MONTECITO_AVAILABLE \
     (PAL_PROC_MONTECITO_CONTROLLABLE | PAL_PROC_MONTECITO_HT)
 
-
 typedef struct IA64ExceptionState {
     /* Restart-visible exception and interruption-delivery state. */
     uint64_t fault_ip;

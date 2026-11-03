@@ -56,15 +56,13 @@ struct IA64ZX6000ZX1TestState {
     DeviceState parent_obj;
 
     IA64ZX6000ZX1TestLayout layout;
-    ZX1TestRootBaseline layout_baseline[
-        IA64_ZX6000_ZX1_TEST_ROOT_COUNT];
+    ZX1TestRootBaseline layout_baseline[IA64_ZX6000_ZX1_TEST_ROOT_COUNT];
     MemoryRegion *ram;
 
     HPZX1MIOState *mio;
     HPZX1IOAState *ioas[IA64_ZX6000_ZX1_TEST_ROOT_COUNT];
     MemoryRegion root_mmio[IA64_ZX6000_ZX1_TEST_ROOT_COUNT];
-    ZX1TestDeliveryContext delivery_context[
-        IA64_ZX6000_ZX1_TEST_ROOT_COUNT];
+    ZX1TestDeliveryContext delivery_context[IA64_ZX6000_ZX1_TEST_ROOT_COUNT];
 
     uint64_t delivery_count[IA64_ZX6000_ZX1_TEST_ROOT_COUNT];
     uint64_t last_address[IA64_ZX6000_ZX1_TEST_ROOT_COUNT];
@@ -114,33 +112,31 @@ static PCIUnregisterFunc *zx1_test_probe_parent_exit;
                  TYPE_IA64_ZX6000_ZX1_QTEST)
 
 static bool zx1_test_system_range_is_free(uint64_t base, uint64_t size,
-                                    const char *name, Error **errp)
+                                          const char *name, Error **errp)
 {
-    MemoryRegionSection section = memory_region_find(get_system_memory(),
-                                                      base, size);
+    MemoryRegionSection section =
+        memory_region_find(get_system_memory(), base, size);
 
     if (!section.mr) {
         return true;
     }
 
-    error_setg(errp,
-               "zx6000 zx1 test %s range overlaps system region '%s'",
+    error_setg(errp, "zx6000 zx1 test %s range overlaps system region '%s'",
                name, memory_region_name(section.mr));
     memory_region_unref(section.mr);
     return false;
 }
 
 static bool zx1_test_system_range_is_region(uint64_t base, uint64_t size,
-                                      MemoryRegion *expected,
-                                      uint64_t expected_offset)
+                                            MemoryRegion *expected,
+                                            uint64_t expected_offset)
 {
-    MemoryRegionSection section = memory_region_find(get_system_memory(),
-                                                      base, size);
-    bool valid = section.mr == expected &&
-                 section.offset_within_address_space == base &&
-                 int128_get64(section.size) == size &&
-                 section.offset_within_region == expected_offset &&
-                 !section.readonly;
+    MemoryRegionSection section =
+        memory_region_find(get_system_memory(), base, size);
+    bool valid =
+        section.mr == expected && section.offset_within_address_space == base &&
+        int128_get64(section.size) == size &&
+        section.offset_within_region == expected_offset && !section.readonly;
 
     if (section.mr) {
         memory_region_unref(section.mr);
@@ -149,11 +145,11 @@ static bool zx1_test_system_range_is_region(uint64_t base, uint64_t size,
 }
 
 static bool zx1_test_system_range_is_ram(IA64ZX6000ZX1TestState *s,
-                                   uint64_t base, uint64_t size,
-                                   Error **errp)
+                                         uint64_t base, uint64_t size,
+                                         Error **errp)
 {
     if (!zx1_test_system_range_is_region(base, size, s->ram,
-                                   base - s->layout.ram.base)) {
+                                         base - s->layout.ram.base)) {
         error_setg(errp,
                    "zx6000 zx1 test requires its linked RAM to be flat "
                    "at [0x%" PRIx64 ", 0x%" PRIx64 ")",
@@ -164,12 +160,11 @@ static bool zx1_test_system_range_is_ram(IA64ZX6000ZX1TestState *s,
 }
 
 static bool zx1_test_system_pib_is_present(uint64_t base, uint64_t size,
-                                     Error **errp)
+                                           Error **errp)
 {
-    MemoryRegionSection section = memory_region_find(get_system_memory(),
-                                                      base, size);
-    bool valid = section.mr &&
-                 section.offset_within_address_space == base &&
+    MemoryRegionSection section =
+        memory_region_find(get_system_memory(), base, size);
+    bool valid = section.mr && section.offset_within_address_space == base &&
                  int128_get64(section.size) == size &&
                  !memory_region_is_ram(section.mr) &&
                  !memory_region_is_ram_device(section.mr) &&
@@ -188,7 +183,7 @@ static bool zx1_test_system_pib_is_present(uint64_t base, uint64_t size,
 }
 
 static bool zx1_test_validate_parent_resources(IA64ZX6000ZX1TestState *s,
-                                         Error **errp)
+                                               Error **errp)
 {
     unsigned int root;
 
@@ -197,41 +192,36 @@ static bool zx1_test_validate_parent_resources(IA64ZX6000ZX1TestState *s,
                    IA64_ZX6000_ZX1_TEST_PROP_RAM);
         return false;
     }
-    if (!memory_region_is_ram(s->ram) ||
-        memory_region_is_ram_device(s->ram) ||
-        memory_region_is_rom(s->ram) ||
-        memory_region_is_protected(s->ram) ||
+    if (!memory_region_is_ram(s->ram) || memory_region_is_ram_device(s->ram) ||
+        memory_region_is_rom(s->ram) || memory_region_is_protected(s->ram) ||
         memory_region_size(s->ram) != s->layout.ram.size) {
-        error_setg(errp,
-                   "zx6000 zx1 test requires exactly 512 MiB of "
-                   "ordinary writable RAM");
+        error_setg(errp, "zx6000 zx1 test requires exactly 512 MiB of "
+                         "ordinary writable RAM");
         return false;
     }
 
     /* The MIO walks this same parent-owned RAM for the PDIR and targets. */
-    if (!zx1_test_system_range_is_ram(s, s->layout.ram.base,
-                                s->layout.ram.size, errp) ||
-        !zx1_test_system_pib_is_present(s->layout.pib.base,
-                                  s->layout.pib.size, errp) ||
-        !zx1_test_system_range_is_free(s->layout.mio.base,
-                                 s->layout.mio.size, "MIO CSR", errp)) {
+    if (!zx1_test_system_range_is_ram(s, s->layout.ram.base, s->layout.ram.size,
+                                      errp) ||
+        !zx1_test_system_pib_is_present(s->layout.pib.base, s->layout.pib.size,
+                                        errp) ||
+        !zx1_test_system_range_is_free(s->layout.mio.base, s->layout.mio.size,
+                                       "MIO CSR", errp)) {
         return false;
     }
 
     for (root = 0; root < IA64_ZX6000_ZX1_TEST_ROOT_COUNT; root++) {
-        const IA64ZX6000ZX1TestRoot *layout_root =
-            &s->layout.roots[root];
-        g_autofree char *csr_name =
-            g_strdup_printf("Mercury %u CSR", root);
+        const IA64ZX6000ZX1TestRoot *layout_root = &s->layout.roots[root];
+        g_autofree char *csr_name = g_strdup_printf("Mercury %u CSR", root);
         g_autofree char *mmio_name =
             g_strdup_printf("Mercury %u CPU MMIO", root);
 
         if (!zx1_test_system_range_is_free(layout_root->ioa_csr.base,
-                                     layout_root->ioa_csr.size,
-                                     csr_name, errp) ||
+                                           layout_root->ioa_csr.size, csr_name,
+                                           errp) ||
             !zx1_test_system_range_is_free(layout_root->cpu_mmio.base,
-                                     layout_root->cpu_mmio.size,
-                                     mmio_name, errp)) {
+                                           layout_root->cpu_mmio.size,
+                                           mmio_name, errp)) {
             return false;
         }
     }
@@ -239,7 +229,7 @@ static bool zx1_test_validate_parent_resources(IA64ZX6000ZX1TestState *s,
 }
 
 static DeviceState *zx1_test_add_child(DeviceState *parent, const char *name,
-                                 const char *type)
+                                       const char *type)
 {
     DeviceState *child = qdev_new(type);
 
@@ -261,12 +251,11 @@ static void zx1_test_remove_child(DeviceState **child)
 }
 
 static bool zx1_test_message_in_pib(const IA64ZX6000ZX1TestState *s,
-                              uint64_t address)
+                                    uint64_t address)
 {
     const IA64ZX6000ZX1TestRange *pib = &s->layout.pib;
 
-    return !(address & (sizeof(uint64_t) - 1)) &&
-           address >= pib->base &&
+    return !(address & (sizeof(uint64_t) - 1)) && address >= pib->base &&
            address <= pib->base + pib->size - sizeof(uint64_t);
 }
 
@@ -283,8 +272,7 @@ static void zx1_test_deliver(void *opaque, const HPIOSAPICMessage *message)
     s->last_data[root] = message->data;
     if (zx1_test_message_in_pib(s, message->address)) {
         address_space_stq_le(&address_space_memory, message->address,
-                             message->data, MEMTXATTRS_UNSPECIFIED,
-                             &result);
+                             message->data, MEMTXATTRS_UNSPECIFIED, &result);
     }
     s->last_result[root] = result;
     s->delivery_count[root]++;
@@ -307,8 +295,8 @@ static bool zx1_test_create_mio(IA64ZX6000ZX1TestState *s, Error **errp)
         !sysbus_realize(SYS_BUS_DEVICE(child), errp)) {
         return false;
     }
-    if (memory_region_size(sysbus_mmio_get_region(
-            SYS_BUS_DEVICE(child), 0)) != s->layout.mio.size) {
+    if (memory_region_size(sysbus_mmio_get_region(SYS_BUS_DEVICE(child), 0)) !=
+        s->layout.mio.size) {
         error_setg(errp, "zx6000 zx1 test MIO CSR size mismatch");
         return false;
     }
@@ -316,7 +304,7 @@ static bool zx1_test_create_mio(IA64ZX6000ZX1TestState *s, Error **errp)
 }
 
 static bool zx1_test_create_ioa(IA64ZX6000ZX1TestState *s, unsigned int root,
-                          Error **errp)
+                                Error **errp)
 {
     const IA64ZX6000ZX1TestRoot *layout_root = &s->layout.roots[root];
     ZX1TestDeliveryContext *context = &s->delivery_context[root];
@@ -334,12 +322,11 @@ static bool zx1_test_create_ioa(IA64ZX6000ZX1TestState *s, unsigned int root,
         .delivery_opaque = context,
     };
     g_autofree char *child_name = g_strdup_printf("ioa%u", root);
-    g_autofree char *alias_name = g_strdup_printf(
-        TYPE_IA64_ZX6000_ZX1_TEST ".root%u-mmio", root);
+    g_autofree char *alias_name =
+        g_strdup_printf(TYPE_IA64_ZX6000_ZX1_TEST ".root%u-mmio", root);
     DeviceState *child;
 
-    memcpy(setup.intx_route, layout_root->intx_route,
-           sizeof(setup.intx_route));
+    memcpy(setup.intx_route, layout_root->intx_route, sizeof(setup.intx_route));
     context->fixture = s;
     context->root = root;
 
@@ -349,10 +336,9 @@ static bool zx1_test_create_ioa(IA64ZX6000ZX1TestState *s, unsigned int root,
         !sysbus_realize(SYS_BUS_DEVICE(child), errp)) {
         return false;
     }
-    if (memory_region_size(sysbus_mmio_get_region(
-            SYS_BUS_DEVICE(child), 0)) != layout_root->ioa_csr.size) {
-        error_setg(errp,
-                   "zx6000 zx1 test Mercury %u CSR size mismatch", root);
+    if (memory_region_size(sysbus_mmio_get_region(SYS_BUS_DEVICE(child), 0)) !=
+        layout_root->ioa_csr.size) {
+        error_setg(errp, "zx6000 zx1 test Mercury %u CSR size mismatch", root);
         return false;
     }
 
@@ -381,9 +367,9 @@ static void zx1_test_map_system(IA64ZX6000ZX1TestState *s)
         memory_region_add_subregion(
             get_system_memory(), s->layout.roots[root].ioa_csr.base,
             sysbus_mmio_get_region(SYS_BUS_DEVICE(s->ioas[root]), 0));
-        memory_region_add_subregion(
-            get_system_memory(), s->layout.roots[root].cpu_mmio.base,
-            &s->root_mmio[root]);
+        memory_region_add_subregion(get_system_memory(),
+                                    s->layout.roots[root].cpu_mmio.base,
+                                    &s->root_mmio[root]);
     }
     memory_region_transaction_commit();
     s->system_regions_mapped = true;
@@ -398,17 +384,14 @@ static void zx1_test_unmap_system(IA64ZX6000ZX1TestState *s)
     }
 
     memory_region_transaction_begin();
-    for (root = IA64_ZX6000_ZX1_TEST_ROOT_COUNT - 1;
-         root >= 0; root--) {
-        memory_region_del_subregion(get_system_memory(),
-                                    &s->root_mmio[root]);
+    for (root = IA64_ZX6000_ZX1_TEST_ROOT_COUNT - 1; root >= 0; root--) {
+        memory_region_del_subregion(get_system_memory(), &s->root_mmio[root]);
         memory_region_del_subregion(
             get_system_memory(),
             sysbus_mmio_get_region(SYS_BUS_DEVICE(s->ioas[root]), 0));
     }
     memory_region_del_subregion(
-        get_system_memory(),
-        sysbus_mmio_get_region(SYS_BUS_DEVICE(s->mio), 0));
+        get_system_memory(), sysbus_mmio_get_region(SYS_BUS_DEVICE(s->mio), 0));
     memory_region_transaction_commit();
     s->system_regions_mapped = false;
 }
@@ -417,8 +400,7 @@ static void zx1_test_detach_roots(IA64ZX6000ZX1TestState *s)
 {
     int root;
 
-    for (root = IA64_ZX6000_ZX1_TEST_ROOT_COUNT - 1;
-         root >= 0; root--) {
+    for (root = IA64_ZX6000_ZX1_TEST_ROOT_COUNT - 1; root >= 0; root--) {
         bool detached;
 
         if (!s->roots_attached[root]) {
@@ -436,8 +418,7 @@ static void zx1_test_destroy_aliases(IA64ZX6000ZX1TestState *s)
 {
     int root;
 
-    for (root = IA64_ZX6000_ZX1_TEST_ROOT_COUNT - 1;
-         root >= 0; root--) {
+    for (root = IA64_ZX6000_ZX1_TEST_ROOT_COUNT - 1; root >= 0; root--) {
         if (s->root_mmio_initialized[root]) {
             object_unparent(OBJECT(&s->root_mmio[root]));
             s->root_mmio_initialized[root] = false;
@@ -458,8 +439,7 @@ static void zx1_test_cleanup(IA64ZX6000ZX1TestState *s)
     zx1_test_unmap_system(s);
     zx1_test_destroy_aliases(s);
 
-    for (root = IA64_ZX6000_ZX1_TEST_ROOT_COUNT - 1;
-         root >= 0; root--) {
+    for (root = IA64_ZX6000_ZX1_TEST_ROOT_COUNT - 1; root >= 0; root--) {
         if (s->ioas[root]) {
             child = DEVICE(s->ioas[root]);
             zx1_test_remove_child(&child);
@@ -474,34 +454,32 @@ static void zx1_test_cleanup(IA64ZX6000ZX1TestState *s)
 }
 
 static bool zx1_test_layout_baseline_valid(IA64ZX6000ZX1TestState *s,
-                                     Error **errp)
+                                           Error **errp)
 {
     unsigned int root;
     unsigned int pin;
     unsigned int slot;
 
     for (root = 0; root < IA64_ZX6000_ZX1_TEST_ROOT_COUNT; root++) {
-        const IA64ZX6000ZX1TestRoot *layout_root =
-            &s->layout.roots[root];
+        const IA64ZX6000ZX1TestRoot *layout_root = &s->layout.roots[root];
 
         if (s->layout_baseline[root].mode != layout_root->mode) {
-            error_setg(errp,
-                       "zx6000 zx1 test migration changed root %u mode",
+            error_setg(errp, "zx6000 zx1 test migration changed root %u mode",
                        root);
             return false;
         }
         for (slot = 0; slot < IA64_ZX6000_ZX1_TEST_SLOT_COUNT; slot++) {
             uint32_t packed = 0;
 
-            for (pin = 0;
-                 pin < IA64_ZX6000_ZX1_TEST_INTX_PIN_COUNT; pin++) {
+            for (pin = 0; pin < IA64_ZX6000_ZX1_TEST_INTX_PIN_COUNT; pin++) {
                 packed |= (uint32_t)layout_root->intx_route[slot][pin]
                           << (pin * 8);
             }
             if (s->layout_baseline[root].routes[slot].packed != packed) {
                 error_setg(errp,
                            "zx6000 zx1 test migration changed root %u "
-                           "INTx routes", root);
+                           "INTx routes",
+                           root);
                 return false;
             }
         }
@@ -510,25 +488,26 @@ static bool zx1_test_layout_baseline_valid(IA64ZX6000ZX1TestState *s,
 }
 
 static bool zx1_test_delivery_state_valid(IA64ZX6000ZX1TestState *s,
-                                    Error **errp)
+                                          Error **errp)
 {
     unsigned int root;
 
     for (root = 0; root < IA64_ZX6000_ZX1_TEST_ROOT_COUNT; root++) {
         if (!s->delivery_count[root]) {
             if (s->last_address[root] || s->last_data[root] ||
-                s->last_result[root] !=
-                    IA64_ZX6000_ZX1_TEST_DELIVERY_NOT_RUN) {
+                s->last_result[root] != IA64_ZX6000_ZX1_TEST_DELIVERY_NOT_RUN) {
                 error_setg(errp,
                            "zx6000 zx1 test migration has inconsistent "
-                           "empty delivery state for root %u", root);
+                           "empty delivery state for root %u",
+                           root);
                 return false;
             }
         } else if (!zx1_test_message_in_pib(s, s->last_address[root]) ||
                    (s->last_result[root] & ~ZX1_TEST_DELIVERY_RESULT_MASK)) {
             error_setg(errp,
                        "zx6000 zx1 test migration has invalid last "
-                       "delivery for root %u", root);
+                       "delivery for root %u",
+                       root);
             return false;
         }
     }
@@ -536,47 +515,44 @@ static bool zx1_test_delivery_state_valid(IA64ZX6000ZX1TestState *s,
 }
 
 static bool zx1_test_realized_topology_valid(IA64ZX6000ZX1TestState *s,
-                                       Error **errp)
+                                             Error **errp)
 {
     unsigned int root;
 
     if (!s->mio || !qdev_is_realized(DEVICE(s->mio)) ||
-        !hp_zx1_mio_iommu_address_space(s->mio) ||
-        !s->system_regions_mapped ||
+        !hp_zx1_mio_iommu_address_space(s->mio) || !s->system_regions_mapped ||
         !zx1_test_system_range_is_region(
             s->layout.mio.base, s->layout.mio.size,
             sysbus_mmio_get_region(SYS_BUS_DEVICE(s->mio), 0), 0)) {
-        error_setg(errp,
-                   "zx6000 zx1 test migration destination has no MIO "
-                   "topology");
+        error_setg(errp, "zx6000 zx1 test migration destination has no MIO "
+                         "topology");
         return false;
     }
 
     for (root = 0; root < IA64_ZX6000_ZX1_TEST_ROOT_COUNT; root++) {
-        const IA64ZX6000ZX1TestRoot *layout_root =
-            &s->layout.roots[root];
+        const IA64ZX6000ZX1TestRoot *layout_root = &s->layout.roots[root];
         PCIBus *bus;
 
         if (!s->ioas[root] || !qdev_is_realized(DEVICE(s->ioas[root])) ||
-            !s->roots_attached[root] ||
-            !s->root_mmio_initialized[root] ||
+            !s->roots_attached[root] || !s->root_mmio_initialized[root] ||
             !memory_region_is_mapped(&s->root_mmio[root]) ||
             memory_region_size(&s->root_mmio[root]) !=
                 layout_root->cpu_mmio.size) {
             error_setg(errp,
                        "zx6000 zx1 test migration destination lacks "
-                       "Mercury root %u", root);
+                       "Mercury root %u",
+                       root);
             return false;
         }
         bus = hp_zx1_ioa_bus(s->ioas[root]);
         if (!bus || pci_bus_num(bus) != layout_root->first_bus ||
             !zx1_test_system_range_is_region(
                 layout_root->ioa_csr.base, layout_root->ioa_csr.size,
-                sysbus_mmio_get_region(SYS_BUS_DEVICE(s->ioas[root]), 0),
-                0)) {
+                sysbus_mmio_get_region(SYS_BUS_DEVICE(s->ioas[root]), 0), 0)) {
             error_setg(errp,
                        "zx6000 zx1 test migration destination has "
-                       "invalid Mercury root %u mappings", root);
+                       "invalid Mercury root %u mappings",
+                       root);
             return false;
         }
     }
@@ -589,10 +565,10 @@ static bool zx1_test_post_load(void *opaque, int version_id, Error **errp)
 
     if (!ia64_zx6000_zx1_test_layout_validate(&s->layout, errp) ||
         !zx1_test_layout_baseline_valid(s, errp) ||
-        !zx1_test_system_range_is_ram(s, s->layout.ram.base,
-                                s->layout.ram.size, errp) ||
-        !zx1_test_system_pib_is_present(s->layout.pib.base,
-                                  s->layout.pib.size, errp) ||
+        !zx1_test_system_range_is_ram(s, s->layout.ram.base, s->layout.ram.size,
+                                      errp) ||
+        !zx1_test_system_pib_is_present(s->layout.pib.base, s->layout.pib.size,
+                                        errp) ||
         !zx1_test_realized_topology_valid(s, errp) ||
         !zx1_test_delivery_state_valid(s, errp)) {
         return false;
@@ -609,9 +585,9 @@ static bool zx1_test_pre_save(void *opaque, Error **errp)
     return ia64_zx6000_zx1_test_layout_validate(&s->layout, errp) &&
            zx1_test_layout_baseline_valid(s, errp) &&
            zx1_test_system_range_is_ram(s, s->layout.ram.base,
-                                  s->layout.ram.size, errp) &&
+                                        s->layout.ram.size, errp) &&
            zx1_test_system_pib_is_present(s->layout.pib.base,
-                                    s->layout.pib.size, errp) &&
+                                          s->layout.pib.size, errp) &&
            zx1_test_realized_topology_valid(s, errp) &&
            zx1_test_delivery_state_valid(s, errp);
 }
@@ -660,8 +636,7 @@ static void zx1_test_reset(DeviceState *dev)
         s->delivery_count[root] = 0;
         s->last_address[root] = 0;
         s->last_data[root] = 0;
-        s->last_result[root] =
-            IA64_ZX6000_ZX1_TEST_DELIVERY_NOT_RUN;
+        s->last_result[root] = IA64_ZX6000_ZX1_TEST_DELIVERY_NOT_RUN;
     }
 }
 
@@ -672,15 +647,13 @@ static void zx1_test_init_layout_baseline(IA64ZX6000ZX1TestState *s)
     unsigned int slot;
 
     for (root = 0; root < IA64_ZX6000_ZX1_TEST_ROOT_COUNT; root++) {
-        const IA64ZX6000ZX1TestRoot *layout_root =
-            &s->layout.roots[root];
+        const IA64ZX6000ZX1TestRoot *layout_root = &s->layout.roots[root];
 
         s->layout_baseline[root].mode = layout_root->mode;
         for (slot = 0; slot < IA64_ZX6000_ZX1_TEST_SLOT_COUNT; slot++) {
             uint32_t packed = 0;
 
-            for (pin = 0;
-                 pin < IA64_ZX6000_ZX1_TEST_INTX_PIN_COUNT; pin++) {
+            for (pin = 0; pin < IA64_ZX6000_ZX1_TEST_INTX_PIN_COUNT; pin++) {
                 packed |= (uint32_t)layout_root->intx_route[slot][pin]
                           << (pin * 8);
             }
@@ -722,8 +695,7 @@ static void zx1_test_init(Object *obj)
                                        &s->last_address[root],
                                        OBJ_PROP_FLAG_READ);
         object_property_add_uint32_ptr(obj, data_properties[root],
-                                       &s->last_data[root],
-                                       OBJ_PROP_FLAG_READ);
+                                       &s->last_data[root], OBJ_PROP_FLAG_READ);
         object_property_add_uint32_ptr(obj, result_properties[root],
                                        &s->last_result[root],
                                        OBJ_PROP_FLAG_READ);
@@ -734,74 +706,72 @@ static const VMStateDescription vmstate_zx1_test_range = {
     .name = TYPE_IA64_ZX6000_ZX1_TEST "/range",
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (const VMStateField[]) {
-        VMSTATE_UINT64_EQUAL(base, IA64ZX6000ZX1TestRange),
-        VMSTATE_UINT64_EQUAL(size, IA64ZX6000ZX1TestRange),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) {
+            VMSTATE_UINT64_EQUAL(base, IA64ZX6000ZX1TestRange),
+            VMSTATE_UINT64_EQUAL(size, IA64ZX6000ZX1TestRange),
+            VMSTATE_END_OF_LIST() },
 };
 
 static const VMStateDescription vmstate_zx1_test_iommu_layout = {
     .name = TYPE_IA64_ZX6000_ZX1_TEST "/iommu-layout",
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (const VMStateField[]) {
-        VMSTATE_STRUCT(aperture, IA64ZX6000ZX1TestIOMMU, 1,
-                       vmstate_zx1_test_range, IA64ZX6000ZX1TestRange),
-        VMSTATE_STRUCT(pdir, IA64ZX6000ZX1TestIOMMU, 1,
-                       vmstate_zx1_test_range, IA64ZX6000ZX1TestRange),
-        VMSTATE_STRUCT(test_target, IA64ZX6000ZX1TestIOMMU, 1,
-                       vmstate_zx1_test_range, IA64ZX6000ZX1TestRange),
-        VMSTATE_UINT64_EQUAL(ibase_reset, IA64ZX6000ZX1TestIOMMU),
-        VMSTATE_UINT64_EQUAL(imask_reset, IA64ZX6000ZX1TestIOMMU),
-        VMSTATE_UINT64_EQUAL(pcom_reset, IA64ZX6000ZX1TestIOMMU),
-        VMSTATE_UINT64_EQUAL(tcnfg_reset, IA64ZX6000ZX1TestIOMMU),
-        VMSTATE_UINT64_EQUAL(pdir_base_reset, IA64ZX6000ZX1TestIOMMU),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) {
+            VMSTATE_STRUCT(aperture, IA64ZX6000ZX1TestIOMMU, 1,
+                           vmstate_zx1_test_range, IA64ZX6000ZX1TestRange),
+            VMSTATE_STRUCT(pdir, IA64ZX6000ZX1TestIOMMU, 1,
+                           vmstate_zx1_test_range, IA64ZX6000ZX1TestRange),
+            VMSTATE_STRUCT(test_target, IA64ZX6000ZX1TestIOMMU, 1,
+                           vmstate_zx1_test_range, IA64ZX6000ZX1TestRange),
+            VMSTATE_UINT64_EQUAL(ibase_reset, IA64ZX6000ZX1TestIOMMU),
+            VMSTATE_UINT64_EQUAL(imask_reset, IA64ZX6000ZX1TestIOMMU),
+            VMSTATE_UINT64_EQUAL(pcom_reset, IA64ZX6000ZX1TestIOMMU),
+            VMSTATE_UINT64_EQUAL(tcnfg_reset, IA64ZX6000ZX1TestIOMMU),
+            VMSTATE_UINT64_EQUAL(pdir_base_reset, IA64ZX6000ZX1TestIOMMU),
+            VMSTATE_END_OF_LIST() },
 };
 
 static const VMStateDescription vmstate_zx1_test_root_layout = {
     .name = TYPE_IA64_ZX6000_ZX1_TEST "/root-layout",
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (const VMStateField[]) {
-        VMSTATE_STRUCT(ioa_csr, IA64ZX6000ZX1TestRoot, 1,
-                       vmstate_zx1_test_range, IA64ZX6000ZX1TestRange),
-        VMSTATE_STRUCT(pci_mmio, IA64ZX6000ZX1TestRoot, 1,
-                       vmstate_zx1_test_range, IA64ZX6000ZX1TestRange),
-        VMSTATE_STRUCT(cpu_mmio, IA64ZX6000ZX1TestRoot, 1,
-                       vmstate_zx1_test_range, IA64ZX6000ZX1TestRange),
-        VMSTATE_UINT32_EQUAL(rope_mask, IA64ZX6000ZX1TestRoot),
-        VMSTATE_UINT64_EQUAL(bus_mode_reset, IA64ZX6000ZX1TestRoot),
-        VMSTATE_UINT8_EQUAL(first_bus, IA64ZX6000ZX1TestRoot),
-        VMSTATE_UINT8_EQUAL(last_bus, IA64ZX6000ZX1TestRoot),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) {
+            VMSTATE_STRUCT(ioa_csr, IA64ZX6000ZX1TestRoot, 1,
+                           vmstate_zx1_test_range, IA64ZX6000ZX1TestRange),
+            VMSTATE_STRUCT(pci_mmio, IA64ZX6000ZX1TestRoot, 1,
+                           vmstate_zx1_test_range, IA64ZX6000ZX1TestRange),
+            VMSTATE_STRUCT(cpu_mmio, IA64ZX6000ZX1TestRoot, 1,
+                           vmstate_zx1_test_range, IA64ZX6000ZX1TestRange),
+            VMSTATE_UINT32_EQUAL(rope_mask, IA64ZX6000ZX1TestRoot),
+            VMSTATE_UINT64_EQUAL(bus_mode_reset, IA64ZX6000ZX1TestRoot),
+            VMSTATE_UINT8_EQUAL(first_bus, IA64ZX6000ZX1TestRoot),
+            VMSTATE_UINT8_EQUAL(last_bus, IA64ZX6000ZX1TestRoot),
+            VMSTATE_END_OF_LIST() },
 };
 
 static const VMStateDescription vmstate_zx1_test_route_baseline = {
     .name = TYPE_IA64_ZX6000_ZX1_TEST "/route-layout",
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (const VMStateField[]) {
-        VMSTATE_UINT32_EQUAL(packed, ZX1TestRouteBaseline),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields = (const VMStateField[]) { VMSTATE_UINT32_EQUAL(
+                                           packed, ZX1TestRouteBaseline),
+                                       VMSTATE_END_OF_LIST() },
 };
 
 static const VMStateDescription vmstate_zx1_test_root_baseline = {
     .name = TYPE_IA64_ZX6000_ZX1_TEST "/root-baseline",
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (const VMStateField[]) {
-        VMSTATE_UINT8_EQUAL(mode, ZX1TestRootBaseline),
-        VMSTATE_STRUCT_ARRAY(routes, ZX1TestRootBaseline,
-                             IA64_ZX6000_ZX1_TEST_SLOT_COUNT, 1,
-                             vmstate_zx1_test_route_baseline,
-                             ZX1TestRouteBaseline),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) {
+            VMSTATE_UINT8_EQUAL(mode, ZX1TestRootBaseline),
+            VMSTATE_STRUCT_ARRAY(
+                routes, ZX1TestRootBaseline, IA64_ZX6000_ZX1_TEST_SLOT_COUNT, 1,
+                vmstate_zx1_test_route_baseline, ZX1TestRouteBaseline),
+            VMSTATE_END_OF_LIST() },
 };
 
 static const VMStateDescription vmstate_zx1_test = {
@@ -810,47 +780,41 @@ static const VMStateDescription vmstate_zx1_test = {
     .minimum_version_id = 1,
     .pre_save_errp = zx1_test_pre_save,
     .post_load_errp = zx1_test_post_load,
-    .fields = (const VMStateField[]) {
-        /* Fixed layout values must match at the destination. */
-        VMSTATE_STRUCT(layout.ram, IA64ZX6000ZX1TestState, 1,
-                       vmstate_zx1_test_range, IA64ZX6000ZX1TestRange),
-        VMSTATE_STRUCT(layout.mio, IA64ZX6000ZX1TestState, 1,
-                       vmstate_zx1_test_range, IA64ZX6000ZX1TestRange),
-        VMSTATE_STRUCT(layout.pib, IA64ZX6000ZX1TestState, 1,
-                       vmstate_zx1_test_range, IA64ZX6000ZX1TestRange),
-        VMSTATE_STRUCT(layout.iommu, IA64ZX6000ZX1TestState, 1,
-                       vmstate_zx1_test_iommu_layout,
-                       IA64ZX6000ZX1TestIOMMU),
-        VMSTATE_STRUCT_ARRAY(layout.roots, IA64ZX6000ZX1TestState,
-                             IA64_ZX6000_ZX1_TEST_ROOT_COUNT, 1,
-                             vmstate_zx1_test_root_layout,
-                             IA64ZX6000ZX1TestRoot),
-        /* Packed mirrors make enum mode and every route byte equal fields. */
-        VMSTATE_STRUCT_ARRAY(layout_baseline,
-                             IA64ZX6000ZX1TestState,
-                             IA64_ZX6000_ZX1_TEST_ROOT_COUNT, 1,
-                             vmstate_zx1_test_root_baseline,
-                             ZX1TestRootBaseline),
+    .fields =
+        (const VMStateField[]) {
+            /* Fixed layout values must match at the destination. */
+            VMSTATE_STRUCT(layout.ram, IA64ZX6000ZX1TestState, 1,
+                           vmstate_zx1_test_range, IA64ZX6000ZX1TestRange),
+            VMSTATE_STRUCT(layout.mio, IA64ZX6000ZX1TestState, 1,
+                           vmstate_zx1_test_range, IA64ZX6000ZX1TestRange),
+            VMSTATE_STRUCT(layout.pib, IA64ZX6000ZX1TestState, 1,
+                           vmstate_zx1_test_range, IA64ZX6000ZX1TestRange),
+            VMSTATE_STRUCT(layout.iommu, IA64ZX6000ZX1TestState, 1,
+                           vmstate_zx1_test_iommu_layout,
+                           IA64ZX6000ZX1TestIOMMU),
+            VMSTATE_STRUCT_ARRAY(layout.roots, IA64ZX6000ZX1TestState,
+                                 IA64_ZX6000_ZX1_TEST_ROOT_COUNT, 1,
+                                 vmstate_zx1_test_root_layout,
+                                 IA64ZX6000ZX1TestRoot),
+            /* Packed mirrors make enum mode and every route byte equal fields. */
+            VMSTATE_STRUCT_ARRAY(layout_baseline, IA64ZX6000ZX1TestState,
+                                 IA64_ZX6000_ZX1_TEST_ROOT_COUNT, 1,
+                                 vmstate_zx1_test_root_baseline,
+                                 ZX1TestRootBaseline),
 
-        VMSTATE_UINT64_ARRAY(delivery_count,
-                             IA64ZX6000ZX1TestState,
-                             IA64_ZX6000_ZX1_TEST_ROOT_COUNT),
-        VMSTATE_UINT64_ARRAY(last_address,
-                             IA64ZX6000ZX1TestState,
-                             IA64_ZX6000_ZX1_TEST_ROOT_COUNT),
-        VMSTATE_UINT32_ARRAY(last_data,
-                             IA64ZX6000ZX1TestState,
-                             IA64_ZX6000_ZX1_TEST_ROOT_COUNT),
-        VMSTATE_UINT32_ARRAY(last_result,
-                             IA64ZX6000ZX1TestState,
-                             IA64_ZX6000_ZX1_TEST_ROOT_COUNT),
-        VMSTATE_END_OF_LIST()
-    },
+            VMSTATE_UINT64_ARRAY(delivery_count, IA64ZX6000ZX1TestState,
+                                 IA64_ZX6000_ZX1_TEST_ROOT_COUNT),
+            VMSTATE_UINT64_ARRAY(last_address, IA64ZX6000ZX1TestState,
+                                 IA64_ZX6000_ZX1_TEST_ROOT_COUNT),
+            VMSTATE_UINT32_ARRAY(last_data, IA64ZX6000ZX1TestState,
+                                 IA64_ZX6000_ZX1_TEST_ROOT_COUNT),
+            VMSTATE_UINT32_ARRAY(last_result, IA64ZX6000ZX1TestState,
+                                 IA64_ZX6000_ZX1_TEST_ROOT_COUNT),
+            VMSTATE_END_OF_LIST() },
 };
 
 static const Property zx1_test_properties[] = {
-    DEFINE_PROP_LINK(IA64_ZX6000_ZX1_TEST_PROP_RAM,
-                     IA64ZX6000ZX1TestState, ram,
+    DEFINE_PROP_LINK(IA64_ZX6000_ZX1_TEST_PROP_RAM, IA64ZX6000ZX1TestState, ram,
                      TYPE_MEMORY_REGION, MemoryRegion *),
 };
 
@@ -869,8 +833,8 @@ static void zx1_test_class_init(ObjectClass *klass, const void *data)
     device_class_set_props(dc, zx1_test_properties);
 }
 
-PCIBus *ia64_zx6000_zx1_test_root_bus(
-    IA64ZX6000ZX1TestState *fixture, unsigned int index)
+PCIBus *ia64_zx6000_zx1_test_root_bus(IA64ZX6000ZX1TestState *fixture,
+                                      unsigned int index)
 {
     if (!fixture || index >= IA64_ZX6000_ZX1_TEST_ROOT_COUNT ||
         !fixture->ioas[index]) {
@@ -879,9 +843,10 @@ PCIBus *ia64_zx6000_zx1_test_root_bus(
     return hp_zx1_ioa_bus(fixture->ioas[index]);
 }
 
-PCIDevice *ia64_zx6000_zx1_test_create_test_probe(
-    IA64ZX6000ZX1TestState *fixture, unsigned int root,
-    unsigned int slot, Error **errp)
+PCIDevice *
+ia64_zx6000_zx1_test_create_test_probe(IA64ZX6000ZX1TestState *fixture,
+                                       unsigned int root, unsigned int slot,
+                                       Error **errp)
 {
     PCIBus *bus = ia64_zx6000_zx1_test_root_bus(fixture, root);
     PCIDevice *probe;
@@ -912,9 +877,9 @@ void ia64_zx6000_zx1_test_destroy_test_probe(PCIDevice *probe)
     drain_call_rcu();
 }
 
-qemu_irq ia64_zx6000_zx1_test_io_sapic_input(
-    IA64ZX6000ZX1TestState *fixture, unsigned int root,
-    unsigned int input)
+qemu_irq ia64_zx6000_zx1_test_io_sapic_input(IA64ZX6000ZX1TestState *fixture,
+                                             unsigned int root,
+                                             unsigned int input)
 {
     if (fixture == NULL || root >= IA64_ZX6000_ZX1_TEST_ROOT_COUNT ||
         input >= IA64_ZX6000_ZX1_TEST_PCI_INPUT_COUNT ||
@@ -930,10 +895,9 @@ static void zx1_qtest_remove_probes(IA64ZX6000ZX1QTestState *s)
     int probe;
     int root;
 
-    for (root = IA64_ZX6000_ZX1_TEST_ROOT_COUNT - 1;
-         root >= 0; root--) {
-        for (probe = IA64_ZX6000_ZX1_TEST_PROBES_PER_ROOT - 1;
-             probe >= 0; probe--) {
+    for (root = IA64_ZX6000_ZX1_TEST_ROOT_COUNT - 1; root >= 0; root--) {
+        for (probe = IA64_ZX6000_ZX1_TEST_PROBES_PER_ROOT - 1; probe >= 0;
+             probe--) {
             PCIDevice *pdev = s->probes[root][probe];
 
             if (!pdev) {
@@ -999,8 +963,7 @@ static void zx1_qtest_trigger_msi(void *opaque, int line, int level)
     unsigned int root;
     PCIDevice *pdev;
 
-    if (!level || line < 0 ||
-        line >= IA64_ZX6000_ZX1_TEST_PROBE_COUNT) {
+    if (!level || line < 0 || line >= IA64_ZX6000_ZX1_TEST_PROBE_COUNT) {
         return;
     }
     root = line / IA64_ZX6000_ZX1_TEST_PROBES_PER_ROOT;
@@ -1028,12 +991,13 @@ static void zx1_qtest_realize(DeviceState *dev, Error **errp)
     if (!machine->ram) {
         error_setg(errp,
                    "%s requires parent-machine RAM and does not own "
-                   "RAM or PIB", TYPE_IA64_ZX6000_ZX1_QTEST);
+                   "RAM or PIB",
+                   TYPE_IA64_ZX6000_ZX1_QTEST);
         return;
     }
 
     fixture = zx1_test_add_child(dev, IA64_ZX6000_ZX1_TEST_FIXTURE_CHILD,
-                           TYPE_IA64_ZX6000_ZX1_TEST);
+                                 TYPE_IA64_ZX6000_ZX1_TEST);
     s->fixture = IA64_ZX6000_ZX1_TEST(fixture);
     if (!object_property_set_link(OBJECT(fixture),
                                   IA64_ZX6000_ZX1_TEST_PROP_RAM,
@@ -1047,15 +1011,14 @@ static void zx1_qtest_realize(DeviceState *dev, Error **errp)
         PCIBus *bus = ia64_zx6000_zx1_test_root_bus(s->fixture, root);
 
         if (!bus) {
-            error_setg(&local_err,
-                       "zx6000 zx1 test root %u is unavailable", root);
+            error_setg(&local_err, "zx6000 zx1 test root %u is unavailable",
+                       root);
             goto fail;
         }
-        for (probe = 0;
-             probe < IA64_ZX6000_ZX1_TEST_PROBES_PER_ROOT; probe++) {
-            PCIDevice *pdev = pci_new(
-                PCI_DEVFN(IA64_ZX6000_ZX1_TEST_PROBE_SLOT(probe), 0),
-                TYPE_ZX1_TEST_IOMMU_TESTDEV);
+        for (probe = 0; probe < IA64_ZX6000_ZX1_TEST_PROBES_PER_ROOT; probe++) {
+            PCIDevice *pdev =
+                pci_new(PCI_DEVFN(IA64_ZX6000_ZX1_TEST_PROBE_SLOT(probe), 0),
+                        TYPE_ZX1_TEST_IOMMU_TESTDEV);
 
             if (!qdev_realize(DEVICE(pdev), BUS(bus), &local_err)) {
                 object_unref(OBJECT(pdev));
@@ -1085,12 +1048,10 @@ static void zx1_qtest_init(Object *obj)
 {
     qdev_init_gpio_in_named(
         DEVICE(obj), zx1_qtest_set_intx, IA64_ZX6000_ZX1_TEST_GPIO_INTX,
-        IA64_ZX6000_ZX1_TEST_PROBE_COUNT *
-        IA64_ZX6000_ZX1_TEST_INTX_PIN_COUNT);
-    qdev_init_gpio_in_named(
-        DEVICE(obj), zx1_qtest_trigger_msi,
-        IA64_ZX6000_ZX1_TEST_GPIO_MSI,
-        IA64_ZX6000_ZX1_TEST_PROBE_COUNT);
+        IA64_ZX6000_ZX1_TEST_PROBE_COUNT * IA64_ZX6000_ZX1_TEST_INTX_PIN_COUNT);
+    qdev_init_gpio_in_named(DEVICE(obj), zx1_qtest_trigger_msi,
+                            IA64_ZX6000_ZX1_TEST_GPIO_MSI,
+                            IA64_ZX6000_ZX1_TEST_PROBE_COUNT);
 }
 
 static void zx1_qtest_class_init(ObjectClass *klass, const void *data)
@@ -1226,8 +1187,8 @@ static void zx2_pcie_qtest_realize(DeviceState *dev, Error **errp)
     object_child_foreach_recursive(OBJECT(qdev_get_machine()),
                                    zx2_pcie_qtest_find_host, &s->host);
     if (!s->host) {
-        DeviceState *host = zx1_test_add_child(
-            dev, "host", TYPE_IA64_PCIE_HOST_BRIDGE);
+        DeviceState *host =
+            zx1_test_add_child(dev, "host", TYPE_IA64_PCIE_HOST_BRIDGE);
 
         s->host = IA64_PCI_HOST_BRIDGE(host);
         s->owns_host = true;
@@ -1248,8 +1209,8 @@ static void zx2_pcie_qtest_realize(DeviceState *dev, Error **errp)
 
     if (s->owns_host) {
         if (!memory_region_init_ram(&s->ram, OBJECT(s),
-                                    TYPE_IA64_ZX2_PCIE_QTEST ".ram",
-                                    64 * MiB, &local_err)) {
+                                    TYPE_IA64_ZX2_PCIE_QTEST ".ram", 64 * MiB,
+                                    &local_err)) {
             goto fail;
         }
         memory_region_add_subregion(get_system_memory(), 0, &s->ram);
@@ -1258,8 +1219,7 @@ static void zx2_pcie_qtest_realize(DeviceState *dev, Error **errp)
 
     mio = zx1_test_add_child(dev, "mio", TYPE_HP_ZX2_MIO);
     s->mio = HP_ZX1_MIO(mio);
-    if (!hp_zx1_mio_configure_iommu_reset(s->mio, &iommu_reset,
-                                           &local_err) ||
+    if (!hp_zx1_mio_configure_iommu_reset(s->mio, &iommu_reset, &local_err) ||
         !sysbus_realize(SYS_BUS_DEVICE(mio), &local_err)) {
         goto fail;
     }
@@ -1267,8 +1227,8 @@ static void zx2_pcie_qtest_realize(DeviceState *dev, Error **errp)
         get_system_memory(), ZX2_PCIE_TEST_MIO_BASE,
         sysbus_mmio_get_region(SYS_BUS_DEVICE(s->mio), 0));
     s->mio_mapped = true;
-    if (!hp_zx2_mio_attach_pci_root(s->mio, root,
-                                    ZX2_PCIE_TEST_ROPES, &local_err)) {
+    if (!hp_zx2_mio_attach_pci_root(s->mio, root, ZX2_PCIE_TEST_ROPES,
+                                    &local_err)) {
         goto fail;
     }
     s->root_attached = true;
@@ -1277,17 +1237,17 @@ static void zx2_pcie_qtest_realize(DeviceState *dev, Error **errp)
                    "zx2 PCIe root did not install a root-private IOMMU");
         goto fail;
     }
-    s->second_host = IA64_PCI_HOST_BRIDGE(zx1_test_add_child(
-        dev, "second-host", TYPE_IA64_PCIE_HOST_BRIDGE));
-    if (!ia64_pci_host_configure(s->second_host, &second_config,
-                                 &local_err) ||
+    s->second_host = IA64_PCI_HOST_BRIDGE(
+        zx1_test_add_child(dev, "second-host", TYPE_IA64_PCIE_HOST_BRIDGE));
+    if (!ia64_pci_host_configure(s->second_host, &second_config, &local_err) ||
         !sysbus_realize(SYS_BUS_DEVICE(s->second_host), &local_err)) {
         goto fail;
     }
     ia64_pci_host_get_config(s->second_host, &observed_config);
     if (memcmp(&observed_config, &second_config, sizeof(second_config))) {
-        error_setg(&local_err,
-                   "second IA-64 PCIe host did not retain its root descriptor values");
+        error_setg(
+            &local_err,
+            "second IA-64 PCIe host did not retain its root descriptor values");
         goto fail;
     }
     root = ia64_pci_host_bus(s->second_host);
@@ -1296,11 +1256,10 @@ static void zx2_pcie_qtest_realize(DeviceState *dev, Error **errp)
                    "second IA-64 PCIe host exposed the wrong first bus");
         goto fail;
     }
-    if (hp_zx2_mio_attach_pci_root(s->mio, root,
-                                   ZX2_PCIE_TEST_ROPES, &local_err)) {
+    if (hp_zx2_mio_attach_pci_root(s->mio, root, ZX2_PCIE_TEST_ROPES,
+                                   &local_err)) {
         hp_zx1_mio_detach_pci_root(s->mio, root, NULL);
-        error_setg(&local_err,
-                   "zx2 MIOC accepted duplicate rope ownership");
+        error_setg(&local_err, "zx2 MIOC accepted duplicate rope ownership");
         goto fail;
     }
     if (!local_err || !strstr(error_get_pretty(local_err), "overlaps")) {
@@ -1315,8 +1274,8 @@ static void zx2_pcie_qtest_realize(DeviceState *dev, Error **errp)
     }
     error_free(local_err);
     local_err = NULL;
-    if (!hp_zx2_mio_attach_pci_root(
-            s->mio, root, UINT16_C(1) << 14, &local_err)) {
+    if (!hp_zx2_mio_attach_pci_root(s->mio, root, UINT16_C(1) << 14,
+                                    &local_err)) {
         goto fail;
     }
     s->second_root_attached = true;
@@ -1325,8 +1284,7 @@ static void zx2_pcie_qtest_realize(DeviceState *dev, Error **errp)
                    "second zx2 PCIe root did not install a root-private IOMMU");
         goto fail;
     }
-    s->second_probe = pci_new(IA64_ZX2_PCIE_SECOND_DEVFN,
-                              TYPE_IOMMU_TESTDEV);
+    s->second_probe = pci_new(IA64_ZX2_PCIE_SECOND_DEVFN, TYPE_IOMMU_TESTDEV);
     if (!qdev_realize(DEVICE(s->second_probe), BUS(root), &local_err)) {
         object_unref(OBJECT(s->second_probe));
         s->second_probe = NULL;
@@ -1377,8 +1335,8 @@ static void zx1_test_probe_realize(PCIDevice *pdev, Error **errp)
         error_propagate(errp, local_err);
         return;
     }
-    if (msi_init(pdev, ZX1_TEST_MSI_CAP_OFFSET, 1, true, false,
-                 &local_err) < 0) {
+    if (msi_init(pdev, ZX1_TEST_MSI_CAP_OFFSET, 1, true, false, &local_err) <
+        0) {
         if (zx1_test_probe_parent_exit) {
             zx1_test_probe_parent_exit(pdev);
         }
@@ -1427,13 +1385,15 @@ static const TypeInfo zx1_test_types[] = {
         .instance_size = sizeof(IA64ZX6000ZX1TestState),
         .instance_init = zx1_test_init,
         .class_init = zx1_test_class_init,
-    }, {
+    },
+    {
         .name = TYPE_IA64_ZX6000_ZX1_QTEST,
         .parent = TYPE_DEVICE,
         .instance_size = sizeof(IA64ZX6000ZX1QTestState),
         .instance_init = zx1_qtest_init,
         .class_init = zx1_qtest_class_init,
-    }, {
+    },
+    {
         .name = TYPE_IA64_ZX2_PCIE_QTEST,
         .parent = TYPE_DEVICE,
         .instance_size = sizeof(IA64ZX2PCIeQTestState),

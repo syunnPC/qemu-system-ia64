@@ -92,8 +92,8 @@ static bool host_data_access_valid(void *opaque, hwaddr addr, unsigned size,
     (void)opaque;
     (void)is_write;
     (void)attrs;
-    return (size == 1 || size == 2 || size == 4) &&
-           addr < 4 && size <= 4 - addr;
+    return (size == 1 || size == 2 || size == 4) && addr < 4 &&
+           size <= 4 - addr;
 }
 
 static const MemoryRegionOps host_data_ops = {
@@ -121,8 +121,7 @@ static void intel_460gx_host_reset(DeviceState *dev)
     for (unsigned int i = 0; i < INTEL_460GX_DOWNSTREAM_PORTS; i++) {
         if (s->core.downstream[i].attached) {
             intel_460gx_numbered_root_bus_set_number(
-                s->core.downstream[i].bus,
-                s->core.downstream[i].first_bus);
+                s->core.downstream[i].bus, s->core.downstream[i].first_bus);
         }
     }
 }
@@ -145,8 +144,7 @@ static bool intel_460gx_host_post_load(void *opaque, int version_id,
     for (unsigned int i = 0; i < INTEL_460GX_DOWNSTREAM_PORTS; i++) {
         if (s->core.downstream[i].attached) {
             intel_460gx_numbered_root_bus_set_number(
-                s->core.downstream[i].bus,
-                s->core.downstream[i].first_bus);
+                s->core.downstream[i].bus, s->core.downstream[i].first_bus);
         }
     }
     return true;
@@ -156,24 +154,24 @@ static const VMStateDescription vmstate_intel_460gx_downstream_route = {
     .name = TYPE_INTEL_460GX_HOST "/downstream-route",
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (const VMStateField[]) {
-        /* PCI bus pointer and attachment topology are destination wiring. */
-        VMSTATE_UINT8(first_bus, Intel460GXDownstreamRoute),
-        VMSTATE_UINT8(last_bus, Intel460GXDownstreamRoute),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) {
+            /* PCI bus pointer and attachment topology are destination wiring. */
+            VMSTATE_UINT8(first_bus, Intel460GXDownstreamRoute),
+            VMSTATE_UINT8(last_bus, Intel460GXDownstreamRoute),
+            VMSTATE_END_OF_LIST() },
 };
 
 static const VMStateDescription vmstate_intel_460gx_downstream_reset = {
     .name = TYPE_INTEL_460GX_HOST "/downstream-reset",
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (const VMStateField[]) {
-        /* Reject a destination whose guest-visible reset wiring differs. */
-        VMSTATE_UINT8_EQUAL(reset_first_bus, Intel460GXDownstreamRoute),
-        VMSTATE_UINT8_EQUAL(reset_last_bus, Intel460GXDownstreamRoute),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) {
+            /* Reject a destination whose guest-visible reset wiring differs. */
+            VMSTATE_UINT8_EQUAL(reset_first_bus, Intel460GXDownstreamRoute),
+            VMSTATE_UINT8_EQUAL(reset_last_bus, Intel460GXDownstreamRoute),
+            VMSTATE_END_OF_LIST() },
 };
 
 static const VMStateDescription vmstate_intel_460gx_host = {
@@ -181,24 +179,23 @@ static const VMStateDescription vmstate_intel_460gx_host = {
     .version_id = 3,
     .minimum_version_id = 3,
     .post_load_errp = intel_460gx_host_post_load,
-    .fields = (const VMStateField[]) {
-        VMSTATE_UINT32(core.config_address, Intel460GXHostState),
-        VMSTATE_UINT8(core.cbn, Intel460GXHostState),
-        VMSTATE_UINT32(core.chipset_present, Intel460GXHostState),
-        /* Check the destination's QOM-supplied reset wiring. */
-        VMSTATE_UINT16_EQUAL(initial_cbn, Intel460GXHostState),
-        VMSTATE_UINT32_EQUAL(initial_chipset_present,
-                             Intel460GXHostState),
-        VMSTATE_STRUCT_ARRAY(core.downstream, Intel460GXHostState,
-                             INTEL_460GX_DOWNSTREAM_PORTS, 0,
-                             vmstate_intel_460gx_downstream_reset,
-                             Intel460GXDownstreamRoute),
-        VMSTATE_STRUCT_ARRAY(core.downstream, Intel460GXHostState,
-                             INTEL_460GX_DOWNSTREAM_PORTS, 0,
-                             vmstate_intel_460gx_downstream_route,
-                             Intel460GXDownstreamRoute),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) {
+            VMSTATE_UINT32(core.config_address, Intel460GXHostState),
+            VMSTATE_UINT8(core.cbn, Intel460GXHostState),
+            VMSTATE_UINT32(core.chipset_present, Intel460GXHostState),
+            /* Check the destination's QOM-supplied reset wiring. */
+            VMSTATE_UINT16_EQUAL(initial_cbn, Intel460GXHostState),
+            VMSTATE_UINT32_EQUAL(initial_chipset_present, Intel460GXHostState),
+            VMSTATE_STRUCT_ARRAY(core.downstream, Intel460GXHostState,
+                                 INTEL_460GX_DOWNSTREAM_PORTS, 0,
+                                 vmstate_intel_460gx_downstream_reset,
+                                 Intel460GXDownstreamRoute),
+            VMSTATE_STRUCT_ARRAY(core.downstream, Intel460GXHostState,
+                                 INTEL_460GX_DOWNSTREAM_PORTS, 0,
+                                 vmstate_intel_460gx_downstream_route,
+                                 Intel460GXDownstreamRoute),
+            VMSTATE_END_OF_LIST() },
 };
 
 static void intel_460gx_host_realize(DeviceState *dev, Error **errp)
@@ -210,12 +207,13 @@ static void intel_460gx_host_realize(DeviceState *dev, Error **errp)
         error_setg(errp, "x-initial-cbn is required and must be 0..255");
         return;
     }
-    invalid_present = s->initial_chipset_present &
-                      ~intel_460gx_chipset_device_mask();
+    invalid_present =
+        s->initial_chipset_present & ~intel_460gx_chipset_device_mask();
     if (invalid_present != 0) {
         error_setg(errp,
                    "x-initial-chipset-present includes reserved CBN devices "
-                   "(mask 0x%08x)", invalid_present);
+                   "(mask 0x%08x)",
+                   invalid_present);
         return;
     }
 
@@ -224,9 +222,8 @@ static void intel_460gx_host_realize(DeviceState *dev, Error **errp)
 
     if (s->test_io_base != INTEL_460GX_TEST_IO_UNMAPPED) {
         if ((s->test_io_base & 3) || s->test_io_base > UINT64_MAX - 7) {
-            error_setg(errp,
-                       "x-test-io-base must be dword aligned and leave "
-                       "room for two four-byte windows");
+            error_setg(errp, "x-test-io-base must be dword aligned and leave "
+                             "room for two four-byte windows");
             return;
         }
         sysbus_mmio_map(SYS_BUS_DEVICE(dev), 0, s->test_io_base);
@@ -280,7 +277,7 @@ static void intel_460gx_host_register_types(void)
 }
 type_init(intel_460gx_host_register_types)
 
-MemoryRegion *intel_460gx_host_conf_region(Intel460GXHostState *s)
+    MemoryRegion *intel_460gx_host_conf_region(Intel460GXHostState *s)
 {
     return &s->conf_io;
 }
@@ -296,16 +293,13 @@ bool intel_460gx_host_apply_decoded_update(
 {
     unsigned int i;
 
-    if (!intel_460gx_host_core_apply_decoded_update(&s->core, update,
-                                                     errp)) {
+    if (!intel_460gx_host_core_apply_decoded_update(&s->core, update, errp)) {
         return false;
     }
     for (i = 0; i < INTEL_460GX_DOWNSTREAM_PORTS; i++) {
-        if ((update->route_mask & BIT(i)) &&
-            s->core.downstream[i].attached) {
+        if ((update->route_mask & BIT(i)) && s->core.downstream[i].attached) {
             intel_460gx_numbered_root_bus_set_number(
-                s->core.downstream[i].bus,
-                s->core.downstream[i].first_bus);
+                s->core.downstream[i].bus, s->core.downstream[i].first_bus);
         }
     }
     return true;
@@ -316,7 +310,7 @@ bool intel_460gx_host_register_bootstrap_sac(
     const Intel460GXConfigTargetOps *ops, void *opaque, Error **errp)
 {
     return intel_460gx_host_core_register_bootstrap(&s->core, function, ops,
-                                                     opaque, errp);
+                                                    opaque, errp);
 }
 
 bool intel_460gx_host_register_chipset_target(
@@ -324,7 +318,7 @@ bool intel_460gx_host_register_chipset_target(
     const Intel460GXConfigTargetOps *ops, void *opaque, Error **errp)
 {
     return intel_460gx_host_core_register_chipset(&s->core, device, function,
-                                                   ops, opaque, errp);
+                                                  ops, opaque, errp);
 }
 
 void intel_460gx_host_set_cbn(Intel460GXHostState *s, uint8_t cbn)
@@ -343,23 +337,22 @@ uint8_t intel_460gx_host_get_cbn(const Intel460GXHostState *s)
 }
 
 bool intel_460gx_host_set_chipset_present(Intel460GXHostState *s,
-                                           unsigned device, bool present,
-                                           Error **errp)
+                                          unsigned device, bool present,
+                                          Error **errp)
 {
-    return intel_460gx_host_core_set_present(&s->core, device, present,
-                                              errp);
+    return intel_460gx_host_core_set_present(&s->core, device, present, errp);
 }
 
 bool intel_460gx_host_configure_chipset_present(Intel460GXHostState *s,
-                                                 uint32_t present,
-                                                 Error **errp)
+                                                uint32_t present, Error **errp)
 {
     uint32_t invalid = present & ~intel_460gx_chipset_device_mask();
 
     if (invalid) {
         error_setg(errp,
                    "460GX chipset wiring includes reserved CBN devices "
-                   "(mask 0x%08x)", invalid);
+                   "(mask 0x%08x)",
+                   invalid);
         return false;
     }
 
@@ -371,31 +364,25 @@ bool intel_460gx_host_configure_chipset_present(Intel460GXHostState *s,
     return true;
 }
 
-uint32_t intel_460gx_host_get_chipset_present(
-    const Intel460GXHostState *s)
+uint32_t intel_460gx_host_get_chipset_present(const Intel460GXHostState *s)
 {
-    return qdev_is_realized(DEVICE(s)) ? s->core.chipset_present :
-                                        s->initial_chipset_present;
+    return qdev_is_realized(DEVICE(s)) ? s->core.chipset_present
+                                       : s->initial_chipset_present;
 }
 
 bool intel_460gx_host_attach_downstream_bus(Intel460GXHostState *s,
-                                             unsigned port, PCIBus *bus,
-                                             uint8_t first_bus,
-                                             uint8_t last_bus,
-                                             Error **errp)
+                                            unsigned port, PCIBus *bus,
+                                            uint8_t first_bus, uint8_t last_bus,
+                                            Error **errp)
 {
     return intel_460gx_host_core_attach_downstream(&s->core, port, bus,
-                                                    first_bus, last_bus,
-                                                    errp);
+                                                   first_bus, last_bus, errp);
 }
 
 bool intel_460gx_host_set_downstream_bus_range(Intel460GXHostState *s,
-                                                unsigned port,
-                                                uint8_t first_bus,
-                                                uint8_t last_bus,
-                                                Error **errp)
+                                               unsigned port, uint8_t first_bus,
+                                               uint8_t last_bus, Error **errp)
 {
-    return intel_460gx_host_core_set_downstream_range(&s->core, port,
-                                                       first_bus, last_bus,
-                                                       errp);
+    return intel_460gx_host_core_set_downstream_range(&s->core, port, first_bus,
+                                                      last_bus, errp);
 }

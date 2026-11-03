@@ -43,14 +43,13 @@ static const char *fail_u64(const char *label, uint64_t actual,
                             uint64_t expected)
 {
     snprintf(failure, sizeof(failure),
-             "%s: expected %016" PRIx64 " got %016" PRIx64,
-             label, expected, actual);
+             "%s: expected %016" PRIx64 " got %016" PRIx64, label, expected,
+             actual);
     return failure;
 }
 
 static const char *expect_spill(const CPUIA64State *env, unsigned reg,
-                                uint64_t expected_low,
-                                uint64_t expected_high)
+                                uint64_t expected_low, uint64_t expected_high)
 {
     uint64_t low;
     uint64_t high;
@@ -126,18 +125,12 @@ static const char *test_binary32(void)
 static const char *test_binary64(void)
 {
     static const Binary64Case cases[] = {
-        { 0x0000000000000000ULL, 0x0000000000000000ULL,
-          0x0000000000000000ULL },
-        { 0x8000000000000000ULL, 0x0000000000000000ULL,
-          0x0000000000020000ULL },
-        { 0x3ff0000000000000ULL, 0x8000000000000000ULL,
-          0x000000000000ffffULL },
-        { 0x0000000000000001ULL, 0x0000000000000800ULL,
-          0x000000000000fc01ULL },
-        { 0x7ff0000000000000ULL, 0x8000000000000000ULL,
-          0x000000000001ffffULL },
-        { 0x7ff8123456789abcULL, 0xc091a2b3c4d5e000ULL,
-          0x000000000001ffffULL },
+        { 0x0000000000000000ULL, 0x0000000000000000ULL, 0x0000000000000000ULL },
+        { 0x8000000000000000ULL, 0x0000000000000000ULL, 0x0000000000020000ULL },
+        { 0x3ff0000000000000ULL, 0x8000000000000000ULL, 0x000000000000ffffULL },
+        { 0x0000000000000001ULL, 0x0000000000000800ULL, 0x000000000000fc01ULL },
+        { 0x7ff0000000000000ULL, 0x8000000000000000ULL, 0x000000000001ffffULL },
+        { 0x7ff8123456789abcULL, 0xc091a2b3c4d5e000ULL, 0x000000000001ffffULL },
     };
     CPUIA64State env;
     unsigned i;
@@ -201,8 +194,9 @@ static const char *test_extended(void)
     const uint32_t exp = 0x12345;
     const uint64_t high = exp | (1ULL << 17);
     const uint64_t binary64 = (1ULL << 63) |
-        (uint64_t)((((exp >> 6) & 0x400) | (exp & 0x3ff))) << 52 |
-        ((low >> 11) & ((1ULL << 52) - 1));
+                              (uint64_t)((((exp >> 6) & 0x400) | (exp & 0x3ff)))
+                                  << 52 |
+                              ((low >> 11) & ((1ULL << 52) - 1));
     uint64_t mant;
     uint32_t observed_exp;
     bool sign;
@@ -276,16 +270,11 @@ static const char *test_spill_fill_round_trip(void)
 static const char *test_exact_binary64_fill_compaction(void)
 {
     static const Binary64Case cases[] = {
-        { 0x0000000000000000ULL, 0x0000000000000000ULL,
-          0x0000000000000000ULL },
-        { 0x8000000000000000ULL, 0x0000000000000000ULL,
-          0x0000000000020000ULL },
-        { 0x0010000000000000ULL, 0x8000000000000000ULL,
-          0x000000000000fc01ULL },
-        { 0xbff8000000000000ULL, 0xc000000000000000ULL,
-          0x000000000002ffffULL },
-        { 0x7fefffffffffffffULL, 0xfffffffffffff800ULL,
-          0x00000000000103feULL },
+        { 0x0000000000000000ULL, 0x0000000000000000ULL, 0x0000000000000000ULL },
+        { 0x8000000000000000ULL, 0x0000000000000000ULL, 0x0000000000020000ULL },
+        { 0x0010000000000000ULL, 0x8000000000000000ULL, 0x000000000000fc01ULL },
+        { 0xbff8000000000000ULL, 0xc000000000000000ULL, 0x000000000002ffffULL },
+        { 0x7fefffffffffffffULL, 0xfffffffffffff800ULL, 0x00000000000103feULL },
     };
     CPUIA64State env;
     unsigned i;
@@ -302,12 +291,11 @@ static const char *test_exact_binary64_fill_compaction(void)
             return error;
         }
         if (env.fp.fr[reg] != cases[i].value) {
-            return fail_u64("compact binary64", env.fp.fr[reg],
-                            cases[i].value);
+            return fail_u64("compact binary64", env.fp.fr[reg], cases[i].value);
         }
         if ((env.fp.fr_nat[reg / 64] | env.fp.fr_sig[reg / 64] |
-             env.fp.fr_ext_valid[reg / 64] |
-             env.fp.fr_int_origin[reg / 64]) & bit) {
+             env.fp.fr_ext_valid[reg / 64] | env.fp.fr_int_origin[reg / 64]) &
+            bit) {
             return "exact binary64 fill retained a representation tag";
         }
     }
@@ -420,8 +408,9 @@ static const char *test_random_binary64_spill_fill(void)
             }
         } else {
             compact_count++;
-            if ((env.fp.fr_nat[0] | env.fp.fr_sig[0] |
-                 env.fp.fr_ext_valid[0] | env.fp.fr_int_origin[0]) & bit) {
+            if ((env.fp.fr_nat[0] | env.fp.fr_sig[0] | env.fp.fr_ext_valid[0] |
+                 env.fp.fr_int_origin[0]) &
+                bit) {
                 return "random finite binary64 fill was not compact";
             }
             if (env.fp.fr[reg] != value) {
@@ -431,8 +420,8 @@ static const char *test_random_binary64_spill_fill(void)
         }
     }
 
-    if (compact_count == 0 || denormal_count == 0 ||
-        integer_count == 0 || special_count == 0) {
+    if (compact_count == 0 || denormal_count == 0 || integer_count == 0 ||
+        special_count == 0) {
         return "random corpus did not cover every representation class";
     }
     return NULL;
@@ -486,7 +475,8 @@ static const char *test_stale_tags(void)
 
     ia64_fpreg_from_binary64(&env, reg, 0x4000000000000000ULL);
     if ((env.fp.fr_nat[0] | env.fp.fr_sig[0] | env.fp.fr_ext_valid[0] |
-         env.fp.fr_int_origin[0]) & bit) {
+         env.fp.fr_int_origin[0]) &
+        bit) {
         return "binary64 write left a stale representation tag";
     }
     if (env.fp.fr_int_value[reg] != 0) {
@@ -495,7 +485,8 @@ static const char *test_stale_tags(void)
 
     ia64_fpreg_from_spill(&env, reg, 0x8000000000000000ULL, 0xffff);
     if ((env.fp.fr_nat[0] | env.fp.fr_sig[0] | env.fp.fr_ext_valid[0] |
-         env.fp.fr_int_origin[0]) & bit) {
+         env.fp.fr_int_origin[0]) &
+        bit) {
         return "exact binary64 fill left a stale representation tag";
     }
     if (env.fp.fr[reg] != IA64_FR_ONE) {

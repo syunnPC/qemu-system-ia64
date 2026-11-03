@@ -18,12 +18,9 @@ static UINT8 pci_root_guid[16] = IA64_GUID_PCI_ROOT_IO;
 static UINT8 pci_io_guid[16] = IA64_GUID_PCI_IO;
 static UINT8 tcg_guid[16] = IA64_GUID_TCG;
 static UINT8 driver_binding_guid[16] = IA64_GUID_DRIVER_BINDING;
-static UINT8 platform_override_guid[16] =
-    IA64_GUID_PLATFORM_DRIVER_OVERRIDE;
-static UINT8 bus_override_guid[16] =
-    IA64_GUID_BUS_SPECIFIC_DRIVER_OVERRIDE;
-static UINT8 family_override_guid[16] =
-    IA64_GUID_DRIVER_FAMILY_OVERRIDE;
+static UINT8 platform_override_guid[16] = IA64_GUID_PLATFORM_DRIVER_OVERRIDE;
+static UINT8 bus_override_guid[16] = IA64_GUID_BUS_SPECIFIC_DRIVER_OVERRIDE;
+static UINT8 family_override_guid[16] = IA64_GUID_DRIVER_FAMILY_OVERRIDE;
 static UINT8 load_file_guid[16] = IA64_GUID_LOAD_FILE;
 static UINT8 load_file2_guid[16] = IA64_GUID_LOAD_FILE2;
 static UINT8 acpi20_guid[16] = IA64_GUID_ACPI20;
@@ -130,8 +127,8 @@ typedef struct {
     UINT64 Value2;
 } TEST_SAL_RETURN;
 
-typedef TEST_SAL_RETURN (*TEST_SAL_PROC)(UINT64, UINT64, UINT64, UINT64,
-                                        UINT64, UINT64, UINT64, UINT64);
+typedef TEST_SAL_RETURN (*TEST_SAL_PROC)(UINT64, UINT64, UINT64, UINT64, UINT64,
+                                         UINT64, UINT64, UINT64);
 
 /*
  * Flush the outer frame in its original byte order before changing the RSE
@@ -139,82 +136,80 @@ typedef TEST_SAL_RETURN (*TEST_SAL_PROC)(UINT64, UINT64, UINT64, UINT64,
  * Keep return state in preserved static registers so a corrupt local value
  * can be reported without corrupting the test harness's return path.
  */
-__asm__(
-    ".pushsection .text.test_sal_rse_call, \"ax\"\n"
-    ".align 16\n"
-    ".global test_sal_rse_call\n"
-    ".type test_sal_rse_call, @function\n"
-    ".proc test_sal_rse_call\n"
-    ".explicit\n"
-    "test_sal_rse_call:\n"
-    "  alloc r35 = ar.pfs, 3, 7, 3, 0\n"
-    "  ;;\n"
-    "  mov r36 = b0\n"
-    "  mov r37 = r1\n"
-    "  mov r38 = r4\n"
-    "  mov r39 = r5\n"
-    "  mov r40 = r6\n"
-    "  mov r41 = r7\n"
-    "  mov r42 = r32\n"
-    "  mov r43 = r33\n"
-    "  mov r44 = r34\n"
-    "  ;;\n"
-    "  br.call.sptk.many b0 = .Lsal_rse_inner\n"
-    "  ;;\n"
-    "  mov b0 = r36\n"
-    "  mov r1 = r37\n"
-    "  mov r4 = r38\n"
-    "  mov r5 = r39\n"
-    "  mov r6 = r40\n"
-    "  mov r7 = r41\n"
-    "  mov ar.pfs = r35\n"
-    "  ;;\n"
-    "  br.ret.sptk.many b0\n"
-    "  ;;\n"
-    ".Lsal_rse_inner:\n"
-    "  alloc r35 = ar.pfs, 3, 1, 8, 0\n"
-    "  ;;\n"
-    "  mov r4 = ar.rsc\n"
-    "  mov r5 = r35\n"
-    "  mov r6 = b0\n"
-    "  mov r7 = r1\n"
-    "  ;;\n"
-    "  flushrs\n"
-    "  ;;\n"
-    "  mov b6 = r32\n"
-    "  mov r1 = r33\n"
-    "  mov ar.rsc = r34\n"
-    "  ;;\n"
-    "  movl r35 = 0x1122334455667788\n"
-    "  movl r36 = 0x01000002\n"
-    "  mov r37 = r0\n"
-    "  mov r38 = r0\n"
-    "  mov r39 = r0\n"
-    "  mov r40 = r0\n"
-    "  mov r41 = r0\n"
-    "  mov r42 = r0\n"
-    "  mov r43 = r0\n"
-    "  ;;\n"
-    "  br.call.sptk.many b0 = b6\n"
-    "  ;;\n"
-    "  cmp.eq p6, p7 = r8, r0\n"
-    "  movl r14 = 0x1122334455667788\n"
-    "  mov r8 = r0\n"
-    "  ;;\n"
-    "(p6) cmp.eq p6, p7 = r14, r35\n"
-    "  ;;\n"
-    "(p6) mov r8 = 1\n"
-    "  mov ar.rsc = r4\n"
-    "  mov ar.pfs = r5\n"
-    "  mov b0 = r6\n"
-    "  mov r1 = r7\n"
-    "  ;;\n"
-    "  br.ret.sptk.many b0\n"
-    "  ;;\n"
-    ".endp test_sal_rse_call\n"
-    ".size test_sal_rse_call, . - test_sal_rse_call\n"
-    ".popsection\n"
-);
+__asm__(".pushsection .text.test_sal_rse_call, \"ax\"\n"
+        ".align 16\n"
+        ".global test_sal_rse_call\n"
+        ".type test_sal_rse_call, @function\n"
+        ".proc test_sal_rse_call\n"
+        ".explicit\n"
+        "test_sal_rse_call:\n"
+        "  alloc r35 = ar.pfs, 3, 7, 3, 0\n"
+        "  ;;\n"
+        "  mov r36 = b0\n"
+        "  mov r37 = r1\n"
+        "  mov r38 = r4\n"
+        "  mov r39 = r5\n"
+        "  mov r40 = r6\n"
+        "  mov r41 = r7\n"
+        "  mov r42 = r32\n"
+        "  mov r43 = r33\n"
+        "  mov r44 = r34\n"
+        "  ;;\n"
+        "  br.call.sptk.many b0 = .Lsal_rse_inner\n"
+        "  ;;\n"
+        "  mov b0 = r36\n"
+        "  mov r1 = r37\n"
+        "  mov r4 = r38\n"
+        "  mov r5 = r39\n"
+        "  mov r6 = r40\n"
+        "  mov r7 = r41\n"
+        "  mov ar.pfs = r35\n"
+        "  ;;\n"
+        "  br.ret.sptk.many b0\n"
+        "  ;;\n"
+        ".Lsal_rse_inner:\n"
+        "  alloc r35 = ar.pfs, 3, 1, 8, 0\n"
+        "  ;;\n"
+        "  mov r4 = ar.rsc\n"
+        "  mov r5 = r35\n"
+        "  mov r6 = b0\n"
+        "  mov r7 = r1\n"
+        "  ;;\n"
+        "  flushrs\n"
+        "  ;;\n"
+        "  mov b6 = r32\n"
+        "  mov r1 = r33\n"
+        "  mov ar.rsc = r34\n"
+        "  ;;\n"
+        "  movl r35 = 0x1122334455667788\n"
+        "  movl r36 = 0x01000002\n"
+        "  mov r37 = r0\n"
+        "  mov r38 = r0\n"
+        "  mov r39 = r0\n"
+        "  mov r40 = r0\n"
+        "  mov r41 = r0\n"
+        "  mov r42 = r0\n"
+        "  mov r43 = r0\n"
+        "  ;;\n"
+        "  br.call.sptk.many b0 = b6\n"
+        "  ;;\n"
+        "  cmp.eq p6, p7 = r8, r0\n"
+        "  movl r14 = 0x1122334455667788\n"
+        "  mov r8 = r0\n"
+        "  ;;\n"
+        "(p6) cmp.eq p6, p7 = r14, r35\n"
+        "  ;;\n"
+        "(p6) mov r8 = 1\n"
+        "  mov ar.rsc = r4\n"
+        "  mov ar.pfs = r5\n"
+        "  mov b0 = r6\n"
+        "  mov r1 = r7\n"
+        "  ;;\n"
+        "  br.ret.sptk.many b0\n"
+        "  ;;\n"
+        ".endp test_sal_rse_call\n"
+        ".size test_sal_rse_call, . - test_sal_rse_call\n"
+        ".popsection\n");
 
 typedef struct {
     EFI_MEMORY_DESCRIPTOR *Buffer;
@@ -255,8 +250,7 @@ typedef struct _TEST_BUS_DRIVER_OVERRIDE_PROTOCOL
     TEST_BUS_DRIVER_OVERRIDE_PROTOCOL;
 
 struct _TEST_BUS_DRIVER_OVERRIDE_PROTOCOL {
-    EFI_STATUS (*GetDriver)(TEST_BUS_DRIVER_OVERRIDE_PROTOCOL *,
-                            EFI_HANDLE *);
+    EFI_STATUS (*GetDriver)(TEST_BUS_DRIVER_OVERRIDE_PROTOCOL *, EFI_HANDLE *);
 };
 
 typedef struct _TEST_DRIVER_FAMILY_OVERRIDE_PROTOCOL
@@ -269,8 +263,8 @@ struct _TEST_DRIVER_FAMILY_OVERRIDE_PROTOCOL {
 typedef struct _TEST_LOAD_FILE_PROTOCOL TEST_LOAD_FILE_PROTOCOL;
 
 struct _TEST_LOAD_FILE_PROTOCOL {
-    EFI_STATUS (*LoadFile)(TEST_LOAD_FILE_PROTOCOL *, VOID *, BOOLEAN,
-                           UINTN *, VOID *);
+    EFI_STATUS (*LoadFile)(TEST_LOAD_FILE_PROTOCOL *, VOID *, BOOLEAN, UINTN *,
+                           VOID *);
 };
 
 typedef struct {
@@ -310,16 +304,15 @@ typedef struct {
 #define TEST_SAL_NO_INFORMATION      ((UINT64)-5)
 #define TEST_SAL_STATE_INFO_MAX_SIZE 512U
 
-static VOID *find_config_table(EFI_SYSTEM_TABLE *SystemTable,
-                               const UINT8 *Guid)
+static VOID *find_config_table(EFI_SYSTEM_TABLE *SystemTable, const UINT8 *Guid)
 {
     UINTN i;
 
     for (i = 0; i < SystemTable->NumberOfTableEntries; i++) {
         if (ia64_bytes_equal(SystemTable->ConfigurationTable[i].VendorGuid,
                              Guid, 16)) {
-            return (VOID *)(UINTN)
-                SystemTable->ConfigurationTable[i].VendorTable;
+            return (VOID *)(UINTN)SystemTable->ConfigurationTable[i]
+                .VendorTable;
         }
     }
     return NULL;
@@ -336,8 +329,8 @@ static UINT32 get_u32(const VOID *Address)
 {
     const UINT8 *p = (const UINT8 *)Address;
 
-    return (UINT32)p[0] | ((UINT32)p[1] << 8) |
-           ((UINT32)p[2] << 16) | ((UINT32)p[3] << 24);
+    return (UINT32)p[0] | ((UINT32)p[1] << 8) | ((UINT32)p[2] << 16) |
+           ((UINT32)p[3] << 24);
 }
 
 static UINT64 get_u64(const VOID *Address)
@@ -368,15 +361,15 @@ static BOOLEAN get_memory_map(EFI_SYSTEM_TABLE *SystemTable,
     Map->Buffer = NULL;
     Map->MapSize = 0;
     Map->DescriptorSize = 0;
-    status = bs->GetMemoryMap(&Map->MapSize, NULL, NULL,
-                              &Map->DescriptorSize, &version);
+    status = bs->GetMemoryMap(&Map->MapSize, NULL, NULL, &Map->DescriptorSize,
+                              &version);
     if (status != EFI_BUFFER_TOO_SMALL || Map->MapSize == 0 ||
         Map->DescriptorSize < sizeof(EFI_MEMORY_DESCRIPTOR)) {
         return 0;
     }
     Map->MapSize += 8U * Map->DescriptorSize;
-    if (bs->AllocatePool(EfiLoaderData, Map->MapSize,
-                         (VOID **)&Map->Buffer) != EFI_SUCCESS) {
+    if (bs->AllocatePool(EfiLoaderData, Map->MapSize, (VOID **)&Map->Buffer) !=
+        EFI_SUCCESS) {
         Map->Buffer = NULL;
         return 0;
     }
@@ -390,8 +383,7 @@ static BOOLEAN get_memory_map(EFI_SYSTEM_TABLE *SystemTable,
     return 1;
 }
 
-static VOID put_memory_map(EFI_SYSTEM_TABLE *SystemTable,
-                           TEST_MEMORY_MAP *Map)
+static VOID put_memory_map(EFI_SYSTEM_TABLE *SystemTable, TEST_MEMORY_MAP *Map)
 {
     if (Map->Buffer != NULL) {
         (void)SystemTable->BootServices->FreePool(Map->Buffer);
@@ -399,9 +391,9 @@ static VOID put_memory_map(EFI_SYSTEM_TABLE *SystemTable,
     }
 }
 
-static BOOLEAN memory_range_has_type(const TEST_MEMORY_MAP *Map,
-                                     UINT64 Address, UINT64 Length,
-                                     UINT32 Type, UINT64 RequiredAttributes)
+static BOOLEAN memory_range_has_type(const TEST_MEMORY_MAP *Map, UINT64 Address,
+                                     UINT64 Length, UINT32 Type,
+                                     UINT64 RequiredAttributes)
 {
     UINT64 range_end = Address + Length;
     UINTN offset;
@@ -413,9 +405,9 @@ static BOOLEAN memory_range_has_type(const TEST_MEMORY_MAP *Map,
          offset += Map->DescriptorSize) {
         const EFI_MEMORY_DESCRIPTOR *descriptor =
             (const EFI_MEMORY_DESCRIPTOR *)((const UINT8 *)Map->Buffer +
-                                             offset);
+                                            offset);
         UINT64 descriptor_end = descriptor->PhysicalStart +
-            descriptor->NumberOfPages * EFI_PAGE_SIZE;
+                                descriptor->NumberOfPages * EFI_PAGE_SIZE;
 
         if (descriptor_end < descriptor->PhysicalStart) {
             continue;
@@ -444,9 +436,9 @@ static BOOLEAN memory_range_is_mapped(const TEST_MEMORY_MAP *Map,
          offset += Map->DescriptorSize) {
         const EFI_MEMORY_DESCRIPTOR *descriptor =
             (const EFI_MEMORY_DESCRIPTOR *)((const UINT8 *)Map->Buffer +
-                                             offset);
+                                            offset);
         UINT64 descriptor_end = descriptor->PhysicalStart +
-            descriptor->NumberOfPages * EFI_PAGE_SIZE;
+                                descriptor->NumberOfPages * EFI_PAGE_SIZE;
 
         if (descriptor_end >= descriptor->PhysicalStart &&
             Address >= descriptor->PhysicalStart &&
@@ -462,12 +454,11 @@ static BOOLEAN acpi_reclaim_range(const TEST_MEMORY_MAP *Map,
 {
     UINT64 start = (UINT64)(UINTN)Address;
 
-    return memory_range_has_type(Map, start, Length,
-                                 EfiACPIReclaimMemory, 0);
+    return memory_range_has_type(Map, start, Length, EfiACPIReclaimMemory, 0);
 }
 
-static BOOLEAN acpi_nvs_range(const TEST_MEMORY_MAP *Map,
-                              const VOID *Address, UINTN Length)
+static BOOLEAN acpi_nvs_range(const TEST_MEMORY_MAP *Map, const VOID *Address,
+                              UINTN Length)
 {
     UINT64 start = (UINT64)(UINTN)Address;
 
@@ -558,15 +549,15 @@ static BOOLEAN init_table_context(EFI_SYSTEM_TABLE *SystemTable,
         get_u32((UINT8 *)Context->Rsdp + 20) < sizeof(*Context->Rsdp) ||
         get_u32((UINT8 *)Context->Rsdp + 20) > 4096U ||
         ia64_checksum8(Context->Rsdp, 20) != 0 ||
-        ia64_checksum8(Context->Rsdp,
-                       get_u32((UINT8 *)Context->Rsdp + 20)) != 0) {
+        ia64_checksum8(Context->Rsdp, get_u32((UINT8 *)Context->Rsdp + 20)) !=
+            0) {
         return 0;
     }
 
-    Context->Rsdt = (TEST_SDT_HEADER *)(UINTN)
-        get_u32((UINT8 *)Context->Rsdp + 16);
-    Context->Xsdt = (TEST_SDT_HEADER *)(UINTN)
-        get_u64((UINT8 *)Context->Rsdp + 24);
+    Context->Rsdt =
+        (TEST_SDT_HEADER *)(UINTN)get_u32((UINT8 *)Context->Rsdp + 16);
+    Context->Xsdt =
+        (TEST_SDT_HEADER *)(UINTN)get_u64((UINT8 *)Context->Rsdp + 24);
     if (!valid_sdt(&Context->MemoryMap, Context->Rsdt,
                    SIG32('R', 'S', 'D', 'T'), 1, sizeof(TEST_SDT_HEADER)) ||
         !valid_sdt(&Context->MemoryMap, Context->Xsdt,
@@ -586,15 +577,14 @@ static BOOLEAN init_table_context(EFI_SYSTEM_TABLE *SystemTable,
     }
     Context->RootEntryCount = xsdt_count;
     for (i = 0; i < xsdt_count; i++) {
-        UINT64 address = get_u64((UINT8 *)Context->Xsdt +
-                                 sizeof(TEST_SDT_HEADER) + i * 8U);
-        UINT32 rsdt_address = get_u32((UINT8 *)Context->Rsdt +
-                                      sizeof(TEST_SDT_HEADER) + i * 4U);
+        UINT64 address =
+            get_u64((UINT8 *)Context->Xsdt + sizeof(TEST_SDT_HEADER) + i * 8U);
+        UINT32 rsdt_address =
+            get_u32((UINT8 *)Context->Rsdt + sizeof(TEST_SDT_HEADER) + i * 4U);
         TEST_SDT_HEADER *header = (TEST_SDT_HEADER *)(UINTN)address;
 
         if (address == 0 || (UINT32)address != rsdt_address ||
-            !acpi_reclaim_range(&Context->MemoryMap, header,
-                                sizeof(*header)) ||
+            !acpi_reclaim_range(&Context->MemoryMap, header, sizeof(*header)) ||
             !valid_sdt(&Context->MemoryMap, header, get_u32(header), 1,
                        sizeof(TEST_SDT_HEADER)) ||
             !assign_root_table(Context, header)) {
@@ -612,8 +602,8 @@ static BOOLEAN init_table_context(EFI_SYSTEM_TABLE *SystemTable,
         return 0;
     }
     Context->Facs = (UINT8 *)(UINTN)get_u64((UINT8 *)Context->Fadt + 132);
-    Context->Dsdt = (TEST_SDT_HEADER *)(UINTN)
-        get_u64((UINT8 *)Context->Fadt + 140);
+    Context->Dsdt =
+        (TEST_SDT_HEADER *)(UINTN)get_u64((UINT8 *)Context->Fadt + 140);
     if (Context->Facs == NULL || Context->Dsdt == NULL ||
         ((UINTN)Context->Facs & 63U) != 0 ||
         !acpi_nvs_range(&Context->MemoryMap, Context->Facs, 8) ||
@@ -622,8 +612,7 @@ static BOOLEAN init_table_context(EFI_SYSTEM_TABLE *SystemTable,
         !acpi_nvs_range(&Context->MemoryMap, Context->Facs,
                         get_u32(Context->Facs + 4)) ||
         !valid_sdt(&Context->MemoryMap, Context->Dsdt,
-                   SIG32('D', 'S', 'D', 'T'), 2,
-                   sizeof(TEST_SDT_HEADER))) {
+                   SIG32('D', 'S', 'D', 'T'), 2, sizeof(TEST_SDT_HEADER))) {
         return 0;
     }
     Context->Valid = 1;
@@ -802,19 +791,19 @@ static BOOLEAN test_protocol_services(EFI_HANDLE ImageHandle,
     VOID *opened = NULL;
     VOID *located = NULL;
 
-    if (bs->HandleProtocol(ImageHandle, loaded_image_guid,
-                           (VOID **)&loaded) != EFI_SUCCESS ||
+    if (bs->HandleProtocol(ImageHandle, loaded_image_guid, (VOID **)&loaded) !=
+            EFI_SUCCESS ||
         loaded == NULL || loaded->DeviceHandle == NULL ||
-        bs->OpenProtocol(ImageHandle, loaded_image_guid, &opened,
-                         ImageHandle, NULL,
-                         EFI_OPEN_PROTOCOL_GET_PROTOCOL) != EFI_SUCCESS ||
+        bs->OpenProtocol(ImageHandle, loaded_image_guid, &opened, ImageHandle,
+                         NULL, EFI_OPEN_PROTOCOL_GET_PROTOCOL) != EFI_SUCCESS ||
         opened != loaded ||
-        bs->CloseProtocol(ImageHandle, loaded_image_guid,
-                          ImageHandle, NULL) != EFI_SUCCESS ||
-        bs->ReinstallProtocolInterface(ImageHandle, loaded_image_guid,
-                                       loaded, loaded) != EFI_SUCCESS ||
+        bs->CloseProtocol(ImageHandle, loaded_image_guid, ImageHandle, NULL) !=
+            EFI_SUCCESS ||
+        bs->ReinstallProtocolInterface(ImageHandle, loaded_image_guid, loaded,
+                                       loaded) != EFI_SUCCESS ||
         bs->HandleProtocol(ImageHandle, loaded_image_guid, &opened) !=
-            EFI_SUCCESS || opened != loaded ||
+            EFI_SUCCESS ||
+        opened != loaded ||
         bs->LocateProtocol(device_path_guid, NULL, &located) != EFI_SUCCESS ||
         located == NULL) {
         return 0;
@@ -833,8 +822,8 @@ static VOID test_protocol_notify(EFI_EVENT Event, VOID *Context)
 
 static BOOLEAN test_reinstall_interface(EFI_BOOT_SERVICES *bs,
                                         EFI_HANDLE ImageHandle,
-                                        EFI_HANDLE Handle,
-                                        VOID *Original, VOID *Replacement)
+                                        EFI_HANDLE Handle, VOID *Original,
+                                        VOID *Replacement)
 {
     EFI_EVENT event = NULL;
     VOID *registration = NULL;
@@ -851,14 +840,13 @@ static BOOLEAN test_reinstall_interface(EFI_BOOT_SERVICES *bs,
     BOOLEAN ok = 0;
 
     if (bs->ProtocolsPerHandle(Handle, &protocols, &original_count) !=
-            EFI_SUCCESS) {
+        EFI_SUCCESS) {
         return 0;
     }
     (void)bs->FreePool(protocols);
     protocols = NULL;
-    if (bs->CreateEvent(EVT_NOTIFY_SIGNAL, TPL_CALLBACK,
-                         test_protocol_notify, &notifications, &event) !=
-            EFI_SUCCESS ||
+    if (bs->CreateEvent(EVT_NOTIFY_SIGNAL, TPL_CALLBACK, test_protocol_notify,
+                        &notifications, &event) != EFI_SUCCESS ||
         bs->RegisterProtocolNotify(loaded_image_guid, event, &registration) !=
             EFI_SUCCESS) {
         goto out;
@@ -870,18 +858,17 @@ static BOOLEAN test_reinstall_interface(EFI_BOOT_SERVICES *bs,
     if (status != EFI_NOT_FOUND) {
         goto out;
     }
-    if (bs->ReinstallProtocolInterface(Handle, loaded_image_guid,
-                                       Replacement, Original) !=
-            EFI_NOT_FOUND || notifications != 0 ||
-        bs->OpenProtocol(Handle, loaded_image_guid, &located,
-                          ImageHandle, NULL, EFI_OPEN_PROTOCOL_EXCLUSIVE) !=
-            EFI_SUCCESS) {
+    if (bs->ReinstallProtocolInterface(Handle, loaded_image_guid, Replacement,
+                                       Original) != EFI_NOT_FOUND ||
+        notifications != 0 ||
+        bs->OpenProtocol(Handle, loaded_image_guid, &located, ImageHandle, NULL,
+                         EFI_OPEN_PROTOCOL_EXCLUSIVE) != EFI_SUCCESS) {
         goto out;
     }
     exclusive = 1;
-    if (bs->ReinstallProtocolInterface(Handle, loaded_image_guid,
-                                       Original, Replacement) !=
-            EFI_ACCESS_DENIED || notifications != 0 ||
+    if (bs->ReinstallProtocolInterface(Handle, loaded_image_guid, Original,
+                                       Replacement) != EFI_ACCESS_DENIED ||
+        notifications != 0 ||
         bs->CloseProtocol(Handle, loaded_image_guid, ImageHandle, NULL) !=
             EFI_SUCCESS) {
         goto out;
@@ -892,16 +879,18 @@ static BOOLEAN test_reinstall_interface(EFI_BOOT_SERVICES *bs,
         UINTN matches = 0;
         UINTN i;
 
-        if (bs->ReinstallProtocolInterface(Handle, loaded_image_guid,
-                                           current, next) != EFI_SUCCESS) {
+        if (bs->ReinstallProtocolInterface(Handle, loaded_image_guid, current,
+                                           next) != EFI_SUCCESS) {
             goto out;
         }
         current = next;
         if (notifications != pass + 1U ||
             bs->HandleProtocol(Handle, loaded_image_guid, &located) !=
-                EFI_SUCCESS || located != current ||
+                EFI_SUCCESS ||
+            located != current ||
             bs->LocateProtocol(loaded_image_guid, registration, &located) !=
-                EFI_SUCCESS || located != current ||
+                EFI_SUCCESS ||
+            located != current ||
             bs->LocateProtocol(loaded_image_guid, registration, &located) !=
                 EFI_NOT_FOUND ||
             bs->ProtocolsPerHandle(Handle, &protocols, &count) != EFI_SUCCESS ||
@@ -917,25 +906,27 @@ static BOOLEAN test_reinstall_interface(EFI_BOOT_SERVICES *bs,
             goto out;
         }
     }
-    if (bs->UninstallProtocolInterface(Handle, loaded_image_guid,
-                                       current) != EFI_SUCCESS) {
+    if (bs->UninstallProtocolInterface(Handle, loaded_image_guid, current) !=
+        EFI_SUCCESS) {
         goto out;
     }
     removed = 1;
     if (bs->HandleProtocol(Handle, loaded_image_guid, &located) !=
-            EFI_UNSUPPORTED || located != NULL ||
+            EFI_UNSUPPORTED ||
+        located != NULL ||
         bs->ProtocolsPerHandle(Handle, &protocols, &count) != EFI_SUCCESS ||
         count + 1U != original_count || notifications != 3U ||
         bs->InstallProtocolInterface(&Handle, loaded_image_guid,
-                                      EFI_NATIVE_INTERFACE, Original) !=
-            EFI_SUCCESS) {
+                                     EFI_NATIVE_INTERFACE,
+                                     Original) != EFI_SUCCESS) {
         goto out;
     }
     removed = 0;
     current = Original;
     ok = notifications == 4U &&
          bs->LocateProtocol(loaded_image_guid, registration, &located) ==
-             EFI_SUCCESS && located == Original;
+             EFI_SUCCESS &&
+         located == Original;
 
 out:
     if (protocols != NULL) {
@@ -951,14 +942,14 @@ out:
         (void)bs->InstallProtocolInterface(&Handle, loaded_image_guid,
                                            EFI_NATIVE_INTERFACE, Original);
     } else if (current != Original) {
-        (void)bs->ReinstallProtocolInterface(Handle, loaded_image_guid,
-                                             current, Original);
+        (void)bs->ReinstallProtocolInterface(Handle, loaded_image_guid, current,
+                                             Original);
     }
     return ok;
 }
 
-static BOOLEAN test_reinstall_protocol_services(
-    EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
+static BOOLEAN test_reinstall_protocol_services(EFI_HANDLE ImageHandle,
+                                                EFI_SYSTEM_TABLE *SystemTable)
 {
     EFI_BOOT_SERVICES *bs = SystemTable->BootServices;
     EFI_LOADED_IMAGE_PROTOCOL *original = NULL;
@@ -974,31 +965,30 @@ static BOOLEAN test_reinstall_protocol_services(
         return 0;
     }
     replacement = *original;
-    if (!test_reinstall_interface(bs, ImageHandle, ImageHandle,
-                                   original, &replacement) ||
-        bs->InstallMultipleProtocolInterfaces(
-            &handle, connection_test_guid, &marker,
-            loaded_image_guid, original, NULL) != EFI_SUCCESS) {
+    if (!test_reinstall_interface(bs, ImageHandle, ImageHandle, original,
+                                  &replacement) ||
+        bs->InstallMultipleProtocolInterfaces(&handle, connection_test_guid,
+                                              &marker, loaded_image_guid,
+                                              original, NULL) != EFI_SUCCESS) {
         return 0;
     }
-    ok = test_reinstall_interface(bs, ImageHandle, handle,
-                                   original, &replacement);
-    if (bs->UninstallMultipleProtocolInterfaces(
-            handle, loaded_image_guid, original,
-            connection_test_guid, &marker, NULL) != EFI_SUCCESS) {
+    ok = test_reinstall_interface(bs, ImageHandle, handle, original,
+                                  &replacement);
+    if (bs->UninstallMultipleProtocolInterfaces(handle, loaded_image_guid,
+                                                original, connection_test_guid,
+                                                &marker, NULL) != EFI_SUCCESS) {
         return 0;
     }
     invalid_handles[0] = NULL;
     invalid_handles[1] = (EFI_HANDLE)(UINTN)1;
     invalid_handles[2] = handle;
     for (i = 0; i < sizeof(invalid_handles) / sizeof(invalid_handles[0]); i++) {
-        if (bs->ReinstallProtocolInterface(invalid_handles[i],
-                                           loaded_image_guid,
-                                           original, &replacement) !=
-                EFI_INVALID_PARAMETER ||
+        if (bs->ReinstallProtocolInterface(
+                invalid_handles[i], loaded_image_guid, original,
+                &replacement) != EFI_INVALID_PARAMETER ||
             bs->UninstallProtocolInterface(invalid_handles[i],
-                                           loaded_image_guid, original) !=
-                EFI_INVALID_PARAMETER) {
+                                           loaded_image_guid,
+                                           original) != EFI_INVALID_PARAMETER) {
             ok = 0;
         }
     }
@@ -1016,9 +1006,10 @@ typedef struct {
     UINTN Notifications;
 } TEST_REINSTALL_DRIVER;
 
-static EFI_STATUS test_reinstall_driver_supported(
-    EFI_DRIVER_BINDING_PROTOCOL *This, EFI_HANDLE Controller,
-    VOID *RemainingDevicePath)
+static EFI_STATUS
+test_reinstall_driver_supported(EFI_DRIVER_BINDING_PROTOCOL *This,
+                                EFI_HANDLE Controller,
+                                VOID *RemainingDevicePath)
 {
     TEST_REINSTALL_DRIVER *driver = (TEST_REINSTALL_DRIVER *)This;
     VOID *interface = NULL;
@@ -1034,9 +1025,9 @@ static EFI_STATUS test_reinstall_driver_supported(
         Controller, connection_test_guid, &interface);
 }
 
-static EFI_STATUS test_reinstall_driver_start(
-    EFI_DRIVER_BINDING_PROTOCOL *This, EFI_HANDLE Controller,
-    VOID *RemainingDevicePath)
+static EFI_STATUS test_reinstall_driver_start(EFI_DRIVER_BINDING_PROTOCOL *This,
+                                              EFI_HANDLE Controller,
+                                              VOID *RemainingDevicePath)
 {
     TEST_REINSTALL_DRIVER *driver = (TEST_REINSTALL_DRIVER *)This;
     VOID *interface = NULL;
@@ -1044,8 +1035,8 @@ static EFI_STATUS test_reinstall_driver_start(
 
     (void)RemainingDevicePath;
     status = driver->BootServices->OpenProtocol(
-        Controller, connection_test_guid, &interface,
-        This->DriverBindingHandle, Controller, EFI_OPEN_PROTOCOL_BY_DRIVER);
+        Controller, connection_test_guid, &interface, This->DriverBindingHandle,
+        Controller, EFI_OPEN_PROTOCOL_BY_DRIVER);
     if (status == EFI_SUCCESS) {
         driver->Interface = interface;
         driver->Starts++;
@@ -1053,9 +1044,10 @@ static EFI_STATUS test_reinstall_driver_start(
     return status;
 }
 
-static EFI_STATUS test_reinstall_driver_stop(
-    EFI_DRIVER_BINDING_PROTOCOL *This, EFI_HANDLE Controller,
-    UINTN NumberOfChildren, EFI_HANDLE *ChildHandleBuffer)
+static EFI_STATUS test_reinstall_driver_stop(EFI_DRIVER_BINDING_PROTOCOL *This,
+                                             EFI_HANDLE Controller,
+                                             UINTN NumberOfChildren,
+                                             EFI_HANDLE *ChildHandleBuffer)
 {
     TEST_REINSTALL_DRIVER *driver = (TEST_REINSTALL_DRIVER *)This;
     EFI_STATUS status;
@@ -1083,8 +1075,8 @@ static VOID test_reinstall_driver_notify(EFI_EVENT Event, VOID *Context)
     driver->NotifiedInterface = driver->Interface;
 }
 
-static BOOLEAN test_reinstall_driver_services(
-    EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
+static BOOLEAN test_reinstall_driver_services(EFI_HANDLE ImageHandle,
+                                              EFI_SYSTEM_TABLE *SystemTable)
 {
     EFI_BOOT_SERVICES *bs = SystemTable->BootServices;
     TEST_REINSTALL_DRIVER driver;
@@ -1105,20 +1097,19 @@ static BOOLEAN test_reinstall_driver_services(
     driver.Binding.ImageHandle = ImageHandle;
     driver.BootServices = bs;
     if (bs->InstallProtocolInterface(&driver.Controller, connection_test_guid,
-                                     EFI_NATIVE_INTERFACE, current) !=
-            EFI_SUCCESS ||
+                                     EFI_NATIVE_INTERFACE,
+                                     current) != EFI_SUCCESS ||
         bs->InstallProtocolInterface(&driver.Binding.DriverBindingHandle,
-                                     driver_binding_guid,
-                                     EFI_NATIVE_INTERFACE, &driver.Binding) !=
-            EFI_SUCCESS ||
+                                     driver_binding_guid, EFI_NATIVE_INTERFACE,
+                                     &driver.Binding) != EFI_SUCCESS ||
         bs->ConnectController(driver.Controller, NULL, NULL, 1) !=
             EFI_SUCCESS ||
         driver.Starts != 1U || driver.Interface != &original ||
         bs->CreateEvent(EVT_NOTIFY_SIGNAL, TPL_CALLBACK,
-                         test_reinstall_driver_notify, &driver, &event) !=
-            EFI_SUCCESS ||
+                        test_reinstall_driver_notify, &driver,
+                        &event) != EFI_SUCCESS ||
         bs->RegisterProtocolNotify(connection_test_guid, event,
-                                    &registration) != EFI_SUCCESS) {
+                                   &registration) != EFI_SUCCESS) {
         goto out;
     }
     for (pass = 0; pass < 2U; pass++) {
@@ -1129,8 +1120,7 @@ static BOOLEAN test_reinstall_driver_services(
         }
         current = &replacement;
         if (driver.Starts != pass + 2U || driver.Stops != pass + 1U ||
-            driver.Notifications != pass + 1U ||
-            driver.Interface != current ||
+            driver.Notifications != pass + 1U || driver.Interface != current ||
             driver.NotifiedInterface != current) {
             goto out;
         }
@@ -1143,13 +1133,13 @@ out:
     }
     if (driver.Controller != NULL &&
         bs->UninstallProtocolInterface(driver.Controller, connection_test_guid,
-                                        current) != EFI_SUCCESS) {
+                                       current) != EFI_SUCCESS) {
         cleanup_ok = 0;
     }
     if (driver.Binding.DriverBindingHandle != NULL &&
         bs->UninstallProtocolInterface(driver.Binding.DriverBindingHandle,
-                                        driver_binding_guid,
-                                        &driver.Binding) != EFI_SUCCESS) {
+                                       driver_binding_guid,
+                                       &driver.Binding) != EFI_SUCCESS) {
         cleanup_ok = 0;
     }
     return ok && cleanup_ok;
@@ -1193,21 +1183,22 @@ static BOOLEAN test_multiple_protocol_services(EFI_SYSTEM_TABLE *SystemTable)
     BOOLEAN ok = 0;
 
     if (bs->InstallMultipleProtocolInterfaces(
-            &duplicate, marker1_guid, &interface1,
-            marker1_guid, &interface2, NULL) != EFI_INVALID_PARAMETER ||
+            &duplicate, marker1_guid, &interface1, marker1_guid, &interface2,
+            NULL) != EFI_INVALID_PARAMETER ||
         duplicate != NULL) {
         return 0;
     }
     if (bs->InstallMultipleProtocolInterfaces(
-            &handle, marker1_guid, &interface1,
-            marker2_guid, &interface2, NULL) != EFI_SUCCESS ||
+            &handle, marker1_guid, &interface1, marker2_guid, &interface2,
+            NULL) != EFI_SUCCESS ||
         handle == NULL) {
         goto out;
     }
     handle_installed = 1;
 
     if (bs->ProtocolsPerHandle(handle, &protocols, &protocol_count) !=
-            EFI_SUCCESS || protocol_count != 2U) {
+            EFI_SUCCESS ||
+        protocol_count != 2U) {
         goto out;
     }
     for (i = 0; i < protocol_count; i++) {
@@ -1219,9 +1210,8 @@ static BOOLEAN test_multiple_protocol_services(EFI_SYSTEM_TABLE *SystemTable)
         goto out;
     }
     if (bs->UninstallMultipleProtocolInterfaces(
-            handle, enumerated_guid, &interface1,
-            marker2_guid, &wrong_interface, NULL) !=
-            EFI_INVALID_PARAMETER ||
+            handle, enumerated_guid, &interface1, marker2_guid,
+            &wrong_interface, NULL) != EFI_INVALID_PARAMETER ||
         bs->HandleProtocol(handle, marker1_guid, &located1) != EFI_SUCCESS ||
         located1 != &interface1 ||
         bs->HandleProtocol(handle, marker2_guid, &located2) != EFI_SUCCESS ||
@@ -1229,16 +1219,17 @@ static BOOLEAN test_multiple_protocol_services(EFI_SYSTEM_TABLE *SystemTable)
         goto out;
     }
 
-    if (bs->InstallMultipleProtocolInterfaces(
-            &path_handle, device_path_guid, &path1,
-            marker1_guid, &interface1, NULL) != EFI_SUCCESS ||
+    if (bs->InstallMultipleProtocolInterfaces(&path_handle, device_path_guid,
+                                              &path1, marker1_guid, &interface1,
+                                              NULL) != EFI_SUCCESS ||
         path_handle == NULL) {
         goto out;
     }
     path_installed = 1;
-    if (bs->InstallMultipleProtocolInterfaces(
-            &duplicate, device_path_guid, &path2, NULL) !=
-            EFI_ALREADY_STARTED || duplicate != NULL) {
+    if (bs->InstallMultipleProtocolInterfaces(&duplicate, device_path_guid,
+                                              &path2,
+                                              NULL) != EFI_ALREADY_STARTED ||
+        duplicate != NULL) {
         goto out;
     }
     ok = 1;
@@ -1247,16 +1238,14 @@ out:
     if (protocols != NULL) {
         (void)bs->FreePool(protocols);
     }
-    if (path_installed &&
-        bs->UninstallMultipleProtocolInterfaces(
-            path_handle, marker1_guid, &interface1,
-            device_path_guid, &path1, NULL) != EFI_SUCCESS) {
+    if (path_installed && bs->UninstallMultipleProtocolInterfaces(
+                              path_handle, marker1_guid, &interface1,
+                              device_path_guid, &path1, NULL) != EFI_SUCCESS) {
         ok = 0;
     }
-    if (handle_installed &&
-        bs->UninstallMultipleProtocolInterfaces(
-            handle, marker1_guid, &interface1,
-            marker2_guid, &interface2, NULL) != EFI_SUCCESS) {
+    if (handle_installed && bs->UninstallMultipleProtocolInterfaces(
+                                handle, marker1_guid, &interface1, marker2_guid,
+                                &interface2, NULL) != EFI_SUCCESS) {
         ok = 0;
     }
     return ok;
@@ -1307,8 +1296,8 @@ static EFI_STATUS test_driver_start(EFI_DRIVER_BINDING_PROTOCOL *This,
 {
     UINTN index = test_binding_index(This);
 
-    if (test_driver_supported(This, ControllerHandle,
-                              RemainingDevicePath) != EFI_SUCCESS ||
+    if (test_driver_supported(This, ControllerHandle, RemainingDevicePath) !=
+            EFI_SUCCESS ||
         test_start_count >= sizeof(test_start_order)) {
         return EFI_DEVICE_ERROR;
     }
@@ -1328,9 +1317,10 @@ static EFI_STATUS test_driver_stop(EFI_DRIVER_BINDING_PROTOCOL *This,
     return EFI_SUCCESS;
 }
 
-static EFI_STATUS test_platform_get_driver(
-    TEST_PLATFORM_DRIVER_OVERRIDE_PROTOCOL *This,
-    EFI_HANDLE ControllerHandle, EFI_HANDLE *DriverImageHandle)
+static EFI_STATUS
+test_platform_get_driver(TEST_PLATFORM_DRIVER_OVERRIDE_PROTOCOL *This,
+                         EFI_HANDLE ControllerHandle,
+                         EFI_HANDLE *DriverImageHandle)
 {
     (void)This;
     if (DriverImageHandle == NULL ||
@@ -1341,13 +1331,13 @@ static EFI_STATUS test_platform_get_driver(
         *DriverImageHandle = test_connect_driver_handles[1];
         return EFI_SUCCESS;
     }
-    return *DriverImageHandle == test_connect_driver_handles[1] ?
-        EFI_NOT_FOUND : EFI_INVALID_PARAMETER;
+    return *DriverImageHandle == test_connect_driver_handles[1]
+               ? EFI_NOT_FOUND
+               : EFI_INVALID_PARAMETER;
 }
 
-static EFI_STATUS test_bus_get_driver(
-    TEST_BUS_DRIVER_OVERRIDE_PROTOCOL *This,
-    EFI_HANDLE *DriverImageHandle)
+static EFI_STATUS test_bus_get_driver(TEST_BUS_DRIVER_OVERRIDE_PROTOCOL *This,
+                                      EFI_HANDLE *DriverImageHandle)
 {
     (void)This;
     if (DriverImageHandle == NULL) {
@@ -1357,12 +1347,13 @@ static EFI_STATUS test_bus_get_driver(
         *DriverImageHandle = test_connect_driver_handles[4];
         return EFI_SUCCESS;
     }
-    return *DriverImageHandle == test_connect_driver_handles[4] ?
-        EFI_NOT_FOUND : EFI_INVALID_PARAMETER;
+    return *DriverImageHandle == test_connect_driver_handles[4]
+               ? EFI_NOT_FOUND
+               : EFI_INVALID_PARAMETER;
 }
 
-static UINT32 test_family_get_version(
-    TEST_DRIVER_FAMILY_OVERRIDE_PROTOCOL *This)
+static UINT32
+test_family_get_version(TEST_DRIVER_FAMILY_OVERRIDE_PROTOCOL *This)
 {
     return This == &test_family_overrides[0] ? 10U : 20U;
 }
@@ -1372,7 +1363,9 @@ static BOOLEAN test_controller_services(EFI_SYSTEM_TABLE *SystemTable)
     static const UINT8 expected_order[] = { 0, 1, 3, 2, 4, 6, 5 };
     EFI_BOOT_SERVICES *bs = SystemTable->BootServices;
     TEST_PLATFORM_DRIVER_OVERRIDE_PROTOCOL platform = {
-        test_platform_get_driver, NULL, NULL,
+        test_platform_get_driver,
+        NULL,
+        NULL,
     };
     TEST_BUS_DRIVER_OVERRIDE_PROTOCOL bus = { test_bus_get_driver };
     EFI_HANDLE platform_handle = NULL;
@@ -1400,16 +1393,16 @@ static BOOLEAN test_controller_services(EFI_SYSTEM_TABLE *SystemTable)
     test_family_overrides[0].GetVersion = test_family_get_version;
     test_family_overrides[1].GetVersion = test_family_get_version;
 
-    status = bs->InstallProtocolInterface(
-        &test_primary_controller, connection_test_guid,
-        EFI_NATIVE_INTERFACE, &primary_token);
+    status = bs->InstallProtocolInterface(&test_primary_controller,
+                                          connection_test_guid,
+                                          EFI_NATIVE_INTERFACE, &primary_token);
     if (status != EFI_SUCCESS) {
         goto out;
     }
     primary_installed = 1;
     status = bs->InstallProtocolInterface(
-        &test_secondary_controller, connection_test_guid,
-        EFI_NATIVE_INTERFACE, &secondary_token);
+        &test_secondary_controller, connection_test_guid, EFI_NATIVE_INTERFACE,
+        &secondary_token);
     if (status != EFI_SUCCESS) {
         goto out;
     }
@@ -1422,9 +1415,9 @@ static BOOLEAN test_controller_services(EFI_SYSTEM_TABLE *SystemTable)
         test_connect_bindings[i].Start = test_driver_start;
         test_connect_bindings[i].Stop = test_driver_stop;
         test_connect_bindings[i].Version = 0x100U + (UINT32)i;
-        status = bs->InstallProtocolInterface(
-            &handle, driver_binding_guid, EFI_NATIVE_INTERFACE,
-            &test_connect_bindings[i]);
+        status = bs->InstallProtocolInterface(&handle, driver_binding_guid,
+                                              EFI_NATIVE_INTERFACE,
+                                              &test_connect_bindings[i]);
         if (status != EFI_SUCCESS) {
             goto out;
         }
@@ -1443,16 +1436,16 @@ static BOOLEAN test_controller_services(EFI_SYSTEM_TABLE *SystemTable)
         }
         family_installed[i] = 1;
     }
-    status = bs->InstallProtocolInterface(
-        &test_primary_controller, bus_override_guid,
-        EFI_NATIVE_INTERFACE, &bus);
+    status = bs->InstallProtocolInterface(&test_primary_controller,
+                                          bus_override_guid,
+                                          EFI_NATIVE_INTERFACE, &bus);
     if (status != EFI_SUCCESS) {
         goto out;
     }
     bus_installed = 1;
-    status = bs->InstallProtocolInterface(
-        &platform_handle, platform_override_guid,
-        EFI_NATIVE_INTERFACE, &platform);
+    status =
+        bs->InstallProtocolInterface(&platform_handle, platform_override_guid,
+                                     EFI_NATIVE_INTERFACE, &platform);
     if (status != EFI_SUCCESS) {
         goto out;
     }
@@ -1460,10 +1453,9 @@ static BOOLEAN test_controller_services(EFI_SYSTEM_TABLE *SystemTable)
 
     explicit_drivers[0] = test_connect_driver_handles[0];
     explicit_drivers[1] = NULL;
-    status = bs->ConnectController(test_primary_controller,
-                                   explicit_drivers, NULL, 0);
-    if (status != EFI_SUCCESS ||
-        test_start_count != sizeof(expected_order) ||
+    status = bs->ConnectController(test_primary_controller, explicit_drivers,
+                                   NULL, 0);
+    if (status != EFI_SUCCESS || test_start_count != sizeof(expected_order) ||
         !ia64_bytes_equal(test_start_order, expected_order,
                           sizeof(expected_order))) {
         goto out;
@@ -1471,21 +1463,20 @@ static BOOLEAN test_controller_services(EFI_SYSTEM_TABLE *SystemTable)
 
     test_start_count = 0;
     explicit_drivers[0] = test_connect_driver_handles[7];
-    status = bs->ConnectController(test_secondary_controller,
-                                   explicit_drivers, NULL, 0);
+    status = bs->ConnectController(test_secondary_controller, explicit_drivers,
+                                   NULL, 0);
     if (status != EFI_NOT_FOUND || test_start_count != 1U ||
         test_start_order[0] != 7U ||
-        bs->DisconnectController(test_secondary_controller,
-                                 NULL, NULL) != EFI_SUCCESS ||
-        bs->DisconnectController(test_secondary_controller,
-                                 test_connect_driver_handles[0], NULL) !=
+        bs->DisconnectController(test_secondary_controller, NULL, NULL) !=
             EFI_SUCCESS ||
         bs->DisconnectController(test_secondary_controller,
-                                 (EFI_HANDLE)(UINTN)1, NULL) !=
-            EFI_INVALID_PARAMETER ||
+                                 test_connect_driver_handles[0],
+                                 NULL) != EFI_SUCCESS ||
         bs->DisconnectController(test_secondary_controller,
-                                 platform_handle, NULL) !=
-            EFI_INVALID_PARAMETER ||
+                                 (EFI_HANDLE)(UINTN)1,
+                                 NULL) != EFI_INVALID_PARAMETER ||
+        bs->DisconnectController(test_secondary_controller, platform_handle,
+                                 NULL) != EFI_INVALID_PARAMETER ||
         bs->DisconnectController(test_secondary_controller, NULL,
                                  (EFI_HANDLE)(UINTN)1) !=
             EFI_INVALID_PARAMETER) {
@@ -1495,15 +1486,13 @@ static BOOLEAN test_controller_services(EFI_SYSTEM_TABLE *SystemTable)
 
 out:
     if (platform_installed &&
-        bs->UninstallProtocolInterface(platform_handle,
-                                       platform_override_guid,
+        bs->UninstallProtocolInterface(platform_handle, platform_override_guid,
                                        &platform) != EFI_SUCCESS) {
         cleanup_ok = 0;
     }
-    if (bus_installed &&
-        bs->UninstallProtocolInterface(test_primary_controller,
-                                       bus_override_guid,
-                                       &bus) != EFI_SUCCESS) {
+    if (bus_installed && bs->UninstallProtocolInterface(test_primary_controller,
+                                                        bus_override_guid,
+                                                        &bus) != EFI_SUCCESS) {
         cleanup_ok = 0;
     }
     for (i = 2U; i > 0; i--) {
@@ -1511,9 +1500,8 @@ out:
 
         if (family_installed[index] &&
             bs->UninstallProtocolInterface(
-                test_connect_driver_handles[2U + index],
-                family_override_guid, &test_family_overrides[index]) !=
-                EFI_SUCCESS) {
+                test_connect_driver_handles[2U + index], family_override_guid,
+                &test_family_overrides[index]) != EFI_SUCCESS) {
             cleanup_ok = 0;
         }
     }
@@ -1532,10 +1520,9 @@ out:
                                        &secondary_token) != EFI_SUCCESS) {
         cleanup_ok = 0;
     }
-    if (primary_installed &&
-        bs->UninstallProtocolInterface(test_primary_controller,
-                                       connection_test_guid,
-                                       &primary_token) != EFI_SUCCESS) {
+    if (primary_installed && bs->UninstallProtocolInterface(
+                                 test_primary_controller, connection_test_guid,
+                                 &primary_token) != EFI_SUCCESS) {
         cleanup_ok = 0;
     }
     test_primary_controller = NULL;
@@ -1550,8 +1537,7 @@ static BOOLEAN test_load_file_policy_ok;
 static BOOLEAN test_load_file2_not_found;
 
 static EFI_STATUS test_load_file_callback(TEST_LOAD_FILE_PROTOCOL *This,
-                                          VOID *FilePath,
-                                          BOOLEAN BootPolicy,
+                                          VOID *FilePath, BOOLEAN BootPolicy,
                                           UINTN *BufferSize, VOID *Buffer)
 {
     TEST_DEVICE_PATH_NODE *node = (TEST_DEVICE_PATH_NODE *)FilePath;
@@ -1599,7 +1585,10 @@ static BOOLEAN test_image_services(EFI_HANDLE ImageHandle,
         UINT8 Device;
         TEST_DEVICE_PATH_NODE End;
     } __attribute__((packed, aligned(8))) provider_path = {
-        { 0x01, 0x01, 6 }, 0, 31, { 0x7f, 0xff, 4 },
+        { 0x01, 0x01, 6 },
+        0,
+        31,
+        { 0x7f, 0xff, 4 },
     };
     struct {
         TEST_DEVICE_PATH_NODE Pci;
@@ -1609,7 +1598,7 @@ static BOOLEAN test_image_services(EFI_HANDLE ImageHandle,
         CHAR16 Name[2];
         TEST_DEVICE_PATH_NODE End;
     } __attribute__((packed, aligned(8))) file_path = {
-        { 0x01, 0x01, 6 }, 0, 31,
+        { 0x01, 0x01, 6 }, 0,          31,
         { 0x04, 0x04, 8 }, { 'x', 0 }, { 0x7f, 0xff, 4 },
     };
     EFI_BOOT_SERVICES *bs = SystemTable->BootServices;
@@ -1640,21 +1629,24 @@ static BOOLEAN test_image_services(EFI_HANDLE ImageHandle,
     truncated_optional_header[69] = 0x02U;
     truncated_optional_header[84] = 0xf0U;
 
-    if (bs->LoadImage(0, NULL, NULL, invalid_image,
-                      sizeof(invalid_image), &image) !=
-            EFI_INVALID_PARAMETER || image != NULL ||
-        bs->LoadImage(0, ImageHandle, NULL, NULL, 0, &image) !=
-            EFI_NOT_FOUND || image != NULL ||
+    if (bs->LoadImage(0, NULL, NULL, invalid_image, sizeof(invalid_image),
+                      &image) != EFI_INVALID_PARAMETER ||
+        image != NULL ||
+        bs->LoadImage(0, ImageHandle, NULL, NULL, 0, &image) != EFI_NOT_FOUND ||
+        image != NULL ||
         bs->LoadImage(0, ImageHandle, NULL, invalid_image, 0, &image) !=
-            EFI_INVALID_PARAMETER || image != NULL ||
+            EFI_INVALID_PARAMETER ||
+        image != NULL ||
         bs->LoadImage(0, ImageHandle, NULL, invalid_image,
                       sizeof(invalid_image), NULL) != EFI_INVALID_PARAMETER ||
         bs->LoadImage(0, ImageHandle, NULL, truncated_file_header,
-                      sizeof(truncated_file_header), &image) !=
-            EFI_LOAD_ERROR || image != NULL ||
+                      sizeof(truncated_file_header),
+                      &image) != EFI_LOAD_ERROR ||
+        image != NULL ||
         bs->LoadImage(0, ImageHandle, NULL, truncated_optional_header,
-                      sizeof(truncated_optional_header), &image) !=
-            EFI_LOAD_ERROR || image != NULL) {
+                      sizeof(truncated_optional_header),
+                      &image) != EFI_LOAD_ERROR ||
+        image != NULL) {
         return 0;
     }
 
@@ -1666,17 +1658,15 @@ static BOOLEAN test_image_services(EFI_HANDLE ImageHandle,
         goto out;
     }
     path_installed = 1;
-    if (bs->InstallProtocolInterface(&provider, load_file2_guid,
-                                     EFI_NATIVE_INTERFACE,
-                                     &test_load_file_protocols[1]) !=
-            EFI_SUCCESS) {
+    if (bs->InstallProtocolInterface(
+            &provider, load_file2_guid, EFI_NATIVE_INTERFACE,
+            &test_load_file_protocols[1]) != EFI_SUCCESS) {
         goto out;
     }
     load_file2_installed = 1;
-    if (bs->InstallProtocolInterface(&provider, load_file_guid,
-                                     EFI_NATIVE_INTERFACE,
-                                     &test_load_file_protocols[0]) !=
-            EFI_SUCCESS) {
+    if (bs->InstallProtocolInterface(
+            &provider, load_file_guid, EFI_NATIVE_INTERFACE,
+            &test_load_file_protocols[0]) != EFI_SUCCESS) {
         goto out;
     }
     load_file_installed = 1;
@@ -1687,9 +1677,9 @@ static BOOLEAN test_image_services(EFI_HANDLE ImageHandle,
     test_load_file2_not_found = 0;
     image = (EFI_HANDLE)(UINTN)1;
     if (bs->LoadImage(0, ImageHandle, &file_path, NULL, 0, &image) !=
-            EFI_LOAD_ERROR || image != NULL ||
-        test_load_file_calls[0] != 0 || test_load_file_calls[1] != 2U ||
-        !test_load_file_policy_ok) {
+            EFI_LOAD_ERROR ||
+        image != NULL || test_load_file_calls[0] != 0 ||
+        test_load_file_calls[1] != 2U || !test_load_file_policy_ok) {
         goto out;
     }
 
@@ -1697,9 +1687,9 @@ static BOOLEAN test_image_services(EFI_HANDLE ImageHandle,
     test_load_file2_not_found = 1;
     image = (EFI_HANDLE)(UINTN)1;
     if (bs->LoadImage(0, ImageHandle, &file_path, NULL, 0, &image) !=
-            EFI_LOAD_ERROR || image != NULL ||
-        test_load_file_calls[0] != 2U || test_load_file_calls[1] != 1U ||
-        !test_load_file_policy_ok) {
+            EFI_LOAD_ERROR ||
+        image != NULL || test_load_file_calls[0] != 2U ||
+        test_load_file_calls[1] != 1U || !test_load_file_policy_ok) {
         goto out;
     }
 
@@ -1709,9 +1699,9 @@ static BOOLEAN test_image_services(EFI_HANDLE ImageHandle,
     test_load_file2_not_found = 0;
     image = (EFI_HANDLE)(UINTN)1;
     if (bs->LoadImage(1, ImageHandle, &file_path, NULL, 0, &image) !=
-            EFI_LOAD_ERROR || image != NULL ||
-        test_load_file_calls[0] != 2U || test_load_file_calls[1] != 0 ||
-        !test_load_file_policy_ok) {
+            EFI_LOAD_ERROR ||
+        image != NULL || test_load_file_calls[0] != 2U ||
+        test_load_file_calls[1] != 0 || !test_load_file_policy_ok) {
         goto out;
     }
     ok = 1;
@@ -1750,8 +1740,8 @@ static VOID test_pe_write32(UINT8 *Address, UINT32 Value)
 }
 
 /* A relocatable image whose final section crosses the declared image end. */
-static VOID test_pe_section_image(UINT8 *Source, UINT16 Magic,
-                                   UINT16 Subsystem, UINT32 VirtualSize)
+static VOID test_pe_section_image(UINT8 *Source, UINT16 Magic, UINT16 Subsystem,
+                                  UINT32 VirtualSize)
 {
     UINT8 *optional = Source + 0x98;
     UINT8 *sections = Source + 0x188;
@@ -1799,7 +1789,7 @@ static VOID test_pe_section_image(UINT8 *Source, UINT16 Magic,
 }
 
 static BOOLEAN test_image_section_extents(EFI_HANDLE ImageHandle,
-                                           EFI_SYSTEM_TABLE *SystemTable)
+                                          EFI_SYSTEM_TABLE *SystemTable)
 {
     static UINT8 source[0x1600] __attribute__((aligned(8)));
     EFI_BOOT_SERVICES *bs = SystemTable->BootServices;
@@ -1820,8 +1810,8 @@ static BOOLEAN test_image_section_extents(EFI_HANDLE ImageHandle,
                           &image) != EFI_SUCCESS) {
             return 0;
         }
-        ok = bs->HandleProtocol(image, loaded_image_guid,
-                                 (VOID **)&loaded) == EFI_SUCCESS &&
+        ok = bs->HandleProtocol(image, loaded_image_guid, (VOID **)&loaded) ==
+                 EFI_SUCCESS &&
              loaded != NULL && loaded->ImageSize == 0x4000;
         if (ok) {
             base = loaded->ImageBase;
@@ -1840,7 +1830,7 @@ static BOOLEAN test_image_section_extents(EFI_HANDLE ImageHandle,
 }
 
 static BOOLEAN test_image_section_bounds(EFI_HANDLE ImageHandle,
-                                          EFI_SYSTEM_TABLE *SystemTable)
+                                         EFI_SYSTEM_TABLE *SystemTable)
 {
     static UINT8 source[0x1600] __attribute__((aligned(8)));
     EFI_BOOT_SERVICES *bs = SystemTable->BootServices;
@@ -1861,8 +1851,8 @@ static BOOLEAN test_image_section_bounds(EFI_HANDLE ImageHandle,
             /* Expansion requires a nonzero power-of-two alignment. */
             test_pe_write32(source + 0x98 + 32, pass == 2 ? 0 : 0x1800);
         }
-        status = bs->LoadImage(0, ImageHandle, NULL, source, source_size,
-                               &image);
+        status =
+            bs->LoadImage(0, ImageHandle, NULL, source, source_size, &image);
         if (status != EFI_LOAD_ERROR || image != NULL) {
             if (image != NULL) {
                 (void)bs->UnloadImage(image);
@@ -1879,9 +1869,9 @@ static EFI_BOOT_SERVICES *test_start_image_bs;
 static VOID *test_start_image_protocol;
 static BOOLEAN test_start_image_connect_ready;
 
-static EFI_STATUS test_start_image_supported(
-    EFI_DRIVER_BINDING_PROTOCOL *This, EFI_HANDLE Controller,
-    VOID *RemainingDevicePath)
+static EFI_STATUS test_start_image_supported(EFI_DRIVER_BINDING_PROTOCOL *This,
+                                             EFI_HANDLE Controller,
+                                             VOID *RemainingDevicePath)
 {
     VOID *interface = NULL;
 
@@ -1892,10 +1882,12 @@ static EFI_STATUS test_start_image_supported(
         return EFI_UNSUPPORTED;
     }
     return test_start_image_bs != NULL &&
-           test_start_image_bs->HandleProtocol(
-               Controller, test_start_image_protocol, &interface) ==
-               EFI_SUCCESS &&
-           interface != NULL ? EFI_SUCCESS : EFI_UNSUPPORTED;
+                   test_start_image_bs->HandleProtocol(
+                       Controller, test_start_image_protocol, &interface) ==
+                       EFI_SUCCESS &&
+                   interface != NULL
+               ? EFI_SUCCESS
+               : EFI_UNSUPPORTED;
 }
 
 static EFI_STATUS test_start_image_start(EFI_DRIVER_BINDING_PROTOCOL *This,
@@ -1934,7 +1926,7 @@ static BOOLEAN test_start_image_connect(EFI_HANDLE ImageHandle,
         { 0x04, 0x04, sizeof(TEST_DEVICE_PATH_NODE) + 20U * sizeof(CHAR16) },
         {
             '\\', 'E', 'F', 'I', '\\', 'B', 'O', 'O', 'T', '\\',
-            'S', 'T', 'A', 'R', 'T', '.', 'E', 'F', 'I', 0,
+            'S',  'T', 'A', 'R', 'T',  '.', 'E', 'F', 'I', 0,
         },
         { 0x7f, 0xff, sizeof(TEST_DEVICE_PATH_NODE) },
     };
@@ -1958,10 +1950,9 @@ static BOOLEAN test_start_image_connect(EFI_HANDLE ImageHandle,
     test_start_image_controller = NULL;
     test_start_image_start_count = 0;
     test_start_image_bs = bs;
-    if (bs->InstallProtocolInterface(&test_start_image_controller,
-                                     start_image_base_guid,
-                                     EFI_NATIVE_INTERFACE,
-                                     &base_interface) != EFI_SUCCESS) {
+    if (bs->InstallProtocolInterface(
+            &test_start_image_controller, start_image_base_guid,
+            EFI_NATIVE_INTERFACE, &base_interface) != EFI_SUCCESS) {
         goto out;
     }
     base_installed = 1;
@@ -1992,8 +1983,8 @@ static BOOLEAN test_start_image_connect(EFI_HANDLE ImageHandle,
         loaded = NULL;
         status = bs->LoadImage(0, ImageHandle, &path, NULL, 0, &child);
         if (status != EFI_SUCCESS || child == NULL ||
-            bs->HandleProtocol(child, loaded_image_guid,
-                               (VOID **)&loaded) != EFI_SUCCESS ||
+            bs->HandleProtocol(child, loaded_image_guid, (VOID **)&loaded) !=
+                EFI_SUCCESS ||
             loaded == NULL ||
             bs->HandleProtocol(child, loaded_image_device_path_guid,
                                &loaded_device_path) != EFI_SUCCESS ||
@@ -2008,8 +1999,8 @@ static BOOLEAN test_start_image_connect(EFI_HANDLE ImageHandle,
             goto out;
         }
         test_start_image_controller = pass < 2U ? controller : child;
-        test_start_image_protocol = pass < 2U ? start_image_change_guid :
-                                              loaded_image_guid;
+        test_start_image_protocol =
+            pass < 2U ? start_image_change_guid : loaded_image_guid;
         test_start_image_connect_ready = pass < 2U;
         options.Controller = test_start_image_controller;
         options.Interface = pass < 2U ? (VOID *)&change_interface : loaded;
@@ -2026,7 +2017,7 @@ static BOOLEAN test_start_image_connect(EFI_HANDLE ImageHandle,
         if (pass >= 2U) {
             if (bs->HandleProtocol(test_start_image_controller,
                                    loaded_image_guid, &installed_change) !=
-                    EFI_INVALID_PARAMETER) {
+                EFI_INVALID_PARAMETER) {
                 goto out;
             }
             continue;
@@ -2052,19 +2043,17 @@ out:
         cleanup_ok = 0;
     }
     if (change_installed &&
-        bs->UninstallProtocolInterface(controller,
-                                       start_image_change_guid,
+        bs->UninstallProtocolInterface(controller, start_image_change_guid,
                                        &change_interface) != EFI_SUCCESS) {
         cleanup_ok = 0;
     }
     if (binding_installed &&
-        bs->UninstallProtocolInterface(driver, driver_binding_guid,
-                                       &binding) != EFI_SUCCESS) {
+        bs->UninstallProtocolInterface(driver, driver_binding_guid, &binding) !=
+            EFI_SUCCESS) {
         cleanup_ok = 0;
     }
     if (base_installed &&
-        bs->UninstallProtocolInterface(controller,
-                                       start_image_base_guid,
+        bs->UninstallProtocolInterface(controller, start_image_base_guid,
                                        &base_interface) != EFI_SUCCESS) {
         cleanup_ok = 0;
     }
@@ -2081,8 +2070,8 @@ static BOOLEAN test_memory_primitives(EFI_SYSTEM_TABLE *SystemTable)
     UINT32 crc = 0;
     UINTN i;
 
-    if (SystemTable->BootServices->CalculateCrc32(
-            input, sizeof(input) - 1U, &crc) != EFI_SUCCESS ||
+    if (SystemTable->BootServices->CalculateCrc32(input, sizeof(input) - 1U,
+                                                  &crc) != EFI_SUCCESS ||
         crc != 0xcbf43926U) {
         return 0;
     }
@@ -2113,12 +2102,10 @@ static BOOLEAN test_time_services(EFI_SYSTEM_TABLE *SystemTable)
     BOOLEAN pending = 0;
 
     zero_bytes(&capabilities, sizeof(capabilities));
-    if (rs->GetTime(&now, &capabilities) != EFI_SUCCESS ||
-        now.Year < 1998U || now.Year > 9999U ||
-        now.Month < 1U || now.Month > 12U ||
-        now.Day < 1U || now.Day > 31U || now.Hour > 23U ||
-        now.Minute > 59U || now.Second > 59U ||
-        now.Nanosecond > 999999999U ||
+    if (rs->GetTime(&now, &capabilities) != EFI_SUCCESS || now.Year < 1998U ||
+        now.Year > 9999U || now.Month < 1U || now.Month > 12U || now.Day < 1U ||
+        now.Day > 31U || now.Hour > 23U || now.Minute > 59U ||
+        now.Second > 59U || now.Nanosecond > 999999999U ||
         (now.TimeZone != 2047 &&
          (now.TimeZone < -1440 || now.TimeZone > 1440)) ||
         (now.Daylight & ~3U) != 0 || capabilities.Resolution == 0 ||
@@ -2131,8 +2118,7 @@ static BOOLEAN test_time_services(EFI_SYSTEM_TABLE *SystemTable)
         rs->SetWakeupTime(1, NULL) != EFI_INVALID_PARAMETER ||
         rs->SetWakeupTime(1, &now) != EFI_SUCCESS ||
         rs->GetWakeupTime(&enabled, &pending, &wake) != EFI_SUCCESS ||
-        !enabled || !pending ||
-        !ia64_bytes_equal(&wake, &now, sizeof(now)) ||
+        !enabled || !pending || !ia64_bytes_equal(&wake, &now, sizeof(now)) ||
         rs->SetWakeupTime(0, NULL) != EFI_SUCCESS ||
         rs->GetWakeupTime(&enabled, &pending, &wake) != EFI_SUCCESS ||
         enabled || pending) {
@@ -2164,24 +2150,17 @@ static BOOLEAN test_console_output_device_paths(EFI_RUNTIME_SERVICES *Rs)
                            &attributes, &size, path) == EFI_SUCCESS &&
            attributes == (EFI_VARIABLE_BOOTSERVICE_ACCESS |
                           EFI_VARIABLE_RUNTIME_ACCESS) &&
-           size == sizeof(path) &&
-           path[0] == 0x02U && path[1] == 0x01U &&
-           get_u16(path + 2U) == 12U &&
-           get_u32(path + 4U) == 0x0a0341d0U &&
-           get_u32(path + 8U) == 0 &&
-           path[12U] == 0x01U && path[13U] == 0x01U &&
-           get_u16(path + 14U) == 6U &&
-           path[16U] == 0 && path[17U] == 5U &&
-           path[18U] == 0x7fU && path[19U] == 0x01U &&
-           get_u16(path + 20U) == 4U &&
-           path[22U] == 0x02U && path[23U] == 0x01U &&
-           get_u16(path + 24U) == 12U &&
+           size == sizeof(path) && path[0] == 0x02U && path[1] == 0x01U &&
+           get_u16(path + 2U) == 12U && get_u32(path + 4U) == 0x0a0341d0U &&
+           get_u32(path + 8U) == 0 && path[12U] == 0x01U &&
+           path[13U] == 0x01U && get_u16(path + 14U) == 6U && path[16U] == 0 &&
+           path[17U] == 5U && path[18U] == 0x7fU && path[19U] == 0x01U &&
+           get_u16(path + 20U) == 4U && path[22U] == 0x02U &&
+           path[23U] == 0x01U && get_u16(path + 24U) == 12U &&
            get_u32(path + 26U) == TEST_DEVICE_PATH_PNP0501 &&
-           get_u32(path + 30U) == 0 &&
-           path[34U] == 0x03U && path[35U] == 0x0eU &&
-           get_u16(path + 36U) == 19U &&
-           get_u32(path + 38U) == 0 &&
-           get_u64(path + 42U) == 115200U &&
+           get_u32(path + 30U) == 0 && path[34U] == 0x03U &&
+           path[35U] == 0x0eU && get_u16(path + 36U) == 19U &&
+           get_u32(path + 38U) == 0 && get_u64(path + 42U) == 115200U &&
            path[50U] == 8U && path[51U] == 1U && path[52U] == 1U &&
            path[53U] == 0x7fU && path[54U] == 0xffU &&
            get_u16(path + 55U) == 4U;
@@ -2191,9 +2170,9 @@ static BOOLEAN test_variable_services(EFI_SYSTEM_TABLE *SystemTable)
 {
     EFI_RUNTIME_SERVICES *rs = SystemTable->RuntimeServices;
     EFI_BOOT_SERVICES *bs = SystemTable->BootServices;
-    const UINT32 requested_attributes =
-        EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_BOOTSERVICE_ACCESS |
-        EFI_VARIABLE_RUNTIME_ACCESS;
+    const UINT32 requested_attributes = EFI_VARIABLE_NON_VOLATILE |
+                                        EFI_VARIABLE_BOOTSERVICE_ACCESS |
+                                        EFI_VARIABLE_RUNTIME_ACCESS;
     static UINT8 value[] = { 0x49, 0x41, 0x36, 0x34, 0x10, 0x20 };
     UINT8 readback[sizeof(value)];
     CHAR16 next_name[80];
@@ -2215,17 +2194,15 @@ static BOOLEAN test_variable_services(EFI_SYSTEM_TABLE *SystemTable)
     BOOLEAN ok = 0;
 
     if (!test_console_output_device_paths(rs) ||
-        rs->SetVariable(
-            variable_name, variable_guid, requested_attributes,
-            sizeof(value), value) != EFI_SUCCESS ||
+        rs->SetVariable(variable_name, variable_guid, requested_attributes,
+                        sizeof(value), value) != EFI_SUCCESS ||
         rs->GetVariable(variable_name, variable_guid, &attributes, &size,
                         readback) != EFI_SUCCESS ||
         size != sizeof(value) ||
         !ia64_bytes_equal(value, readback, sizeof(value)) ||
         attributes != requested_attributes ||
-        rs->QueryVariableInfo(
-            requested_attributes,
-            &maximum, &remaining, &maximum_variable) != EFI_SUCCESS ||
+        rs->QueryVariableInfo(requested_attributes, &maximum, &remaining,
+                              &maximum_variable) != EFI_SUCCESS ||
         maximum == 0 || remaining > maximum || maximum_variable == 0 ||
         bs->GetNextMonotonicCount(&monotonic_count) != EFI_SUCCESS ||
         bs->GetNextMonotonicCount(&next_monotonic_count) != EFI_SUCCESS ||
@@ -2248,16 +2225,14 @@ static BOOLEAN test_variable_services(EFI_SYSTEM_TABLE *SystemTable)
         if (status != EFI_SUCCESS || next_name[0] == 0) {
             goto out;
         }
-        if (ia64_bytes_equal(next_guid, variable_guid,
-                             sizeof(variable_guid)) &&
+        if (ia64_bytes_equal(next_guid, variable_guid, sizeof(variable_guid)) &&
             variable_name_matches(next_name, variable_name)) {
             found = 1;
             break;
         }
     }
-    if (!found ||
-        rs->SetVariable(variable_name, variable_guid, 0, 0, NULL) !=
-            EFI_SUCCESS) {
+    if (!found || rs->SetVariable(variable_name, variable_guid, 0, 0, NULL) !=
+                      EFI_SUCCESS) {
         goto out;
     }
     deleted = 1;
@@ -2285,17 +2260,17 @@ static BOOLEAN test_block_disk_protocols(EFI_SYSTEM_TABLE *SystemTable,
 
     if (Loaded == NULL || Loaded->DeviceHandle == NULL ||
         SystemTable->BootServices->HandleProtocol(
-            Loaded->DeviceHandle, block_io_guid,
-            (VOID **)&block) != EFI_SUCCESS ||
+            Loaded->DeviceHandle, block_io_guid, (VOID **)&block) !=
+            EFI_SUCCESS ||
         SystemTable->BootServices->HandleProtocol(
-            Loaded->DeviceHandle, disk_io_guid,
-            (VOID **)&disk) != EFI_SUCCESS ||
+            Loaded->DeviceHandle, disk_io_guid, (VOID **)&disk) !=
+            EFI_SUCCESS ||
         block == NULL || block->Media == NULL || disk == NULL ||
         !block->Media->MediaPresent || block->Media->BlockSize != 512U ||
-        block->ReadBlocks(block, block->Media->MediaId, 0,
-                          sizeof(block_data), block_data) != EFI_SUCCESS ||
-        disk->ReadDisk(disk, block->Media->MediaId, 3,
-                       sizeof(disk_data), disk_data) != EFI_SUCCESS) {
+        block->ReadBlocks(block, block->Media->MediaId, 0, sizeof(block_data),
+                          block_data) != EFI_SUCCESS ||
+        disk->ReadDisk(disk, block->Media->MediaId, 3, sizeof(disk_data),
+                       disk_data) != EFI_SUCCESS) {
         return 0;
     }
     return 1;
@@ -2308,10 +2283,9 @@ static BOOLEAN test_pci_root_io(EFI_SYSTEM_TABLE *SystemTable)
 
     return SystemTable->BootServices->LocateProtocol(
                pci_root_guid, NULL, (VOID **)&root) == EFI_SUCCESS &&
-           root != NULL && root->Pci.Read != NULL &&
-           root->SegmentNumber == 0 &&
-           root->Pci.Read(root, EfiPciWidthUint32, 1ULL << 16, 1,
-                          &device_id) == EFI_SUCCESS &&
+           root != NULL && root->Pci.Read != NULL && root->SegmentNumber == 0 &&
+           root->Pci.Read(root, EfiPciWidthUint32, 1ULL << 16, 1, &device_id) ==
+               EFI_SUCCESS &&
            device_id == 0x29228086U;
 }
 
@@ -2338,20 +2312,15 @@ static BOOLEAN test_pci_root_resources(EFI_SYSTEM_TABLE *SystemTable)
 
     return bus->Descriptor == 0x8aU && get_u16(&bus->Length) == 0x2bU &&
            bus->ResourceType == 2U && get_u64(&bus->Granularity) == 32U &&
-           get_u64(&bus->Minimum) == 0 &&
-           get_u64(&bus->Maximum) == 255U &&
+           get_u64(&bus->Minimum) == 0 && get_u64(&bus->Maximum) == 255U &&
            get_u64(&bus->Translation) == 0 &&
-           get_u64(&bus->AddressLength) == 256U &&
-           io->Descriptor == 0x8aU && get_u16(&io->Length) == 0x2bU &&
-           io->ResourceType == 1U && get_u64(&io->Granularity) == 32U &&
-           get_u64(&io->Minimum) == 0 &&
-           get_u64(&io->Maximum) == 0xffffU &&
-           get_u64(&io->Translation) == 0 &&
+           get_u64(&bus->AddressLength) == 256U && io->Descriptor == 0x8aU &&
+           get_u16(&io->Length) == 0x2bU && io->ResourceType == 1U &&
+           get_u64(&io->Granularity) == 32U && get_u64(&io->Minimum) == 0 &&
+           get_u64(&io->Maximum) == 0xffffU && get_u64(&io->Translation) == 0 &&
            get_u64(&io->AddressLength) == 0x10000U &&
-           memory->Descriptor == 0x8aU &&
-           get_u16(&memory->Length) == 0x2bU &&
-           memory->ResourceType == 0U &&
-           get_u64(&memory->Granularity) == 64U &&
+           memory->Descriptor == 0x8aU && get_u16(&memory->Length) == 0x2bU &&
+           memory->ResourceType == 0U && get_u64(&memory->Granularity) == 64U &&
            get_u64(&memory->Minimum) == TEST_PCI_MMIO_BASE &&
            get_u64(&memory->Maximum) ==
                TEST_PCI_MMIO_BASE + TEST_PCI_MMIO_SIZE - 1U &&
@@ -2374,7 +2343,8 @@ static BOOLEAN test_pci_io_protocol(EFI_SYSTEM_TABLE *SystemTable)
             pci_io_guid, NULL, (VOID **)&pci) != EFI_SUCCESS ||
         pci == NULL || pci->GetLocation == NULL || pci->Pci.Read == NULL ||
         pci->GetLocation(pci, &segment, &bus, &device, &function) !=
-            EFI_SUCCESS || segment != 0 || bus != 0 || function != 0) {
+            EFI_SUCCESS ||
+        segment != 0 || bus != 0 || function != 0) {
         return 0;
     }
     switch (device) {
@@ -2419,8 +2389,7 @@ static BOOLEAN test_gop_protocol(EFI_SYSTEM_TABLE *SystemTable)
     }
     ok = info != NULL && info_size >= sizeof(*info) &&
          info->HorizontalResolution == 640U &&
-         info->VerticalResolution == 400U &&
-         info->PixelsPerScanLine == 640U;
+         info->VerticalResolution == 400U && info->PixelsPerScanLine == 640U;
     if (info != NULL) {
         (void)SystemTable->BootServices->FreePool(info);
     }
@@ -2561,8 +2530,7 @@ static BOOLEAN aml_named_buffer(const UINT8 *Aml, UINTN AmlLength,
             !ia64_bytes_equal(Aml + i + 1U, Name, 4)) {
             continue;
         }
-        if (!aml_package(Aml + i + 6U, Aml + AmlLength,
-                         &content, &end)) {
+        if (!aml_package(Aml + i + 6U, Aml + AmlLength, &content, &end)) {
             return 0;
         }
         position = content;
@@ -2583,8 +2551,7 @@ static BOOLEAN aml_named_byte(const UINT8 *Aml, UINTN AmlLength,
     UINTN i;
 
     for (i = 0; i + 7U <= AmlLength; i++) {
-        if (Aml[i] == 0x08U &&
-            ia64_bytes_equal(Aml + i + 1U, Name, 4) &&
+        if (Aml[i] == 0x08U && ia64_bytes_equal(Aml + i + 1U, Name, 4) &&
             Aml[i + 5U] == 0x0aU && Aml[i + 6U] == Value) {
             return 1;
         }
@@ -2612,10 +2579,10 @@ static BOOLEAN test_dsdt_crs(const TEST_TABLE_CONTEXT *Context)
         return 0;
     }
     aml = (const UINT8 *)Context->Dsdt + sizeof(TEST_SDT_HEADER);
-    aml_length = get_u32((const UINT8 *)Context->Dsdt + 4) -
-                 sizeof(TEST_SDT_HEADER);
-    if (!aml_named_buffer(aml, aml_length, crs_name, 0,
-                          &resources, &resource_length)) {
+    aml_length =
+        get_u32((const UINT8 *)Context->Dsdt + 4) - sizeof(TEST_SDT_HEADER);
+    if (!aml_named_buffer(aml, aml_length, crs_name, 0, &resources,
+                          &resource_length)) {
         return 0;
     }
     while (offset < resource_length) {
@@ -2638,16 +2605,14 @@ static BOOLEAN test_dsdt_crs(const TEST_TABLE_CONTEXT *Context)
                 get_u16(descriptor + 14U) == 256U) {
                 bus = 1;
             } else if (descriptor[0] == 0x8aU && length == 43U &&
-                       descriptor[3] == 1U &&
-                       get_u64(descriptor + 6U) == 0 &&
+                       descriptor[3] == 1U && get_u64(descriptor + 6U) == 0 &&
                        get_u64(descriptor + 14U) == 0 &&
                        get_u64(descriptor + 22U) == 0xffffU &&
                        get_u64(descriptor + 30U) == 0 &&
                        get_u64(descriptor + 38U) == 0x10000U) {
                 io = 1;
             } else if (descriptor[0] == 0x87U && length == 23U &&
-                       descriptor[3] == 0U &&
-                       get_u32(descriptor + 6U) == 0 &&
+                       descriptor[3] == 0U && get_u32(descriptor + 6U) == 0 &&
                        get_u32(descriptor + 10U) == 0x000a0000U &&
                        get_u32(descriptor + 14U) == 0x000bffffU &&
                        get_u32(descriptor + 18U) == 0 &&
@@ -2664,8 +2629,7 @@ static BOOLEAN test_dsdt_crs(const TEST_TABLE_CONTEXT *Context)
                        get_u32(descriptor + 22U) == TEST_VGA_ROM_SIZE) {
                 rom_memory = 1;
             } else if (descriptor[0] == 0x8aU && length == 43U &&
-                       descriptor[3] == 0U &&
-                       get_u64(descriptor + 6U) == 0 &&
+                       descriptor[3] == 0U && get_u64(descriptor + 6U) == 0 &&
                        get_u64(descriptor + 14U) == TEST_PCI_MMIO_BASE &&
                        get_u64(descriptor + 22U) ==
                            TEST_PCI_MMIO_BASE + TEST_PCI_MMIO_SIZE - 1U &&
@@ -2693,8 +2657,8 @@ static BOOLEAN test_dsdt_crs(const TEST_TABLE_CONTEXT *Context)
             offset += 1U + length;
         }
     }
-    return bus && io && legacy_memory && rom_memory && memory &&
-           uart_window && end_tag;
+    return bus && io && legacy_memory && rom_memory && memory && uart_window &&
+           end_tag;
 }
 
 static BOOLEAN test_ssdt_legacy_crs(const TEST_TABLE_CONTEXT *Context)
@@ -2708,16 +2672,15 @@ static BOOLEAN test_ssdt_legacy_crs(const TEST_TABLE_CONTEXT *Context)
         0x14, 0x0b, '_', 'S', 'T', 'A', 0, 0xa4, 'P', '2', 'E', 'N',
     };
     static const UINT8 keyboard_resources[] = {
-        0x47, 0x01, 0x60, 0x00, 0x60, 0x00, 0x01, 0x01,
-        0x47, 0x01, 0x64, 0x00, 0x64, 0x00, 0x01, 0x01,
-        0x22, 0x02, 0x00, 0x79, 0x00,
+        0x47, 0x01, 0x60, 0x00, 0x60, 0x00, 0x01, 0x01, 0x47, 0x01, 0x64,
+        0x00, 0x64, 0x00, 0x01, 0x01, 0x22, 0x02, 0x00, 0x79, 0x00,
     };
     static const UINT8 mouse_resources[] = {
         0x22, 0x00, 0x10, 0x79, 0x00,
     };
     static const UINT8 uart_resources[] = {
-        0x47, 0x01, 0xf8, 0x03, 0xf8, 0x03, 0x01, 0x08,
-        0x22, 0x10, 0x00, 0x79, 0x00,
+        0x47, 0x01, 0xf8, 0x03, 0xf8, 0x03, 0x01,
+        0x08, 0x22, 0x10, 0x00, 0x79, 0x00,
     };
     static const struct {
         UINT8 Name[4];
@@ -2725,7 +2688,8 @@ static BOOLEAN test_ssdt_legacy_crs(const TEST_TABLE_CONTEXT *Context)
         UINTN ResourceLength;
     } expected[] = {
         { { 'U', 'A', 'R', '0' }, uart_resources, sizeof(uart_resources) },
-        { { 'P', 'S', '2', 'K' }, keyboard_resources,
+        { { 'P', 'S', '2', 'K' },
+          keyboard_resources,
           sizeof(keyboard_resources) },
         { { 'P', 'S', '2', 'M' }, mouse_resources, sizeof(mouse_resources) },
     };
@@ -2743,10 +2707,9 @@ static BOOLEAN test_ssdt_legacy_crs(const TEST_TABLE_CONTEXT *Context)
         return 0;
     }
     aml = (const UINT8 *)Context->Ssdt + sizeof(TEST_SDT_HEADER);
-    aml_length = get_u32((const UINT8 *)Context->Ssdt + 4) -
-                 sizeof(TEST_SDT_HEADER);
-    for (scope_offset = 0; scope_offset + 2U < aml_length;
-         scope_offset++) {
+    aml_length =
+        get_u32((const UINT8 *)Context->Ssdt + 4) - sizeof(TEST_SDT_HEADER);
+    for (scope_offset = 0; scope_offset + 2U < aml_length; scope_offset++) {
         const UINT8 *position;
 
         if (aml[scope_offset] != 0x10U ||
@@ -2755,12 +2718,10 @@ static BOOLEAN test_ssdt_legacy_crs(const TEST_TABLE_CONTEXT *Context)
             continue;
         }
         if ((UINTN)(scope_end - scope_content) < 10U ||
-            scope_content[0] != 0x5cU ||
-            scope_content[1] != 0x2eU ||
-            !ia64_bytes_equal(scope_content + 2U,
-                              sb_name, sizeof(sb_name)) ||
-            !ia64_bytes_equal(scope_content + 6U,
-                              pci0_name, sizeof(pci0_name))) {
+            scope_content[0] != 0x5cU || scope_content[1] != 0x2eU ||
+            !ia64_bytes_equal(scope_content + 2U, sb_name, sizeof(sb_name)) ||
+            !ia64_bytes_equal(scope_content + 6U, pci0_name,
+                              sizeof(pci0_name))) {
             continue;
         }
         position = scope_content + 10U;
@@ -2768,8 +2729,7 @@ static BOOLEAN test_ssdt_legacy_crs(const TEST_TABLE_CONTEXT *Context)
             const UINT8 *content;
             const UINT8 *end;
 
-            if (*position == 0x08U &&
-                (UINTN)(scope_end - position) >= 6U) {
+            if (*position == 0x08U && (UINTN)(scope_end - position) >= 6U) {
                 const UINT8 *name = position + 1U;
                 UINT64 value;
 
@@ -2785,8 +2745,8 @@ static BOOLEAN test_ssdt_legacy_crs(const TEST_TABLE_CONTEXT *Context)
                 }
                 continue;
             }
-            if ((UINTN)(scope_end - position) < 3U ||
-                position[0] != 0x5bU || position[1] != 0x82U ||
+            if ((UINTN)(scope_end - position) < 3U || position[0] != 0x5bU ||
+                position[1] != 0x82U ||
                 !aml_package(position + 2U, scope_end, &content, &end) ||
                 (UINTN)(end - content) < 4U) {
                 return 0;
@@ -2812,17 +2772,17 @@ static BOOLEAN test_ssdt_legacy_crs(const TEST_TABLE_CONTEXT *Context)
         UINTN crs_length;
 
         if (device[index] == NULL ||
-            !aml_named_buffer(device[index], device_length[index], crs_name,
-                              0, &crs, &crs_length) ||
+            !aml_named_buffer(device[index], device_length[index], crs_name, 0,
+                              &crs, &crs_length) ||
             crs_length != expected[index].ResourceLength ||
             !ia64_bytes_equal(crs, expected[index].Resources, crs_length)) {
             return 0;
         }
-        if (index == 0 ?
-            !aml_named_byte(device[index], device_length[index],
-                            sta_name, 0x0fU) :
-            find_bytes(device[index], device_length[index], ps2_status,
-                       sizeof(ps2_status), 0) == NULL) {
+        if (index == 0
+                ? !aml_named_byte(device[index], device_length[index], sta_name,
+                                  0x0fU)
+                : find_bytes(device[index], device_length[index], ps2_status,
+                             sizeof(ps2_status), 0) == NULL) {
             return 0;
         }
     }
@@ -2845,13 +2805,12 @@ static BOOLEAN test_dsdt_prt(const TEST_TABLE_CONTEXT *Context)
         return 0;
     }
     aml = (const UINT8 *)Context->Dsdt + sizeof(TEST_SDT_HEADER);
-    aml_length = get_u32((const UINT8 *)Context->Dsdt + 4) -
-                 sizeof(TEST_SDT_HEADER);
+    aml_length =
+        get_u32((const UINT8 *)Context->Dsdt + 4) - sizeof(TEST_SDT_HEADER);
     for (i = 0; i + 7U <= aml_length; i++) {
         if (aml[i] == 0x08U && aml[i + 5U] == 0x12U &&
             ia64_bytes_equal(aml + i + 1U, prt_name, 4)) {
-            if (!aml_package(aml + i + 6U, aml + aml_length,
-                             &content, &end)) {
+            if (!aml_package(aml + i + 6U, aml + aml_length, &content, &end)) {
                 return 0;
             }
             break;
@@ -2898,8 +2857,8 @@ static BOOLEAN test_dsdt_prt(const TEST_TABLE_CONTEXT *Context)
 static BOOLEAN gas_matches(const UINT8 *Gas, UINT8 SpaceId, UINT8 Width,
                            UINT64 Address)
 {
-    return Gas[0] == SpaceId && Gas[1] == Width && Gas[2] == 0 &&
-           Gas[3] == 0 && get_u64(Gas + 4) == Address;
+    return Gas[0] == SpaceId && Gas[1] == Width && Gas[2] == 0 && Gas[3] == 0 &&
+           get_u64(Gas + 4) == Address;
 }
 
 static BOOLEAN test_configuration_tables(EFI_SYSTEM_TABLE *SystemTable,
@@ -2916,9 +2875,9 @@ static BOOLEAN test_configuration_tables(EFI_SYSTEM_TABLE *SystemTable,
     }
     for (i = 0; i < SystemTable->NumberOfTableEntries; i++) {
         for (j = i + 1U; j < SystemTable->NumberOfTableEntries; j++) {
-            if (ia64_bytes_equal(
-                    SystemTable->ConfigurationTable[i].VendorGuid,
-                    SystemTable->ConfigurationTable[j].VendorGuid, 16)) {
+            if (ia64_bytes_equal(SystemTable->ConfigurationTable[i].VendorGuid,
+                                 SystemTable->ConfigurationTable[j].VendorGuid,
+                                 16)) {
                 return 0;
             }
         }
@@ -2978,8 +2937,7 @@ static BOOLEAN test_acpi_fadt_links_gas(const TEST_TABLE_CONTEXT *Context)
     const UINT8 *fadt;
     UINT32 flags;
 
-    if (!Context->Valid ||
-        get_u32((const UINT8 *)Context->Fadt + 4) < 244U) {
+    if (!Context->Valid || get_u32((const UINT8 *)Context->Fadt + 4) < 244U) {
         return 0;
     }
     fadt = (const UINT8 *)Context->Fadt;
@@ -2988,8 +2946,7 @@ static BOOLEAN test_acpi_fadt_links_gas(const TEST_TABLE_CONTEXT *Context)
            get_u32(fadt + 40U) == (UINT32)(UINTN)Context->Dsdt &&
            get_u64(fadt + 132U) == (UINT64)(UINTN)Context->Facs &&
            get_u64(fadt + 140U) == (UINT64)(UINTN)Context->Dsdt &&
-           get_u16(fadt + 46U) == 9U &&
-           get_u16(fadt + 109U) == 1U &&
+           get_u16(fadt + 46U) == 9U && get_u16(fadt + 109U) == 1U &&
            gas_matches(fadt + 116U, 1, 8, TEST_PM_IO_BASE + 0x0cU) &&
            fadt[128U] == 1U &&
            gas_matches(fadt + 148U, 1, 32, TEST_PM_IO_BASE) &&
@@ -3054,11 +3011,11 @@ static BOOLEAN test_acpi_topology(const TEST_TABLE_CONTEXT *Context)
     for (offset = 0; offset < 64U; offset++) {
         test_acpi_cpu_names(offset, processor_name, enabled_name);
         if (find_bytes(ssdt + sizeof(TEST_SDT_HEADER),
-                       ssdt_length - sizeof(TEST_SDT_HEADER),
-                       processor_name, sizeof(processor_name), 0) == NULL ||
+                       ssdt_length - sizeof(TEST_SDT_HEADER), processor_name,
+                       sizeof(processor_name), 0) == NULL ||
             !aml_named_byte(ssdt + sizeof(TEST_SDT_HEADER),
-                            ssdt_length - sizeof(TEST_SDT_HEADER),
-                            enabled_name, offset < 4U ? 0x0fU : 0)) {
+                            ssdt_length - sizeof(TEST_SDT_HEADER), enabled_name,
+                            offset < 4U ? 0x0fU : 0)) {
             return 0;
         }
     }
@@ -3067,7 +3024,7 @@ static BOOLEAN test_acpi_topology(const TEST_TABLE_CONTEXT *Context)
     if (get_u32(madt + 36U) != 0xfee00000U || madt_length < 44U) {
         return 0;
     }
-    for (offset = 44U; offset + 2U <= madt_length; ) {
+    for (offset = 44U; offset + 2U <= madt_length;) {
         UINTN length = madt[offset + 1U];
 
         if (length < 2U || length > madt_length - offset) {
@@ -3078,8 +3035,7 @@ static BOOLEAN test_acpi_topology(const TEST_TABLE_CONTEXT *Context)
             UINT32 flags = get_u32(madt + offset + 8U);
 
             if (id >= 64U || madt[offset + 2U] != id ||
-                madt[offset + 4U] != 0 ||
-                (flags & 1U) != (id < 4U ? 1U : 0) ||
+                madt[offset + 4U] != 0 || (flags & 1U) != (id < 4U ? 1U : 0) ||
                 (madt_present & (1ULL << id)) != 0) {
                 return 0;
             }
@@ -3089,7 +3045,7 @@ static BOOLEAN test_acpi_topology(const TEST_TABLE_CONTEXT *Context)
             }
         } else if (madt[offset] == 6U && length >= 16U) {
             iosapic = get_u32(madt + offset + 4U) == 0 &&
-                get_u64(madt + offset + 8U) == 0x80110000U;
+                      get_u64(madt + offset + 8U) == 0x80110000U;
         }
         offset += length;
     }
@@ -3103,7 +3059,7 @@ static BOOLEAN test_acpi_topology(const TEST_TABLE_CONTEXT *Context)
     if (get_u32(srat + 36U) != 1U) {
         return 0;
     }
-    for (offset = 48U; offset + 2U <= srat_length; ) {
+    for (offset = 48U; offset + 2U <= srat_length;) {
         UINTN length = srat[offset + 1U];
 
         if (length < 2U || length > srat_length - offset) {
@@ -3111,9 +3067,9 @@ static BOOLEAN test_acpi_topology(const TEST_TABLE_CONTEXT *Context)
         }
         if (srat[offset] == 1U && length >= 40U) {
             UINT64 base = get_u32(srat + offset + 8U) |
-                ((UINT64)get_u32(srat + offset + 12U) << 32);
+                          ((UINT64)get_u32(srat + offset + 12U) << 32);
             UINT64 size = get_u32(srat + offset + 16U) |
-                ((UINT64)get_u32(srat + offset + 20U) << 32);
+                          ((UINT64)get_u32(srat + offset + 20U) << 32);
             UINT32 flags = get_u32(srat + offset + 28U);
 
             if (base == 0 && size != 0 && (flags & 1U) != 0) {
@@ -3136,9 +3092,9 @@ static BOOLEAN test_acpi_topology(const TEST_TABLE_CONTEXT *Context)
         offset += length;
     }
     slit = (const UINT8 *)Context->Slit;
-    return offset == srat_length && low_memory &&
-           srat_present == ~(UINT64)0 && srat_enabled == 0x0fU &&
-           get_u64(slit + 36U) == 1U && slit[44U] == 10U;
+    return offset == srat_length && low_memory && srat_present == ~(UINT64)0 &&
+           srat_enabled == 0x0fU && get_u64(slit + 36U) == 1U &&
+           slit[44U] == 10U;
 }
 
 static BOOLEAN test_acpi_console_tables(const TEST_TABLE_CONTEXT *Context)
@@ -3150,23 +3106,21 @@ static BOOLEAN test_acpi_console_tables(const TEST_TABLE_CONTEXT *Context)
         return 0;
     }
     hcdp = (const UINT8 *)Context->Hcdp;
-    if (get_u32(hcdp + 36U) != 1U || hcdp[40U] != 0 ||
-        hcdp[41U] != 8U || hcdp[42U] != 1U || hcdp[43U] != 1U ||
-        get_u32(hcdp + 44U) != 0 ||
+    if (get_u32(hcdp + 36U) != 1U || hcdp[40U] != 0 || hcdp[41U] != 8U ||
+        hcdp[42U] != 1U || hcdp[43U] != 1U || get_u32(hcdp + 44U) != 0 ||
         get_u64(hcdp + 48U) != 115200U ||
         !gas_matches(hcdp + 56U, 1, 8, TEST_UART_IO_PORT) ||
         get_u32(hcdp + 68U) != TEST_HCDP_UART_HID ||
-        get_u32(hcdp + 72U) != 4U ||
-        get_u32(hcdp + 76U) != 115200U || hcdp[80U] != 0x02U ||
+        get_u32(hcdp + 72U) != 4U || get_u32(hcdp + 76U) != 115200U ||
+        hcdp[80U] != 0x02U ||
         (hcdp[81U] & (UINT8)~TEST_HCDP_UART_PRIMARY) !=
             TEST_HCDP_UART_BASE_FLAGS ||
         get_u16(hcdp + 82U) != TEST_HCDP_UART_CONOUT_INDEX ||
-        get_u32(hcdp + 84U) != 0 ||
-        hcdp[88U] != 0x0aU || (hcdp[89U] & (UINT8)~1U) != 0 ||
-        get_u16(hcdp + 90U) != 153U || get_u16(hcdp + 92U) != 0 ||
-        hcdp[94U] != 1U || get_u16(hcdp + 96U) != 34U ||
-        hcdp[99U] != 0 || hcdp[100U] != 5U || hcdp[101U] != 0 ||
-        hcdp[128U] != 2U) {
+        get_u32(hcdp + 84U) != 0 || hcdp[88U] != 0x0aU ||
+        (hcdp[89U] & (UINT8)~1U) != 0 || get_u16(hcdp + 90U) != 153U ||
+        get_u16(hcdp + 92U) != 0 || hcdp[94U] != 1U ||
+        get_u16(hcdp + 96U) != 34U || hcdp[99U] != 0 || hcdp[100U] != 5U ||
+        hcdp[101U] != 0 || hcdp[128U] != 2U) {
         return 0;
     }
     if (Context->Dbgp != NULL) {
@@ -3189,14 +3143,13 @@ static BOOLEAN test_acpi_mcfg(const TEST_TABLE_CONTEXT *Context)
         return 0;
     }
     mcfg = (const UINT8 *)Context->Mcfg;
-    return get_u64(mcfg + 36U) == 0 &&
-           get_u64(mcfg + 44U) == TEST_ECAM_BASE &&
-           get_u16(mcfg + 52U) == 0 && mcfg[54U] == 0 &&
-           mcfg[55U] == 255U && get_u32(mcfg + 56U) == 0;
+    return get_u64(mcfg + 36U) == 0 && get_u64(mcfg + 44U) == TEST_ECAM_BASE &&
+           get_u16(mcfg + 52U) == 0 && mcfg[54U] == 0 && mcfg[55U] == 255U &&
+           get_u32(mcfg + 56U) == 0;
 }
 
-static BOOLEAN test_platform_memory_descriptors(
-    const TEST_TABLE_CONTEXT *Context)
+static BOOLEAN
+test_platform_memory_descriptors(const TEST_TABLE_CONTEXT *Context)
 {
     const TEST_MEMORY_MAP *map = &Context->MemoryMap;
 
@@ -3218,8 +3171,7 @@ static BOOLEAN test_platform_memory_descriptors(
            memory_range_has_type(map, TEST_ECAM_BASE, TEST_ECAM_SIZE,
                                  EfiMemoryMappedIO,
                                  EFI_MEMORY_UC | EFI_MEMORY_RUNTIME) &&
-           memory_range_has_type(map, TEST_SPARSE_IO_BASE,
-                                 TEST_SPARSE_IO_SIZE,
+           memory_range_has_type(map, TEST_SPARSE_IO_BASE, TEST_SPARSE_IO_SIZE,
                                  EfiMemoryMappedIOPortSpace,
                                  EFI_MEMORY_UC | EFI_MEMORY_RUNTIME);
 }
@@ -3230,8 +3182,8 @@ static BOOLEAN test_debug_image_info(EFI_HANDLE ImageHandle,
                                      const TEST_TABLE_CONTEXT *Context)
 {
     TEST_DEBUG_IMAGE_INFO_HEADER *header =
-        (TEST_DEBUG_IMAGE_INFO_HEADER *)find_config_table(
-            SystemTable, debug_image_guid);
+        (TEST_DEBUG_IMAGE_INFO_HEADER *)find_config_table(SystemTable,
+                                                          debug_image_guid);
     UINT32 status;
     UINTN count;
     UINTN i;
@@ -3244,8 +3196,8 @@ static BOOLEAN test_debug_image_info(EFI_HANDLE ImageHandle,
     }
     status = header->UpdateStatus;
     count = header->TableSize;
-    if ((status & 1U) != 0 || (status & 2U) == 0 || count < 2U ||
-        count > 9U || header->Table == NULL ||
+    if ((status & 1U) != 0 || (status & 2U) == 0 || count < 2U || count > 9U ||
+        header->Table == NULL ||
         !memory_range_is_mapped(&Context->MemoryMap, (UINTN)header->Table,
                                 count * sizeof(*header->Table))) {
         return 0;
@@ -3279,18 +3231,15 @@ static BOOLEAN test_sal_state_info_no_log(EFI_SYSTEM_TABLE *SystemTable)
     TEST_SAL_RETURN size;
     TEST_SAL_RETURN info;
     TEST_SAL_RETURN clear;
-    UINT8 record[TEST_SAL_STATE_INFO_MAX_SIZE]
-        __attribute__((aligned(16)));
+    UINT8 record[TEST_SAL_STATE_INFO_MAX_SIZE] __attribute__((aligned(16)));
     BOOLEAN ok = 0;
 
     if (!get_memory_map(SystemTable, &map)) {
         return 0;
     }
-    if (sal == NULL ||
-        !memory_range_is_mapped(&map, (UINTN)sal, 144U) ||
-        get_u32(sal) != SIG32('S', 'S', 'T', '_') ||
-        get_u32(sal + 4U) < 144U || get_u16(sal + 10U) < 1U ||
-        sal[96U] != 0U || get_u64(sal + 112U) == 0 ||
+    if (sal == NULL || !memory_range_is_mapped(&map, (UINTN)sal, 144U) ||
+        get_u32(sal) != SIG32('S', 'S', 'T', '_') || get_u32(sal + 4U) < 144U ||
+        get_u16(sal + 10U) < 1U || sal[96U] != 0U || get_u64(sal + 112U) == 0 ||
         get_u64(sal + 120U) == 0) {
         goto out;
     }
@@ -3298,11 +3247,9 @@ static BOOLEAN test_sal_state_info_no_log(EFI_SYSTEM_TABLE *SystemTable)
     descriptor[1] = get_u64(sal + 120U);
     procedure = (TEST_SAL_PROC)(UINTN)&descriptor[0];
     size = procedure(TEST_SAL_GET_STATE_INFO_SIZE, 0, 0, 0, 0, 0, 0, 0);
-    info = procedure(TEST_SAL_GET_STATE_INFO, 3, 0, (UINTN)record,
-                     0, 0, 0, 0);
+    info = procedure(TEST_SAL_GET_STATE_INFO, 3, 0, (UINTN)record, 0, 0, 0, 0);
     clear = procedure(TEST_SAL_CLEAR_STATE_INFO, 1, 0, 0, 0, 0, 0, 0);
-    ok = size.Status == TEST_SAL_SUCCESS &&
-         size.Value0 == sizeof(record) &&
+    ok = size.Status == TEST_SAL_SUCCESS && size.Value0 == sizeof(record) &&
          size.Value1 == 0 && size.Value2 == 0 &&
          info.Status == TEST_SAL_NO_INFORMATION && info.Value0 == 0 &&
          info.Value1 == 0 && info.Value2 == 0 &&
@@ -3347,12 +3294,11 @@ static BOOLEAN test_sal_smbios_tables(EFI_SYSTEM_TABLE *SystemTable,
     BOOLEAN end_table = 0;
     BOOLEAN processor_topology = 1;
 
-    __asm__ volatile ("mov %0 = r12;;" : "=r"(stack_pointer));
+    __asm__ volatile("mov %0 = r12;;" : "=r"(stack_pointer));
 
     if (!Context->Valid || sal == NULL || smbios == NULL ||
         !memory_range_has_type(&Context->MemoryMap, stack_pointer, 16U,
-                               EfiRuntimeServicesData,
-                               EFI_MEMORY_RUNTIME) ||
+                               EfiRuntimeServicesData, EFI_MEMORY_RUNTIME) ||
         !memory_range_is_mapped(&Context->MemoryMap, (UINTN)sal, 8U) ||
         get_u32(sal) != SIG32('S', 'S', 'T', '_')) {
         return 0;
@@ -3391,10 +3337,8 @@ static BOOLEAN test_sal_smbios_tables(EFI_SYSTEM_TABLE *SystemTable,
         } else if (table[offset] == 4U) {
             if (formatted_length < 42U || processor_count >= 4U ||
                 get_u16(table + offset + 2U) != 0x0400U + processor_count ||
-                table[offset + 24U] != 0x41U ||
-                table[offset + 35U] != 1U ||
-                table[offset + 36U] != 1U ||
-                table[offset + 37U] != 1U ||
+                table[offset + 24U] != 0x41U || table[offset + 35U] != 1U ||
+                table[offset + 36U] != 1U || table[offset + 37U] != 1U ||
                 get_u16(table + offset + 38U) != 0x0004U) {
                 processor_topology = 0;
             }
@@ -3415,8 +3359,7 @@ static BOOLEAN test_sal_smbios_tables(EFI_SYSTEM_TABLE *SystemTable,
 }
 
 EFI_STATUS ia64_services_main(EFI_HANDLE ImageHandle,
-                              EFI_SYSTEM_TABLE *SystemTable,
-                              BOOLEAN TablesOnly)
+                              EFI_SYSTEM_TABLE *SystemTable, BOOLEAN TablesOnly)
 {
     IA64_TEST_CONTEXT context = {
         .SystemTable = SystemTable,
@@ -3434,8 +3377,7 @@ EFI_STATUS ia64_services_main(EFI_HANDLE ImageHandle,
             ImageHandle, loaded_image_guid, (VOID **)&loaded);
         tables_initialized = init_table_context(SystemTable, &tables);
         ia64_test_check(&context, "acpi-root-tables",
-                        tables_initialized &&
-                            test_acpi_root_tables(&tables, 1),
+                        tables_initialized && test_acpi_root_tables(&tables, 1),
                         EFI_DEVICE_ERROR, "rsdp-rsdt-xsdt-dbgp-links");
         ia64_test_check(&context, "configuration-tables",
                         tables_initialized &&
@@ -3445,8 +3387,7 @@ EFI_STATUS ia64_services_main(EFI_HANDLE ImageHandle,
                         tables_initialized && test_acpi_table_bounds(&tables),
                         EFI_DEVICE_ERROR, "revision-length-memory-type");
         ia64_test_check(&context, "acpi-fadt-links-gas",
-                        tables_initialized &&
-                            test_acpi_fadt_links_gas(&tables),
+                        tables_initialized && test_acpi_fadt_links_gas(&tables),
                         EFI_DEVICE_ERROR, "facs-dsdt-sci-gas");
         ia64_test_check(&context, "acpi-topology",
                         tables_initialized && test_acpi_topology(&tables),
@@ -3455,8 +3396,7 @@ EFI_STATUS ia64_services_main(EFI_HANDLE ImageHandle,
                         tables_initialized && test_acpi_mcfg(&tables),
                         EFI_DEVICE_ERROR, "pci-ecam-allocation");
         ia64_test_check(&context, "acpi-console-tables",
-                        tables_initialized &&
-                            test_acpi_console_tables(&tables),
+                        tables_initialized && test_acpi_console_tables(&tables),
                         EFI_DEVICE_ERROR, "hcdp-dbgp-uart");
         ia64_test_check(&context, "acpi-aml-crs",
                         tables_initialized && test_dsdt_crs(&tables) &&
@@ -3503,16 +3443,13 @@ EFI_STATUS ia64_services_main(EFI_HANDLE ImageHandle,
             EFI_DEVICE_ERROR, "disconnect-reconnect-notify");
         ia64_test_check(&context, "multiple-protocol-services",
                         test_multiple_protocol_services(SystemTable),
-                        EFI_DEVICE_ERROR,
-                        "transaction-duplicate-device-path");
+                        EFI_DEVICE_ERROR, "transaction-duplicate-device-path");
         ia64_test_check(&context, "controller-services",
-                        test_controller_services(SystemTable),
-                        EFI_DEVICE_ERROR,
+                        test_controller_services(SystemTable), EFI_DEVICE_ERROR,
                         "driver-precedence-disconnect");
         ia64_test_check(&context, "image-services",
                         test_image_services(ImageHandle, SystemTable),
-                        EFI_DEVICE_ERROR,
-                        "load-file-fallback-parameter");
+                        EFI_DEVICE_ERROR, "load-file-fallback-parameter");
         ia64_test_check(&context, "image-section-extents",
                         test_image_section_extents(ImageHandle, SystemTable),
                         EFI_DEVICE_ERROR, "section-size-copy-relocation");
@@ -3523,10 +3460,8 @@ EFI_STATUS ia64_services_main(EFI_HANDLE ImageHandle,
             BOOLEAN start_connect_ok =
                 test_start_image_connect(ImageHandle, SystemTable);
 
-            ia64_test_check(
-                &context, "start-image-connect", start_connect_ok,
-                EFI_DEVICE_ERROR,
-                "modified-handle-auto-connect");
+            ia64_test_check(&context, "start-image-connect", start_connect_ok,
+                            EFI_DEVICE_ERROR, "modified-handle-auto-connect");
         }
         ia64_test_check(&context, "memory-primitives",
                         test_memory_primitives(SystemTable), EFI_DEVICE_ERROR,
@@ -3540,24 +3475,21 @@ EFI_STATUS ia64_services_main(EFI_HANDLE ImageHandle,
         ia64_test_check(&context, "block-disk-protocols",
                         test_block_disk_protocols(SystemTable, loaded),
                         EFI_DEVICE_ERROR, "block-disk-io");
-        ia64_test_check(&context, "pci-root-io",
-                        test_pci_root_io(SystemTable), EFI_DEVICE_ERROR,
-                        "pci-config-read");
-        ia64_test_check(&context, "pci-io",
-                        test_pci_io_protocol(SystemTable), EFI_DEVICE_ERROR,
-                        "pci-location-config-read");
+        ia64_test_check(&context, "pci-root-io", test_pci_root_io(SystemTable),
+                        EFI_DEVICE_ERROR, "pci-config-read");
+        ia64_test_check(&context, "pci-io", test_pci_io_protocol(SystemTable),
+                        EFI_DEVICE_ERROR, "pci-location-config-read");
         ia64_test_check(&context, "graphics-output",
                         test_gop_protocol(SystemTable), EFI_DEVICE_ERROR,
                         "gop-query-mode");
-        ia64_test_check(&context, "tcg-no-tpm",
-                        test_tcg_protocol(SystemTable), EFI_DEVICE_ERROR,
-                        "tcg-status-hash");
+        ia64_test_check(&context, "tcg-no-tpm", test_tcg_protocol(SystemTable),
+                        EFI_DEVICE_ERROR, "tcg-status-hash");
         ia64_test_check(&context, "sal-state-info-no-log",
                         test_sal_state_info_no_log(SystemTable),
                         EFI_DEVICE_ERROR, "size-empty-clear");
         ia64_test_check(&context, "sal-rse-byte-order",
-                        test_sal_rse_byte_order(SystemTable),
-                        EFI_DEVICE_ERROR, "lazy-eager-caller-registers");
+                        test_sal_rse_byte_order(SystemTable), EFI_DEVICE_ERROR,
+                        "lazy-eager-caller-registers");
     }
     ia64_test_done(&context);
     return context.Failed == 0 ? EFI_SUCCESS : EFI_DEVICE_ERROR;

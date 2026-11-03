@@ -110,10 +110,10 @@ struct BCM57xxState {
 static void bcm57xx_core_reset(BCM57xxState *s);
 static uint64_t bcm57xx_reg_read(BCM57xxState *s, hwaddr addr, unsigned size);
 static void bcm57xx_reg_write(BCM57xxState *s, hwaddr addr, uint64_t v,
-                             unsigned size);
+                              unsigned size);
 static uint32_t bcm57xx_config_read(PCIDevice *pdev, uint32_t addr, int len);
 static void bcm57xx_config_write(PCIDevice *pdev, uint32_t addr, uint32_t v,
-                                int len);
+                                 int len);
 
 static bool bcm57xx_link_up(BCM57xxState *s)
 {
@@ -124,18 +124,17 @@ static bool bcm57xx_link_up(BCM57xxState *s)
 static void bcm57xx_update_irq(BCM57xxState *s)
 {
     bool level = s->irq_pending && !s->irq_mailbox_mask &&
-        !(pci_get_long(s->parent_obj.config + 0x68) & 2);
+                 !(pci_get_long(s->parent_obj.config + 0x68) & 2);
     uint32_t state = pci_get_long(s->parent_obj.config + 0x70);
 
-    pci_set_long(s->parent_obj.config + 0x70,
-                 (state & ~2U) | (level ? 0 : 2));
+    pci_set_long(s->parent_obj.config + 0x70, (state & ~2U) | (level ? 0 : 2));
     pci_set_irq(&s->parent_obj, level);
 }
 
 static uint32_t bcm57xx_desc_load(BCM57xxState *s, const void *p)
 {
-    return (REG(s, GRC_MODE) & GRC_MODE_BYTE_SWAP_NONFRAME) ?
-        ldl_be_p(p) : ldl_le_p(p);
+    return (REG(s, GRC_MODE) & GRC_MODE_BYTE_SWAP_NONFRAME) ? ldl_be_p(p)
+                                                            : ldl_le_p(p);
 }
 
 static void bcm57xx_desc_store(BCM57xxState *s, void *p, uint32_t v)
@@ -236,7 +235,7 @@ static void bcm57xx_status(BCM57xxState *s, uint32_t flags, bool interrupt)
     for (i = 0; i < BCM_RINGS; i++) {
         bcm57xx_desc_store(s, status + 16 + i * 4,
                            ((uint32_t)s->tx_cons[i] << 16) |
-                           (i ? 0 : s->rx_prod));
+                               (i ? 0 : s->rx_prod));
     }
     if (REG(s, HOSTCC_MODE) & 0x100) {
         len = 32;
@@ -246,8 +245,8 @@ static void bcm57xx_status(BCM57xxState *s, uint32_t flags, bool interrupt)
     bcm57xx_dma_word_swap(s, status, len);
     /* Publish Updated only after all indices and the tag are visible. */
     if (pci_dma_write(&s->parent_obj, addr + 8, status + 8, len - 8) ||
-        pci_dma_write(&s->parent_obj, addr + tag_offset,
-                      status + tag_offset, 4) ||
+        pci_dma_write(&s->parent_obj, addr + tag_offset, status + tag_offset,
+                      4) ||
         pci_dma_write(&s->parent_obj, addr + status_offset,
                       status + status_offset, 4)) {
         REG(s, 0x4c04) |= 8; /* DMA master abort */
@@ -274,10 +273,9 @@ static void bcm57xx_coalesce(BCM57xxState *s, bool tx, uint32_t count)
         return;
     }
     s->coalesce_interrupt |= !(REG(s, GRC_MODE) & (tx ? 0x2000 : 0x4000));
-    s->coalesce_count[tx] = MIN((uint64_t)s->coalesce_count[tx] + count,
-                               UINT32_MAX);
-    if ((!ticks && !frames) ||
-        (frames && s->coalesce_count[tx] >= frames)) {
+    s->coalesce_count[tx] =
+        MIN((uint64_t)s->coalesce_count[tx] + count, UINT32_MAX);
+    if ((!ticks && !frames) || (frames && s->coalesce_count[tx] >= frames)) {
         bcm57xx_status(s, 0, false);
     } else if (ticks && !timer_pending(timer)) {
         /* Host coalescing ticks are microseconds, from the first completion. */
@@ -286,8 +284,7 @@ static void bcm57xx_coalesce(BCM57xxState *s, bool tx, uint32_t count)
 }
 
 /* Return folded, uncomplemented sums, as defined by the receive BD ABI. */
-static uint32_t bcm57xx_rx_checksum(uint8_t *buf, size_t size,
-                                   uint32_t *flags)
+static uint32_t bcm57xx_rx_checksum(uint8_t *buf, size_t size, uint32_t *flags)
 {
     size_t off = 14, ihl, length, transport;
     uint16_t type, l4sum;
@@ -308,13 +305,12 @@ static uint32_t bcm57xx_rx_checksum(uint8_t *buf, size_t size,
     ip = buf + off;
     ihl = (ip[0] & 15) * 4;
     length = lduw_be_p(ip + 2);
-    if (ip[0] >> 4 != 4 || ihl < 20 || length < ihl ||
-        length > size - off) {
+    if (ip[0] >> 4 != 4 || ihl < 20 || length < ihl || length > size - off) {
         return 0;
     }
     *flags |= 0x1000;
-    result = (uint32_t)(uint16_t)~net_checksum_finish(
-        net_checksum_add(ihl, ip)) << 16;
+    result = (uint32_t)(uint16_t)~net_checksum_finish(net_checksum_add(ihl, ip))
+             << 16;
     if (lduw_be_p(ip + 6) & 0x3fff) {
         return result;
     }
@@ -327,8 +323,8 @@ static uint32_t bcm57xx_rx_checksum(uint8_t *buf, size_t size,
         }
         *flags |= 0x4000;
     } else if (ip[9] == IP_PROTO_UDP) {
-        if (transport < 8 || !lduw_be_p(l4 + 6) ||
-            lduw_be_p(l4 + 4) < 8 || lduw_be_p(l4 + 4) > transport) {
+        if (transport < 8 || !lduw_be_p(l4 + 6) || lduw_be_p(l4 + 4) < 8 ||
+            lduw_be_p(l4 + 4) > transport) {
             return result;
         }
         transport = lduw_be_p(l4 + 4);
@@ -419,8 +415,16 @@ static void bcm57xx_phy_write(BCM57xxState *s, unsigned reg, uint16_t v)
         }
         bcm57xx_set_link(qemu_get_queue(s->nic));
         break;
-    case 1: case 2: case 3: case 5: case 6: case 10: case 15:
-    case 0x11: case 0x19: case 0x1a:
+    case 1:
+    case 2:
+    case 3:
+    case 5:
+    case 6:
+    case 10:
+    case 15:
+    case 0x11:
+    case 0x19:
+    case 0x1a:
         break;
     case 0x15:
         s->dsp[s->phy[0x17]] = v;
@@ -471,8 +475,7 @@ static bool bcm57xx_accept(BCM57xxState *s, const uint8_t *buf)
     unsigned i;
     uint32_t hi = lduw_be_p(buf), lo = ldl_be_p(buf + 2);
 
-    if ((REG(s, MAC_RX_MODE) & 0x100) ||
-        (hi == 0xffff && lo == UINT32_MAX)) {
+    if ((REG(s, MAC_RX_MODE) & 0x100) || (hi == 0xffff && lo == UINT32_MAX)) {
         return true;
     }
     if (buf[0] & 1) {
@@ -502,28 +505,24 @@ static ssize_t bcm57xx_receive(NetClientState *nc, const uint8_t *buf,
     if (!bcm57xx_can_receive(nc)) {
         return 0;
     }
-    if (size < 14 || size > BCM_MAX_FRAME - 4 ||
-        !bcm57xx_accept(s, buf)) {
+    if (size < 14 || size > BCM_MAX_FRAME - 4 || !bcm57xx_accept(s, buf)) {
         return size;
     }
-    if (size + 4 > (REG(s, 0x43c) & 0xffff) &&
-        !(REG(s, MAC_RX_MODE) & 0x20)) {
+    if (size + 4 > (REG(s, 0x43c) & 0xffff) && !(REG(s, MAC_RX_MODE) & 0x20)) {
         REG(s, 0x8b0)++;
         return size;
     }
     if (size > 1518) {
         ring = 1;
         ringlen = 256;
-    } else if (!(REG(s, 0x2468) & 2) &&
-               (REG(s, 0x2468) >> 16) >= size + 4) {
+    } else if (!(REG(s, 0x2468) & 2) && (REG(s, 0x2468) >> 16) >= size + 4) {
         ring = 2;
         ringlen = 1024;
     }
     rcb = ring == 0 ? 0x2450 : ring == 1 ? 0x2440 : 0x2460;
     prodmb = ring == 0 ? 0x26c : ring == 1 ? 0x274 : 0x27c;
-    if ((REG(s, rcb + 8) & 2) || (retcfg & 2) ||
-        retsize < 2 || retsize > 2048 ||
-        s->rx_cons[ring] == (REG(s, prodmb) % ringlen)) {
+    if ((REG(s, rcb + 8) & 2) || (retcfg & 2) || retsize < 2 ||
+        retsize > 2048 || s->rx_cons[ring] == (REG(s, prodmb) % ringlen)) {
         return 0;
     }
     next = (s->rx_prod + 1) % retsize;
@@ -531,8 +530,8 @@ static ssize_t bcm57xx_receive(NetClientState *nc, const uint8_t *buf,
         return 0;
     }
     ringaddr = bcm57xx_address(REG(s, rcb), REG(s, rcb + 4));
-    if (pci_dma_read(&s->parent_obj, ringaddr + s->rx_cons[ring] * 32,
-                     desc, sizeof(desc))) {
+    if (pci_dma_read(&s->parent_obj, ringaddr + s->rx_cons[ring] * 32, desc,
+                     sizeof(desc))) {
         REG(s, 0x4804) |= 8;
         return size;
     }
@@ -572,17 +571,15 @@ static ssize_t bcm57xx_receive(NetClientState *nc, const uint8_t *buf,
     bcm57xx_desc_store(s, desc + 20, vlan);
     bcm57xx_bd_word_swap(s, desc, sizeof(desc));
     retaddr = bcm57xx_address(SRAM(s, 0x200), SRAM(s, 0x204));
-    if (pci_dma_write(&s->parent_obj, retaddr + s->rx_prod * 32,
-                      desc, sizeof(desc))) {
+    if (pci_dma_write(&s->parent_obj, retaddr + s->rx_prod * 32, desc,
+                      sizeof(desc))) {
         REG(s, 0x4c04) |= 8;
         return size;
     }
     s->rx_cons[ring] = (s->rx_cons[ring] + 1) % ringlen;
     s->rx_prod = next;
-    REG(s, ring == 0 ? 0x2474 : ring == 1 ? 0x2470 : 0x2478) =
-        s->rx_cons[ring];
-    REG(s, ring == 0 ? 0x3c54 : ring == 1 ? 0x3c50 : 0x3c58) =
-        s->rx_cons[ring];
+    REG(s, ring == 0 ? 0x2474 : ring == 1 ? 0x2470 : 0x2478) = s->rx_cons[ring];
+    REG(s, ring == 0 ? 0x3c54 : ring == 1 ? 0x3c50 : 0x3c58) = s->rx_cons[ring];
     REG(s, 0x3c80) = s->rx_prod;
     REG(s, 0x880) += size;
     bcm57xx_stat_add(s, 0x400, size);
@@ -679,8 +676,7 @@ static bool bcm57xx_tso(BCM57xxState *s, uint8_t *packet, unsigned len,
             tcp[13] &= ~0x80; /* CWR belongs to the first segment */
         }
         stw_be_p(tcp + 16, 0);
-        stw_be_p(tcp + 16,
-                  net_checksum_tcpudp(thl + n, 6, ip + 12, tcp));
+        stw_be_p(tcp + 16, net_checksum_tcpudp(thl + n, 6, ip + 12, tcp));
         if (frame_len < 60) {
             memset(frame + frame_len, 0, 60 - frame_len);
             frame_len = 60;
@@ -700,8 +696,8 @@ static void bcm57xx_transmit(BCM57xxState *s, unsigned ring, bool host)
     unsigned budget;
     uint32_t completed = 0;
 
-    if (s->tx_busy || !(REG(s, MAC_TX_MODE) & 2) ||
-        !bcm57xx_bus_master(s) || (cfg & 2) || count < 2 || count > 512) {
+    if (s->tx_busy || !(REG(s, MAC_TX_MODE) & 2) || !bcm57xx_bus_master(s) ||
+        (cfg & 2) || count < 2 || count > 512) {
         return;
     }
     s->tx_busy = true;
@@ -713,8 +709,8 @@ static void bcm57xx_transmit(BCM57xxState *s, unsigned ring, bool host)
         uint64_t dataaddr;
 
         if (host) {
-            if (pci_dma_read(&s->parent_obj, base + s->tx_cons[ring] * 16,
-                             desc, sizeof(desc))) {
+            if (pci_dma_read(&s->parent_obj, base + s->tx_cons[ring] * 16, desc,
+                             sizeof(desc))) {
                 REG(s, 0x4804) |= 8;
                 break;
             }
@@ -859,7 +855,7 @@ static uint64_t bcm57xx_reg_read(BCM57xxState *s, hwaddr addr, unsigned size)
 }
 
 static void bcm57xx_reg_write(BCM57xxState *s, hwaddr addr, uint64_t value,
-                             unsigned size)
+                              unsigned size)
 {
     uint32_t off = addr & ~3U;
     uint32_t written = (uint32_t)value << ((addr & 3) * 8);
@@ -872,8 +868,7 @@ static void bcm57xx_reg_write(BCM57xxState *s, hwaddr addr, uint64_t value,
     }
     if (size < 4) {
         uint32_t mask = MAKE_64BIT_MASK((addr & 3) * 8, size * 8);
-        v = (bcm57xx_reg_read(s, off, 4) & ~mask) |
-            (written & mask);
+        v = (bcm57xx_reg_read(s, off, 4) & ~mask) | (written & mask);
     }
     if (off >= 0x8000) {
         uint32_t base = pci_get_long(s->parent_obj.config + 0x7c);
@@ -907,8 +902,8 @@ static void bcm57xx_reg_write(BCM57xxState *s, hwaddr addr, uint64_t value,
         REG(s, off) = v;
         s->irq_mailbox_mask = !!(v & 1);
         s->irq_pending = !s->irq_mailbox_mask &&
-            (pci_get_long(s->parent_obj.config + 0x68) & 0x200) &&
-            (uint8_t)(v >> 24) != s->status_tag;
+                         (pci_get_long(s->parent_obj.config + 0x68) & 0x200) &&
+                         (uint8_t)(v >> 24) != s->status_tag;
         bcm57xx_update_irq(s);
         return;
     case GRC_EEPROM_ADDR:
@@ -950,10 +945,12 @@ static void bcm57xx_reg_write(BCM57xxState *s, hwaddr addr, uint64_t value,
         REG(s, off) = (req << 12) | (req << 8);
         return;
     }
-    case 0x5c28: case 0x5c18:
+    case 0x5c28:
+    case 0x5c18:
         bcm57xx_dma_queue(s, v, true);
         return;
-    case 0x5c78: case 0x5c68:
+    case 0x5c78:
+    case 0x5c68:
         bcm57xx_dma_queue(s, v, false);
         return;
     case GRC_LOCAL_CTRL:
@@ -976,9 +973,8 @@ static void bcm57xx_reg_write(BCM57xxState *s, hwaddr addr, uint64_t value,
         s->coalesce_interrupt = false;
     }
     /* All DMA/MAC functional blocks implement a self-clearing reset pulse. */
-    if ((off >= 0x400 && off <= 0x4c00 && !(off & 0x3ff)) ||
-        off == 0x6000 || off == 0x6400 ||
-        off == MAC_TX_MODE || off == MAC_RX_MODE) {
+    if ((off >= 0x400 && off <= 0x4c00 && !(off & 0x3ff)) || off == 0x6000 ||
+        off == 0x6400 || off == MAC_TX_MODE || off == MAC_RX_MODE) {
         v &= ~1U;
     }
     REG(s, off) = v;
@@ -995,8 +991,8 @@ static void bcm57xx_reg_write(BCM57xxState *s, hwaddr addr, uint64_t value,
             bcm57xx_transmit(s, i, !!(REG(s, GRC_MODE) & 0x20000));
         }
     }
-    if (off == MAC_RX_MODE || off == 0x26c || off == 0x274 ||
-        off == 0x27c || off == 0x284) {
+    if (off == MAC_RX_MODE || off == 0x26c || off == 0x274 || off == 0x27c ||
+        off == 0x284) {
         qemu_flush_queued_packets(qemu_get_queue(s->nic));
     }
 }
@@ -1042,7 +1038,7 @@ static uint64_t bcm57xx_mmio_read(void *opaque, hwaddr addr, unsigned size)
 }
 
 static void bcm57xx_mmio_write(void *opaque, hwaddr addr, uint64_t value,
-                              unsigned size)
+                               unsigned size)
 {
     BCM57xxState *s = opaque;
 
@@ -1097,8 +1093,9 @@ static uint32_t bcm57xx_config_read(PCIDevice *pdev, uint32_t addr, int len)
     switch (off) {
     case 0x80:
         v = pci_get_long(pdev->config + 0x78);
-        v = v >= 0x100 && v < BCM57XX_MMIO_SIZE ?
-            bcm57xx_reg_read(s, v & ~3U, 4) : UINT32_MAX;
+        v = v >= 0x100 && v < BCM57XX_MMIO_SIZE
+                ? bcm57xx_reg_read(s, v & ~3U, 4)
+                : UINT32_MAX;
         break;
     case 0x84:
         v = pci_get_long(pdev->config + 0x7c);
@@ -1123,7 +1120,7 @@ static uint32_t bcm57xx_config_read(PCIDevice *pdev, uint32_t addr, int len)
 }
 
 static void bcm57xx_config_write(PCIDevice *pdev, uint32_t addr, uint32_t v,
-                                int len)
+                                 int len)
 {
     BCM57xxState *s = BCM57XX(pdev);
     uint32_t off = addr & ~3U;
@@ -1241,14 +1238,13 @@ static uint16_t bcm57xx_chiprev_id(PCIDevice *pdev)
 
 static uint32_t bcm57xx_pcix_status(PCIDevice *pdev)
 {
-    if (pci_get_word(pdev->config + PCI_DEVICE_ID) ==
-        BCM5701_PCI_DEVICE_ID) {
+    if (pci_get_word(pdev->config + PCI_DEVICE_ID) == BCM5701_PCI_DEVICE_ID) {
         /* BCM5701 reports zero here while operating in conventional PCI. */
         return 0;
     }
 
-    return BCM5704_PCIX_STATUS_CAPS |
-           ((uint32_t)pci_dev_bus_num(pdev) << 8) | pdev->devfn;
+    return BCM5704_PCIX_STATUS_CAPS | ((uint32_t)pci_dev_bus_num(pdev) << 8) |
+           pdev->devfn;
 }
 
 static void bcm57xx_reset_config(PCIDevice *pdev)
@@ -1257,11 +1253,13 @@ static void bcm57xx_reset_config(PCIDevice *pdev)
     pci_set_long(pdev->config + BCM57XX_PCI_PCIX_CAP + PCI_X_STATUS,
                  bcm57xx_pcix_status(pdev));
     pci_set_long(pdev->config + BCM57XX_PCI_MISC_HOST_CTRL,
-                 (uint32_t)bcm57xx_chiprev_id(pdev) <<
-                 BCM57XX_MISC_HOST_CTRL_CHIPREV_SHIFT);
+                 (uint32_t)bcm57xx_chiprev_id(pdev)
+                     << BCM57XX_MISC_HOST_CTRL_CHIPREV_SHIFT);
     pci_set_long(pdev->config + 0x70,
                  pci_get_word(pdev->config + PCI_DEVICE_ID) ==
-                 BCM5701_PCI_DEVICE_ID ? 0x6 : 0xa);
+                         BCM5701_PCI_DEVICE_ID
+                     ? 0x6
+                     : 0xa);
     pci_set_word(pdev->config + 0x4c, 0);
     pci_set_long(pdev->config + 0x7c, 0);
     pci_set_long(pdev->config + 0xb8, PCI_FUNC(pdev->devfn) ? 4 : 0);
@@ -1323,8 +1321,7 @@ static int bcm57xx_post_load(void *opaque, int version_id)
 {
     BCM57xxState *s = opaque;
 
-    if (s->rx_prod >= 2048 ||
-        s->rx_cons[0] >= 512 || s->rx_cons[1] >= 256 ||
+    if (s->rx_prod >= 2048 || s->rx_cons[0] >= 512 || s->rx_cons[1] >= 256 ||
         s->rx_cons[2] >= 1024) {
         return -EINVAL;
     }
@@ -1350,13 +1347,13 @@ static const VMStateDescription vmstate_bcm5701_coalescing = {
     .version_id = 1,
     .minimum_version_id = 1,
     .needed = bcm57xx_coalescing_needed,
-    .fields = (const VMStateField[]) {
-        VMSTATE_TIMER_PTR(rx_coalesce_timer, BCM57xxState),
-        VMSTATE_TIMER_PTR(tx_coalesce_timer, BCM57xxState),
-        VMSTATE_UINT32_ARRAY(coalesce_count, BCM57xxState, 2),
-        VMSTATE_BOOL(coalesce_interrupt, BCM57xxState),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) {
+            VMSTATE_TIMER_PTR(rx_coalesce_timer, BCM57xxState),
+            VMSTATE_TIMER_PTR(tx_coalesce_timer, BCM57xxState),
+            VMSTATE_UINT32_ARRAY(coalesce_count, BCM57xxState, 2),
+            VMSTATE_BOOL(coalesce_interrupt, BCM57xxState),
+            VMSTATE_END_OF_LIST() },
 };
 
 static const VMStateDescription vmstate_bcm5704_coalescing = {
@@ -1364,13 +1361,13 @@ static const VMStateDescription vmstate_bcm5704_coalescing = {
     .version_id = 1,
     .minimum_version_id = 1,
     .needed = bcm57xx_coalescing_needed,
-    .fields = (const VMStateField[]) {
-        VMSTATE_TIMER_PTR(rx_coalesce_timer, BCM57xxState),
-        VMSTATE_TIMER_PTR(tx_coalesce_timer, BCM57xxState),
-        VMSTATE_UINT32_ARRAY(coalesce_count, BCM57xxState, 2),
-        VMSTATE_BOOL(coalesce_interrupt, BCM57xxState),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) {
+            VMSTATE_TIMER_PTR(rx_coalesce_timer, BCM57xxState),
+            VMSTATE_TIMER_PTR(tx_coalesce_timer, BCM57xxState),
+            VMSTATE_UINT32_ARRAY(coalesce_count, BCM57xxState, 2),
+            VMSTATE_BOOL(coalesce_interrupt, BCM57xxState),
+            VMSTATE_END_OF_LIST() },
 };
 
 static const VMStateDescription vmstate_bcm5701 = {
@@ -1379,32 +1376,30 @@ static const VMStateDescription vmstate_bcm5701 = {
     .minimum_version_id = 2,
     .pre_load = bcm57xx_pre_load,
     .post_load = bcm57xx_post_load,
-    .fields = (const VMStateField[]) {
-        VMSTATE_PCI_DEVICE(parent_obj, BCM57xxState),
-        VMSTATE_MACADDR(conf.macaddr, BCM57xxState),
-        VMSTATE_UINT32_ARRAY(regs, BCM57xxState, BCM57XX_MMIO_SIZE / 4),
-        VMSTATE_UINT32_ARRAY(sram, BCM57xxState, BCM_SRAM_SIZE / 4),
-        VMSTATE_UINT8_ARRAY(eeprom, BCM57xxState, BCM_EEPROM_SIZE),
-        VMSTATE_UINT16_ARRAY(phy, BCM57xxState, 32),
-        VMSTATE_UINT16_ARRAY(dsp, BCM57xxState, 0x10000),
-        VMSTATE_UINT16_ARRAY(tx_cons, BCM57xxState, BCM_RINGS),
-        VMSTATE_UINT16_ARRAY(rx_cons, BCM57xxState, 3),
-        VMSTATE_UINT16(rx_prod, BCM57xxState),
-        VMSTATE_UINT8(status_tag, BCM57xxState),
-        VMSTATE_UINT32(status_flags, BCM57xxState),
-        VMSTATE_BOOL(irq_pending, BCM57xxState),
-        VMSTATE_BOOL(irq_mailbox_mask, BCM57xxState),
-        VMSTATE_UINT32_ARRAY(tx_len, BCM57xxState, BCM_RINGS),
-        VMSTATE_UINT32_ARRAY(tx_flags, BCM57xxState, BCM_RINGS),
-        VMSTATE_UINT32_ARRAY(tx_vlan, BCM57xxState, BCM_RINGS),
-        VMSTATE_UINT8_2DARRAY(tx_buf, BCM57xxState, BCM_RINGS,
-                             BCM_MAX_TSO),
-        VMSTATE_END_OF_LIST()
-    },
-    .subsections = (const VMStateDescription * const []) {
-        &vmstate_bcm5701_coalescing,
-        NULL
-    },
+    .fields =
+        (const VMStateField[]) {
+            VMSTATE_PCI_DEVICE(parent_obj, BCM57xxState),
+            VMSTATE_MACADDR(conf.macaddr, BCM57xxState),
+            VMSTATE_UINT32_ARRAY(regs, BCM57xxState, BCM57XX_MMIO_SIZE / 4),
+            VMSTATE_UINT32_ARRAY(sram, BCM57xxState, BCM_SRAM_SIZE / 4),
+            VMSTATE_UINT8_ARRAY(eeprom, BCM57xxState, BCM_EEPROM_SIZE),
+            VMSTATE_UINT16_ARRAY(phy, BCM57xxState, 32),
+            VMSTATE_UINT16_ARRAY(dsp, BCM57xxState, 0x10000),
+            VMSTATE_UINT16_ARRAY(tx_cons, BCM57xxState, BCM_RINGS),
+            VMSTATE_UINT16_ARRAY(rx_cons, BCM57xxState, 3),
+            VMSTATE_UINT16(rx_prod, BCM57xxState),
+            VMSTATE_UINT8(status_tag, BCM57xxState),
+            VMSTATE_UINT32(status_flags, BCM57xxState),
+            VMSTATE_BOOL(irq_pending, BCM57xxState),
+            VMSTATE_BOOL(irq_mailbox_mask, BCM57xxState),
+            VMSTATE_UINT32_ARRAY(tx_len, BCM57xxState, BCM_RINGS),
+            VMSTATE_UINT32_ARRAY(tx_flags, BCM57xxState, BCM_RINGS),
+            VMSTATE_UINT32_ARRAY(tx_vlan, BCM57xxState, BCM_RINGS),
+            VMSTATE_UINT8_2DARRAY(tx_buf, BCM57xxState, BCM_RINGS, BCM_MAX_TSO),
+            VMSTATE_END_OF_LIST() },
+    .subsections =
+        (const VMStateDescription *const[]) { &vmstate_bcm5701_coalescing,
+                                              NULL },
 };
 
 static const VMStateDescription vmstate_bcm5704 = {
@@ -1413,32 +1408,30 @@ static const VMStateDescription vmstate_bcm5704 = {
     .minimum_version_id = 2,
     .pre_load = bcm57xx_pre_load,
     .post_load = bcm57xx_post_load,
-    .fields = (const VMStateField[]) {
-        VMSTATE_PCI_DEVICE(parent_obj, BCM57xxState),
-        VMSTATE_MACADDR(conf.macaddr, BCM57xxState),
-        VMSTATE_UINT32_ARRAY(regs, BCM57xxState, BCM57XX_MMIO_SIZE / 4),
-        VMSTATE_UINT32_ARRAY(sram, BCM57xxState, BCM_SRAM_SIZE / 4),
-        VMSTATE_UINT8_ARRAY(eeprom, BCM57xxState, BCM_EEPROM_SIZE),
-        VMSTATE_UINT16_ARRAY(phy, BCM57xxState, 32),
-        VMSTATE_UINT16_ARRAY(dsp, BCM57xxState, 0x10000),
-        VMSTATE_UINT16_ARRAY(tx_cons, BCM57xxState, BCM_RINGS),
-        VMSTATE_UINT16_ARRAY(rx_cons, BCM57xxState, 3),
-        VMSTATE_UINT16(rx_prod, BCM57xxState),
-        VMSTATE_UINT8(status_tag, BCM57xxState),
-        VMSTATE_UINT32(status_flags, BCM57xxState),
-        VMSTATE_BOOL(irq_pending, BCM57xxState),
-        VMSTATE_BOOL(irq_mailbox_mask, BCM57xxState),
-        VMSTATE_UINT32_ARRAY(tx_len, BCM57xxState, BCM_RINGS),
-        VMSTATE_UINT32_ARRAY(tx_flags, BCM57xxState, BCM_RINGS),
-        VMSTATE_UINT32_ARRAY(tx_vlan, BCM57xxState, BCM_RINGS),
-        VMSTATE_UINT8_2DARRAY(tx_buf, BCM57xxState, BCM_RINGS,
-                             BCM_MAX_TSO),
-        VMSTATE_END_OF_LIST()
-    },
-    .subsections = (const VMStateDescription * const []) {
-        &vmstate_bcm5704_coalescing,
-        NULL
-    },
+    .fields =
+        (const VMStateField[]) {
+            VMSTATE_PCI_DEVICE(parent_obj, BCM57xxState),
+            VMSTATE_MACADDR(conf.macaddr, BCM57xxState),
+            VMSTATE_UINT32_ARRAY(regs, BCM57xxState, BCM57XX_MMIO_SIZE / 4),
+            VMSTATE_UINT32_ARRAY(sram, BCM57xxState, BCM_SRAM_SIZE / 4),
+            VMSTATE_UINT8_ARRAY(eeprom, BCM57xxState, BCM_EEPROM_SIZE),
+            VMSTATE_UINT16_ARRAY(phy, BCM57xxState, 32),
+            VMSTATE_UINT16_ARRAY(dsp, BCM57xxState, 0x10000),
+            VMSTATE_UINT16_ARRAY(tx_cons, BCM57xxState, BCM_RINGS),
+            VMSTATE_UINT16_ARRAY(rx_cons, BCM57xxState, 3),
+            VMSTATE_UINT16(rx_prod, BCM57xxState),
+            VMSTATE_UINT8(status_tag, BCM57xxState),
+            VMSTATE_UINT32(status_flags, BCM57xxState),
+            VMSTATE_BOOL(irq_pending, BCM57xxState),
+            VMSTATE_BOOL(irq_mailbox_mask, BCM57xxState),
+            VMSTATE_UINT32_ARRAY(tx_len, BCM57xxState, BCM_RINGS),
+            VMSTATE_UINT32_ARRAY(tx_flags, BCM57xxState, BCM_RINGS),
+            VMSTATE_UINT32_ARRAY(tx_vlan, BCM57xxState, BCM_RINGS),
+            VMSTATE_UINT8_2DARRAY(tx_buf, BCM57xxState, BCM_RINGS, BCM_MAX_TSO),
+            VMSTATE_END_OF_LIST() },
+    .subsections =
+        (const VMStateDescription *const[]) { &vmstate_bcm5704_coalescing,
+                                              NULL },
 };
 
 static void bcm57xx_realize(PCIDevice *pdev, Error **errp)
@@ -1456,16 +1449,17 @@ static void bcm57xx_realize(PCIDevice *pdev, Error **errp)
         return;
     }
 
-    s->rx_coalesce_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL,
-                                       bcm57xx_coalesce_timer, s);
-    s->tx_coalesce_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL,
-                                       bcm57xx_coalesce_timer, s);
+    s->rx_coalesce_timer =
+        timer_new_ns(QEMU_CLOCK_VIRTUAL, bcm57xx_coalesce_timer, s);
+    s->tx_coalesce_timer =
+        timer_new_ns(QEMU_CLOCK_VIRTUAL, bcm57xx_coalesce_timer, s);
 
     pdev->config[PCI_INTERRUPT_PIN] = 1; /* INTA */
     memory_region_init_io(&s->mmio, OBJECT(s), &bcm57xx_mmio_ops, s,
                           TYPE_BCM57XX ".mmio", BCM57XX_MMIO_SIZE);
-    pci_register_bar(pdev, 0, PCI_BASE_ADDRESS_SPACE_MEMORY |
-                              PCI_BASE_ADDRESS_MEM_TYPE_64, &s->mmio);
+    pci_register_bar(
+        pdev, 0, PCI_BASE_ADDRESS_SPACE_MEMORY | PCI_BASE_ADDRESS_MEM_TYPE_64,
+        &s->mmio);
 
     memory_region_init_io(&s->pci_rom, OBJECT(s), &bcm57xx_absent_ops, s,
                           TYPE_BCM57XX ".pci-rom", BCM57XX_ROM_SIZE);
@@ -1548,10 +1542,11 @@ static const TypeInfo bcm57xx_info = {
     .instance_size = sizeof(BCM57xxState),
     .abstract = true,
     .class_init = bcm57xx_class_init,
-    .interfaces = (const InterfaceInfo[]) {
-        { INTERFACE_CONVENTIONAL_PCI_DEVICE },
-        { },
-    },
+    .interfaces =
+        (const InterfaceInfo[]) {
+            { INTERFACE_CONVENTIONAL_PCI_DEVICE },
+            {},
+        },
 };
 
 static const TypeInfo bcm5701_info = {

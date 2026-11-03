@@ -209,14 +209,13 @@ typedef struct HPZX1IOARegs {
     uint64_t sapic_regs[HP_IO_SAPIC_ZX1_REG_COUNT];
 } HPZX1IOARegs;
 
-bool hp_zx1_ioa_regs_init(HPZX1IOARegs *s,
-                          const HPZX1IOARegsConfig *config);
+bool hp_zx1_ioa_regs_init(HPZX1IOARegs *s, const HPZX1IOARegsConfig *config);
 void hp_zx1_ioa_regs_reset(HPZX1IOARegs *s);
 
-bool hp_zx1_ioa_regs_read(HPZX1IOARegs *s, uint64_t offset,
-                          unsigned int size, uint64_t *value);
-bool hp_zx1_ioa_regs_write(HPZX1IOARegs *s, uint64_t offset,
-                           unsigned int size, uint64_t value);
+bool hp_zx1_ioa_regs_read(HPZX1IOARegs *s, uint64_t offset, unsigned int size,
+                          uint64_t *value);
+bool hp_zx1_ioa_regs_write(HPZX1IOARegs *s, uint64_t offset, unsigned int size,
+                           uint64_t value);
 
 /* asserted is the board frontend's polarity-resolved logical pin state. */
 bool hp_zx1_ioa_regs_set_input(HPZX1IOARegs *s, unsigned int input,

@@ -47,8 +47,7 @@ struct IA64PCIState {
     void *fault_opaque;
 };
 
-static hwaddr ia64_pci_sparse_io_port(const IA64PCIState *s,
-                                      hwaddr encoded)
+static hwaddr ia64_pci_sparse_io_port(const IA64PCIState *s, hwaddr encoded)
 {
     hwaddr group = encoded >> 12;
     hwaddr low = encoded & 0xfff;
@@ -70,14 +69,14 @@ static uint64_t ia64_pci_sparse_io_read(void *opaque, hwaddr addr,
 
     switch (size) {
     case 1:
-        return address_space_ldub(&s->pci_io_as, port,
-                                  MEMTXATTRS_UNSPECIFIED, NULL);
+        return address_space_ldub(&s->pci_io_as, port, MEMTXATTRS_UNSPECIFIED,
+                                  NULL);
     case 2:
         return address_space_lduw_le(&s->pci_io_as, port,
                                      MEMTXATTRS_UNSPECIFIED, NULL);
     case 4:
-        return address_space_ldl_le(&s->pci_io_as, port,
-                                    MEMTXATTRS_UNSPECIFIED, NULL);
+        return address_space_ldl_le(&s->pci_io_as, port, MEMTXATTRS_UNSPECIFIED,
+                                    NULL);
     default:
         return ~0ULL;
     }
@@ -97,16 +96,16 @@ static void ia64_pci_sparse_io_write(void *opaque, hwaddr addr, uint64_t data,
 
     switch (size) {
     case 1:
-        address_space_stb(&s->pci_io_as, port, data,
-                          MEMTXATTRS_UNSPECIFIED, NULL);
+        address_space_stb(&s->pci_io_as, port, data, MEMTXATTRS_UNSPECIFIED,
+                          NULL);
         break;
     case 2:
-        address_space_stw_le(&s->pci_io_as, port, data,
-                             MEMTXATTRS_UNSPECIFIED, NULL);
+        address_space_stw_le(&s->pci_io_as, port, data, MEMTXATTRS_UNSPECIFIED,
+                             NULL);
         break;
     case 4:
-        address_space_stl_le(&s->pci_io_as, port, data,
-                             MEMTXATTRS_UNSPECIFIED, NULL);
+        address_space_stl_le(&s->pci_io_as, port, data, MEMTXATTRS_UNSPECIFIED,
+                             NULL);
         break;
     default:
         break;
@@ -137,14 +136,14 @@ static int ia64_pci_route_intx_output(uint8_t devfn, int irq_num,
 int ia64_pci_route_intx_gsi(uint8_t devfn, int irq_num)
 {
     return IA64_PCI_INTX_GSI_BASE +
-        ia64_pci_route_intx_output(devfn, irq_num, IA64_PCI_INTX_LINES);
+           ia64_pci_route_intx_output(devfn, irq_num, IA64_PCI_INTX_LINES);
 }
 
-int ia64_pci_host_route_intx_gsi(const IA64PCIState *host,
-                                 uint8_t devfn, int irq_num)
+int ia64_pci_host_route_intx_gsi(const IA64PCIState *host, uint8_t devfn,
+                                 int irq_num)
 {
     return host->config.gsi_base +
-        ia64_pci_route_intx_output(devfn, irq_num, host->intx_lines);
+           ia64_pci_route_intx_output(devfn, irq_num, host->intx_lines);
 }
 
 static int ia64_pci_map_irq(PCIDevice *d, int irq_num)
@@ -196,8 +195,7 @@ static bool ia64_pci_host_config_valid(const IA64PCIHostConfig *config,
     config_offset = (uint64_t)config->first_bus * PCIE_MMCFG_SIZE_MIN;
     if ((config->ecam_base & (PCIE_MMCFG_SIZE_MIN - 1)) ||
         config->ecam_base > UINT64_MAX - config_offset ||
-        config->ecam_base + config_offset >
-            UINT64_MAX - config->ecam_size) {
+        config->ecam_base + config_offset > UINT64_MAX - config->ecam_size) {
         error_setg(errp, "IA-64 PCI host ECAM range is invalid");
         return false;
     }
@@ -221,8 +219,7 @@ static bool ia64_pci_host_config_valid(const IA64PCIHostConfig *config,
 }
 
 bool ia64_pci_host_configure(IA64PCIState *host,
-                             const IA64PCIHostConfig *config,
-                             Error **errp)
+                             const IA64PCIHostConfig *config, Error **errp)
 {
     if (!host || !config) {
         error_setg(errp, "IA-64 PCI host configuration is required");
@@ -249,7 +246,8 @@ bool ia64_pcie_host_set_fault_notifier(IA64PCIState *host,
         return false;
     }
     if (qdev_is_realized(DEVICE(host))) {
-        error_setg(errp, "IA-64 PCIe fault setup must precede host realization");
+        error_setg(errp,
+                   "IA-64 PCIe fault setup must precede host realization");
         return false;
     }
     if (host->fault_notify) {
@@ -262,7 +260,7 @@ bool ia64_pcie_host_set_fault_notifier(IA64PCIState *host,
 }
 
 static void ia64_pcie_root_port_aer_notify(PCIDevice *dev,
-                                            const PCIEAERMsg *msg)
+                                           const PCIEAERMsg *msg)
 {
     PCIBus *root = pci_device_root_bus(dev);
     IA64PCIState *host = (IA64PCIState *)object_dynamic_cast(
@@ -289,18 +287,17 @@ static void ia64_pcie_root_port_aer_notify(PCIDevice *dev,
         .reason = IA64_CHIPSET_FAULT_AER,
         .segment = host->config.segment,
         .bus = msg->source_id >> 8,
-        .severity = msg->severity == PCI_ERR_ROOT_CMD_COR_EN ?
-            IA64_RAS_SEVERITY_CORRECTED :
-            msg->severity == PCI_ERR_ROOT_CMD_FATAL_EN ?
-            IA64_RAS_SEVERITY_FATAL : IA64_RAS_SEVERITY_RECOVERABLE,
+        .severity = msg->severity == PCI_ERR_ROOT_CMD_COR_EN
+                        ? IA64_RAS_SEVERITY_CORRECTED
+                    : msg->severity == PCI_ERR_ROOT_CMD_FATAL_EN
+                        ? IA64_RAS_SEVERITY_FATAL
+                        : IA64_RAS_SEVERITY_RECOVERABLE,
         .requester = msg->source_id,
         .status = msg->severity,
         .information = msg->severity,
     };
-    pcie_flags = pci_get_word(dev->config + dev->exp.exp_cap +
-                              PCI_EXP_FLAGS);
-    slot_cap = pci_get_long(dev->config + dev->exp.exp_cap +
-                            PCI_EXP_SLTCAP);
+    pcie_flags = pci_get_word(dev->config + dev->exp.exp_cap + PCI_EXP_FLAGS);
+    slot_cap = pci_get_long(dev->config + dev->exp.exp_cap + PCI_EXP_SLTCAP);
     fault.pcie.valid = true;
     fault.pcie.port_type =
         (pcie_flags & PCI_EXP_FLAGS_TYPE) >> PCI_EXP_FLAGS_TYPE_SHIFT;
@@ -317,8 +314,8 @@ static void ia64_pcie_root_port_aer_notify(PCIDevice *dev,
     fault.pcie.device_id[11] = dev->config[PCI_PRIMARY_BUS];
     fault.pcie.device_id[12] = dev->config[PCI_SECONDARY_BUS];
     pci_set_word(&fault.pcie.device_id[13],
-                 ((slot_cap & PCI_EXP_SLTCAP_PSN) >>
-                  PCI_EXP_SLTCAP_PSN_SHIFT) << 3);
+                 ((slot_cap & PCI_EXP_SLTCAP_PSN) >> PCI_EXP_SLTCAP_PSN_SHIFT)
+                     << 3);
     fault.pcie.bridge_control_status =
         pci_get_word(dev->config + PCI_SEC_STATUS) |
         (uint32_t)pci_get_word(dev->config + PCI_BRIDGE_CONTROL) << 16;
@@ -330,8 +327,7 @@ static void ia64_pcie_root_port_aer_notify(PCIDevice *dev,
     host->fault_notify(host->fault_opaque, &fault);
 }
 
-static void ia64_pcie_root_port_class_init(ObjectClass *klass,
-                                            const void *data)
+static void ia64_pcie_root_port_class_init(ObjectClass *klass, const void *data)
 {
     PCIDeviceClass *pc = PCI_DEVICE_CLASS(klass);
 
@@ -383,8 +379,7 @@ static void ia64_pci_realize(DeviceState *dev, Error **errp)
                        s->config.mmio_bus_base + s->config.mmio_size);
     memory_region_init_alias(&s->pci_mmio_window, OBJECT(dev),
                              "pci-mmio-window", &s->pci_mmio,
-                             s->config.mmio_bus_base,
-                             s->config.mmio_size);
+                             s->config.mmio_bus_base, s->config.mmio_size);
     memory_region_init(&s->pci_io, OBJECT(dev), "pci-io",
                        s->config.io_bus_base + s->config.io_size);
     address_space_init(&s->pci_io_as, &s->pci_io, "ia64-pci-io");
@@ -407,21 +402,18 @@ static void ia64_pci_realize(DeviceState *dev, Error **errp)
     }
     snprintf(s->root_bus_path, sizeof(s->root_bus_path), "%04x:%02x",
              s->config.segment, s->config.first_bus);
-    phb->bus = pci_register_root_bus(dev, s->root_bus_name,
-                                     ia64_pci_set_irq, ia64_pci_map_irq, s,
-                                     &s->pci_mmio, &s->pci_io,
-                                     PCI_DEVFN(0, 0), s->intx_lines,
-                                     s->pcie ? TYPE_IA64_PCIE_ROOT_BUS :
-                                               TYPE_IA64_PCI_ROOT_BUS);
+    phb->bus = pci_register_root_bus(
+        dev, s->root_bus_name, ia64_pci_set_irq, ia64_pci_map_irq, s,
+        &s->pci_mmio, &s->pci_io, PCI_DEVFN(0, 0), s->intx_lines,
+        s->pcie ? TYPE_IA64_PCIE_ROOT_BUS : TYPE_IA64_PCI_ROOT_BUS);
     ((IA64PCIRootBus *)phb->bus)->first_bus = s->config.first_bus;
     if (s->pcie) {
         phb->bus->flags |= PCI_BUS_EXTENDED_CONFIG_SPACE;
         msi_nonbroken = true;
     }
 
-    memory_region_add_subregion_overlap(get_system_memory(),
-                                        s->config.mmio_cpu_base,
-                                        &s->pci_mmio_window, 1);
+    memory_region_add_subregion_overlap(
+        get_system_memory(), s->config.mmio_cpu_base, &s->pci_mmio_window, 1);
     memory_region_add_subregion(get_system_memory(), s->config.io_cpu_base,
                                 &s->pci_io_sparse);
     pcie_host_mmcfg_init(pex, PCIE_MMCFG_SIZE_MAX);
@@ -441,10 +433,8 @@ static void ia64_pci_unrealize(DeviceState *dev)
 
     if (s->system_regions_mapped) {
         memory_region_del_subregion(get_system_memory(), &s->ecam_window);
-        memory_region_del_subregion(get_system_memory(),
-                                    &s->pci_io_sparse);
-        memory_region_del_subregion(get_system_memory(),
-                                    &s->pci_mmio_window);
+        memory_region_del_subregion(get_system_memory(), &s->pci_io_sparse);
+        memory_region_del_subregion(get_system_memory(), &s->pci_mmio_window);
         s->system_regions_mapped = false;
     }
     if (phb->bus) {
@@ -454,8 +444,7 @@ static void ia64_pci_unrealize(DeviceState *dev)
     address_space_destroy(&s->pci_io_as);
 }
 
-static const char *ia64_pci_root_bus_path(PCIHostState *host,
-                                          PCIBus *root_bus)
+static const char *ia64_pci_root_bus_path(PCIHostState *host, PCIBus *root_bus)
 {
     IA64PCIState *s = IA64_PCI_HOST_BRIDGE(host);
 
@@ -464,10 +453,10 @@ static const char *ia64_pci_root_bus_path(PCIHostState *host,
 }
 
 static const Property ia64_pci_properties[] = {
-    DEFINE_PROP_UINT32(IA64_PCI_HOST_PROP_INTX_LINES, IA64PCIState,
-                       intx_lines, IA64_PCI_INTX_LINES),
-    DEFINE_PROP_UINT16(IA64_PCI_HOST_PROP_SEGMENT, IA64PCIState,
-                       config.segment, 0),
+    DEFINE_PROP_UINT32(IA64_PCI_HOST_PROP_INTX_LINES, IA64PCIState, intx_lines,
+                       IA64_PCI_INTX_LINES),
+    DEFINE_PROP_UINT16(IA64_PCI_HOST_PROP_SEGMENT, IA64PCIState, config.segment,
+                       0),
     DEFINE_PROP_UINT8(IA64_PCI_HOST_PROP_FIRST_BUS, IA64PCIState,
                       config.first_bus, 0),
     DEFINE_PROP_UINT8(IA64_PCI_HOST_PROP_LAST_BUS, IA64PCIState,
@@ -486,8 +475,8 @@ static const Property ia64_pci_properties[] = {
                        config.io_cpu_base, IA64_PCI_IO_BASE),
     DEFINE_PROP_UINT64(IA64_PCI_HOST_PROP_IO_BUS_BASE, IA64PCIState,
                        config.io_bus_base, 0),
-    DEFINE_PROP_SIZE(IA64_PCI_HOST_PROP_IO_SIZE, IA64PCIState,
-                     config.io_size, IA64_PCI_IO_SIZE),
+    DEFINE_PROP_SIZE(IA64_PCI_HOST_PROP_IO_SIZE, IA64PCIState, config.io_size,
+                     IA64_PCI_IO_SIZE),
     DEFINE_PROP_UINT32(IA64_PCI_HOST_PROP_GSI_BASE, IA64PCIState,
                        config.gsi_base, IA64_PCI_INTX_GSI_BASE),
 };
@@ -524,24 +513,24 @@ static void ia64_pci_class_init(ObjectClass *klass, const void *data)
 }
 
 static const TypeInfo ia64_pci_info = {
-    .name          = TYPE_IA64_PCI_HOST_BRIDGE,
-    .parent        = TYPE_PCIE_HOST_BRIDGE,
+    .name = TYPE_IA64_PCI_HOST_BRIDGE,
+    .parent = TYPE_PCIE_HOST_BRIDGE,
     .instance_size = sizeof(IA64PCIState),
-    .class_init    = ia64_pci_class_init,
+    .class_init = ia64_pci_class_init,
 };
 
 static const TypeInfo ia64_pci_root_bus_info = {
-    .name          = TYPE_IA64_PCI_ROOT_BUS,
-    .parent        = TYPE_PCI_BUS,
+    .name = TYPE_IA64_PCI_ROOT_BUS,
+    .parent = TYPE_PCI_BUS,
     .instance_size = sizeof(IA64PCIRootBus),
-    .class_init    = ia64_pci_root_bus_class_init,
+    .class_init = ia64_pci_root_bus_class_init,
 };
 
 static const TypeInfo ia64_pcie_root_bus_info = {
-    .name          = TYPE_IA64_PCIE_ROOT_BUS,
-    .parent        = TYPE_PCIE_BUS,
+    .name = TYPE_IA64_PCIE_ROOT_BUS,
+    .parent = TYPE_PCIE_BUS,
     .instance_size = sizeof(IA64PCIRootBus),
-    .class_init    = ia64_pci_root_bus_class_init,
+    .class_init = ia64_pci_root_bus_class_init,
 };
 
 static void ia64_pcie_init(Object *obj)
@@ -558,10 +547,10 @@ static void ia64_pcie_class_init(ObjectClass *klass, const void *data)
 }
 
 static const TypeInfo ia64_pcie_info = {
-    .name          = TYPE_IA64_PCIE_HOST_BRIDGE,
-    .parent        = TYPE_IA64_PCI_HOST_BRIDGE,
+    .name = TYPE_IA64_PCIE_HOST_BRIDGE,
+    .parent = TYPE_IA64_PCI_HOST_BRIDGE,
     .instance_init = ia64_pcie_init,
-    .class_init    = ia64_pcie_class_init,
+    .class_init = ia64_pcie_class_init,
 };
 
 PCIBus *ia64_pci_host_bus(IA64PCIState *host)
@@ -591,14 +580,14 @@ static bool ia64_pci_bus_empty(PCIBus *bus)
     return true;
 }
 
-bool ia64_pci_host_attach_iommu(IA64PCIState *host,
-                                const PCIIOMMUOps *ops, void *opaque,
-                                Error **errp)
+bool ia64_pci_host_attach_iommu(IA64PCIState *host, const PCIIOMMUOps *ops,
+                                void *opaque, Error **errp)
 {
     PCIBus *bus = ia64_pci_host_bus(host);
 
     if (!bus || !qdev_is_realized(DEVICE(host))) {
-        error_setg(errp, "IA-64 PCI host must be realized before IOMMU attachment");
+        error_setg(errp,
+                   "IA-64 PCI host must be realized before IOMMU attachment");
         return false;
     }
     if (!ops || !ops->get_address_space) {
@@ -622,9 +611,8 @@ bool ia64_pci_host_attach_iommu(IA64PCIState *host,
     return true;
 }
 
-bool ia64_pci_host_detach_iommu(IA64PCIState *host,
-                                const PCIIOMMUOps *ops, void *opaque,
-                                Error **errp)
+bool ia64_pci_host_detach_iommu(IA64PCIState *host, const PCIIOMMUOps *ops,
+                                void *opaque, Error **errp)
 {
     PCIBus *bus = ia64_pci_host_bus(host);
 
@@ -633,8 +621,9 @@ bool ia64_pci_host_detach_iommu(IA64PCIState *host,
         return false;
     }
     if (!ia64_pci_bus_empty(bus)) {
-        error_setg(errp,
-                   "IA-64 PCI host cannot detach its IOMMU while devices remain");
+        error_setg(
+            errp,
+            "IA-64 PCI host cannot detach its IOMMU while devices remain");
         return false;
     }
     bus->iommu_ops = NULL;

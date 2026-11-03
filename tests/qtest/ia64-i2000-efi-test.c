@@ -63,7 +63,7 @@ G_STATIC_ASSERT(G_N_ELEMENTS(root_mmio_base) ==
 static uint64_t sparse_io_pa(uint16_t port)
 {
     return IA64_I2000_460GX_TEST_LEGACY_IO_BASE +
-        ((uint64_t)(port >> 2) << 12) + (port & 0xfffU);
+           ((uint64_t)(port >> 2) << 12) + (port & 0xfffU);
 }
 
 static uint8_t descriptor_checksum(const void *data, size_t size)
@@ -79,50 +79,44 @@ static uint8_t descriptor_checksum(const void *data, size_t size)
 }
 
 static uint16_t pci_config_readw(QTestState *qts, uint8_t bus,
-                                 unsigned int device,
-                                 unsigned int function,
+                                 unsigned int device, unsigned int function,
                                  unsigned int reg)
 {
     uint32_t address = UINT32_C(0x80000000) | (uint32_t)bus << 16 |
-        PCI_DEVFN(device, function) << 8 | (reg & 0xfc);
+                       PCI_DEVFN(device, function) << 8 | (reg & 0xfc);
 
     qtest_writel(qts, IA64_I2000_460GX_TEST_CF8_PA, address);
-    return qtest_readw(qts,
-                       IA64_I2000_460GX_TEST_CFC_PA + (reg & 3));
+    return qtest_readw(qts, IA64_I2000_460GX_TEST_CFC_PA + (reg & 3));
 }
 
 static uint8_t pci_config_readb(QTestState *qts, uint8_t bus,
-                                unsigned int device,
-                                unsigned int function,
+                                unsigned int device, unsigned int function,
                                 unsigned int reg)
 {
     uint32_t address = UINT32_C(0x80000000) | (uint32_t)bus << 16 |
-        PCI_DEVFN(device, function) << 8 | (reg & 0xfc);
+                       PCI_DEVFN(device, function) << 8 | (reg & 0xfc);
 
     qtest_writel(qts, IA64_I2000_460GX_TEST_CF8_PA, address);
-    return qtest_readb(qts,
-                       IA64_I2000_460GX_TEST_CFC_PA + (reg & 3));
+    return qtest_readb(qts, IA64_I2000_460GX_TEST_CFC_PA + (reg & 3));
 }
 
 static uint32_t pci_config_readl(QTestState *qts, uint8_t bus,
-                                 unsigned int device,
-                                 unsigned int function,
+                                 unsigned int device, unsigned int function,
                                  unsigned int reg)
 {
     uint32_t address = UINT32_C(0x80000000) | (uint32_t)bus << 16 |
-        PCI_DEVFN(device, function) << 8 | (reg & 0xfc);
+                       PCI_DEVFN(device, function) << 8 | (reg & 0xfc);
 
     qtest_writel(qts, IA64_I2000_460GX_TEST_CF8_PA, address);
     return qtest_readl(qts, IA64_I2000_460GX_TEST_CFC_PA);
 }
 
-static void pci_config_writel(QTestState *qts, uint8_t bus,
-                              unsigned int device,
-                              unsigned int function,
-                              unsigned int reg, uint32_t value)
+static void pci_config_writel(QTestState *qts, uint8_t bus, unsigned int device,
+                              unsigned int function, unsigned int reg,
+                              uint32_t value)
 {
     uint32_t address = UINT32_C(0x80000000) | (uint32_t)bus << 16 |
-        PCI_DEVFN(device, function) << 8 | (reg & 0xfc);
+                       PCI_DEVFN(device, function) << 8 | (reg & 0xfc);
 
     qtest_writel(qts, IA64_I2000_460GX_TEST_CF8_PA, address);
     qtest_writel(qts, IA64_I2000_460GX_TEST_CFC_PA, value);
@@ -132,8 +126,7 @@ static void assert_qom_child(QTestState *qts, const char *parent_path,
                              const char *name, const char *type)
 {
     g_autoptr(QDict) response = qtest_qmp(
-        qts, "{'execute':'qom-list','arguments':{'path':%s}}",
-        parent_path);
+        qts, "{'execute':'qom-list','arguments':{'path':%s}}", parent_path);
     g_autofree char *child_type = g_strdup_printf("child<%s>", type);
     QList *children;
     QListEntry *entry;
@@ -153,8 +146,7 @@ static void assert_qom_child(QTestState *qts, const char *parent_path,
 
 static void assert_topology_ownership(QTestState *qts)
 {
-    assert_qom_child(qts, "/machine",
-                     IA64_I2000_EFI_TEST_TOPOLOGY_CHILD,
+    assert_qom_child(qts, "/machine", IA64_I2000_EFI_TEST_TOPOLOGY_CHILD,
                      TYPE_IA64_I2000_EFI_TEST_TOPOLOGY);
     assert_qom_child(qts, IA64_I2000_EFI_TEST_TOPOLOGY_QOM_PATH,
                      IA64_I2000_EFI_TEST_460GX_TEST_CHILD,
@@ -175,19 +167,17 @@ static void assert_descriptor(QTestState *qts, unsigned int cpu_count)
     const IA64PlatformPciRoute *routes;
     const IA64PlatformI2000Profile *profile;
     const uint32_t ram_offset = sizeof(*descriptor);
-    const uint32_t root_offset =
-        ram_offset + sizeof(IA64PlatformRamRange);
-    const uint32_t sapic_offset = root_offset +
-        IA64_I2000_460GX_TEST_ROOT_COUNT *
-            sizeof(IA64PlatformPciRoot);
-    const uint32_t route_offset =
-        sapic_offset + sizeof(IA64PlatformIoSapic);
+    const uint32_t root_offset = ram_offset + sizeof(IA64PlatformRamRange);
+    const uint32_t sapic_offset =
+        root_offset +
+        IA64_I2000_460GX_TEST_ROOT_COUNT * sizeof(IA64PlatformPciRoot);
+    const uint32_t route_offset = sapic_offset + sizeof(IA64PlatformIoSapic);
     const uint32_t profile_offset =
         route_offset + 2 * sizeof(IA64PlatformPciRoute);
     unsigned int i;
 
-    qtest_memread(qts, IA64_I2000_EFI_TEST_DESCRIPTOR_GPA,
-                  storage.bytes, sizeof(storage.bytes));
+    qtest_memread(qts, IA64_I2000_EFI_TEST_DESCRIPTOR_GPA, storage.bytes,
+                  sizeof(storage.bytes));
     g_assert_cmphex(le64_to_cpu(descriptor->Magic), ==,
                     IA64_PLATFORM_DESC_MAGIC);
     g_assert_cmpuint(le32_to_cpu(descriptor->FormatRevision), ==,
@@ -200,8 +190,8 @@ static void assert_descriptor(QTestState *qts, unsigned int cpu_count)
                      IA64_PLATFORM_ID_HP_I2000);
     g_assert_cmphex(le32_to_cpu(descriptor->Flags), ==,
                     IA64_PLATFORM_HP_I2000_REQUIRED_FLAGS);
-    g_assert_cmpuint(descriptor_checksum(storage.bytes,
-                                         sizeof(storage.bytes)), ==, 0);
+    g_assert_cmpuint(descriptor_checksum(storage.bytes, sizeof(storage.bytes)),
+                     ==, 0);
 
     g_assert_cmphex(le64_to_cpu(descriptor->RamSize), ==, 2 * GiB);
     g_assert_cmphex(le64_to_cpu(descriptor->LowRamEnd), ==, 2 * GiB);
@@ -234,24 +224,20 @@ static void assert_descriptor(QTestState *qts, unsigned int cpu_count)
     g_assert_cmphex(le64_to_cpu(descriptor->RtcBase), ==, 0);
     g_assert_cmphex(le64_to_cpu(descriptor->RtcSize), ==, 0);
 
-    g_assert_cmpuint(le32_to_cpu(descriptor->RamRangeOffset), ==,
-                     ram_offset);
+    g_assert_cmpuint(le32_to_cpu(descriptor->RamRangeOffset), ==, ram_offset);
     g_assert_cmpuint(le32_to_cpu(descriptor->RamRangeCount), ==, 1);
     g_assert_cmpuint(le32_to_cpu(descriptor->RamRangeEntrySize), ==,
                      sizeof(IA64PlatformRamRange));
-    g_assert_cmpuint(le32_to_cpu(descriptor->PciRootOffset), ==,
-                     root_offset);
+    g_assert_cmpuint(le32_to_cpu(descriptor->PciRootOffset), ==, root_offset);
     g_assert_cmpuint(le32_to_cpu(descriptor->PciRootCount), ==,
                      IA64_I2000_460GX_TEST_ROOT_COUNT);
     g_assert_cmpuint(le32_to_cpu(descriptor->PciRootEntrySize), ==,
                      sizeof(IA64PlatformPciRoot));
-    g_assert_cmpuint(le32_to_cpu(descriptor->IoSapicOffset), ==,
-                     sapic_offset);
+    g_assert_cmpuint(le32_to_cpu(descriptor->IoSapicOffset), ==, sapic_offset);
     g_assert_cmpuint(le32_to_cpu(descriptor->IoSapicCount), ==, 1);
     g_assert_cmpuint(le32_to_cpu(descriptor->IoSapicEntrySize), ==,
                      sizeof(IA64PlatformIoSapic));
-    g_assert_cmpuint(le32_to_cpu(descriptor->PciRouteOffset), ==,
-                     route_offset);
+    g_assert_cmpuint(le32_to_cpu(descriptor->PciRouteOffset), ==, route_offset);
     g_assert_cmpuint(le32_to_cpu(descriptor->PciRouteCount), ==, 2);
     g_assert_cmpuint(le32_to_cpu(descriptor->PciRouteEntrySize), ==,
                      sizeof(IA64PlatformPciRoute));
@@ -289,10 +275,8 @@ static void assert_descriptor(QTestState *qts, unsigned int cpu_count)
                         IA64_I2000_460GX_TEST_DMA_SIZE);
         g_assert_cmpuint(le32_to_cpu(roots[i].Rope), ==, 0);
         g_assert_cmphex(le64_to_cpu(roots[i].IoTranslationOffset), ==, 0);
-        g_assert_cmphex(le64_to_cpu(roots[i].Mmio32TranslationOffset), ==,
-                        0);
-        g_assert_cmphex(le64_to_cpu(roots[i].Mmio64TranslationOffset), ==,
-                        0);
+        g_assert_cmphex(le64_to_cpu(roots[i].Mmio32TranslationOffset), ==, 0);
+        g_assert_cmphex(le64_to_cpu(roots[i].Mmio64TranslationOffset), ==, 0);
     }
 
     sapic = (const IA64PlatformIoSapic *)(storage.bytes + sapic_offset);
@@ -306,8 +290,7 @@ static void assert_descriptor(QTestState *qts, unsigned int cpu_count)
     routes = (const IA64PlatformPciRoute *)(storage.bytes + route_offset);
     g_assert_cmpuint(le16_to_cpu(routes[0].Segment), ==, 0);
     g_assert_cmpuint(routes[0].Bus, ==, 0);
-    g_assert_cmpuint(routes[0].Device, ==,
-                     IA64_I2000_IO_TEST_I82559_SLOT);
+    g_assert_cmpuint(routes[0].Device, ==, IA64_I2000_IO_TEST_I82559_SLOT);
     g_assert_cmpuint(routes[0].Pin, ==, 0);
     g_assert_cmpuint(le32_to_cpu(routes[0].Gsi), ==,
                      IA64_I2000_IO_TEST_I82559_PID_PIN);
@@ -316,14 +299,12 @@ static void assert_descriptor(QTestState *qts, unsigned int cpu_count)
                      ISP12160_QEMU_I2000_SEGMENT);
     g_assert_cmpuint(routes[1].Bus, ==, ISP12160_QEMU_I2000_BUS);
     g_assert_cmpuint(routes[1].Device, ==, ISP12160_QEMU_I2000_DEVICE);
-    g_assert_cmpuint(routes[1].Pin, ==,
-                     ISP12160_QEMU_I2000_INTERRUPT_PIN - 1U);
-    g_assert_cmpuint(le32_to_cpu(routes[1].Gsi), ==,
-                     ISP12160_QEMU_I2000_GSI);
+    g_assert_cmpuint(routes[1].Pin, ==, ISP12160_QEMU_I2000_INTERRUPT_PIN - 1U);
+    g_assert_cmpuint(le32_to_cpu(routes[1].Gsi), ==, ISP12160_QEMU_I2000_GSI);
     g_assert_cmphex(le32_to_cpu(routes[1].Flags), ==, 0);
 
-    profile = (const IA64PlatformI2000Profile *)(
-        storage.bytes + profile_offset);
+    profile =
+        (const IA64PlatformI2000Profile *)(storage.bytes + profile_offset);
     g_assert_cmpuint(le32_to_cpu(profile->ProfileType), ==,
                      IA64_PLATFORM_PROFILE_TYPE_HP_I2000);
     g_assert_cmpuint(le32_to_cpu(profile->ProfileRevision), ==,
@@ -342,18 +323,16 @@ static void assert_descriptor(QTestState *qts, unsigned int cpu_count)
                      IA64_I2000_PROFILE_IDE_SEGMENT);
     g_assert_cmpuint(profile->IdeBus, ==, IA64_I2000_PROFILE_IDE_BUS);
     g_assert_cmpuint(profile->IdeDevice, ==, IA64_I2000_PROFILE_IDE_DEVICE);
-    g_assert_cmpuint(profile->IdeFunction, ==,
-                     IA64_I2000_PROFILE_IDE_FUNCTION);
+    g_assert_cmpuint(profile->IdeFunction, ==, IA64_I2000_PROFILE_IDE_FUNCTION);
     g_assert_cmpuint(profile->IdeUnitMask, ==,
                      IA64_I2000_PROFILE_IDE_UNIT_MASK);
 
-    g_assert_true(qtest_qom_get_bool(
-        qts, IA64_I2000_EFI_TEST_460GX_TEST_QOM_PATH,
-        IA64_I2000_460GX_TEST_DESCRIPTOR_INSTALLED));
+    g_assert_true(
+        qtest_qom_get_bool(qts, IA64_I2000_EFI_TEST_460GX_TEST_QOM_PATH,
+                           IA64_I2000_460GX_TEST_DESCRIPTOR_INSTALLED));
 }
 
-static void assert_firmware_loaded(QTestState *qts,
-                                   const char *firmware_path)
+static void assert_firmware_loaded(QTestState *qts, const char *firmware_path)
 {
     g_autofree char *expected = NULL;
     g_autofree uint8_t *actual = NULL;
@@ -407,10 +386,12 @@ static uint64_t parse_gr(const char *registers, unsigned int reg)
 
 static char *cpu_registers(QTestState *qts, unsigned int cpu_index)
 {
-    g_autoptr(QDict) response = qtest_qmp(
-        qts, "{'execute':'human-monitor-command',"
-        "'arguments':{'command-line':'info registers',"
-        "'cpu-index':%u}}", cpu_index);
+    g_autoptr(QDict) response =
+        qtest_qmp(qts,
+                  "{'execute':'human-monitor-command',"
+                  "'arguments':{'command-line':'info registers',"
+                  "'cpu-index':%u}}",
+                  cpu_index);
     const char *registers;
 
     g_assert_true(qdict_haskey(response, "return"));
@@ -419,11 +400,9 @@ static char *cpu_registers(QTestState *qts, unsigned int cpu_index)
     return g_strdup(registers);
 }
 
-static bool cpu_start_powered_off(QTestState *qts,
-                                  unsigned int cpu_index)
+static bool cpu_start_powered_off(QTestState *qts, unsigned int cpu_index)
 {
-    g_autoptr(QDict) response = qtest_qmp(
-        qts, "{'execute':'query-cpus-fast'}");
+    g_autoptr(QDict) response = qtest_qmp(qts, "{'execute':'query-cpus-fast'}");
     QList *cpus;
     QListEntry *entry;
 
@@ -447,24 +426,22 @@ static void assert_cpu_handoff(QTestState *qts, unsigned int cpu_index,
     g_autofree char *registers = cpu_registers(qts, cpu_index);
     const char *halted;
 
-    g_assert_cmpint(cpu_start_powered_off(qts, cpu_index), ==,
-                    powered_off);
+    g_assert_cmpint(cpu_start_powered_off(qts, cpu_index), ==, powered_off);
     g_assert_cmphex(parse_hex_field(registers, "IP: 0x"), ==,
                     IA64_I2000_460GX_TEST_FIRMWARE_BASE);
     g_assert_cmphex(parse_gr(registers, 8), ==,
                     IA64_I2000_EFI_TEST_DESCRIPTOR_GPA);
     g_assert_cmphex(parse_gr(registers, 9), ==,
                     IA64_I2000_EFI_TEST_DESCRIPTOR_SIZE);
-    g_assert_cmphex(parse_gr(registers, 10), ==,
-                    IA64_PLATFORM_ID_HP_I2000);
+    g_assert_cmphex(parse_gr(registers, 10), ==, IA64_PLATFORM_ID_HP_I2000);
     if (cpu_index == 0) {
         g_assert_cmphex(parse_gr(registers, 12), ==,
                         IA64_I2000_460GX_TEST_RAM_SIZE - 16);
     }
     halted = strstr(registers, "HALTED: ");
     g_assert_nonnull(halted);
-    g_assert_cmpuint(g_ascii_strtoull(halted + strlen("HALTED: "),
-                                     NULL, 10), ==, powered_off);
+    g_assert_cmpuint(g_ascii_strtoull(halted + strlen("HALTED: "), NULL, 10),
+                     ==, powered_off);
 }
 
 static void assert_io_test_pci_functions(QTestState *qts)
@@ -472,63 +449,58 @@ static void assert_io_test_pci_functions(QTestState *qts)
     uint32_t isp_bar;
     uint32_t isp_bar_mask;
 
-    g_assert_cmphex(pci_config_readw(
-                        qts, 0, IA64_I2000_IO_TEST_PCI_SLOT,
-                        IA64_I2000_IO_TEST_F0_FUNCTION,
-                        PCI_VENDOR_ID), ==,
-                    IA64_I2000_IO_TEST_F0_VENDOR_ID);
-    g_assert_cmphex(pci_config_readw(
-                        qts, 0, IA64_I2000_IO_TEST_PCI_SLOT,
-                        IA64_I2000_IO_TEST_F1_FUNCTION,
-                        PCI_DEVICE_ID), ==,
-                    IA64_I2000_IO_TEST_F1_DEVICE_ID);
-    g_assert_cmphex(pci_config_readw(
-                        qts, 0, IA64_I2000_IO_TEST_I82559_SLOT,
-                        IA64_I2000_IO_TEST_I82559_FUNCTION,
-                        PCI_VENDOR_ID), ==,
-                    IA64_I2000_IO_TEST_I82559_VENDOR_ID);
+    g_assert_cmphex(pci_config_readw(qts, 0, IA64_I2000_IO_TEST_PCI_SLOT,
+                                     IA64_I2000_IO_TEST_F0_FUNCTION,
+                                     PCI_VENDOR_ID),
+                    ==, IA64_I2000_IO_TEST_F0_VENDOR_ID);
+    g_assert_cmphex(pci_config_readw(qts, 0, IA64_I2000_IO_TEST_PCI_SLOT,
+                                     IA64_I2000_IO_TEST_F1_FUNCTION,
+                                     PCI_DEVICE_ID),
+                    ==, IA64_I2000_IO_TEST_F1_DEVICE_ID);
+    g_assert_cmphex(pci_config_readw(qts, 0, IA64_I2000_IO_TEST_I82559_SLOT,
+                                     IA64_I2000_IO_TEST_I82559_FUNCTION,
+                                     PCI_VENDOR_ID),
+                    ==, IA64_I2000_IO_TEST_I82559_VENDOR_ID);
 
-    g_assert_cmphex(pci_config_readw(
-                        qts, ISP12160_QEMU_I2000_BUS,
-                        ISP12160_QEMU_I2000_DEVICE,
-                        ISP12160_QEMU_I2000_FUNCTION,
-                        PCI_VENDOR_ID), ==, ISP12160_PCI_VENDOR_ID);
-    g_assert_cmphex(pci_config_readw(
-                        qts, ISP12160_QEMU_I2000_BUS,
-                        ISP12160_QEMU_I2000_DEVICE,
-                        ISP12160_QEMU_I2000_FUNCTION,
-                        PCI_DEVICE_ID), ==, ISP12160_PCI_DEVICE_ID);
-    g_assert_cmphex(pci_config_readw(
-                        qts, ISP12160_QEMU_I2000_BUS,
-                        ISP12160_QEMU_I2000_DEVICE,
-                        ISP12160_QEMU_I2000_FUNCTION,
-                        PCI_CLASS_DEVICE), ==, ISP12160_PCI_CLASS);
-    g_assert_cmpuint(pci_config_readb(
-                         qts, ISP12160_QEMU_I2000_BUS,
-                         ISP12160_QEMU_I2000_DEVICE,
-                         ISP12160_QEMU_I2000_FUNCTION,
-                         PCI_INTERRUPT_PIN), ==,
-                     ISP12160_QEMU_I2000_INTERRUPT_PIN);
+    g_assert_cmphex(pci_config_readw(qts, ISP12160_QEMU_I2000_BUS,
+                                     ISP12160_QEMU_I2000_DEVICE,
+                                     ISP12160_QEMU_I2000_FUNCTION,
+                                     PCI_VENDOR_ID),
+                    ==, ISP12160_PCI_VENDOR_ID);
+    g_assert_cmphex(pci_config_readw(qts, ISP12160_QEMU_I2000_BUS,
+                                     ISP12160_QEMU_I2000_DEVICE,
+                                     ISP12160_QEMU_I2000_FUNCTION,
+                                     PCI_DEVICE_ID),
+                    ==, ISP12160_PCI_DEVICE_ID);
+    g_assert_cmphex(pci_config_readw(qts, ISP12160_QEMU_I2000_BUS,
+                                     ISP12160_QEMU_I2000_DEVICE,
+                                     ISP12160_QEMU_I2000_FUNCTION,
+                                     PCI_CLASS_DEVICE),
+                    ==, ISP12160_PCI_CLASS);
+    g_assert_cmpuint(pci_config_readb(qts, ISP12160_QEMU_I2000_BUS,
+                                      ISP12160_QEMU_I2000_DEVICE,
+                                      ISP12160_QEMU_I2000_FUNCTION,
+                                      PCI_INTERRUPT_PIN),
+                     ==, ISP12160_QEMU_I2000_INTERRUPT_PIN);
 
-    isp_bar = pci_config_readl(
-        qts, ISP12160_QEMU_I2000_BUS, ISP12160_QEMU_I2000_DEVICE,
-        ISP12160_QEMU_I2000_FUNCTION,
-        PCI_BASE_ADDRESS_0 + ISP12160_PCI_MMIO_BAR * 4U);
+    isp_bar = pci_config_readl(qts, ISP12160_QEMU_I2000_BUS,
+                               ISP12160_QEMU_I2000_DEVICE,
+                               ISP12160_QEMU_I2000_FUNCTION,
+                               PCI_BASE_ADDRESS_0 + ISP12160_PCI_MMIO_BAR * 4U);
     g_assert_cmphex(isp_bar, ==, ISP12160_QEMU_I2000_BAR_ADDRESS);
-    pci_config_writel(
-        qts, ISP12160_QEMU_I2000_BUS, ISP12160_QEMU_I2000_DEVICE,
-        ISP12160_QEMU_I2000_FUNCTION,
-        PCI_BASE_ADDRESS_0 + ISP12160_PCI_MMIO_BAR * 4U, UINT32_MAX);
+    pci_config_writel(qts, ISP12160_QEMU_I2000_BUS, ISP12160_QEMU_I2000_DEVICE,
+                      ISP12160_QEMU_I2000_FUNCTION,
+                      PCI_BASE_ADDRESS_0 + ISP12160_PCI_MMIO_BAR * 4U,
+                      UINT32_MAX);
     isp_bar_mask = pci_config_readl(
         qts, ISP12160_QEMU_I2000_BUS, ISP12160_QEMU_I2000_DEVICE,
         ISP12160_QEMU_I2000_FUNCTION,
         PCI_BASE_ADDRESS_0 + ISP12160_PCI_MMIO_BAR * 4U);
     g_assert_cmphex(isp_bar_mask & PCI_BASE_ADDRESS_MEM_MASK, ==,
                     ~(ISP12160_QEMU_I2000_BAR_SIZE - 1U));
-    pci_config_writel(
-        qts, ISP12160_QEMU_I2000_BUS, ISP12160_QEMU_I2000_DEVICE,
-        ISP12160_QEMU_I2000_FUNCTION,
-        PCI_BASE_ADDRESS_0 + ISP12160_PCI_MMIO_BAR * 4U, isp_bar);
+    pci_config_writel(qts, ISP12160_QEMU_I2000_BUS, ISP12160_QEMU_I2000_DEVICE,
+                      ISP12160_QEMU_I2000_FUNCTION,
+                      PCI_BASE_ADDRESS_0 + ISP12160_PCI_MMIO_BAR * 4U, isp_bar);
 }
 
 static void test_machine_configuration(void)
@@ -550,8 +522,8 @@ static void test_machine_configuration(void)
     g_assert_no_error(err);
     g_assert_cmpint(fd, >=, 0);
     close(fd);
-    g_assert_true(g_file_set_contents(cd_path, cd_contents,
-                                      TEST_CD_SIZE, &err));
+    g_assert_true(
+        g_file_set_contents(cd_path, cd_contents, TEST_CD_SIZE, &err));
     g_assert_no_error(err);
     quoted_cd = g_shell_quote(cd_path);
 
@@ -585,11 +557,10 @@ static void test_machine_configuration(void)
 
 static void test_one_cpu(void)
 {
-    QTestState *qts = qtest_init(
-        "-machine x-ia64-i2000-efi-test -S -smp 1 -m 2G "
-        "-nodefaults -display none -net none -serial none");
-    g_autoptr(QDict) response = qtest_qmp(
-        qts, "{'execute':'query-cpus-fast'}");
+    QTestState *qts =
+        qtest_init("-machine x-ia64-i2000-efi-test -S -smp 1 -m 2G "
+                   "-nodefaults -display none -net none -serial none");
+    g_autoptr(QDict) response = qtest_qmp(qts, "{'execute':'query-cpus-fast'}");
     QList *cpus;
 
     g_assert_true(qdict_haskey(response, "return"));
@@ -603,9 +574,10 @@ static void test_one_cpu(void)
 
 static void assert_start_rejected(const char *options)
 {
-    g_autofree char *args = g_strdup_printf(
-        "-machine x-ia64-i2000-efi-test -S -nodefaults "
-        "-display none -net none -serial none %s", options);
+    g_autofree char *args =
+        g_strdup_printf("-machine x-ia64-i2000-efi-test -S -nodefaults "
+                        "-display none -net none -serial none %s",
+                        options);
     QTestState *qts = qtest_init_ext(NULL, args, NULL, false);
 
     qtest_set_expected_status(qts, EXIT_FAILURE);
@@ -629,9 +601,7 @@ int main(int argc, char **argv)
     qtest_add_func("i2000-efi/machine-configuration",
                    test_machine_configuration);
     qtest_add_func("i2000-efi/one-cpu", test_one_cpu);
-    qtest_add_func("i2000-efi/reject-invalid-ram",
-                   test_reject_invalid_ram);
-    qtest_add_func("i2000-efi/reject-invalid-cpu",
-                   test_reject_invalid_cpu);
+    qtest_add_func("i2000-efi/reject-invalid-ram", test_reject_invalid_ram);
+    qtest_add_func("i2000-efi/reject-invalid-cpu", test_reject_invalid_cpu);
     return g_test_run();
 }

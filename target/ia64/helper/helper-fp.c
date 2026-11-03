@@ -33,8 +33,8 @@ void helper_fmpy(CPUIA64State *arg0, uint32_t arg1, uint32_t arg2,
     ia64_fp_fmpy(arg0, arg1, arg2, arg3, arg4);
 }
 
-void helper_xma(CPUIA64State *arg0, uint32_t arg1, uint32_t arg2,
-                uint32_t arg3, uint32_t arg4, uint32_t arg5)
+void helper_xma(CPUIA64State *arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3,
+                uint32_t arg4, uint32_t arg5)
 {
     ia64_fp_xma(arg0, arg1, arg2, arg3, arg4, arg5);
 }
@@ -51,8 +51,7 @@ void helper_fma4(CPUIA64State *arg0, uint32_t arg1, uint32_t arg2,
 }
 
 void helper_fcmp(CPUIA64State *arg0, uint32_t arg1, uint32_t arg2,
-                 uint32_t arg3, uint32_t arg4, uint32_t arg5,
-                 uint32_t arg6)
+                 uint32_t arg3, uint32_t arg4, uint32_t arg5, uint32_t arg6)
 {
     ia64_fp_fcmp(arg0, arg1, arg2, arg3, arg4, arg5, arg6);
 }
@@ -166,8 +165,7 @@ void helper_fpmerge(CPUIA64State *arg0, uint32_t arg1, uint32_t arg2,
 }
 
 void helper_fpminmax(CPUIA64State *arg0, uint32_t arg1, uint32_t arg2,
-                     uint32_t arg3, uint32_t arg4, uint32_t arg5,
-                     uint32_t arg6)
+                     uint32_t arg3, uint32_t arg4, uint32_t arg5, uint32_t arg6)
 {
     ia64_fp_fpminmax(arg0, arg1, arg2, arg3, arg4, arg5, arg6);
 }
@@ -185,8 +183,7 @@ void helper_fpcvt(CPUIA64State *arg0, uint32_t arg1, uint32_t arg2,
 }
 
 void helper_fpma(CPUIA64State *arg0, uint32_t arg1, uint32_t arg2,
-                 uint32_t arg3, uint32_t arg4, uint32_t arg5,
-                 uint32_t arg6)
+                 uint32_t arg3, uint32_t arg4, uint32_t arg5, uint32_t arg6)
 {
     ia64_fp_fpma(arg0, arg1, arg2, arg3, arg4, arg5, arg6);
 }
@@ -207,8 +204,8 @@ uint64_t helper_fchkf(CPUIA64State *arg0, uint32_t arg1)
     return ia64_fp_fchkf(arg0, arg1);
 }
 
-void helper_fms(CPUIA64State *arg0, uint32_t arg1, uint32_t arg2,
-                uint32_t arg3, uint32_t arg4, uint32_t arg5)
+void helper_fms(CPUIA64State *arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3,
+                uint32_t arg4, uint32_t arg5)
 {
     ia64_fp_fms(arg0, arg1, arg2, arg3, arg4, arg5);
 }

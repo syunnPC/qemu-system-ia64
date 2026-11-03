@@ -38,8 +38,7 @@ typedef struct {
 } TEST_PCI_BRIDGE_CONTEXT;
 
 static UINT8 pci_root_guid[16] = IA64_GUID_PCI_ROOT_IO;
-static UINT8 pci_host_guid[16] =
-    IA64_GUID_PCI_HOST_BRIDGE_RESOURCE_ALLOCATION;
+static UINT8 pci_host_guid[16] = IA64_GUID_PCI_HOST_BRIDGE_RESOURCE_ALLOCATION;
 static UINT8 device_path_guid[16] = IA64_GUID_DEVICE_PATH;
 static UINT8 identity_dma_buffer[64] __attribute__((aligned(64)));
 
@@ -54,16 +53,15 @@ static UINT32 test_get_u32(const VOID *Address)
 {
     const UINT8 *p = (const UINT8 *)Address;
 
-    return (UINT32)p[0] | ((UINT32)p[1] << 8) |
-           ((UINT32)p[2] << 16) | ((UINT32)p[3] << 24);
+    return (UINT32)p[0] | ((UINT32)p[1] << 8) | ((UINT32)p[2] << 16) |
+           ((UINT32)p[3] << 24);
 }
 
 static UINT64 test_get_u64(const VOID *Address)
 {
     const UINT8 *p = (const UINT8 *)Address;
 
-    return (UINT64)test_get_u32(p) |
-           ((UINT64)test_get_u32(p + 4) << 32);
+    return (UINT64)test_get_u32(p) | ((UINT64)test_get_u32(p + 4) << 32);
 }
 
 static void test_zero(VOID *Address, UINTN Size)
@@ -99,15 +97,15 @@ static BOOLEAN test_protocol_methods_valid(
            Root->Mem.Read != NULL && Root->Mem.Write != NULL &&
            Root->Io.Read != NULL && Root->Io.Write != NULL &&
            Root->Pci.Read != NULL && Root->Pci.Write != NULL &&
-           Root->CopyMem != NULL && Root->Map != NULL &&
-           Root->Unmap != NULL && Root->AllocateBuffer != NULL &&
-           Root->FreeBuffer != NULL && Root->Flush != NULL &&
-           Root->GetAttributes != NULL && Root->SetAttributes != NULL &&
-           Root->Configuration != NULL && Host != NULL &&
-           Host->NotifyPhase != NULL && Host->GetNextRootBridge != NULL &&
+           Root->CopyMem != NULL && Root->Map != NULL && Root->Unmap != NULL &&
+           Root->AllocateBuffer != NULL && Root->FreeBuffer != NULL &&
+           Root->Flush != NULL && Root->GetAttributes != NULL &&
+           Root->SetAttributes != NULL && Root->Configuration != NULL &&
+           Host != NULL && Host->NotifyPhase != NULL &&
+           Host->GetNextRootBridge != NULL &&
            Host->GetAllocAttributes != NULL &&
-           Host->StartBusEnumeration != NULL &&
-           Host->SetBusNumbers != NULL && Host->SubmitResources != NULL &&
+           Host->StartBusEnumeration != NULL && Host->SetBusNumbers != NULL &&
+           Host->SubmitResources != NULL &&
            Host->GetProposedResources != NULL &&
            Host->PreprocessController != NULL;
 }
@@ -126,8 +124,7 @@ static BOOLEAN test_root_handle_in_set(TEST_PCI_BRIDGE_CONTEXT *Context,
 }
 
 static BOOLEAN test_locate_protocols(TEST_PCI_BRIDGE_CONTEXT *Context,
-                                     EFI_STATUS *Code,
-                                     const char **Detail)
+                                     EFI_STATUS *Code, const char **Detail)
 {
     EFI_BOOT_SERVICES *bs = Context->SystemTable->BootServices;
     EFI_HANDLE *host_handles = NULL;
@@ -142,13 +139,12 @@ static BOOLEAN test_locate_protocols(TEST_PCI_BRIDGE_CONTEXT *Context,
     BOOLEAN valid = 0;
 
     test_result_init(Code, Detail);
-    status = bs->LocateProtocol(pci_host_guid, NULL,
-                                (VOID **)&Context->Host);
+    status = bs->LocateProtocol(pci_host_guid, NULL, (VOID **)&Context->Host);
     if (status != EFI_SUCCESS || Context->Host == NULL) {
         return test_fail(Code, Detail, status, "host-locate");
     }
-    status = bs->LocateHandleBuffer(EFI_LOCATE_BY_PROTOCOL, pci_host_guid,
-                                    NULL, &host_count, &host_handles);
+    status = bs->LocateHandleBuffer(EFI_LOCATE_BY_PROTOCOL, pci_host_guid, NULL,
+                                    &host_count, &host_handles);
     if (status != EFI_SUCCESS || host_count != 1 || host_handles == NULL) {
         test_fail(Code, Detail, status, "host-handle");
         goto out;
@@ -161,8 +157,8 @@ static BOOLEAN test_locate_protocols(TEST_PCI_BRIDGE_CONTEXT *Context,
         goto out;
     }
 
-    status = bs->LocateHandleBuffer(EFI_LOCATE_BY_PROTOCOL, pci_root_guid,
-                                    NULL, &root_count, &root_handles);
+    status = bs->LocateHandleBuffer(EFI_LOCATE_BY_PROTOCOL, pci_root_guid, NULL,
+                                    &root_count, &root_handles);
     if (status != EFI_SUCCESS || root_count != TEST_ROOT_COUNT ||
         root_handles == NULL) {
         test_fail(Code, Detail, status, "root-handles");
@@ -172,8 +168,8 @@ static BOOLEAN test_locate_protocols(TEST_PCI_BRIDGE_CONTEXT *Context,
         TEST_ROOT_VIEW *root = &Context->Root[i];
 
         root->Handle = root_handles[i];
-        status = bs->HandleProtocol(root->Handle, pci_root_guid,
-                                    (VOID **)&root->Io);
+        status =
+            bs->HandleProtocol(root->Handle, pci_root_guid, (VOID **)&root->Io);
         if (status != EFI_SUCCESS || root->Io == NULL) {
             test_fail(Code, Detail, status, "root-interface");
             goto out;
@@ -197,8 +193,8 @@ static BOOLEAN test_locate_protocols(TEST_PCI_BRIDGE_CONTEXT *Context,
     }
 
     status = Context->Host->GetNextRootBridge(Context->Host, &enumerated);
-    if (status != EFI_SUCCESS || !test_root_handle_in_set(Context,
-                                                           enumerated)) {
+    if (status != EFI_SUCCESS ||
+        !test_root_handle_in_set(Context, enumerated)) {
         test_fail(Code, Detail, status, "host-first-root");
         goto out;
     }
@@ -218,12 +214,10 @@ static BOOLEAN test_locate_protocols(TEST_PCI_BRIDGE_CONTEXT *Context,
 
 out:
     if (root_handles != NULL && bs->FreePool(root_handles) != EFI_SUCCESS) {
-        valid = test_fail(Code, Detail, EFI_DEVICE_ERROR,
-                          "root-handle-free");
+        valid = test_fail(Code, Detail, EFI_DEVICE_ERROR, "root-handle-free");
     }
     if (host_handles != NULL && bs->FreePool(host_handles) != EFI_SUCCESS) {
-        valid = test_fail(Code, Detail, EFI_DEVICE_ERROR,
-                          "host-handle-free");
+        valid = test_fail(Code, Detail, EFI_DEVICE_ERROR, "host-handle-free");
     }
     return valid;
 }
@@ -234,15 +228,13 @@ static BOOLEAN test_parse_root_device_path(TEST_ROOT_VIEW *Root)
     const UINT8 *end;
     UINT32 uid;
 
-    if (path[0] != 0x02 || path[1] != 0x01 ||
-        test_get_u16(path + 2) != 12U ||
+    if (path[0] != 0x02 || path[1] != 0x01 || test_get_u16(path + 2) != 12U ||
         test_get_u32(path + 4) != 0x000222f0U) {
         return 0;
     }
     uid = test_get_u32(path + 8);
     end = path + 12U;
-    if (end[0] != 0x7f || end[1] != 0xff ||
-        test_get_u16(end + 2) != 4U) {
+    if (end[0] != 0x7f || end[1] != 0xff || test_get_u16(end + 2) != 4U) {
         return 0;
     }
     Root->Uid = uid;
@@ -250,8 +242,7 @@ static BOOLEAN test_parse_root_device_path(TEST_ROOT_VIEW *Root)
 }
 
 static BOOLEAN test_root_device_paths(TEST_PCI_BRIDGE_CONTEXT *Context,
-                                      EFI_STATUS *Code,
-                                      const char **Detail)
+                                      EFI_STATUS *Code, const char **Detail)
 {
     UINT32 uid_mask = 0;
     UINTN i;
@@ -260,8 +251,7 @@ static BOOLEAN test_root_device_paths(TEST_PCI_BRIDGE_CONTEXT *Context,
     for (i = 0; i < TEST_ROOT_COUNT; i++) {
         if (!test_parse_root_device_path(&Context->Root[i]) ||
             Context->Root[i].Uid >= TEST_ROOT_COUNT) {
-            return test_fail(Code, Detail, EFI_DEVICE_ERROR,
-                             "hp-acpi-path");
+            return test_fail(Code, Detail, EFI_DEVICE_ERROR, "hp-acpi-path");
         }
         uid_mask |= 1U << Context->Root[i].Uid;
     }
@@ -287,8 +277,8 @@ static BOOLEAN test_parse_root_configuration(TEST_ROOT_VIEW *Root,
         return test_fail(Code, Detail, status, "configuration-call");
     }
     descriptor = (UINT8 *)resources;
-    for (count = 0; count < 4U; count++,
-         descriptor += TEST_RESOURCE_DESCRIPTOR_SIZE) {
+    for (count = 0; count < 4U;
+         count++, descriptor += TEST_RESOURCE_DESCRIPTOR_SIZE) {
         UINT8 type;
         UINT64 granularity;
         UINT64 minimum;
@@ -297,17 +287,15 @@ static BOOLEAN test_parse_root_configuration(TEST_ROOT_VIEW *Root,
         UINT64 length;
 
         if (descriptor[0] == 0x79) {
-            if (descriptor[1] == 0 && count == 2U &&
-                bus_count == 1U && memory_count == 1U) {
+            if (descriptor[1] == 0 && count == 2U && bus_count == 1U &&
+                memory_count == 1U) {
                 return 1;
             }
-            return test_fail(Code, Detail, EFI_DEVICE_ERROR,
-                             "resource-count");
+            return test_fail(Code, Detail, EFI_DEVICE_ERROR, "resource-count");
         }
         if (descriptor[0] != 0x8a || test_get_u16(descriptor + 1) != 0x2b ||
             descriptor[4] != 0 || descriptor[5] != 0) {
-            return test_fail(Code, Detail, EFI_DEVICE_ERROR,
-                             "resource-header");
+            return test_fail(Code, Detail, EFI_DEVICE_ERROR, "resource-header");
         }
         type = descriptor[3];
         granularity = test_get_u64(descriptor + 6);
@@ -317,8 +305,7 @@ static BOOLEAN test_parse_root_configuration(TEST_ROOT_VIEW *Root,
         length = test_get_u64(descriptor + 38);
         if (maximum < minimum || length == 0 ||
             length - 1U != maximum - minimum) {
-            return test_fail(Code, Detail, EFI_DEVICE_ERROR,
-                             "resource-range");
+            return test_fail(Code, Detail, EFI_DEVICE_ERROR, "resource-range");
         }
         if (type == 2U) {
             if (bus_count != 0 || granularity != 0 || translation != 0 ||
@@ -340,8 +327,7 @@ static BOOLEAN test_parse_root_configuration(TEST_ROOT_VIEW *Root,
             Root->MemoryLength = length;
             memory_count++;
         } else {
-            return test_fail(Code, Detail, EFI_DEVICE_ERROR,
-                             "resource-type");
+            return test_fail(Code, Detail, EFI_DEVICE_ERROR, "resource-type");
         }
     }
     return test_fail(Code, Detail, EFI_DEVICE_ERROR, "resource-end-tag");
@@ -358,8 +344,7 @@ static void test_sort_roots(TEST_PCI_BRIDGE_CONTEXT *Context)
 }
 
 static BOOLEAN test_root_configurations(TEST_PCI_BRIDGE_CONTEXT *Context,
-                                        EFI_STATUS *Code,
-                                        const char **Detail)
+                                        EFI_STATUS *Code, const char **Detail)
 {
     TEST_ROOT_VIEW *root0;
     TEST_ROOT_VIEW *root1;
@@ -367,16 +352,15 @@ static BOOLEAN test_root_configurations(TEST_PCI_BRIDGE_CONTEXT *Context,
 
     test_result_init(Code, Detail);
     for (i = 0; i < TEST_ROOT_COUNT; i++) {
-        if (!test_parse_root_configuration(&Context->Root[i], Code,
-                                           Detail)) {
+        if (!test_parse_root_configuration(&Context->Root[i], Code, Detail)) {
             return 0;
         }
     }
     test_sort_roots(Context);
     root0 = &Context->Root[0];
     root1 = &Context->Root[1];
-    if (root0->Uid != 0 || root1->Uid != 1 ||
-        root0->Io->SegmentNumber != 0 || root1->Io->SegmentNumber != 0 ||
+    if (root0->Uid != 0 || root1->Uid != 1 || root0->Io->SegmentNumber != 0 ||
+        root1->Io->SegmentNumber != 0 ||
         root0->BusBase != TEST_ROOT0_BUS_BASE ||
         root0->BusEnd != TEST_ROOT0_BUS_END ||
         root1->BusBase != TEST_ROOT1_BUS_BASE ||
@@ -393,16 +377,15 @@ static BOOLEAN test_root_configurations(TEST_PCI_BRIDGE_CONTEXT *Context,
     return 1;
 }
 
-static UINT64 test_pci_config_address(UINT8 Bus, UINT8 Device,
-                                      UINT8 Function, UINT8 Register)
+static UINT64 test_pci_config_address(UINT8 Bus, UINT8 Device, UINT8 Function,
+                                      UINT8 Register)
 {
     return ((UINT64)Bus << 24) | ((UINT64)Device << 16) |
            ((UINT64)Function << 8) | Register;
 }
 
 static BOOLEAN test_pci_config_isolation(TEST_PCI_BRIDGE_CONTEXT *Context,
-                                         EFI_STATUS *Code,
-                                         const char **Detail)
+                                         EFI_STATUS *Code, const char **Detail)
 {
     TEST_ROOT_VIEW *root0 = &Context->Root[0];
     TEST_ROOT_VIEW *root1 = &Context->Root[1];
@@ -427,43 +410,43 @@ static BOOLEAN test_pci_config_isolation(TEST_PCI_BRIDGE_CONTEXT *Context,
     EFI_STATUS status;
 
     test_result_init(Code, Detail);
-    status = root0->Io->Pci.Read(root0->Io, EfiPciWidthUint32,
-                                 address0, 1, &id0);
+    status =
+        root0->Io->Pci.Read(root0->Io, EfiPciWidthUint32, address0, 1, &id0);
     if (status != EFI_SUCCESS) {
         return test_fail(Code, Detail, status, "root0-config-read");
     }
-    status = root1->Io->Pci.Read(root1->Io, EfiPciWidthUint32,
-                                 address1, 1, &id1);
+    status =
+        root1->Io->Pci.Read(root1->Io, EfiPciWidthUint32, address1, 1, &id1);
     if (status != EFI_SUCCESS || id0 == 0xffffffffU || id0 != id1) {
         return test_fail(Code, Detail, status, "root1-config-read");
     }
-    status = root0->Io->Pci.Read(root0->Io, EfiPciWidthUint32,
-                                 address1, 1, &ignored);
+    status = root0->Io->Pci.Read(root0->Io, EfiPciWidthUint32, address1, 1,
+                                 &ignored);
     if (status != EFI_INVALID_PARAMETER) {
         return test_fail(Code, Detail, status, "root0-bus-ownership");
     }
-    status = root1->Io->Pci.Read(root1->Io, EfiPciWidthUint32,
-                                 address0, 1, &ignored);
+    status = root1->Io->Pci.Read(root1->Io, EfiPciWidthUint32, address0, 1,
+                                 &ignored);
     if (status != EFI_INVALID_PARAMETER) {
         return test_fail(Code, Detail, status, "root1-bus-ownership");
     }
 
-    status = root0->Io->Pci.Read(root0->Io, EfiPciWidthUint16,
-                                 command_address0, 1, &original0);
+    status = root0->Io->Pci.Read(root0->Io, EfiPciWidthUint16, command_address0,
+                                 1, &original0);
     if (status != EFI_SUCCESS) {
         return test_fail(Code, Detail, status, "root0-command-read");
     }
-    status = root1->Io->Pci.Read(root1->Io, EfiPciWidthUint16,
-                                 command_address1, 1, &original1);
+    status = root1->Io->Pci.Read(root1->Io, EfiPciWidthUint16, command_address1,
+                                 1, &original1);
     if (status != EFI_SUCCESS) {
         return test_fail(Code, Detail, status, "root1-command-read");
     }
-    desired0 = (original0 & ~(TEST_PCI_COMMAND_MEMORY |
-                              TEST_PCI_COMMAND_BUS_MASTER)) |
-               TEST_PCI_COMMAND_MEMORY;
-    desired1 = (original1 & ~(TEST_PCI_COMMAND_MEMORY |
-                              TEST_PCI_COMMAND_BUS_MASTER)) |
-               TEST_PCI_COMMAND_BUS_MASTER;
+    desired0 =
+        (original0 & ~(TEST_PCI_COMMAND_MEMORY | TEST_PCI_COMMAND_BUS_MASTER)) |
+        TEST_PCI_COMMAND_MEMORY;
+    desired1 =
+        (original1 & ~(TEST_PCI_COMMAND_MEMORY | TEST_PCI_COMMAND_BUS_MASTER)) |
+        TEST_PCI_COMMAND_BUS_MASTER;
     status = root0->Io->Pci.Write(root0->Io, EfiPciWidthUint16,
                                   command_address0, 1, &desired0);
     if (status != EFI_SUCCESS) {
@@ -477,33 +460,33 @@ static BOOLEAN test_pci_config_isolation(TEST_PCI_BRIDGE_CONTEXT *Context,
         goto out;
     }
     wrote1 = 1;
-    status = root0->Io->Pci.Read(root0->Io, EfiPciWidthUint16,
-                                 command_address0, 1, &command0);
+    status = root0->Io->Pci.Read(root0->Io, EfiPciWidthUint16, command_address0,
+                                 1, &command0);
     if (status != EFI_SUCCESS) {
         test_fail(Code, Detail, status, "root0-command-verify");
         goto out;
     }
-    status = root1->Io->Pci.Read(root1->Io, EfiPciWidthUint16,
-                                 command_address1, 1, &command1);
-    if (status != EFI_SUCCESS || command0 != desired0 ||
-        command1 != desired1 || command0 == command1) {
+    status = root1->Io->Pci.Read(root1->Io, EfiPciWidthUint16, command_address1,
+                                 1, &command1);
+    if (status != EFI_SUCCESS || command0 != desired0 || command1 != desired1 ||
+        command0 == command1) {
         test_fail(Code, Detail, status, "root1-command-verify");
         goto out;
     }
     valid = 1;
 
 out:
-    if (wrote1 && root1->Io->Pci.Write(
-            root1->Io, EfiPciWidthUint16, command_address1, 1,
-            &original1) != EFI_SUCCESS) {
-        valid = test_fail(Code, Detail, EFI_DEVICE_ERROR,
-                          "root1-command-restore");
+    if (wrote1 &&
+        root1->Io->Pci.Write(root1->Io, EfiPciWidthUint16, command_address1, 1,
+                             &original1) != EFI_SUCCESS) {
+        valid =
+            test_fail(Code, Detail, EFI_DEVICE_ERROR, "root1-command-restore");
     }
-    if (wrote0 && root0->Io->Pci.Write(
-            root0->Io, EfiPciWidthUint16, command_address0, 1,
-            &original0) != EFI_SUCCESS) {
-        valid = test_fail(Code, Detail, EFI_DEVICE_ERROR,
-                          "root0-command-restore");
+    if (wrote0 &&
+        root0->Io->Pci.Write(root0->Io, EfiPciWidthUint16, command_address0, 1,
+                             &original0) != EFI_SUCCESS) {
+        valid =
+            test_fail(Code, Detail, EFI_DEVICE_ERROR, "root0-command-restore");
     }
     return valid;
 }
@@ -526,8 +509,7 @@ static BOOLEAN test_identity_dma(TEST_PCI_BRIDGE_CONTEXT *Context,
 
     test_result_init(Code, Detail);
     status = root0->Map(root0, EfiPciOperationBusMasterRead64,
-                        identity_dma_buffer, &bytes, &device_address,
-                        &mapping);
+                        identity_dma_buffer, &bytes, &device_address, &mapping);
     if (status != EFI_SUCCESS || mapping == NULL ||
         device_address != (EFI_PHYSICAL_ADDRESS)(UINTN)identity_dma_buffer ||
         bytes != sizeof(identity_dma_buffer)) {
@@ -548,8 +530,8 @@ static BOOLEAN test_identity_dma(TEST_PCI_BRIDGE_CONTEXT *Context,
         return test_fail(Code, Detail, status, "identity-unmap");
     }
 
-    status = root0->AllocateBuffer(root0, AllocateAnyPages,
-                                   EfiBootServicesData, 1, &allocation, 0);
+    status = root0->AllocateBuffer(root0, AllocateAnyPages, EfiBootServicesData,
+                                   1, &allocation, 0);
     if (status != EFI_SUCCESS || allocation == NULL) {
         return test_fail(Code, Detail, status, "allocate-buffer");
     }
@@ -565,9 +547,8 @@ static BOOLEAN test_identity_dma(TEST_PCI_BRIDGE_CONTEXT *Context,
 
     wrong_bytes = 64U;
     device_address = 0;
-    status = root1->Map(root1, EfiPciOperationBusMasterCommonBuffer,
-                        allocation, &wrong_bytes, &device_address,
-                        &wrong_mapping);
+    status = root1->Map(root1, EfiPciOperationBusMasterCommonBuffer, allocation,
+                        &wrong_bytes, &device_address, &wrong_mapping);
     if (status != EFI_UNSUPPORTED || wrong_mapping != NULL) {
         test_fail(Code, Detail, status, "common-buffer-owner");
         goto out;
@@ -575,11 +556,9 @@ static BOOLEAN test_identity_dma(TEST_PCI_BRIDGE_CONTEXT *Context,
 
     common_bytes = 64U;
     device_address = 0;
-    status = root0->Map(root0, EfiPciOperationBusMasterCommonBuffer,
-                        allocation, &common_bytes, &device_address,
-                        &mapping);
-    if (status != EFI_SUCCESS || mapping == NULL ||
-        common_bytes != 64U ||
+    status = root0->Map(root0, EfiPciOperationBusMasterCommonBuffer, allocation,
+                        &common_bytes, &device_address, &mapping);
+    if (status != EFI_SUCCESS || mapping == NULL || common_bytes != 64U ||
         device_address != (EFI_PHYSICAL_ADDRESS)(UINTN)allocation) {
         test_fail(Code, Detail, status, "common-buffer-map");
         goto out;
@@ -605,13 +584,11 @@ out:
         (void)root1->Unmap(root1, wrong_mapping);
     }
     if (mapping != NULL && root0->Unmap(root0, mapping) != EFI_SUCCESS) {
-        valid = test_fail(Code, Detail, EFI_DEVICE_ERROR,
-                          "mapping-cleanup");
+        valid = test_fail(Code, Detail, EFI_DEVICE_ERROR, "mapping-cleanup");
     }
-    if (allocation_valid && root0->FreeBuffer(root0, 1, allocation) !=
-        EFI_SUCCESS) {
-        valid = test_fail(Code, Detail, EFI_DEVICE_ERROR,
-                          "buffer-cleanup");
+    if (allocation_valid &&
+        root0->FreeBuffer(root0, 1, allocation) != EFI_SUCCESS) {
+        valid = test_fail(Code, Detail, EFI_DEVICE_ERROR, "buffer-cleanup");
     }
     return valid;
 }
@@ -621,10 +598,8 @@ static BOOLEAN test_bus_descriptor_matches(const UINT8 *Descriptor,
 {
     const UINT8 *end = Descriptor + TEST_RESOURCE_DESCRIPTOR_SIZE;
 
-    return Descriptor[0] == 0x8a &&
-           test_get_u16(Descriptor + 1) == 0x2b &&
-           Descriptor[3] == 2U && Descriptor[4] == 0 &&
-           Descriptor[5] == 0 &&
+    return Descriptor[0] == 0x8a && test_get_u16(Descriptor + 1) == 0x2b &&
+           Descriptor[3] == 2U && Descriptor[4] == 0 && Descriptor[5] == 0 &&
            test_get_u64(Descriptor + 6) == 0 &&
            test_get_u64(Descriptor + 14) == Root->BusBase &&
            test_get_u64(Descriptor + 22) == 0 &&
@@ -635,8 +610,7 @@ static BOOLEAN test_bus_descriptor_matches(const UINT8 *Descriptor,
 }
 
 static BOOLEAN test_host_allocation(TEST_PCI_BRIDGE_CONTEXT *Context,
-                                    EFI_STATUS *Code,
-                                    const char **Detail)
+                                    EFI_STATUS *Code, const char **Detail)
 {
     EFI_BOOT_SERVICES *bs = Context->SystemTable->BootServices;
     EFI_PCI_HOST_BRIDGE_RESOURCE_ALLOCATION_PROTOCOL *host = Context->Host;
@@ -667,11 +641,10 @@ static BOOLEAN test_host_allocation(TEST_PCI_BRIDGE_CONTEXT *Context,
             if (configuration != NULL) {
                 (void)bs->FreePool(configuration);
             }
-            return test_fail(Code, Detail, status,
-                             "start-bus-enumeration");
+            return test_fail(Code, Detail, status, "start-bus-enumeration");
         }
-        status = host->SetBusNumbers(host, Context->Root[i].Handle,
-                                     configuration);
+        status =
+            host->SetBusNumbers(host, Context->Root[i].Handle, configuration);
         if (bs->FreePool(configuration) != EFI_SUCCESS) {
             return test_fail(Code, Detail, EFI_DEVICE_ERROR,
                              "bus-configuration-free");
@@ -684,17 +657,14 @@ static BOOLEAN test_host_allocation(TEST_PCI_BRIDGE_CONTEXT *Context,
     if (status != EFI_SUCCESS) {
         return test_fail(Code, Detail, status, "end-bus-allocation");
     }
-    status = host->NotifyPhase(host,
-                               EfiPciHostBridgeBeginResourceAllocation);
+    status = host->NotifyPhase(host, EfiPciHostBridgeBeginResourceAllocation);
     if (status != EFI_SUCCESS) {
         return test_fail(Code, Detail, status, "begin-resource-allocation");
     }
     for (i = 0; i < TEST_ROOT_COUNT; i++) {
-        status = host->SubmitResources(host, Context->Root[i].Handle,
-                                       end_tag);
+        status = host->SubmitResources(host, Context->Root[i].Handle, end_tag);
         if (status != EFI_SUCCESS) {
-            return test_fail(Code, Detail, status,
-                             "submit-empty-resources");
+            return test_fail(Code, Detail, status, "submit-empty-resources");
         }
     }
     status = host->NotifyPhase(host, EfiPciHostBridgeAllocateResources);
@@ -704,16 +674,14 @@ static BOOLEAN test_host_allocation(TEST_PCI_BRIDGE_CONTEXT *Context,
     for (i = 0; i < TEST_ROOT_COUNT; i++) {
         VOID *resources = NULL;
 
-        status = host->GetProposedResources(
-            host, Context->Root[i].Handle, &resources);
+        status = host->GetProposedResources(host, Context->Root[i].Handle,
+                                            &resources);
         if (status != EFI_SUCCESS || resources == NULL ||
-            ((UINT8 *)resources)[0] != 0x79 ||
-            ((UINT8 *)resources)[1] != 0) {
+            ((UINT8 *)resources)[0] != 0x79 || ((UINT8 *)resources)[1] != 0) {
             if (resources != NULL) {
                 (void)bs->FreePool(resources);
             }
-            return test_fail(Code, Detail, status,
-                             "proposed-empty-resources");
+            return test_fail(Code, Detail, status, "proposed-empty-resources");
         }
         if (bs->FreePool(resources) != EFI_SUCCESS) {
             return test_fail(Code, Detail, EFI_DEVICE_ERROR,
@@ -724,8 +692,7 @@ static BOOLEAN test_host_allocation(TEST_PCI_BRIDGE_CONTEXT *Context,
     if (status != EFI_SUCCESS) {
         return test_fail(Code, Detail, status, "set-resources");
     }
-    status = host->NotifyPhase(host,
-                               EfiPciHostBridgeEndResourceAllocation);
+    status = host->NotifyPhase(host, EfiPciHostBridgeEndResourceAllocation);
     if (status != EFI_SUCCESS) {
         return test_fail(Code, Detail, status, "end-resource-allocation");
     }
@@ -736,11 +703,10 @@ static BOOLEAN test_host_allocation(TEST_PCI_BRIDGE_CONTEXT *Context,
     return 1;
 }
 
-static void test_check_prerequisite(IA64_TEST_CONTEXT *Output,
-                                    const char *Case, BOOLEAN Ready,
+static void test_check_prerequisite(IA64_TEST_CONTEXT *Output, const char *Case,
+                                    BOOLEAN Ready,
                                     BOOLEAN (*Run)(TEST_PCI_BRIDGE_CONTEXT *,
-                                                   EFI_STATUS *,
-                                                   const char **),
+                                                   EFI_STATUS *, const char **),
                                     TEST_PCI_BRIDGE_CONTEXT *Context)
 {
     EFI_STATUS code = EFI_NOT_READY;
@@ -771,10 +737,10 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
     test_zero(&context, sizeof(context));
     context.SystemTable = SystemTable;
     table_valid = SystemTable != NULL && SystemTable->BootServices != NULL &&
-        SystemTable->BootServices->LocateProtocol != NULL &&
-        SystemTable->BootServices->LocateHandleBuffer != NULL &&
-        SystemTable->BootServices->HandleProtocol != NULL &&
-        SystemTable->BootServices->FreePool != NULL;
+                  SystemTable->BootServices->LocateProtocol != NULL &&
+                  SystemTable->BootServices->LocateHandleBuffer != NULL &&
+                  SystemTable->BootServices->HandleProtocol != NULL &&
+                  SystemTable->BootServices->FreePool != NULL;
     ia64_test_check(&output, "system-table", table_valid, code, detail);
 
     if (table_valid) {
@@ -787,20 +753,18 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 
     code = EFI_NOT_READY;
     detail = "protocol-prerequisite";
-    paths_valid = located &&
-        test_root_device_paths(&context, &code, &detail);
+    paths_valid = located && test_root_device_paths(&context, &code, &detail);
     ia64_test_check(&output, "root-device-paths", paths_valid, code, detail);
 
     code = EFI_NOT_READY;
     detail = "device-path-prerequisite";
-    resources_valid = paths_valid &&
-        test_root_configurations(&context, &code, &detail);
-    ia64_test_check(&output, "root-configuration", resources_valid,
-                    code, detail);
+    resources_valid =
+        paths_valid && test_root_configurations(&context, &code, &detail);
+    ia64_test_check(&output, "root-configuration", resources_valid, code,
+                    detail);
 
-    test_check_prerequisite(&output, "pci-config-isolation",
-                            resources_valid, test_pci_config_isolation,
-                            &context);
+    test_check_prerequisite(&output, "pci-config-isolation", resources_valid,
+                            test_pci_config_isolation, &context);
     test_check_prerequisite(&output, "identity-dma", resources_valid,
                             test_identity_dma, &context);
     test_check_prerequisite(&output, "host-allocation", resources_valid,

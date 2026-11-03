@@ -43,10 +43,8 @@ typedef struct {
 
 static UINT32 fw_dec_u32(const UINT8 *bytes)
 {
-    return (UINT32)bytes[0] |
-           ((UINT32)bytes[1] << 8) |
-           ((UINT32)bytes[2] << 16) |
-           ((UINT32)bytes[3] << 24);
+    return (UINT32)bytes[0] | ((UINT32)bytes[1] << 8) |
+           ((UINT32)bytes[2] << 16) | ((UINT32)bytes[3] << 24);
 }
 
 static BOOLEAN fw_dec_take_bits(FW_DEC_WORKSPACE *work, UINTN width,
@@ -73,8 +71,7 @@ static BOOLEAN fw_dec_take_bits(FW_DEC_WORKSPACE *work, UINTN width,
     return 1;
 }
 
-static BOOLEAN fw_dec_make_codebook(FW_DEC_CODEBOOK *book,
-                                    const UINT8 *lengths,
+static BOOLEAN fw_dec_make_codebook(FW_DEC_CODEBOOK *book, const UINT8 *lengths,
                                     UINTN symbol_count)
 {
     UINT32 next_code = 0;
@@ -123,8 +120,7 @@ static VOID fw_dec_singleton(FW_DEC_CODEBOOK *book, UINT16 symbol)
 }
 
 static BOOLEAN fw_dec_symbol(FW_DEC_WORKSPACE *work,
-                             const FW_DEC_CODEBOOK *book,
-                             UINT16 *symbol)
+                             const FW_DEC_CODEBOOK *book, UINT16 *symbol)
 {
     UINT32 code = 0;
     UINTN width;
@@ -158,8 +154,7 @@ static BOOLEAN fw_dec_symbol(FW_DEC_WORKSPACE *work,
 }
 
 static BOOLEAN fw_dec_read_basic_lengths(FW_DEC_WORKSPACE *work,
-                                         UINTN alphabet_size,
-                                         UINTN count_width,
+                                         UINTN alphabet_size, UINTN count_width,
                                          UINTN zero_insert_position,
                                          FW_DEC_CODEBOOK *book)
 {
@@ -230,8 +225,7 @@ static BOOLEAN fw_dec_read_literal_book(FW_DEC_WORKSPACE *work)
     UINT32 encoded_count;
     UINTN cursor = 0;
 
-    if (!fw_dec_take_bits(work, FW_DEC_LITERAL_COUNT_BITS,
-                          &encoded_count)) {
+    if (!fw_dec_take_bits(work, FW_DEC_LITERAL_COUNT_BITS, &encoded_count)) {
         return 0;
     }
     fw_set_mem(work->lengths, FW_DEC_LITERAL_COUNT, 0);
@@ -301,8 +295,8 @@ static BOOLEAN fw_dec_start_block(FW_DEC_WORKSPACE *work)
                                    &work->auxiliary) ||
         !fw_dec_read_literal_book(work) ||
         !fw_dec_read_basic_lengths(work, FW_DEC_POSITION_COUNT,
-                                   FW_DEC_POSITION_COUNT_BITS,
-                                   (UINTN)-1, &work->position)) {
+                                   FW_DEC_POSITION_COUNT_BITS, (UINTN)-1,
+                                   &work->position)) {
         return 0;
     }
     work->block_symbols = (UINT16)symbols;
@@ -319,12 +313,10 @@ static BOOLEAN fw_dec_distance(FW_DEC_WORKSPACE *work, UINT32 *distance)
         work->invalid = 1;
         return 0;
     }
-    if (prefix > 1 &&
-        !fw_dec_take_bits(work, prefix - 1U, &suffix)) {
+    if (prefix > 1 && !fw_dec_take_bits(work, prefix - 1U, &suffix)) {
         return 0;
     }
-    *distance = prefix <= 1 ? prefix :
-                (1U << (prefix - 1U)) + suffix;
+    *distance = prefix <= 1 ? prefix : (1U << (prefix - 1U)) + suffix;
     return 1;
 }
 
@@ -385,9 +377,8 @@ static EFI_STATUS fw_decompress_get_info(FW_EFI_DECOMPRESS_PROTOCOL *This,
 
 static EFI_STATUS fw_decompress_data(FW_EFI_DECOMPRESS_PROTOCOL *This,
                                      VOID *Source, UINT32 SourceSize,
-                                     VOID *Destination,
-                                     UINT32 DestinationSize, VOID *Scratch,
-                                     UINT32 ScratchSize)
+                                     VOID *Destination, UINT32 DestinationSize,
+                                     VOID *Scratch, UINT32 ScratchSize)
 {
     const UINT8 *bytes = (const UINT8 *)Source;
     FW_DEC_WORKSPACE *work = (FW_DEC_WORKSPACE *)Scratch;

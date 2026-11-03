@@ -173,8 +173,8 @@ static void ia64_ia32_gen_dtlb1_touch(TCGv_i64 addr, TCGArg mmu_idx,
                                       MemOp memop)
 {
     if (mmu_idx != MMU_PHYS_IDX) {
-        gen_helper_merced_dtlb1_touch(
-            tcg_env, addr, tcg_constant_i32(1 << (memop & MO_SIZE)));
+        gen_helper_merced_dtlb1_touch(tcg_env, addr,
+                                      tcg_constant_i32(1 << (memop & MO_SIZE)));
     }
 }
 
@@ -186,7 +186,7 @@ static void ia64_ia32_gen_qemu_ld_i32(TCGv_i32 value, TCGv_i64 addr,
 }
 
 static void ia64_ia32_gen_qemu_st_i32(TCGv_i32 value, TCGv_i64 addr,
-                                       TCGArg mmu_idx, MemOp memop)
+                                      TCGArg mmu_idx, MemOp memop)
 {
     gen_helper_alat_ensure_exclusive(tcg_env);
     ia64_ia32_gen_dtlb1_touch(addr, mmu_idx, memop);
@@ -202,7 +202,7 @@ static void ia64_ia32_gen_qemu_ld_i64(TCGv_i64 value, TCGv_i64 addr,
 }
 
 static void ia64_ia32_gen_qemu_st_i64(TCGv_i64 value, TCGv_i64 addr,
-                                       TCGArg mmu_idx, MemOp memop)
+                                      TCGArg mmu_idx, MemOp memop)
 {
     gen_helper_alat_ensure_exclusive(tcg_env);
     ia64_ia32_gen_dtlb1_touch(addr, mmu_idx, memop);
@@ -218,7 +218,7 @@ static void ia64_ia32_gen_qemu_ld_i128(TCGv_i128 value, TCGv_i64 addr,
 }
 
 static void ia64_ia32_gen_qemu_st_i128(TCGv_i128 value, TCGv_i64 addr,
-                                        TCGArg mmu_idx, MemOp memop)
+                                       TCGArg mmu_idx, MemOp memop)
 {
     gen_helper_alat_ensure_exclusive(tcg_env);
     ia64_ia32_gen_dtlb1_touch(addr, mmu_idx, memop);

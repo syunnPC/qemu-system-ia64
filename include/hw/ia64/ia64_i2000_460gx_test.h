@@ -11,8 +11,7 @@
 #include "qom/object.h"
 
 #define TYPE_IA64_I2000_460GX_TEST "ia64-i2000-460gx-test"
-OBJECT_DECLARE_SIMPLE_TYPE(IA64I2000460GXTestState,
-                           IA64_I2000_460GX_TEST)
+OBJECT_DECLARE_SIMPLE_TYPE(IA64I2000460GXTestState, IA64_I2000_460GX_TEST)
 
 #define IA64_I2000_460GX_TEST_PROP_RAM "ram"
 #define IA64_I2000_460GX_TEST_PROP_LEGACY_PIN "legacy-pin"
@@ -22,12 +21,11 @@ OBJECT_DECLARE_SIMPLE_TYPE(IA64I2000460GXTestState,
  * The caller provides the two-GiB RAM mapping and shared PIB.  Realization
  * constructs the 460GX host topology without a platform descriptor.
  */
-PCIBus *ia64_i2000_460gx_test_root_bus(
-    IA64I2000460GXTestState *fixture, unsigned index);
-qemu_irq ia64_i2000_460gx_test_legacy_irq(
-    IA64I2000460GXTestState *fixture);
-uint32_t ia64_i2000_460gx_test_legacy_pin(
-    const IA64I2000460GXTestState *fixture);
+PCIBus *ia64_i2000_460gx_test_root_bus(IA64I2000460GXTestState *fixture,
+                                       unsigned index);
+qemu_irq ia64_i2000_460gx_test_legacy_irq(IA64I2000460GXTestState *fixture);
+uint32_t
+ia64_i2000_460gx_test_legacy_pin(const IA64I2000460GXTestState *fixture);
 
 /* Qtest object paths and controls. */
 #define TYPE_IA64_I2000_460GX_QTEST "ia64-i2000-460gx-qtest"

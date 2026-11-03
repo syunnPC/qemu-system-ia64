@@ -76,7 +76,7 @@ typedef struct HPZX1IOMMUFault {
 
 /* Invalid input returns false without changing an existing frontend. */
 bool hp_zx1_iommu_frontend_reset(HPZX1IOMMUFrontend *iommu,
-                                  const HPZX1IOMMUResetConfig *config);
+                                 const HPZX1IOMMUResetConfig *config);
 
 /*
  * Register offsets name the complete 64-bit IOC register.  byte_enable bit N
@@ -111,15 +111,15 @@ bool hp_zx1_iommu_frontend_reg_latch(const HPZX1IOMMUFrontend *iommu,
  * Addresses beyond 50 bits are blocked, and enabled translation requires a
  * valid TCNFG.
  */
-HPZX1IOMMUTranslateResult hp_zx1_iommu_frontend_translate(
-    HPZX1IOMMUFrontend *iommu, uint64_t iova, bool dvi,
-    HPSBAIOMMUPdirReadFn pdir_read, void *opaque,
-    HPSBAIOMMUEntry *entry, HPZX1IOMMUEvictionResult *eviction);
+HPZX1IOMMUTranslateResult
+hp_zx1_iommu_frontend_translate(HPZX1IOMMUFrontend *iommu, uint64_t iova,
+                                bool dvi, HPSBAIOMMUPdirReadFn pdir_read,
+                                void *opaque, HPSBAIOMMUEntry *entry,
+                                HPZX1IOMMUEvictionResult *eviction);
 
 HPZX1IOMMUTranslateResult hp_zx1_iommu_frontend_translate_ex(
     HPZX1IOMMUFrontend *iommu, uint64_t iova, bool dvi,
-    HPSBAIOMMUPdirReadFn pdir_read, void *opaque,
-    HPSBAIOMMUEntry *entry, HPZX1IOMMUEvictionResult *eviction,
-    HPZX1IOMMUFault *fault);
+    HPSBAIOMMUPdirReadFn pdir_read, void *opaque, HPSBAIOMMUEntry *entry,
+    HPZX1IOMMUEvictionResult *eviction, HPZX1IOMMUFault *fault);
 
 #endif

@@ -78,8 +78,7 @@ typedef struct HPIA64Int10Config {
     const char *region_name;
 } HPIA64Int10Config;
 
-bool hp_ia64_int10_init(HPIA64Int10 *s,
-                        const HPIA64Int10Config *config,
+bool hp_ia64_int10_init(HPIA64Int10 *s, const HPIA64Int10Config *config,
                         Error **errp);
 void hp_ia64_int10_reset(HPIA64Int10 *s);
 void hp_ia64_int10_destroy(HPIA64Int10 *s);

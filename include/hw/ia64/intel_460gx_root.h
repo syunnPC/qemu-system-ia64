@@ -29,17 +29,16 @@ static inline int intel_460gx_root_intx_index(int irq_num)
  * host may own one root bus.
  */
 PCIBus *intel_460gx_numbered_root_bus_register(
-    PCIHostState *host, const char *name,
-    pci_set_irq_fn set_irq, pci_map_irq_fn map_irq, void *irq_opaque,
-    MemoryRegion *mem, MemoryRegion *io, uint8_t devfn_min, int nirq,
-    uint8_t first_bus, Error **errp);
+    PCIHostState *host, const char *name, pci_set_irq_fn set_irq,
+    pci_map_irq_fn map_irq, void *irq_opaque, MemoryRegion *mem,
+    MemoryRegion *io, uint8_t devfn_min, int nirq, uint8_t first_bus,
+    Error **errp);
 
 /* Accessors for the non-user-creatable root host used by a board builder. */
 PCIBus *intel_460gx_root_host_bus(Intel460GXRootHostState *s);
 MemoryRegion *intel_460gx_root_host_mem(Intel460GXRootHostState *s);
 MemoryRegion *intel_460gx_root_host_io(Intel460GXRootHostState *s);
 uint8_t intel_460gx_root_host_first_bus(const Intel460GXRootHostState *s);
-void intel_460gx_numbered_root_bus_set_number(PCIBus *bus,
-                                               uint8_t first_bus);
+void intel_460gx_numbered_root_bus_set_number(PCIBus *bus, uint8_t first_bus);
 
 #endif

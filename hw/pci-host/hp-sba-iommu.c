@@ -95,14 +95,12 @@ static bool hp_zx1_iotlb_entry_valid(const HPSBAIOMMUEntry *entry)
 {
     uint64_t page_size;
 
-    if (!entry || entry->addr_mask == 0 ||
-        entry->addr_mask == UINT64_MAX) {
+    if (!entry || entry->addr_mask == 0 || entry->addr_mask == UINT64_MAX) {
         return false;
     }
 
     page_size = entry->addr_mask + 1;
-    return is_power_of_2(page_size) &&
-           !(entry->iova & entry->addr_mask) &&
+    return is_power_of_2(page_size) && !(entry->iova & entry->addr_mask) &&
            !(entry->translated_addr & entry->addr_mask);
 }
 
@@ -114,7 +112,7 @@ void hp_zx1_iotlb_clear(HPZX1IOTLB *iotlb)
 }
 
 bool hp_zx1_iotlb_lookup(const HPZX1IOTLB *iotlb, uint64_t iova,
-                          HPSBAIOMMUEntry *result)
+                         HPSBAIOMMUEntry *result)
 {
     unsigned int i;
 
@@ -136,7 +134,7 @@ bool hp_zx1_iotlb_lookup(const HPZX1IOTLB *iotlb, uint64_t iova,
 }
 
 bool hp_zx1_iotlb_store_slot(HPZX1IOTLB *iotlb, unsigned int slot,
-                              const HPSBAIOMMUEntry *entry)
+                             const HPSBAIOMMUEntry *entry)
 {
     if (!iotlb || slot >= HP_ZX1_IOTLB_SLOT_COUNT ||
         !hp_zx1_iotlb_entry_valid(entry)) {
@@ -148,14 +146,12 @@ bool hp_zx1_iotlb_store_slot(HPZX1IOTLB *iotlb, unsigned int slot,
     return true;
 }
 
-bool hp_zx1_iotlb_invalidate(HPZX1IOTLB *iotlb,
-                              const HPSBAIOMMUPurge *purge)
+bool hp_zx1_iotlb_invalidate(HPZX1IOTLB *iotlb, const HPSBAIOMMUPurge *purge)
 {
     uint64_t purge_end;
     unsigned int i;
 
-    if (!iotlb || !purge || !purge->size ||
-        !is_power_of_2(purge->size) ||
+    if (!iotlb || !purge || !purge->size || !is_power_of_2(purge->size) ||
         (purge->iova & (purge->size - 1)) ||
         purge->iova > UINT64_MAX - (purge->size - 1)) {
         return false;
@@ -171,8 +167,7 @@ bool hp_zx1_iotlb_invalidate(HPZX1IOTLB *iotlb,
         }
 
         entry_end = slot->entry.iova + slot->entry.addr_mask;
-        if (slot->entry.iova <= purge_end &&
-            purge->iova <= entry_end) {
+        if (slot->entry.iova <= purge_end && purge->iova <= entry_end) {
             slot->valid = false;
         }
     }
@@ -180,8 +175,7 @@ bool hp_zx1_iotlb_invalidate(HPZX1IOTLB *iotlb,
     return true;
 }
 
-bool hp_zx1_iommu_decode_tcnfg(uint64_t tcnfg,
-                               unsigned int *page_shift)
+bool hp_zx1_iommu_decode_tcnfg(uint64_t tcnfg, unsigned int *page_shift)
 {
     unsigned int shift;
 
@@ -242,8 +236,8 @@ bool hp_zx1_iommu_decode_window(uint64_t ibase, uint64_t imask,
     return true;
 }
 
-bool hp_zx1_iommu_iova_is_bypass(const HPZX1IOMMUWindow *window,
-                                  uint64_t iova, bool dvi)
+bool hp_zx1_iommu_iova_is_bypass(const HPZX1IOMMUWindow *window, uint64_t iova,
+                                 bool dvi)
 {
     return !window || !window->enabled || dvi ||
            (iova & window->mask) != window->base;
@@ -257,14 +251,13 @@ bool hp_zx1_iommu_pdir_index(const HPZX1IOMMUWindow *window, uint64_t iova,
         return false;
     }
 
-    *index = ((iova - window->base) >> window->page_shift) &
-             window->pdir_index_mask;
+    *index =
+        ((iova - window->base) >> window->page_shift) & window->pdir_index_mask;
     return true;
 }
 
 bool hp_zx1_iommu_decode_pcom(const HPZX1IOMMUWindow *window, uint64_t pcom,
                               HPZX1IOMMUPurge *purge)
 {
-    return window && hp_sba_iommu_decode_pcom(pcom, window->page_shift,
-                                               purge);
+    return window && hp_sba_iommu_decode_pcom(pcom, window->page_shift, purge);
 }

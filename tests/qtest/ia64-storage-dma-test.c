@@ -40,8 +40,7 @@ typedef struct StorageDMA {
 
 static uint64_t sparse_io(uint16_t port)
 {
-    return IA64_PCI_IO_BASE + ((uint64_t)(port >> 2) << 12) +
-           (port & 0xfff);
+    return IA64_PCI_IO_BASE + ((uint64_t)(port >> 2) << 12) + (port & 0xfff);
 }
 
 static void pio_writeb(StorageDMA *s, uint16_t port, uint8_t value)
@@ -58,16 +57,16 @@ static void wait_dma(StorageDMA *s)
 {
     int64_t deadline = g_get_monotonic_time() + 5 * G_TIME_SPAN_SECOND;
 
-    while (s->ahci ? (qtest_readl(s->qts, PORT + 0x38) & 1) :
-                     !(pio_readb(s, BMDMA_PORT + 2) & 4)) {
+    while (s->ahci ? (qtest_readl(s->qts, PORT + 0x38) & 1)
+                   : !(pio_readb(s, BMDMA_PORT + 2) & 4)) {
         g_assert_cmpint(g_get_monotonic_time(), <, deadline);
         qtest_clock_step(s->qts, 1000000);
         g_usleep(1000);
     }
 }
 
-static void ahci_wait_port(StorageDMA *s, unsigned int offset,
-                           uint32_t mask, uint32_t value)
+static void ahci_wait_port(StorageDMA *s, unsigned int offset, uint32_t mask,
+                           uint32_t value)
 {
     int64_t deadline = g_get_monotonic_time() + 5 * G_TIME_SPAN_SECOND;
 
@@ -111,13 +110,13 @@ static void setup_ahci(StorageDMA *s, uint64_t config)
     command |= AHCI_PXCMD_FRE;
     qtest_writel(s->qts, PORT + 0x18, command);
     qtest_writel(s->qts, PORT + 0x30, AHCI_PORT_SERR_MASK); /* SERR */
-    ahci_wait_port(s, 0x28, 0xf, 3); /* SSTS.DET */
+    ahci_wait_port(s, 0x28, 0xf, 3);                        /* SSTS.DET */
     ahci_wait_port(s, 0x20, 0x89, 0); /* TFD: BSY, DRQ, ERR */
-    ahci_wait_port(s, 0x18, AHCI_PXCMD_ST | AHCI_PXCMD_CR |
-                   AHCI_PXCMD_FRE | AHCI_PXCMD_FR,
-                   AHCI_PXCMD_FRE | AHCI_PXCMD_FR);
+    ahci_wait_port(
+        s, 0x18, AHCI_PXCMD_ST | AHCI_PXCMD_CR | AHCI_PXCMD_FRE | AHCI_PXCMD_FR,
+        AHCI_PXCMD_FRE | AHCI_PXCMD_FR);
     qtest_writel(s->qts, PORT + 0x10, AHCI_PORT_IRQ_MASK); /* IS */
-    qtest_writel(s->qts, ABAR + 8, 1); /* IS.IPS */
+    qtest_writel(s->qts, ABAR + 8, 1);                     /* IS.IPS */
     g_assert_cmphex(qtest_readl(s->qts, PORT + 0x10), ==, 0);
     g_assert_cmphex(qtest_readl(s->qts, ABAR + 8) & 1, ==, 0);
     qtest_writel(s->qts, PORT + 0x14, AHCI_PORT_IRQ_MASK); /* IE */
@@ -137,7 +136,7 @@ static void setup_bmdma(StorageDMA *s, uint64_t config, const char *device)
     s->length[1] = 4096;
 
     g_assert_cmphex(qtest_readl(s->qts, config), ==,
-                   ((uint32_t)device_id << 16) | 0x1095);
+                    ((uint32_t)device_id << 16) | 0x1095);
     qtest_writel(s->qts, config + PCI_BASE_ADDRESS_0, CMD_PORT | 1);
     qtest_writel(s->qts, config + PCI_BASE_ADDRESS_1, 0x1101);
     qtest_writel(s->qts, config + PCI_BASE_ADDRESS_4, BMDMA_PORT | 1);
@@ -169,8 +168,7 @@ static void transfer_ahci(StorageDMA *s, bool write, uint64_t lba)
     stw_le_p(table + 12, s->total / 512);
     for (int i = 0; i < 2; i++) {
         stq_le_p(table + 128 + i * 16, s->buffer[i]);
-        stl_le_p(table + 140 + i * 16,
-                 0x80000000 | (s->length[i] - 1));
+        stl_le_p(table + 140 + i * 16, 0x80000000 | (s->length[i] - 1));
     }
     stl_le_p(header, (2 << 16) | 5 | (write ? 0x40 : 0));
     stq_le_p(header + 8, s->table);
@@ -226,8 +224,8 @@ static void check_buffers(StorageDMA *s, const uint8_t *expected)
             g_assert_cmphex(data[j], ==, 0xa5);
             g_assert_cmphex(data[GUARD_SIZE + s->length[i] + j], ==, 0xa5);
         }
-        g_assert_cmpmem(data + GUARD_SIZE, s->length[i],
-                        expected + offset, s->length[i]);
+        g_assert_cmpmem(data + GUARD_SIZE, s->length[i], expected + offset,
+                        s->length[i]);
         offset += s->length[i];
     }
 }
@@ -247,9 +245,10 @@ static void test_storage_dma(gconstpointer opaque)
 
     g_assert_cmpint(fd, >=, 0);
     g_assert_cmpint(ftruncate(fd, 16 * 1024 * 1024), ==, 0);
-    devices = ahci ? g_strdup("-device ide-hd,drive=disk,bus=ide.0") :
-        g_strdup_printf("-device %s,id=storage,addr=5,secondary=1 "
-                        "-device ide-hd,drive=disk,bus=storage.0", device);
+    devices = ahci ? g_strdup("-device ide-hd,drive=disk,bus=ide.0")
+                   : g_strdup_printf("-device %s,id=storage,addr=5,secondary=1 "
+                                     "-device ide-hd,drive=disk,bus=storage.0",
+                                     device);
     s.qts = qtest_initf("-machine itanium2-vpc,nvram=none "
                         "-m 4G -smp 4 -S -nodefaults -display none "
                         "-drive if=none,id=disk,file=%s,format=raw %s",
@@ -299,9 +298,8 @@ static void test_storage_dma(gconstpointer opaque)
     g_unlink(path);
 }
 
-static void atapi_get_configuration(StorageDMA *s, uint8_t rt,
-                                    uint16_t feature, uint16_t allocation,
-                                    bool dma)
+static void atapi_get_configuration(StorageDMA *s, uint8_t rt, uint16_t feature,
+                                    uint16_t allocation, bool dma)
 {
     uint8_t table[128 + 16] = { 0 };
     uint8_t header[32] = { 0 };
@@ -310,9 +308,9 @@ static void atapi_get_configuration(StorageDMA *s, uint8_t rt,
     qtest_writel(s->qts, ABAR + 8, 1);
     table[0] = 0x27; /* Register H2D FIS */
     table[1] = 0x80;
-    table[2] = 0xa0; /* PACKET */
-    table[3] = dma; /* PACKET DMA feature */
-    table[6] = 8; /* Byte Count Limit: 2048 */
+    table[2] = 0xa0;  /* PACKET */
+    table[3] = dma;   /* PACKET DMA feature */
+    table[6] = 8;     /* Byte Count Limit: 2048 */
     table[64] = 0x46; /* GET CONFIGURATION */
     table[65] = rt;
     stw_be_p(table + 66, feature);
@@ -335,16 +333,15 @@ static void test_atapi_get_configuration(void)
         uint16_t feature;
         uint16_t allocation;
     } queries[] = {
-        { 0, 0, 20 }, { 1, 0, 20 }, { 2, 0, 20 },
-        { 0, 0x2a, 16 }, { 1, 0x2a, 16 }, { 2, 0x2a, 8 },
-        { 2, 0x2b, 8 }, { 2, 0xffff, 8 },
-        { 2, 0x2a, 4 }, { 2, 0, 4 }, { 2, 0x2a, 0 },
+        { 0, 0, 20 },    { 1, 0, 20 },   { 2, 0, 20 },   { 0, 0x2a, 16 },
+        { 1, 0x2a, 16 }, { 2, 0x2a, 8 }, { 2, 0x2b, 8 }, { 2, 0xffff, 8 },
+        { 2, 0x2a, 4 },  { 2, 0, 4 },    { 2, 0x2a, 0 },
     };
     static const uint8_t profiles[] = {
-        0, 0, 0, 16, 0, 0, 0, 16, /* Header: DVD-ROM current profile */
-        0, 0, 3, 8,               /* Persistent, current Profile List */
-        0, 16, 1, 0,             /* DVD-ROM, current */
-        0, 8, 0, 0,              /* CD-ROM */
+        0, 0,  0, 16, 0, 0, 0, 16, /* Header: DVD-ROM current profile */
+        0, 0,  3, 8,               /* Persistent, current Profile List */
+        0, 16, 1, 0,               /* DVD-ROM, current */
+        0, 8,  0, 0,               /* CD-ROM */
     };
     static const uint8_t header_only[] = { 0, 0, 0, 4, 0, 0, 0, 16 };
     g_autofree char *path = NULL;
@@ -358,15 +355,16 @@ static void test_atapi_get_configuration(void)
     s.qts = qtest_initf("-machine itanium2-vpc,nvram=none "
                         "-m 4G -smp 1 -S -nodefaults -display none "
                         "-drive if=none,id=cd,file=%s,format=raw,readonly=on "
-                        "-device ide-cd,drive=cd,bus=ide.0", path);
+                        "-device ide-cd,drive=cd,bus=ide.0",
+                        path);
     qtest_writew(s.qts, config + PCI_COMMAND,
                  PCI_COMMAND_IO | PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
     setup_ahci(&s, config);
 
     for (size_t i = 0; i < G_N_ELEMENTS(queries); i++) {
         const uint8_t *expected = queries[i].feature ? header_only : profiles;
-        size_t length = queries[i].feature ? sizeof(header_only) :
-                                            sizeof(profiles);
+        size_t length =
+            queries[i].feature ? sizeof(header_only) : sizeof(profiles);
         uint8_t data[sizeof(profiles) + GUARD_SIZE];
 
         g_test_message("GET CONFIGURATION: RT=%u, feature=0x%04x, length=%u",

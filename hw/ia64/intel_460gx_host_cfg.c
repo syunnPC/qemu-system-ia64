@@ -37,8 +37,7 @@ uint32_t intel_460gx_chipset_device_mask(void)
 
 bool intel_460gx_chipset_device_valid(unsigned device)
 {
-    return device < 32 &&
-           (intel_460gx_chipset_device_mask() & BIT(device));
+    return device < 32 && (intel_460gx_chipset_device_mask() & BIT(device));
 }
 
 void intel_460gx_host_core_init(Intel460GXHostCore *core, uint8_t cbn,
@@ -103,26 +102,26 @@ void intel_460gx_host_core_address_write(Intel460GXHostCore *core,
 
 static bool data_access_valid(unsigned data_offset, unsigned size)
 {
-    return (size == 1 || size == 2 || size == 4) &&
-           data_offset < 4 && size <= 4 - data_offset;
+    return (size == 1 || size == 2 || size == 4) && data_offset < 4 &&
+           size <= 4 - data_offset;
 }
 
-static Intel460GXConfigTarget *find_internal_target(
-    Intel460GXHostCore *core, uint8_t bus, uint8_t device, uint8_t function)
+static Intel460GXConfigTarget *find_internal_target(Intel460GXHostCore *core,
+                                                    uint8_t bus, uint8_t device,
+                                                    uint8_t function)
 {
     if (bus == 0 && device == INTEL_460GX_BOOTSTRAP_SAC_DEVICE) {
         return &core->bootstrap_sac[function];
     }
 
-    if (bus != core->cbn ||
-        !(core->chipset_present & BIT(device))) {
+    if (bus != core->cbn || !(core->chipset_present & BIT(device))) {
         return NULL;
     }
     return &core->chipset[device][function];
 }
 
-static Intel460GXDownstreamRoute *find_downstream_route(
-    Intel460GXHostCore *core, uint8_t bus)
+static Intel460GXDownstreamRoute *
+find_downstream_route(Intel460GXHostCore *core, uint8_t bus)
 {
     unsigned i;
 
@@ -138,8 +137,7 @@ static Intel460GXDownstreamRoute *find_downstream_route(
 }
 
 uint32_t intel_460gx_host_core_data_read(Intel460GXHostCore *core,
-                                         unsigned data_offset,
-                                         unsigned size)
+                                         unsigned data_offset, unsigned size)
 {
     Intel460GXConfigTarget *target;
     Intel460GXDownstreamRoute *route;
@@ -223,8 +221,7 @@ void intel_460gx_host_core_data_write(Intel460GXHostCore *core,
     }
 }
 
-static bool target_ops_valid(const Intel460GXConfigTargetOps *ops,
-                             Error **errp)
+static bool target_ops_valid(const Intel460GXConfigTargetOps *ops, Error **errp)
 {
     if (ops == NULL || (ops->read == NULL && ops->write == NULL)) {
         error_setg(errp,
@@ -241,8 +238,7 @@ bool intel_460gx_host_core_register_bootstrap(
     Intel460GXConfigTarget *target;
 
     if (function >= 8) {
-        error_setg(errp, "bootstrap SAC function %u is outside 0..7",
-                   function);
+        error_setg(errp, "bootstrap SAC function %u is outside 0..7", function);
         return false;
     }
     if (!target_ops_valid(ops, errp)) {
@@ -270,8 +266,8 @@ bool intel_460gx_host_core_register_chipset(
         return false;
     }
     if (function >= 8) {
-        error_setg(errp, "CBN device %02x function %u is outside 0..7",
-                   device, function);
+        error_setg(errp, "CBN device %02x function %u is outside 0..7", device,
+                   function);
         return false;
     }
     if (!target_ops_valid(ops, errp)) {
@@ -289,8 +285,8 @@ bool intel_460gx_host_core_register_chipset(
 }
 
 bool intel_460gx_host_core_apply_decoded_update(
-    Intel460GXHostCore *core,
-    const Intel460GXDecodedStateUpdate *update, Error **errp)
+    Intel460GXHostCore *core, const Intel460GXDecodedStateUpdate *update,
+    Error **errp)
 {
     Intel460GXHostCore candidate;
     uint32_t invalid_present;
@@ -309,12 +305,13 @@ bool intel_460gx_host_core_apply_decoded_update(
         candidate.chipset_present = update->chipset_present;
     }
 
-    invalid_present = candidate.chipset_present &
-                      ~intel_460gx_chipset_device_mask();
+    invalid_present =
+        candidate.chipset_present & ~intel_460gx_chipset_device_mask();
     if (invalid_present != 0) {
         error_setg(errp,
                    "460GX decoded chipset-present state includes reserved "
-                   "CBN devices (mask 0x%08x)", invalid_present);
+                   "CBN devices (mask 0x%08x)",
+                   invalid_present);
         return false;
     }
 
@@ -326,8 +323,7 @@ bool intel_460gx_host_core_apply_decoded_update(
         }
         route = &candidate.downstream[i];
         if (!route->attached) {
-            error_setg(errp,
-                       "460GX downstream port %u is not attached", i);
+            error_setg(errp, "460GX downstream port %u is not attached", i);
             return false;
         }
         route->first_bus = update->routes[i].first_bus;
@@ -359,14 +355,15 @@ bool intel_460gx_host_core_set_present(Intel460GXHostCore *core,
         return false;
     }
     update.has_chipset_present = true;
-    update.chipset_present = deposit32(core->chipset_present, device, 1,
-                                       present);
+    update.chipset_present =
+        deposit32(core->chipset_present, device, 1, present);
     return intel_460gx_host_core_apply_decoded_update(core, &update, errp);
 }
 
-bool intel_460gx_host_core_attach_downstream(
-    Intel460GXHostCore *core, unsigned port, PCIBus *bus,
-    uint8_t first_bus, uint8_t last_bus, Error **errp)
+bool intel_460gx_host_core_attach_downstream(Intel460GXHostCore *core,
+                                             unsigned port, PCIBus *bus,
+                                             uint8_t first_bus,
+                                             uint8_t last_bus, Error **errp)
 {
     Intel460GXDownstreamRoute *route;
     unsigned i;
@@ -419,9 +416,10 @@ bool intel_460gx_host_core_attach_downstream(
     return true;
 }
 
-bool intel_460gx_host_core_set_downstream_range(
-    Intel460GXHostCore *core, unsigned port,
-    uint8_t first_bus, uint8_t last_bus, Error **errp)
+bool intel_460gx_host_core_set_downstream_range(Intel460GXHostCore *core,
+                                                unsigned port,
+                                                uint8_t first_bus,
+                                                uint8_t last_bus, Error **errp)
 {
     Intel460GXDecodedStateUpdate update = { 0 };
 
@@ -435,8 +433,8 @@ bool intel_460gx_host_core_set_downstream_range(
     return intel_460gx_host_core_apply_decoded_update(core, &update, errp);
 }
 
-bool intel_460gx_host_core_validate_downstream(
-    const Intel460GXHostCore *core, Error **errp)
+bool intel_460gx_host_core_validate_downstream(const Intel460GXHostCore *core,
+                                               Error **errp)
 {
     unsigned i;
     unsigned j;
@@ -459,14 +457,12 @@ bool intel_460gx_host_core_validate_downstream(
             continue;
         }
         if (route->bus == NULL) {
-            error_setg(errp,
-                       "460GX downstream port %u has no destination PCI bus",
-                       i);
+            error_setg(
+                errp, "460GX downstream port %u has no destination PCI bus", i);
             return false;
         }
         if (route->first_bus > route->last_bus) {
-            error_setg(errp,
-                       "460GX downstream port %u has reversed bus range",
+            error_setg(errp, "460GX downstream port %u has reversed bus range",
                        i);
             return false;
         }

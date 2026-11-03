@@ -58,12 +58,11 @@ static void ia64_gdb_write_pr(CPUIA64State *env, uint64_t value)
 
 static uint64_t ia64_gdb_read_cfm(const CPUIA64State *env)
 {
-    return env->cfm_sof
-        | ((uint64_t)env->cfm_sol << IA64_CFM_SOL_SHIFT)
-        | ((uint64_t)env->cfm_sor << IA64_CFM_SOR_SHIFT)
-        | ((uint64_t)env->cfm_rrb_gr << IA64_CFM_RRB_GR_SHIFT)
-        | ((uint64_t)env->cfm_rrb_fr << IA64_CFM_RRB_FR_SHIFT)
-        | ((uint64_t)env->cfm_rrb_pr << IA64_CFM_RRB_PR_SHIFT);
+    return env->cfm_sof | ((uint64_t)env->cfm_sol << IA64_CFM_SOL_SHIFT) |
+           ((uint64_t)env->cfm_sor << IA64_CFM_SOR_SHIFT) |
+           ((uint64_t)env->cfm_rrb_gr << IA64_CFM_RRB_GR_SHIFT) |
+           ((uint64_t)env->cfm_rrb_fr << IA64_CFM_RRB_FR_SHIFT) |
+           ((uint64_t)env->cfm_rrb_pr << IA64_CFM_RRB_PR_SHIFT);
 }
 
 static void ia64_gdb_write_cfm(CPUIA64State *env, uint64_t value)
@@ -71,12 +70,9 @@ static void ia64_gdb_write_cfm(CPUIA64State *env, uint64_t value)
     unsigned sof = value & IA64_CFM_SOF_MASK;
     unsigned sol = (value & IA64_CFM_SOL_MASK) >> IA64_CFM_SOL_SHIFT;
     unsigned sor = (value & IA64_CFM_SOR_MASK) >> IA64_CFM_SOR_SHIFT;
-    unsigned rrb_gr = (value & IA64_CFM_RRB_GR_MASK) >>
-                      IA64_CFM_RRB_GR_SHIFT;
-    unsigned rrb_fr = (value & IA64_CFM_RRB_FR_MASK) >>
-                      IA64_CFM_RRB_FR_SHIFT;
-    unsigned rrb_pr = (value & IA64_CFM_RRB_PR_MASK) >>
-                      IA64_CFM_RRB_PR_SHIFT;
+    unsigned rrb_gr = (value & IA64_CFM_RRB_GR_MASK) >> IA64_CFM_RRB_GR_SHIFT;
+    unsigned rrb_fr = (value & IA64_CFM_RRB_FR_MASK) >> IA64_CFM_RRB_FR_SHIFT;
+    unsigned rrb_pr = (value & IA64_CFM_RRB_PR_MASK) >> IA64_CFM_RRB_PR_SHIFT;
     uint64_t physical_pr;
 
     /*
@@ -86,9 +82,8 @@ static void ia64_gdb_write_cfm(CPUIA64State *env, uint64_t value)
      * internally inconsistent RSE.  RRB.FR and RRB.PR have complete rebasing
      * setters and can safely be changed independently.
      */
-    if (sof != env->cfm_sof || sol != env->cfm_sol ||
-        sor != env->cfm_sor || rrb_gr != env->cfm_rrb_gr ||
-        rrb_fr >= 96 || rrb_pr >= 48) {
+    if (sof != env->cfm_sof || sol != env->cfm_sol || sor != env->cfm_sor ||
+        rrb_gr != env->cfm_rrb_gr || rrb_fr >= 96 || rrb_pr >= 48) {
         return;
     }
 
@@ -117,12 +112,10 @@ int ia64_cpu_gdb_read_register(CPUState *cs, GByteArray *buf, int reg)
         ia64_fpreg_to_spill(env, freg, &low, &high);
         return gdb_get_reg128(buf, high, low);
     } else if (reg < IA64_GDB_BR0_REGNUM) {
-        val = (ia64_gdb_read_pr(env) >>
-               (reg - IA64_GDB_PR0_REGNUM)) & 1;
+        val = (ia64_gdb_read_pr(env) >> (reg - IA64_GDB_PR0_REGNUM)) & 1;
     } else if (reg < IA64_GDB_VFP_REGNUM) {
         val = env->br[reg - IA64_GDB_BR0_REGNUM];
-    } else if (reg == IA64_GDB_VFP_REGNUM ||
-               reg == IA64_GDB_VRAP_REGNUM) {
+    } else if (reg == IA64_GDB_VFP_REGNUM || reg == IA64_GDB_VRAP_REGNUM) {
         /* GDB computes these virtual registers itself. */
     } else if (reg == IA64_GDB_PR_REGNUM) {
         val = ia64_gdb_read_pr(env);
@@ -132,8 +125,7 @@ int ia64_cpu_gdb_read_register(CPUState *cs, GByteArray *buf, int reg)
         val = env->psr;
     } else if (reg == IA64_GDB_CFM_REGNUM) {
         val = ia64_gdb_read_cfm(env);
-    } else if (reg >= IA64_GDB_AR0_REGNUM &&
-               reg < IA64_GDB_NUM_CORE_REGS) {
+    } else if (reg >= IA64_GDB_AR0_REGNUM && reg < IA64_GDB_NUM_CORE_REGS) {
         val = ia64_system_read_ar(env, reg - IA64_GDB_AR0_REGNUM);
     } else {
         return 0;
@@ -177,8 +169,7 @@ int ia64_cpu_gdb_write_register(CPUState *cs, uint8_t *buf, int reg)
         ia64_gdb_write_pr(env, physical_pr);
     } else if (reg < IA64_GDB_VFP_REGNUM) {
         env->br[reg - IA64_GDB_BR0_REGNUM] = val;
-    } else if (reg == IA64_GDB_VFP_REGNUM ||
-               reg == IA64_GDB_VRAP_REGNUM) {
+    } else if (reg == IA64_GDB_VFP_REGNUM || reg == IA64_GDB_VRAP_REGNUM) {
         /* Read-only virtual registers. */
     } else if (reg == IA64_GDB_PR_REGNUM) {
         ia64_gdb_write_pr(env, val);
@@ -188,8 +179,7 @@ int ia64_cpu_gdb_write_register(CPUState *cs, uint8_t *buf, int reg)
         ia64_system_mov_psr_write(env, val, 0);
     } else if (reg == IA64_GDB_CFM_REGNUM) {
         ia64_gdb_write_cfm(env, val);
-    } else if (reg >= IA64_GDB_AR0_REGNUM &&
-               reg < IA64_GDB_NUM_CORE_REGS) {
+    } else if (reg >= IA64_GDB_AR0_REGNUM && reg < IA64_GDB_NUM_CORE_REGS) {
         unsigned ar = reg - IA64_GDB_AR0_REGNUM;
 
         if (ar != 17 && (ar != 18 || val != env->ar_bspstore)) {

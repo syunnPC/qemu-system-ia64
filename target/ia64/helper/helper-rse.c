@@ -5,20 +5,20 @@
 #include "exec/helper-proto.h"
 #include "arch/arch.h"
 
-void helper_br_call_rse(CPUIA64State *env, uint32_t b_reg,
-                        uint64_t next_ip, uint64_t target)
+void helper_br_call_rse(CPUIA64State *env, uint32_t b_reg, uint64_t next_ip,
+                        uint64_t target)
 {
     ia64_rse_br_call(env, b_reg, next_ip, target);
 }
 
-void helper_br_ia(CPUIA64State *env, uint32_t b_reg,
-                  uint64_t fault_ip, uint32_t fault_slot)
+void helper_br_ia(CPUIA64State *env, uint32_t b_reg, uint64_t fault_ip,
+                  uint32_t fault_slot)
 {
     ia64_rse_br_ia(env, b_reg, fault_ip, fault_slot);
 }
 
-void helper_br_ret_rse(CPUIA64State *env, uint32_t b_reg,
-                       uint64_t source_ip, uint32_t source_slot)
+void helper_br_ret_rse(CPUIA64State *env, uint32_t b_reg, uint64_t source_ip,
+                       uint32_t source_slot)
 {
     ia64_rse_br_ret(env, b_reg, source_ip, source_slot);
 }

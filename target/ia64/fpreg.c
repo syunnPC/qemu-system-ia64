@@ -15,8 +15,8 @@
 #define IA64_FP_DOUBLE_FRAC_MASK ((1ULL << 52) - 1)
 #define IA64_FP_DOUBLE_LOW_MASK ((1ULL << 11) - 1)
 
-bool ia64_fpreg_get_extended(const CPUIA64State *env, unsigned reg,
-                             bool *sign, uint32_t *exp, uint64_t *mant)
+bool ia64_fpreg_get_extended(const CPUIA64State *env, unsigned reg, bool *sign,
+                             uint32_t *exp, uint64_t *mant)
 {
     if (reg <= 1 || reg >= IA64_FR_COUNT ||
         !((env->fp.fr_ext_valid[reg / 64] >> (reg % 64)) & 1)) {
@@ -114,11 +114,11 @@ static bool register_format_to_binary64_exact(uint64_t sig, uint32_t exp,
 {
     uint64_t result = (uint64_t)sign << 63;
 
-    if (likely((sig & (IA64_FP_SIGNIFICAND_INTEGER_BIT |
-                       IA64_FP_DOUBLE_LOW_MASK)) ==
-                      IA64_FP_SIGNIFICAND_INTEGER_BIT &&
+    if (likely((sig &
+                (IA64_FP_SIGNIFICAND_INTEGER_BIT | IA64_FP_DOUBLE_LOW_MASK)) ==
+                   IA64_FP_SIGNIFICAND_INTEGER_BIT &&
                (uint32_t)(exp - (IA64_FP_DOUBLE_EXP_BASE + 1)) <=
-               IA64_FP_DOUBLE_MAX_EXP - (IA64_FP_DOUBLE_EXP_BASE + 1))) {
+                   IA64_FP_DOUBLE_MAX_EXP - (IA64_FP_DOUBLE_EXP_BASE + 1))) {
         result |= (uint64_t)(exp - IA64_FP_DOUBLE_EXP_BASE) << 52;
         result |= (sig >> 11) & IA64_FP_DOUBLE_FRAC_MASK;
     } else if (sig == 0 && exp == 0) {
@@ -131,8 +131,8 @@ static bool register_format_to_binary64_exact(uint64_t sig, uint32_t exp,
     return true;
 }
 
-void ia64_fpreg_to_spill(const CPUIA64State *env, unsigned reg,
-                         uint64_t *low, uint64_t *high)
+void ia64_fpreg_to_spill(const CPUIA64State *env, unsigned reg, uint64_t *low,
+                         uint64_t *high)
 {
     uint32_t exp;
     bool sign;
@@ -150,17 +150,18 @@ void ia64_fpreg_to_spill(const CPUIA64State *env, unsigned reg,
         exp = IA64_FP_REG_INTEGER_EXP;
         sign = false;
     } else {
-        binary64_to_register_format(reg == IA64_FR_ZERO_INDEX ? 0 :
-                                    reg == IA64_FR_ONE_INDEX ?
-                                    IA64_FR_ONE : env->fp.fr[reg],
+        binary64_to_register_format(reg == IA64_FR_ZERO_INDEX ? 0
+                                    : reg == IA64_FR_ONE_INDEX
+                                        ? IA64_FR_ONE
+                                        : env->fp.fr[reg],
                                     low, &exp, &sign);
     }
 
     *high = (exp & 0x1ffff) | ((uint64_t)sign << 17);
 }
 
-void ia64_fpreg_from_spill(CPUIA64State *env, unsigned reg,
-                           uint64_t low, uint64_t high)
+void ia64_fpreg_from_spill(CPUIA64State *env, unsigned reg, uint64_t low,
+                           uint64_t high)
 {
     uint64_t compact;
     uint32_t exp;
@@ -207,8 +208,7 @@ void ia64_fpreg_from_spill(CPUIA64State *env, unsigned reg,
     ia64_fpreg_mark_written(env, reg);
 }
 
-void ia64_fpreg_from_binary32(CPUIA64State *env, unsigned reg,
-                              uint32_t value)
+void ia64_fpreg_from_binary32(CPUIA64State *env, unsigned reg, uint32_t value)
 {
     uint64_t sig;
     uint32_t exp;
@@ -216,7 +216,7 @@ void ia64_fpreg_from_binary32(CPUIA64State *env, unsigned reg,
 
     binary32_to_register_format(value, &sig, &exp, &sign);
     ia64_fpreg_from_spill(env, reg, sig,
-                         (uint64_t)exp | ((uint64_t)sign << 17));
+                          (uint64_t)exp | ((uint64_t)sign << 17));
 }
 
 uint32_t ia64_fpreg_to_binary32(const CPUIA64State *env, unsigned reg)
@@ -225,8 +225,7 @@ uint32_t ia64_fpreg_to_binary32(const CPUIA64State *env, unsigned reg)
     uint64_t high;
 
     ia64_fpreg_to_spill(env, reg, &low, &high);
-    return register_format_to_binary32(low, high & 0x1ffff,
-                                       (high >> 17) & 1);
+    return register_format_to_binary32(low, high & 0x1ffff, (high >> 17) & 1);
 }
 
 uint64_t ia64_fpreg_to_binary64(const CPUIA64State *env, unsigned reg)
@@ -235,6 +234,5 @@ uint64_t ia64_fpreg_to_binary64(const CPUIA64State *env, unsigned reg)
     uint64_t high;
 
     ia64_fpreg_to_spill(env, reg, &low, &high);
-    return register_format_to_binary64(low, high & 0x1ffff,
-                                       (high >> 17) & 1);
+    return register_format_to_binary64(low, high & 0x1ffff, (high >> 17) & 1);
 }

@@ -17,8 +17,9 @@ typedef struct {
 
 #define FW_RUNTIME_PAGE_SHIFT 12U
 
-static inline BOOLEAN fw_runtime_virtual_range_valid(
-    UINT64 PhysicalStart, UINT64 VirtualStart, UINT64 NumberOfPages)
+static inline BOOLEAN fw_runtime_virtual_range_valid(UINT64 PhysicalStart,
+                                                     UINT64 VirtualStart,
+                                                     UINT64 NumberOfPages)
 {
     UINT64 size;
 
@@ -28,11 +29,12 @@ static inline BOOLEAN fw_runtime_virtual_range_valid(
     }
     size = NumberOfPages << FW_RUNTIME_PAGE_SHIFT;
     return PhysicalStart <= ~(UINT64)0 - size &&
-        VirtualStart <= ~(UINT64)0 - size;
+           VirtualStart <= ~(UINT64)0 - size;
 }
 
-static inline BOOLEAN fw_runtime_policy_init(
-    BOOLEAN FixedI2000, UINT32 ProfileFlags, FW_RUNTIME_POLICY *Policy)
+static inline BOOLEAN fw_runtime_policy_init(BOOLEAN FixedI2000,
+                                             UINT32 ProfileFlags,
+                                             FW_RUNTIME_POLICY *Policy)
 {
     FW_RUNTIME_POLICY result = {
         .VariableServicesAvailable = 1,
@@ -47,11 +49,9 @@ static inline BOOLEAN fw_runtime_policy_init(
             return 0;
         }
         result.VariableServicesAvailable =
-            (ProfileFlags &
-             IA64_I2000_PROFILE_FLAG_EFI_VARS_UNAVAILABLE) == 0;
+            (ProfileFlags & IA64_I2000_PROFILE_FLAG_EFI_VARS_UNAVAILABLE) == 0;
         result.TimeServicesAvailable =
-            (ProfileFlags &
-             IA64_I2000_PROFILE_FLAG_EFI_TIME_UNAVAILABLE) == 0;
+            (ProfileFlags & IA64_I2000_PROFILE_FLAG_EFI_TIME_UNAVAILABLE) == 0;
     } else if (ProfileFlags != 0) {
         return 0;
     }

@@ -102,11 +102,10 @@ typedef struct IA64ZX6000ZX1TestLayout {
 } IA64ZX6000ZX1TestLayout;
 
 /* Populate the fixed ZX1 test layout. */
-void ia64_zx6000_zx1_test_layout_init(
-    IA64ZX6000ZX1TestLayout *layout);
+void ia64_zx6000_zx1_test_layout_init(IA64ZX6000ZX1TestLayout *layout);
 
 /* Validate without mutation; failure leaves the layout unchanged. */
-bool ia64_zx6000_zx1_test_layout_validate(
-    const IA64ZX6000ZX1TestLayout *layout, Error **errp);
+bool ia64_zx6000_zx1_test_layout_validate(const IA64ZX6000ZX1TestLayout *layout,
+                                          Error **errp);
 
 #endif

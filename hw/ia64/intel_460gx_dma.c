@@ -83,11 +83,9 @@ typedef struct Intel460GXDMAClass {
     ObjectClass parent_class;
 } Intel460GXDMAClass;
 
-DECLARE_INSTANCE_CHECKER(Intel460GXDMA, INTEL_460GX_DMA,
-                         TYPE_INTEL_460GX_DMA)
+DECLARE_INSTANCE_CHECKER(Intel460GXDMA, INTEL_460GX_DMA, TYPE_INTEL_460GX_DMA)
 
-OBJECT_DEFINE_TYPE(Intel460GXDMA, intel_460gx_dma,
-                   INTEL_460GX_DMA, OBJECT)
+OBJECT_DEFINE_TYPE(Intel460GXDMA, intel_460gx_dma, INTEL_460GX_DMA, OBJECT)
 
 static bool dma_range_end(uint64_t base, uint64_t size, uint64_t *end)
 {
@@ -99,8 +97,7 @@ static bool dma_range_end(uint64_t base, uint64_t size, uint64_t *end)
     return true;
 }
 
-static bool dma_aperture_validate(uint64_t base, uint64_t size,
-                                  Error **errp)
+static bool dma_aperture_validate(uint64_t base, uint64_t size, Error **errp)
 {
     if (base == 0 && size == 0) {
         return true;
@@ -125,8 +122,7 @@ static bool dma_aperture_validate(uint64_t base, uint64_t size,
 static bool dma_alias_range_validate(const Intel460GXDMA *dma,
                                      uint64_t dma_base, uint64_t size,
                                      MemoryRegion *target,
-                                     uint64_t target_offset,
-                                     Error **errp)
+                                     uint64_t target_offset, Error **errp)
 {
     uint64_t aperture_end = 0;
     uint64_t dma_end;
@@ -157,13 +153,11 @@ static bool dma_alias_range_validate(const Intel460GXDMA *dma,
                    dma_base, size);
         return false;
     }
-    if (!dma_range_end(dma->aperture_base, dma->aperture_size,
-                       &aperture_end) ||
+    if (!dma_range_end(dma->aperture_base, dma->aperture_size, &aperture_end) ||
         dma_base < dma->aperture_base || dma_end > aperture_end) {
         error_setg(errp,
                    "460GX DMA alias [0x%" PRIx64 ", 0x%" PRIx64
-                   ") is outside aperture [0x%" PRIx64 ", 0x%" PRIx64
-                   ")",
+                   ") is outside aperture [0x%" PRIx64 ", 0x%" PRIx64 ")",
                    dma_base, dma_end, dma->aperture_base, aperture_end);
         return false;
     }
@@ -194,15 +188,15 @@ static bool dma_alias_range_validate(const Intel460GXDMA *dma,
     return true;
 }
 
-static bool dma_alias_add(Intel460GXDMA *dma, uint64_t dma_base,
-                          uint64_t size, MemoryRegion *target,
-                          uint64_t target_offset, Error **errp)
+static bool dma_alias_add(Intel460GXDMA *dma, uint64_t dma_base, uint64_t size,
+                          MemoryRegion *target, uint64_t target_offset,
+                          Error **errp)
 {
     Intel460GXDMAAlias *alias;
     g_autofree char *name = NULL;
 
-    if (!dma_alias_range_validate(dma, dma_base, size, target,
-                                  target_offset, errp)) {
+    if (!dma_alias_range_validate(dma, dma_base, size, target, target_offset,
+                                  errp)) {
         return false;
     }
 
@@ -219,8 +213,7 @@ static bool dma_alias_add(Intel460GXDMA *dma, uint64_t dma_base,
 }
 
 Intel460GXDMA *intel_460gx_dma_new(uint64_t aperture_base,
-                                  uint64_t aperture_size,
-                                  Error **errp)
+                                   uint64_t aperture_size, Error **errp)
 {
     Intel460GXDMA *dma;
 
@@ -234,36 +227,31 @@ Intel460GXDMA *intel_460gx_dma_new(uint64_t aperture_base,
     memory_region_init(&dma->container, OBJECT(dma),
                        "intel-460gx-dma-container",
                        INTEL_460GX_DMA_ADDRESS_LIMIT);
-    address_space_init(&dma->address_space, &dma->container,
-                       "intel-460gx-dma");
+    address_space_init(&dma->address_space, &dma->container, "intel-460gx-dma");
     dma->initialized = true;
 
     return dma;
 }
 
-bool intel_460gx_dma_add_ram_alias(Intel460GXDMA *dma,
-                                   uint64_t dma_base,
-                                   uint64_t size,
-                                   MemoryRegion *target,
-                                   uint64_t target_offset,
-                                   Error **errp)
+bool intel_460gx_dma_add_ram_alias(Intel460GXDMA *dma, uint64_t dma_base,
+                                   uint64_t size, MemoryRegion *target,
+                                   uint64_t target_offset, Error **errp)
 {
     if (target == NULL || !memory_region_is_ram(target) ||
         memory_region_is_ram_device(target) || memory_region_is_rom(target) ||
         memory_region_is_protected(target)) {
-        error_setg(errp, "460GX DMA RAM alias target is not ordinary writable RAM");
+        error_setg(errp,
+                   "460GX DMA RAM alias target is not ordinary writable RAM");
         return false;
     }
 
     return dma_alias_add(dma, dma_base, size, target, target_offset, errp);
 }
 
-bool intel_460gx_dma_add_pci_window_alias(Intel460GXDMA *dma,
-                                          uint64_t dma_base,
+bool intel_460gx_dma_add_pci_window_alias(Intel460GXDMA *dma, uint64_t dma_base,
                                           uint64_t size,
                                           MemoryRegion *pci_memory,
-                                          uint64_t pci_offset,
-                                          Error **errp)
+                                          uint64_t pci_offset, Error **errp)
 {
     if (pci_memory == NULL || memory_region_is_ram(pci_memory) ||
         memory_region_is_ram_device(pci_memory) ||
@@ -301,8 +289,8 @@ static bool dma_bus_is_empty(const PCIBus *bus)
     return true;
 }
 
-static void dma_report_fault(Intel460GXDMARequester *requester,
-                             hwaddr addr, unsigned size, bool is_write)
+static void dma_report_fault(Intel460GXDMARequester *requester, hwaddr addr,
+                             unsigned size, bool is_write)
 {
     Intel460GXDMA *dma = requester->dma;
     IA64ChipsetFault fault;
@@ -315,8 +303,7 @@ static void dma_report_fault(Intel460GXDMARequester *requester,
         .reason = IA64_CHIPSET_FAULT_DECODE,
         .bus = pci_bus_num(dma->bus),
         .severity = IA64_RAS_SEVERITY_RECOVERABLE,
-        .requester = PCI_BUILD_BDF(pci_bus_num(dma->bus),
-                                   requester->devfn),
+        .requester = PCI_BUILD_BDF(pci_bus_num(dma->bus), requester->devfn),
         .address = addr,
         .status = BIT(3),
         .information = (uint64_t)is_write << 8 | size,
@@ -324,9 +311,8 @@ static void dma_report_fault(Intel460GXDMARequester *requester,
     dma->fault_notify(dma->fault_opaque, &fault);
 }
 
-static MemTxResult dma_fault_read(void *opaque, hwaddr addr,
-                                  uint64_t *data, unsigned size,
-                                  MemTxAttrs attrs)
+static MemTxResult dma_fault_read(void *opaque, hwaddr addr, uint64_t *data,
+                                  unsigned size, MemTxAttrs attrs)
 {
     Intel460GXDMARequester *requester = opaque;
 
@@ -335,9 +321,8 @@ static MemTxResult dma_fault_read(void *opaque, hwaddr addr,
     return MEMTX_DECODE_ERROR;
 }
 
-static MemTxResult dma_fault_write(void *opaque, hwaddr addr,
-                                   uint64_t value, unsigned size,
-                                   MemTxAttrs attrs)
+static MemTxResult dma_fault_write(void *opaque, hwaddr addr, uint64_t value,
+                                   unsigned size, MemTxAttrs attrs)
 {
     Intel460GXDMARequester *requester = opaque;
 
@@ -361,8 +346,7 @@ static const MemoryRegionOps dma_fault_ops = {
     },
 };
 
-static Intel460GXDMARequester *dma_requester_new(Intel460GXDMA *dma,
-                                                  int devfn)
+static Intel460GXDMARequester *dma_requester_new(Intel460GXDMA *dma, int devfn)
 {
     Intel460GXDMARequester *requester;
     g_autofree char *name = NULL;
@@ -389,8 +373,8 @@ static Intel460GXDMARequester *dma_requester_new(Intel460GXDMA *dma,
 
         g_free(name);
         name = g_strdup_printf("intel-460gx-dma-%02x-alias-%zu", devfn, i);
-        memory_region_init_alias(&alias->mr, OBJECT(dma), name,
-                                 &source->mr, 0, source->size);
+        memory_region_init_alias(&alias->mr, OBJECT(dma), name, &source->mr, 0,
+                                 source->size);
         memory_region_add_subregion(&requester->container, source->dma_base,
                                     &alias->mr);
         g_ptr_array_add(requester->aliases, alias);
@@ -398,8 +382,7 @@ static Intel460GXDMARequester *dma_requester_new(Intel460GXDMA *dma,
 
     g_free(name);
     name = g_strdup_printf("intel-460gx-dma-%02x", devfn);
-    address_space_init(&requester->address_space, &requester->container,
-                       name);
+    address_space_init(&requester->address_space, &requester->container, name);
     return requester;
 }
 
@@ -425,8 +408,7 @@ static void dma_requester_destroy(Intel460GXDMARequester *requester,
     g_ptr_array_add(reclaim->allocations, requester);
 }
 
-static AddressSpace *dma_get_address_space(PCIBus *bus, void *opaque,
-                                           int devfn)
+static AddressSpace *dma_get_address_space(PCIBus *bus, void *opaque, int devfn)
 {
     Intel460GXDMA *dma = opaque;
 
@@ -442,8 +424,7 @@ static const PCIIOMMUOps dma_iommu_ops = {
     .get_address_space = dma_get_address_space,
 };
 
-bool intel_460gx_dma_attach_root(Intel460GXDMA *dma, PCIBus *bus,
-                                Error **errp)
+bool intel_460gx_dma_attach_root(Intel460GXDMA *dma, PCIBus *bus, Error **errp)
 {
     if (!dma || !dma->initialized) {
         error_setg(errp, "460GX DMA view is not initialized");
@@ -466,18 +447,17 @@ bool intel_460gx_dma_attach_root(Intel460GXDMA *dma, PCIBus *bus,
         return false;
     }
     if (pci_bus_bypass_iommu(bus)) {
-        error_setg(errp,
-                   "460GX DMA view cannot attach to a PCI bus that bypasses IOMMU operations");
+        error_setg(errp, "460GX DMA view cannot attach to a PCI bus that "
+                         "bypasses IOMMU operations");
         return false;
     }
     if (bus->iommu_ops || bus->iommu_opaque) {
-        error_setg(errp,
-                   "PCI root bus already has DMA/IOMMU ownership state");
+        error_setg(errp, "PCI root bus already has DMA/IOMMU ownership state");
         return false;
     }
     if (!dma_bus_is_empty(bus)) {
-        error_setg(errp,
-                   "460GX DMA view must attach before PCI devices are realized");
+        error_setg(
+            errp, "460GX DMA view must attach before PCI devices are realized");
         return false;
     }
 
@@ -535,13 +515,13 @@ bool intel_460gx_dma_destroy(Intel460GXDMA *dma, Error **errp)
         bool owns_opaque = dma->bus->iommu_opaque == dma;
 
         if (!dma_bus_is_empty(dma->bus)) {
-            error_setg(errp,
-                       "460GX DMA view cannot be destroyed while PCI devices remain realized");
+            error_setg(errp, "460GX DMA view cannot be destroyed while PCI "
+                             "devices remain realized");
             return false;
         }
         if (owns_ops != owns_opaque) {
-            error_setg(errp,
-                       "460GX DMA view has a partial PCI bus IOMMU ownership conflict");
+            error_setg(errp, "460GX DMA view has a partial PCI bus IOMMU "
+                             "ownership conflict");
             return false;
         }
         if (owns_ops) {

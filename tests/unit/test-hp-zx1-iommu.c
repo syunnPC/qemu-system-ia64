@@ -36,14 +36,11 @@ static void assert_no_eviction(const HPZX1IOMMUEvictionResult *result)
     g_assert_cmphex(result->range.size, ==, 0);
 }
 
-static void assert_eviction_unchanged(
-    const HPZX1IOMMUEvictionResult *result)
+static void assert_eviction_unchanged(const HPZX1IOMMUEvictionResult *result)
 {
     g_assert_true(result->evicted);
-    g_assert_cmphex(result->range.iova, ==,
-                    unchanged_eviction.range.iova);
-    g_assert_cmphex(result->range.size, ==,
-                    unchanged_eviction.range.size);
+    g_assert_cmphex(result->range.iova, ==, unchanged_eviction.range.iova);
+    g_assert_cmphex(result->range.size, ==, unchanged_eviction.range.size);
 }
 
 static bool test_pdir_read(void *opaque, uint64_t address, uint64_t *pte)
@@ -105,17 +102,16 @@ static void test_page_sizes_nonzero_index(void)
         uint64_t page_size = UINT64_C(1) << cases[i].page_shift;
         uint64_t iova = UINT64_C(0x40000000) + 5 * page_size + 0x123;
         uint64_t target = UINT64_C(0x0000012345600000);
-        TestContext context = test_context(HP_SBA_IOPDIR_VALID_BIT |
-                                           target | 0x5a);
+        TestContext context =
+            test_context(HP_SBA_IOPDIR_VALID_BIT | target | 0x5a);
         HPSBAIOMMUEntry entry;
 
-        g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                            &iommu, iova, false, test_pdir_read, &context,
-                            &entry, NULL), ==,
-                        HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
+        g_assert_cmpint(hp_zx1_iommu_frontend_translate(&iommu, iova, false,
+                                                        test_pdir_read,
+                                                        &context, &entry, NULL),
+                        ==, HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
         g_assert_cmphex(entry.iova, ==, iova & ~(page_size - 1));
-        g_assert_cmphex(entry.translated_addr, ==,
-                        target & ~(page_size - 1));
+        g_assert_cmphex(entry.translated_addr, ==, target & ~(page_size - 1));
         g_assert_cmphex(entry.addr_mask, ==, page_size - 1);
         g_assert_cmphex(context.last_pdir_address, ==,
                         UINT64_C(0x00100000) + 5 * sizeof(uint64_t));
@@ -126,29 +122,29 @@ static void test_page_sizes_nonzero_index(void)
 static void test_identity_paths(void)
 {
     HPZX1IOMMUFrontend iommu = test_iommu(0);
-    TestContext context = test_context(HP_SBA_IOPDIR_VALID_BIT |
-                                       UINT64_C(0x12345000));
+    TestContext context =
+        test_context(HP_SBA_IOPDIR_VALID_BIT | UINT64_C(0x12345000));
     HPSBAIOMMUEntry entry;
 
-    g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, UINT64_C(0x40005123), true,
-                        test_pdir_read, &context, &entry, NULL), ==,
-                    HP_ZX1_IOMMU_TRANSLATE_IDENTITY);
+    g_assert_cmpint(
+        hp_zx1_iommu_frontend_translate(&iommu, UINT64_C(0x40005123), true,
+                                        test_pdir_read, &context, &entry, NULL),
+        ==, HP_ZX1_IOMMU_TRANSLATE_IDENTITY);
     g_assert_cmphex(entry.iova, ==, UINT64_C(0x40005000));
     g_assert_cmphex(entry.translated_addr, ==, UINT64_C(0x40005000));
     g_assert_cmphex(entry.addr_mask, ==, UINT64_C(0xfff));
 
-    g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, UINT64_C(0x50006123), false,
-                        test_pdir_read, &context, &entry, NULL), ==,
-                    HP_ZX1_IOMMU_TRANSLATE_IDENTITY);
+    g_assert_cmpint(
+        hp_zx1_iommu_frontend_translate(&iommu, UINT64_C(0x50006123), false,
+                                        test_pdir_read, &context, &entry, NULL),
+        ==, HP_ZX1_IOMMU_TRANSLATE_IDENTITY);
     g_assert_cmphex(entry.translated_addr, ==, UINT64_C(0x50006000));
 
     iommu.ibase &= ~UINT64_C(1);
-    g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, UINT64_C(0x40007123), false,
-                        test_pdir_read, &context, &entry, NULL), ==,
-                    HP_ZX1_IOMMU_TRANSLATE_IDENTITY);
+    g_assert_cmpint(
+        hp_zx1_iommu_frontend_translate(&iommu, UINT64_C(0x40007123), false,
+                                        test_pdir_read, &context, &entry, NULL),
+        ==, HP_ZX1_IOMMU_TRANSLATE_IDENTITY);
     g_assert_cmphex(entry.translated_addr, ==, UINT64_C(0x40007000));
     g_assert_cmpuint(context.read_count, ==, 0);
 }
@@ -156,46 +152,45 @@ static void test_identity_paths(void)
 static void test_identity_boundaries(void)
 {
     HPZX1IOMMUFrontend iommu = test_iommu(0);
-    TestContext context = test_context(HP_SBA_IOPDIR_VALID_BIT |
-                                       UINT64_C(0x12345000));
+    TestContext context =
+        test_context(HP_SBA_IOPDIR_VALID_BIT | UINT64_C(0x12345000));
     HPSBAIOMMUEntry entry;
 
-    g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, HP_ZX1_IOMMU_PHYS_MASK, true,
-                        test_pdir_read, &context, &entry, NULL), ==,
-                    HP_ZX1_IOMMU_TRANSLATE_IDENTITY);
-    g_assert_cmphex(entry.iova, ==,
-                    HP_ZX1_IOMMU_PHYS_MASK & ~UINT64_C(0xfff));
+    g_assert_cmpint(
+        hp_zx1_iommu_frontend_translate(&iommu, HP_ZX1_IOMMU_PHYS_MASK, true,
+                                        test_pdir_read, &context, &entry, NULL),
+        ==, HP_ZX1_IOMMU_TRANSLATE_IDENTITY);
+    g_assert_cmphex(entry.iova, ==, HP_ZX1_IOMMU_PHYS_MASK & ~UINT64_C(0xfff));
     g_assert_cmphex(entry.translated_addr, ==, entry.iova);
     g_assert_cmphex(entry.addr_mask, ==, UINT64_C(0xfff));
 
     entry = unchanged_entry;
     g_assert_cmpint(hp_zx1_iommu_frontend_translate(
                         &iommu, UINT64_C(1) << HP_ZX1_IOMMU_PHYS_BITS, true,
-                        test_pdir_read, &context, &entry, NULL), ==,
-                    HP_ZX1_IOMMU_TRANSLATE_BLOCKED);
+                        test_pdir_read, &context, &entry, NULL),
+                    ==, HP_ZX1_IOMMU_TRANSLATE_BLOCKED);
     g_assert_cmpmem(&entry, sizeof(entry), &unchanged_entry,
                     sizeof(unchanged_entry));
 
     iommu.ibase &= ~UINT64_C(1);
     g_assert_cmpint(hp_zx1_iommu_frontend_translate(
                         &iommu, UINT64_C(1) << HP_ZX1_IOMMU_PHYS_BITS, false,
-                        test_pdir_read, &context, &entry, NULL), ==,
-                    HP_ZX1_IOMMU_TRANSLATE_BLOCKED);
+                        test_pdir_read, &context, &entry, NULL),
+                    ==, HP_ZX1_IOMMU_TRANSLATE_BLOCKED);
 
     iommu.tcnfg = 4;
-    g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, UINT64_C(0x40005123), false,
-                        test_pdir_read, &context, &entry, NULL), ==,
-                    HP_ZX1_IOMMU_TRANSLATE_IDENTITY);
+    g_assert_cmpint(
+        hp_zx1_iommu_frontend_translate(&iommu, UINT64_C(0x40005123), false,
+                                        test_pdir_read, &context, &entry, NULL),
+        ==, HP_ZX1_IOMMU_TRANSLATE_IDENTITY);
     g_assert_cmphex(entry.translated_addr, ==, UINT64_C(0x40005000));
     g_assert_cmphex(entry.addr_mask, ==, UINT64_C(0xfff));
 
     iommu.ibase |= 1;
-    g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, UINT64_C(0x40005123), true,
-                        test_pdir_read, &context, &entry, NULL), ==,
-                    HP_ZX1_IOMMU_TRANSLATE_IDENTITY);
+    g_assert_cmpint(
+        hp_zx1_iommu_frontend_translate(&iommu, UINT64_C(0x40005123), true,
+                                        test_pdir_read, &context, &entry, NULL),
+        ==, HP_ZX1_IOMMU_TRANSLATE_IDENTITY);
     g_assert_cmphex(entry.addr_mask, ==, UINT64_C(0xfff));
     g_assert_cmpuint(context.read_count, ==, 0);
 }
@@ -206,30 +201,30 @@ static void test_pte_validity_and_50_bit_bound(void)
     TestContext context = test_context(UINT64_C(0x12345000));
     HPSBAIOMMUEntry entry = unchanged_entry;
 
-    g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, UINT64_C(0x40005123), false,
-                        test_pdir_read, &context, &entry, NULL), ==,
-                    HP_ZX1_IOMMU_TRANSLATE_BLOCKED);
+    g_assert_cmpint(
+        hp_zx1_iommu_frontend_translate(&iommu, UINT64_C(0x40005123), false,
+                                        test_pdir_read, &context, &entry, NULL),
+        ==, HP_ZX1_IOMMU_TRANSLATE_BLOCKED);
     g_assert_cmpmem(&entry, sizeof(entry), &unchanged_entry,
                     sizeof(unchanged_entry));
 
-    context.pte = HP_SBA_IOPDIR_VALID_BIT |
-                  (HP_ZX1_IOMMU_PHYS_MASK & ~UINT64_C(0xfff));
-    g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, UINT64_C(0x40005123), false,
-                        test_pdir_read, &context, &entry, NULL), ==,
-                    HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
+    context.pte =
+        HP_SBA_IOPDIR_VALID_BIT | (HP_ZX1_IOMMU_PHYS_MASK & ~UINT64_C(0xfff));
+    g_assert_cmpint(
+        hp_zx1_iommu_frontend_translate(&iommu, UINT64_C(0x40005123), false,
+                                        test_pdir_read, &context, &entry, NULL),
+        ==, HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
     g_assert_cmphex(entry.translated_addr, ==,
                     HP_ZX1_IOMMU_PHYS_MASK & ~UINT64_C(0xfff));
 
     hp_zx1_iotlb_clear(&iommu.iotlb);
-    context.pte = HP_SBA_IOPDIR_VALID_BIT | (UINT64_C(1) << 50) |
-                  UINT64_C(0x12345000);
+    context.pte =
+        HP_SBA_IOPDIR_VALID_BIT | (UINT64_C(1) << 50) | UINT64_C(0x12345000);
     entry = unchanged_entry;
-    g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, UINT64_C(0x40005123), false,
-                        test_pdir_read, &context, &entry, NULL), ==,
-                    HP_ZX1_IOMMU_TRANSLATE_BLOCKED);
+    g_assert_cmpint(
+        hp_zx1_iommu_frontend_translate(&iommu, UINT64_C(0x40005123), false,
+                                        test_pdir_read, &context, &entry, NULL),
+        ==, HP_ZX1_IOMMU_TRANSLATE_BLOCKED);
     g_assert_cmpmem(&entry, sizeof(entry), &unchanged_entry,
                     sizeof(unchanged_entry));
 }
@@ -237,15 +232,15 @@ static void test_pte_validity_and_50_bit_bound(void)
 static void test_unreadable_pdir(void)
 {
     HPZX1IOMMUFrontend iommu = test_iommu(0);
-    TestContext context = test_context(HP_SBA_IOPDIR_VALID_BIT |
-                                       UINT64_C(0x12345000));
+    TestContext context =
+        test_context(HP_SBA_IOPDIR_VALID_BIT | UINT64_C(0x12345000));
     HPSBAIOMMUEntry entry = unchanged_entry;
 
     context.readable = false;
-    g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, UINT64_C(0x40005123), false,
-                        test_pdir_read, &context, &entry, NULL), ==,
-                    HP_ZX1_IOMMU_TRANSLATE_BLOCKED);
+    g_assert_cmpint(
+        hp_zx1_iommu_frontend_translate(&iommu, UINT64_C(0x40005123), false,
+                                        test_pdir_read, &context, &entry, NULL),
+        ==, HP_ZX1_IOMMU_TRANSLATE_BLOCKED);
     g_assert_cmpuint(context.read_count, ==, 1);
     g_assert_cmpmem(&entry, sizeof(entry), &unchanged_entry,
                     sizeof(unchanged_entry));
@@ -254,62 +249,61 @@ static void test_unreadable_pdir(void)
 static void test_pdir_address_validation(void)
 {
     HPZX1IOMMUFrontend iommu = test_iommu(0);
-    TestContext context = test_context(HP_SBA_IOPDIR_VALID_BIT |
-                                       UINT64_C(0x12345000));
+    TestContext context =
+        test_context(HP_SBA_IOPDIR_VALID_BIT | UINT64_C(0x12345000));
     HPSBAIOMMUEntry entry = unchanged_entry;
-    const uint64_t last_base = HP_ZX1_IOMMU_PHYS_MASK - 7 -
-                               UINT64_C(0xffff) * sizeof(uint64_t);
+    const uint64_t last_base =
+        HP_ZX1_IOMMU_PHYS_MASK - 7 - UINT64_C(0xffff) * sizeof(uint64_t);
 
     /* The final byte of the complete 64K-entry PDIR is exactly in range. */
     iommu.pdir_base = last_base;
-    g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, UINT64_C(0x40000123), false,
-                        test_pdir_read, &context, &entry, NULL), ==,
-                    HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
+    g_assert_cmpint(
+        hp_zx1_iommu_frontend_translate(&iommu, UINT64_C(0x40000123), false,
+                                        test_pdir_read, &context, &entry, NULL),
+        ==, HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
     g_assert_cmphex(context.last_pdir_address, ==, last_base);
     g_assert_cmpuint(context.read_count, ==, 1);
 
     hp_zx1_iotlb_clear(&iommu.iotlb);
-    g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, UINT64_C(0x4ffff123), false,
-                        test_pdir_read, &context, &entry, NULL), ==,
-                    HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
-    g_assert_cmphex(context.last_pdir_address, ==,
-                    HP_ZX1_IOMMU_PHYS_MASK - 7);
+    g_assert_cmpint(
+        hp_zx1_iommu_frontend_translate(&iommu, UINT64_C(0x4ffff123), false,
+                                        test_pdir_read, &context, &entry, NULL),
+        ==, HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
+    g_assert_cmphex(context.last_pdir_address, ==, HP_ZX1_IOMMU_PHYS_MASK - 7);
     g_assert_cmpuint(context.read_count, ==, 2);
 
     hp_zx1_iotlb_clear(&iommu.iotlb);
     iommu.pdir_base = last_base + 8;
     context.read_count = 0;
     entry = unchanged_entry;
-    g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, UINT64_C(0x40000123), false,
-                        test_pdir_read, &context, &entry, NULL), ==,
-                    HP_ZX1_IOMMU_TRANSLATE_BLOCKED);
+    g_assert_cmpint(
+        hp_zx1_iommu_frontend_translate(&iommu, UINT64_C(0x40000123), false,
+                                        test_pdir_read, &context, &entry, NULL),
+        ==, HP_ZX1_IOMMU_TRANSLATE_BLOCKED);
     g_assert_cmpuint(context.read_count, ==, 0);
     g_assert_cmpmem(&entry, sizeof(entry), &unchanged_entry,
                     sizeof(unchanged_entry));
 
     /* One entry fits, but the complete aperture's PDIR does not. */
     iommu.pdir_base = HP_ZX1_IOMMU_PHYS_MASK - 7;
-    g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, UINT64_C(0x40000123), false,
-                        test_pdir_read, &context, &entry, NULL), ==,
-                    HP_ZX1_IOMMU_TRANSLATE_BLOCKED);
+    g_assert_cmpint(
+        hp_zx1_iommu_frontend_translate(&iommu, UINT64_C(0x40000123), false,
+                                        test_pdir_read, &context, &entry, NULL),
+        ==, HP_ZX1_IOMMU_TRANSLATE_BLOCKED);
     g_assert_cmpuint(context.read_count, ==, 0);
 
     iommu.pdir_base = UINT64_C(0x00100004);
-    g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, UINT64_C(0x40000123), false,
-                        test_pdir_read, &context, &entry, NULL), ==,
-                    HP_ZX1_IOMMU_TRANSLATE_BLOCKED);
+    g_assert_cmpint(
+        hp_zx1_iommu_frontend_translate(&iommu, UINT64_C(0x40000123), false,
+                                        test_pdir_read, &context, &entry, NULL),
+        ==, HP_ZX1_IOMMU_TRANSLATE_BLOCKED);
     g_assert_cmpuint(context.read_count, ==, 0);
 
     iommu.pdir_base = UINT64_C(1) << HP_ZX1_IOMMU_PHYS_BITS;
-    g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, UINT64_C(0x40000123), false,
-                        test_pdir_read, &context, &entry, NULL), ==,
-                    HP_ZX1_IOMMU_TRANSLATE_BLOCKED);
+    g_assert_cmpint(
+        hp_zx1_iommu_frontend_translate(&iommu, UINT64_C(0x40000123), false,
+                                        test_pdir_read, &context, &entry, NULL),
+        ==, HP_ZX1_IOMMU_TRANSLATE_BLOCKED);
     g_assert_cmpuint(context.read_count, ==, 0);
     g_assert_cmpmem(&entry, sizeof(entry), &unchanged_entry,
                     sizeof(unchanged_entry));
@@ -320,10 +314,10 @@ static void test_pdir_address_validation(void)
      */
     iommu.pdir_base = UINT64_C(0x00100008);
     entry = unchanged_entry;
-    g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, UINT64_C(0x40005123), false,
-                        test_pdir_read, &context, &entry, NULL), ==,
-                    HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
+    g_assert_cmpint(
+        hp_zx1_iommu_frontend_translate(&iommu, UINT64_C(0x40005123), false,
+                                        test_pdir_read, &context, &entry, NULL),
+        ==, HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
     g_assert_cmphex(context.last_pdir_address, ==, UINT64_C(0x00100030));
     g_assert_cmpuint(context.read_count, ==, 1);
 }
@@ -332,35 +326,37 @@ static void test_cache_stale_until_pcom(void)
 {
     HPZX1IOMMUFrontend iommu = test_iommu(0);
     const uint64_t iova = UINT64_C(0x40005123);
-    TestContext context = test_context(HP_SBA_IOPDIR_VALID_BIT |
-                                       UINT64_C(0x12345000));
+    TestContext context =
+        test_context(HP_SBA_IOPDIR_VALID_BIT | UINT64_C(0x12345000));
     HPZX1IOMMUWriteResult write_result;
     HPSBAIOMMUEntry entry;
 
-    g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, iova, false, test_pdir_read, &context,
-                        &entry, NULL), ==, HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
+    g_assert_cmpint(hp_zx1_iommu_frontend_translate(&iommu, iova, false,
+                                                    test_pdir_read, &context,
+                                                    &entry, NULL),
+                    ==, HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
     g_assert_cmphex(entry.translated_addr, ==, UINT64_C(0x12345000));
     g_assert_cmpuint(context.read_count, ==, 1);
 
     context.pte = HP_SBA_IOPDIR_VALID_BIT | UINT64_C(0x23456000);
-    g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, iova, false, test_pdir_read, &context,
-                        &entry, NULL), ==, HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
+    g_assert_cmpint(hp_zx1_iommu_frontend_translate(&iommu, iova, false,
+                                                    test_pdir_read, &context,
+                                                    &entry, NULL),
+                    ==, HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
     g_assert_cmphex(entry.translated_addr, ==, UINT64_C(0x12345000));
     g_assert_cmpuint(context.read_count, ==, 1);
 
-    g_assert_true(hp_zx1_iommu_frontend_reg_write(
-                      &iommu, HP_ZX1_IOC_IOMMU_PCOM,
-                      UINT64_C(0x40005000) | 12, UINT8_MAX,
-                      &write_result));
+    g_assert_true(hp_zx1_iommu_frontend_reg_write(&iommu, HP_ZX1_IOC_IOMMU_PCOM,
+                                                  UINT64_C(0x40005000) | 12,
+                                                  UINT8_MAX, &write_result));
     g_assert_true(write_result.purged);
     g_assert_cmphex(write_result.purge.iova, ==, UINT64_C(0x40005000));
     g_assert_cmphex(write_result.purge.size, ==, UINT64_C(0x1000));
 
-    g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, iova, false, test_pdir_read, &context,
-                        &entry, NULL), ==, HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
+    g_assert_cmpint(hp_zx1_iommu_frontend_translate(&iommu, iova, false,
+                                                    test_pdir_read, &context,
+                                                    &entry, NULL),
+                    ==, HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
     g_assert_cmphex(entry.translated_addr, ==, UINT64_C(0x23456000));
     g_assert_cmpuint(context.read_count, ==, 2);
 }
@@ -369,32 +365,32 @@ static void test_cache_hit_without_pdir(void)
 {
     HPZX1IOMMUFrontend iommu = test_iommu(0);
     const uint64_t iova = UINT64_C(0x40005123);
-    TestContext context = test_context(HP_SBA_IOPDIR_VALID_BIT |
-                                       UINT64_C(0x12345000));
+    TestContext context =
+        test_context(HP_SBA_IOPDIR_VALID_BIT | UINT64_C(0x12345000));
     HPZX1IOMMUWriteResult write_result;
     HPSBAIOMMUEntry entry;
 
-    g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, iova, false, test_pdir_read, &context,
-                        &entry, NULL), ==, HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
+    g_assert_cmpint(hp_zx1_iommu_frontend_translate(&iommu, iova, false,
+                                                    test_pdir_read, &context,
+                                                    &entry, NULL),
+                    ==, HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
     g_assert_cmpuint(context.read_count, ==, 1);
 
     entry = unchanged_entry;
-    g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, iova, false, NULL, NULL, &entry, NULL), ==,
-                    HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
+    g_assert_cmpint(hp_zx1_iommu_frontend_translate(&iommu, iova, false, NULL,
+                                                    NULL, &entry, NULL),
+                    ==, HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
     g_assert_cmphex(entry.translated_addr, ==, UINT64_C(0x12345000));
 
-    g_assert_true(hp_zx1_iommu_frontend_reg_write(
-                      &iommu, HP_ZX1_IOC_IOMMU_PCOM,
-                      UINT64_C(0x40005000) | 12, UINT8_MAX,
-                      &write_result));
+    g_assert_true(hp_zx1_iommu_frontend_reg_write(&iommu, HP_ZX1_IOC_IOMMU_PCOM,
+                                                  UINT64_C(0x40005000) | 12,
+                                                  UINT8_MAX, &write_result));
     g_assert_true(write_result.purged);
 
     entry = unchanged_entry;
-    g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, iova, false, NULL, NULL, &entry, NULL), ==,
-                    HP_ZX1_IOMMU_TRANSLATE_BLOCKED);
+    g_assert_cmpint(hp_zx1_iommu_frontend_translate(&iommu, iova, false, NULL,
+                                                    NULL, &entry, NULL),
+                    ==, HP_ZX1_IOMMU_TRANSLATE_BLOCKED);
     g_assert_cmpmem(&entry, sizeof(entry), &unchanged_entry,
                     sizeof(unchanged_entry));
 }
@@ -403,32 +399,32 @@ static void test_eviction_output_contract(void)
 {
     HPZX1IOMMUFrontend iommu = test_iommu(0);
     HPZX1IOMMUFrontend before;
-    TestContext context = test_context(HP_SBA_IOPDIR_VALID_BIT |
-                                       UINT64_C(0x12345000));
+    TestContext context =
+        test_context(HP_SBA_IOPDIR_VALID_BIT | UINT64_C(0x12345000));
     HPZX1IOMMUEvictionResult eviction = unchanged_eviction;
     HPSBAIOMMUEntry entry;
 
     before = iommu;
     g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, UINT64_C(0x40005123), true,
-                        test_pdir_read, &context, &entry, &eviction), ==,
-                    HP_ZX1_IOMMU_TRANSLATE_IDENTITY);
+                        &iommu, UINT64_C(0x40005123), true, test_pdir_read,
+                        &context, &entry, &eviction),
+                    ==, HP_ZX1_IOMMU_TRANSLATE_IDENTITY);
     assert_no_eviction(&eviction);
     g_assert_cmpmem(&iommu, sizeof(iommu), &before, sizeof(before));
 
     eviction = unchanged_eviction;
     g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, UINT64_C(0x40005123), false,
-                        test_pdir_read, &context, &entry, &eviction), ==,
-                    HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
+                        &iommu, UINT64_C(0x40005123), false, test_pdir_read,
+                        &context, &entry, &eviction),
+                    ==, HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
     assert_no_eviction(&eviction);
     g_assert_cmpuint(context.read_count, ==, 1);
 
     eviction = unchanged_eviction;
-    g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, UINT64_C(0x40005123), false,
-                        NULL, NULL, &entry, &eviction), ==,
-                    HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
+    g_assert_cmpint(
+        hp_zx1_iommu_frontend_translate(&iommu, UINT64_C(0x40005123), false,
+                                        NULL, NULL, &entry, &eviction),
+        ==, HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
     assert_no_eviction(&eviction);
     g_assert_cmphex(entry.translated_addr, ==, UINT64_C(0x12345000));
 
@@ -437,9 +433,9 @@ static void test_eviction_output_contract(void)
     entry = unchanged_entry;
     eviction = unchanged_eviction;
     g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, UINT64_C(0x40006123), false,
-                        test_pdir_read, &context, &entry, &eviction), ==,
-                    HP_ZX1_IOMMU_TRANSLATE_BLOCKED);
+                        &iommu, UINT64_C(0x40006123), false, test_pdir_read,
+                        &context, &entry, &eviction),
+                    ==, HP_ZX1_IOMMU_TRANSLATE_BLOCKED);
     g_assert_cmpmem(&entry, sizeof(entry), &unchanged_entry,
                     sizeof(unchanged_entry));
     assert_eviction_unchanged(&eviction);
@@ -462,10 +458,10 @@ static void test_round_robin_replacement(void)
         context.pte = HP_SBA_IOPDIR_VALID_BIT |
                       (UINT64_C(0x10000000) + (uint64_t)slot * 0x1000);
         eviction = unchanged_eviction;
-        g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                            &iommu, iova, false, test_pdir_read, &context,
-                            &entry, &eviction), ==,
-                        HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
+        g_assert_cmpint(
+            hp_zx1_iommu_frontend_translate(&iommu, iova, false, test_pdir_read,
+                                            &context, &entry, &eviction),
+            ==, HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
         assert_no_eviction(&eviction);
         g_assert_true(iommu.iotlb.slots[slot].valid);
         g_assert_cmphex(iommu.iotlb.slots[slot].entry.iova, ==, iova);
@@ -475,33 +471,30 @@ static void test_round_robin_replacement(void)
     context.pte = HP_SBA_IOPDIR_VALID_BIT | UINT64_C(0x20000000);
     eviction = unchanged_eviction;
     g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, UINT64_C(0x40010000), false,
-                        test_pdir_read, &context, &entry, &eviction), ==,
-                    HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
+                        &iommu, UINT64_C(0x40010000), false, test_pdir_read,
+                        &context, &entry, &eviction),
+                    ==, HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
     g_assert_true(eviction.evicted);
     g_assert_cmphex(eviction.range.iova, ==, UINT64_C(0x40000000));
     g_assert_cmphex(eviction.range.size, ==, UINT64_C(0x1000));
-    g_assert_cmphex(iommu.iotlb.slots[0].entry.iova, ==,
-                    UINT64_C(0x40010000));
+    g_assert_cmphex(iommu.iotlb.slots[0].entry.iova, ==, UINT64_C(0x40010000));
     g_assert_cmpuint(iommu.rr_next, ==, 1);
 
-    g_assert_true(hp_zx1_iommu_frontend_reg_write(
-                      &iommu, HP_ZX1_IOC_IOMMU_PCOM,
-                      UINT64_C(0x40005000) | 12, UINT8_MAX,
-                      &write_result));
+    g_assert_true(hp_zx1_iommu_frontend_reg_write(&iommu, HP_ZX1_IOC_IOMMU_PCOM,
+                                                  UINT64_C(0x40005000) | 12,
+                                                  UINT8_MAX, &write_result));
     g_assert_true(write_result.purged);
     g_assert_false(iommu.iotlb.slots[5].valid);
 
     context.pte = HP_SBA_IOPDIR_VALID_BIT | UINT64_C(0x30000000);
     eviction = unchanged_eviction;
     g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, UINT64_C(0x40011000), false,
-                        test_pdir_read, &context, &entry, &eviction), ==,
-                    HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
+                        &iommu, UINT64_C(0x40011000), false, test_pdir_read,
+                        &context, &entry, &eviction),
+                    ==, HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
     assert_no_eviction(&eviction);
     g_assert_true(iommu.iotlb.slots[5].valid);
-    g_assert_cmphex(iommu.iotlb.slots[5].entry.iova, ==,
-                    UINT64_C(0x40011000));
+    g_assert_cmphex(iommu.iotlb.slots[5].entry.iova, ==, UINT64_C(0x40011000));
     g_assert_cmpuint(iommu.rr_next, ==, 1);
 }
 
@@ -520,79 +513,72 @@ static void test_arbitrary_byte_lanes(void)
 
     g_assert_true(hp_zx1_iommu_frontend_reset(&iommu, &config));
     g_assert_true(hp_zx1_iommu_frontend_reg_write(
-                      &iommu, HP_ZX1_IOC_IOMMU_IBASE,
-                      UINT64_C(0xffeeddccbbaa9988), 0x81, &write_result));
+        &iommu, HP_ZX1_IOC_IOMMU_IBASE, UINT64_C(0xffeeddccbbaa9988), 0x81,
+        &write_result));
     g_assert_false(write_result.purged);
     g_assert_true(hp_zx1_iommu_frontend_reg_latch(
-                      &iommu, HP_ZX1_IOC_IOMMU_IBASE, &value));
+        &iommu, HP_ZX1_IOC_IOMMU_IBASE, &value));
     g_assert_cmphex(value, ==, UINT64_C(0xff11223344556688));
 
     g_assert_true(hp_zx1_iommu_frontend_reg_write(
-                      &iommu, HP_ZX1_IOC_IOMMU_IMASK,
-                      UINT64_C(0x8877665544332211), 0x24, &write_result));
+        &iommu, HP_ZX1_IOC_IOMMU_IMASK, UINT64_C(0x8877665544332211), 0x24,
+        &write_result));
     g_assert_true(hp_zx1_iommu_frontend_reg_latch(
-                      &iommu, HP_ZX1_IOC_IOMMU_IMASK, &value));
+        &iommu, HP_ZX1_IOC_IOMMU_IMASK, &value));
     g_assert_cmphex(value, ==, UINT64_C(0x1021664354337687));
 
-    g_assert_true(hp_zx1_iommu_frontend_reg_write(
-                      &iommu, HP_ZX1_IOC_IOMMU_PCOM,
-                      UINT64_C(0x0000000040005000), 0x0e,
-                      &write_result));
+    g_assert_true(hp_zx1_iommu_frontend_reg_write(&iommu, HP_ZX1_IOC_IOMMU_PCOM,
+                                                  UINT64_C(0x0000000040005000),
+                                                  0x0e, &write_result));
     g_assert_false(write_result.purged);
-    g_assert_true(hp_zx1_iommu_frontend_reg_write(
-                      &iommu, HP_ZX1_IOC_IOMMU_PCOM, 12, 0x01,
-                      &write_result));
+    g_assert_true(hp_zx1_iommu_frontend_reg_write(&iommu, HP_ZX1_IOC_IOMMU_PCOM,
+                                                  12, 0x01, &write_result));
     g_assert_true(write_result.purged);
     g_assert_cmphex(write_result.purge.iova, ==, UINT64_C(0x40005000));
 
-    g_assert_true(hp_zx1_iommu_frontend_reg_write(
-                      &iommu, HP_ZX1_IOC_IOMMU_PCOM,
-                      UINT64_C(0x5a00000000000000), 0x80,
-                      &write_result));
+    g_assert_true(hp_zx1_iommu_frontend_reg_write(&iommu, HP_ZX1_IOC_IOMMU_PCOM,
+                                                  UINT64_C(0x5a00000000000000),
+                                                  0x80, &write_result));
     g_assert_false(write_result.purged);
-    g_assert_true(hp_zx1_iommu_frontend_reg_latch(
-                      &iommu, HP_ZX1_IOC_IOMMU_PCOM, &value));
+    g_assert_true(
+        hp_zx1_iommu_frontend_reg_latch(&iommu, HP_ZX1_IOC_IOMMU_PCOM, &value));
     g_assert_cmphex(value, ==, UINT64_C(0x5a0000004000500c));
 
     /* Any enabled byte in the logical low command dword commits the latch. */
-    g_assert_true(hp_zx1_iommu_frontend_reg_write(
-                      &iommu, HP_ZX1_IOC_IOMMU_PCOM, 0, 0x04,
-                      &write_result));
+    g_assert_true(hp_zx1_iommu_frontend_reg_write(&iommu, HP_ZX1_IOC_IOMMU_PCOM,
+                                                  0, 0x04, &write_result));
     g_assert_true(write_result.purged);
-    g_assert_cmphex(write_result.purge.iova, ==,
-                    UINT64_C(0x5a00000040005000));
+    g_assert_cmphex(write_result.purge.iova, ==, UINT64_C(0x5a00000040005000));
 
     g_assert_true(hp_zx1_iommu_frontend_reg_write(
-                      &iommu, HP_ZX1_IOC_IOMMU_TCNFG, 3, 0x01,
-                      &write_result));
+        &iommu, HP_ZX1_IOC_IOMMU_TCNFG, 3, 0x01, &write_result));
     g_assert_cmphex(iommu.tcnfg, ==, UINT64_C(3));
 
     value = iommu.ibase;
     g_assert_false(hp_zx1_iommu_frontend_reg_write(
-                       &iommu, UINT64_C(0x328), UINT64_MAX, UINT8_MAX,
-                       &write_result));
+        &iommu, UINT64_C(0x328), UINT64_MAX, UINT8_MAX, &write_result));
     g_assert_cmphex(iommu.ibase, ==, value);
 }
 
 static void test_invalid_configuration(void)
 {
     HPZX1IOMMUFrontend iommu = test_iommu(4);
-    TestContext context = test_context(HP_SBA_IOPDIR_VALID_BIT |
-                                       UINT64_C(0x12345000));
+    TestContext context =
+        test_context(HP_SBA_IOPDIR_VALID_BIT | UINT64_C(0x12345000));
     HPSBAIOMMUEntry entry = unchanged_entry;
 
-    g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, UINT64_C(0x40005123), false,
-                        test_pdir_read, &context, &entry, NULL), ==,
-                    HP_ZX1_IOMMU_TRANSLATE_BLOCKED);
+    g_assert_cmpint(
+        hp_zx1_iommu_frontend_translate(&iommu, UINT64_C(0x40005123), false,
+                                        test_pdir_read, &context, &entry, NULL),
+        ==, HP_ZX1_IOMMU_TRANSLATE_BLOCKED);
     g_assert_cmpuint(context.read_count, ==, 0);
 
     iommu.tcnfg = 0;
     iommu.imask = UINT64_C(0xe8000000);
-    g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, UINT64_C(0x40005123), false,
-                        test_pdir_read, &context, &entry, NULL), ==,
-                    HP_ZX1_IOMMU_TRANSLATE_BLOCKED);
+    g_assert_cmpint(
+        hp_zx1_iommu_frontend_translate(&iommu, UINT64_C(0x40005123), false,
+                                        test_pdir_read, &context, &entry, NULL),
+        ==, HP_ZX1_IOMMU_TRANSLATE_BLOCKED);
     g_assert_cmpmem(&entry, sizeof(entry), &unchanged_entry,
                     sizeof(unchanged_entry));
 }
@@ -612,14 +598,13 @@ static void test_failed_api_calls_are_atomic(void)
     uint64_t value = UINT64_C(0xa5a5a5a5a5a5a5a5);
 
     g_assert_false(hp_zx1_iommu_frontend_reg_write(
-                       &iommu, UINT64_C(0x328), UINT64_MAX, UINT8_MAX,
-                       &result));
+        &iommu, UINT64_C(0x328), UINT64_MAX, UINT8_MAX, &result));
     g_assert_cmpmem(&iommu, sizeof(iommu), &before, sizeof(before));
     g_assert_cmpmem(&result, sizeof(result), &result_before,
                     sizeof(result_before));
 
-    g_assert_false(hp_zx1_iommu_frontend_reg_latch(
-                       &iommu, UINT64_C(0x328), &value));
+    g_assert_false(
+        hp_zx1_iommu_frontend_reg_latch(&iommu, UINT64_C(0x328), &value));
     g_assert_cmphex(value, ==, UINT64_C(0xa5a5a5a5a5a5a5a5));
 
     g_assert_false(hp_zx1_iommu_frontend_reset(&iommu, NULL));
@@ -636,15 +621,15 @@ static void test_explicit_reset(void)
         .tcnfg = UINT64_C(3),
         .pdir_base = UINT64_C(0x0000000123456000),
     };
-    TestContext context = test_context(HP_SBA_IOPDIR_VALID_BIT |
-                                       UINT64_C(0x12345000));
+    TestContext context =
+        test_context(HP_SBA_IOPDIR_VALID_BIT | UINT64_C(0x12345000));
     HPSBAIOMMUEntry entry;
     unsigned int slot;
 
-    g_assert_cmpint(hp_zx1_iommu_frontend_translate(
-                        &iommu, UINT64_C(0x40005123), false,
-                        test_pdir_read, &context, &entry, NULL), ==,
-                    HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
+    g_assert_cmpint(
+        hp_zx1_iommu_frontend_translate(&iommu, UINT64_C(0x40005123), false,
+                                        test_pdir_read, &context, &entry, NULL),
+        ==, HP_ZX1_IOMMU_TRANSLATE_TRANSLATED);
     iommu.rr_next = 9;
 
     g_assert_true(hp_zx1_iommu_frontend_reset(&iommu, &config));

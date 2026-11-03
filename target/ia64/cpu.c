@@ -49,8 +49,7 @@ static void ia64_cpu_set_pc(CPUState *cs, vaddr value)
     IA64CPU *cpu = ia64_cpu_from_cpu_state(cs);
 
     if (cpu->env.psr & IA64_PSR_IS) {
-        cpu->env.ia32.eip =
-            (uint32_t)(value - cpu->env.ia32.segs[R_CS].base);
+        cpu->env.ia32.eip = (uint32_t)(value - cpu->env.ia32.segs[R_CS].base);
     }
     cpu->env.ip = value;
 }
@@ -59,10 +58,9 @@ static vaddr ia64_cpu_get_pc(CPUState *cs)
 {
     IA64CPU *cpu = ia64_cpu_from_cpu_state(cs);
 
-    return cpu->env.psr & IA64_PSR_IS ?
-           ia64_ia32_virtual_ip(&cpu->env) : cpu->env.ip;
+    return cpu->env.psr & IA64_PSR_IS ? ia64_ia32_virtual_ip(&cpu->env)
+                                      : cpu->env.ip;
 }
-
 
 static TCGTBCPUState ia64_get_tb_cpu_state(CPUState *cs)
 {
@@ -73,11 +71,11 @@ static TCGTBCPUState ia64_get_tb_cpu_state(CPUState *cs)
     if (psr & IA64_PSR_IS) {
         uint32_t cs_base = xenv->segs[R_CS].base;
         uint32_t flags = xenv->hflags |
-            (xenv->eflags &
-             (IOPL_MASK | TF_MASK | RF_MASK | VM_MASK | AC_MASK)) |
-            ((psr & IA64_PSR_DB) ? IA64_TB_FLAG_IA32_PSR_DB : 0) |
-            ((psr & IA64_PSR_AC) ? IA64_TB_FLAG_IA32_PSR_AC : 0) |
-            ((psr & IA64_PSR_SS) ? TF_MASK : 0);
+                         (xenv->eflags &
+                          (IOPL_MASK | TF_MASK | RF_MASK | VM_MASK | AC_MASK)) |
+                         ((psr & IA64_PSR_DB) ? IA64_TB_FLAG_IA32_PSR_DB : 0) |
+                         ((psr & IA64_PSR_AC) ? IA64_TB_FLAG_IA32_PSR_AC : 0) |
+                         ((psr & IA64_PSR_SS) ? TF_MASK : 0);
 
         return (TCGTBCPUState) {
             .pc = (uint32_t)(cs_base + xenv->eip),
@@ -90,17 +88,17 @@ static TCGTBCPUState ia64_get_tb_cpu_state(CPUState *cs)
         ((uint32_t)psr &
          (IA64_TB_FLAG_BE | IA64_TB_FLAG_PSR_IC | IA64_TB_FLAG_DT)) |
         ((psr >> (IA64_PSR_CPL_SHIFT - IA64_TB_FLAG_CPL_SHIFT)) &
-         (IA64_TB_FLAG_CPL_MASK | IA64_TB_FLAG_IT |
-          IA64_TB_FLAG_RI_MASK)) |
+         (IA64_TB_FLAG_CPL_MASK | IA64_TB_FLAG_IT | IA64_TB_FLAG_RI_MASK)) |
         ((uint32_t)cpu->env.instruction_group_start << 7);
 
-    flags |= (psr & IA64_PSR_FAULT_SUPPRESS_MASK) != 0 ?
-             IA64_TB_FLAG_PSR_SUPPRESS : 0;
+    flags |= (psr & IA64_PSR_FAULT_SUPPRESS_MASK) != 0
+                 ? IA64_TB_FLAG_PSR_SUPPRESS
+                 : 0;
     flags |= (psr & IA64_PSR_TB) ? IA64_TB_FLAG_PSR_TB : 0;
     flags |= (psr & IA64_PSR_SS) ? IA64_TB_FLAG_PSR_SS : 0;
     flags |= (psr & IA64_PSR_DB) ? IA64_TB_FLAG_PSR_DB : 0;
-    flags |= cpu->env.exception_state.psr_i_deferred ?
-             IA64_TB_FLAG_IRQ_DEFER : 0;
+    flags |=
+        cpu->env.exception_state.psr_i_deferred ? IA64_TB_FLAG_IRQ_DEFER : 0;
     if (likely((cpu->env.nat[0] | cpu->env.nat[1]) == 0)) {
         flags |= IA64_TB_FLAG_NAT_CLEAR;
     }
@@ -113,15 +111,15 @@ static TCGTBCPUState ia64_get_tb_cpu_state(CPUState *cs)
 
 void ia64_tlb_bump_generation(CPUIA64State *env, bool is_ifetch)
 {
-    IA64MicroTlbEntry *micro = is_ifetch ? env->mmu.tlb_inst_micro :
-                                           env->mmu.tlb_data_micro;
-    uint32_t *generation = is_ifetch ? &env->mmu.tlb_inst_generation :
-                                       &env->mmu.tlb_data_generation;
+    IA64MicroTlbEntry *micro =
+        is_ifetch ? env->mmu.tlb_inst_micro : env->mmu.tlb_data_micro;
+    uint32_t *generation = is_ifetch ? &env->mmu.tlb_inst_generation
+                                     : &env->mmu.tlb_data_generation;
 
     (*generation)++;
     if (*generation == 0) {
-        IA64MicroTlbEntry *victims = is_ifetch ? env->mmu.tlb_inst_victim :
-                                                 env->mmu.tlb_data_victim;
+        IA64MicroTlbEntry *victims =
+            is_ifetch ? env->mmu.tlb_inst_victim : env->mmu.tlb_data_victim;
 
         *generation = 1;
         memset(micro, 0, sizeof(*micro) * IA64_MICRO_TLB_SIZE);
@@ -132,8 +130,7 @@ void ia64_tlb_bump_generation(CPUIA64State *env, bool is_ifetch)
 void ia64_tlb_bump_slot_generation(CPUIA64State *env, bool is_ifetch,
                                    uint16_t slot)
 {
-    IA64TlbEntry *tlb = is_ifetch ? env->mmu.tlb_inst :
-                                    env->mmu.tlb_data;
+    IA64TlbEntry *tlb = is_ifetch ? env->mmu.tlb_inst : env->mmu.tlb_data;
 
     g_assert(slot < IA64_TLB_MAX);
     if (++tlb[slot].micro_generation == 0) {
@@ -151,12 +148,12 @@ const IA64TlbEntry *ia64_tlb_find_slow(CPUIA64State *env, uint64_t va,
                                        uint32_t rid, bool is_ifetch)
 {
     IA64TlbEntry *tlb = is_ifetch ? env->mmu.tlb_inst : env->mmu.tlb_data;
-    IA64MicroTlbEntry *micro = is_ifetch ? env->mmu.tlb_inst_micro :
-                                           env->mmu.tlb_data_micro;
-    uint16_t tlb_count = is_ifetch ? env->mmu.tlb_inst_count :
-                                     env->mmu.tlb_data_count;
-    uint32_t generation = is_ifetch ? env->mmu.tlb_inst_generation :
-                                      env->mmu.tlb_data_generation;
+    IA64MicroTlbEntry *micro =
+        is_ifetch ? env->mmu.tlb_inst_micro : env->mmu.tlb_data_micro;
+    uint16_t tlb_count =
+        is_ifetch ? env->mmu.tlb_inst_count : env->mmu.tlb_data_count;
+    uint32_t generation =
+        is_ifetch ? env->mmu.tlb_inst_generation : env->mmu.tlb_data_generation;
     uint16_t i;
 
     /*
@@ -166,8 +163,7 @@ const IA64TlbEntry *ia64_tlb_find_slow(CPUIA64State *env, uint64_t va,
      * has been replaced.  The host softmmu TLB is only an optimization and
      * may be flushed independently, so it cannot stand in for this lookup.
      */
-    if (!is_ifetch &&
-        ia64_env_cpu_class(env)->model == IA64_CPU_MODEL_MERCED) {
+    if (!is_ifetch && ia64_env_cpu_class(env)->model == IA64_CPU_MODEL_MERCED) {
         int cached = ia64_merced_dtlb1_lookup(env, va, rid);
 
         if (cached >= 0) {
@@ -196,10 +192,11 @@ const IA64TlbEntry *ia64_tlb_find_slow(CPUIA64State *env, uint64_t va,
             IA64MicroTlbEntry *cached = &micro[ia64_micro_tlb_index(va, rid)];
 
             if (cached->valid && cached->generation == generation) {
-                IA64MicroTlbEntry *victims = is_ifetch ?
-                    env->mmu.tlb_inst_victim : env->mmu.tlb_data_victim;
-                uint8_t *next = is_ifetch ? &env->mmu.tlb_inst_victim_next :
-                                             &env->mmu.tlb_data_victim_next;
+                IA64MicroTlbEntry *victims = is_ifetch
+                                                 ? env->mmu.tlb_inst_victim
+                                                 : env->mmu.tlb_data_victim;
+                uint8_t *next = is_ifetch ? &env->mmu.tlb_inst_victim_next
+                                          : &env->mmu.tlb_data_victim_next;
 
                 victims[*next] = *cached;
                 *next = (*next + 1) % IA64_MICRO_TLB_VICTIM_SIZE;
@@ -232,8 +229,7 @@ static void ia64_cpu_synchronize_from_tb(CPUState *cs,
         return;
     }
 
-    uint64_t ri =
-        (tb->flags & IA64_TB_FLAG_RI_MASK) >> IA64_TB_FLAG_RI_SHIFT;
+    uint64_t ri = (tb->flags & IA64_TB_FLAG_RI_MASK) >> IA64_TB_FLAG_RI_SHIFT;
 
     tcg_debug_assert(!tcg_cflags_has(cs, CF_PCREL));
     cpu->env.ip = tb->pc;
@@ -243,13 +239,12 @@ static void ia64_cpu_synchronize_from_tb(CPUState *cs,
      * its bundle address; otherwise a stale slot from the preceding TB is
      * saved in IPSR and rfi can skip the faulting bundle's prologue.
      */
-    cpu->env.psr = (cpu->env.psr & ~IA64_PSR_RI_MASK) |
-                   (ri << IA64_PSR_RI_SHIFT);
+    cpu->env.psr =
+        (cpu->env.psr & ~IA64_PSR_RI_MASK) | (ri << IA64_PSR_RI_SHIFT);
 }
 
-static void ia64_restore_state_to_opc(CPUState *cs,
-                                       const TranslationBlock *tb,
-                                       const uint64_t *data)
+static void ia64_restore_state_to_opc(CPUState *cs, const TranslationBlock *tb,
+                                      const uint64_t *data)
 {
     IA64CPU *cpu = ia64_cpu_from_cpu_state(cs);
 
@@ -285,14 +280,13 @@ static int ia64_cpu_mmu_index(CPUState *cs, bool ifetch)
     return MMU_PHYS_IDX;
 }
 
-static vaddr ia64_pointer_wrap(CPUState *cs, int mmu_idx,
-                               vaddr result, vaddr base)
+static vaddr ia64_pointer_wrap(CPUState *cs, int mmu_idx, vaddr result,
+                               vaddr base)
 {
     IA64CPU *cpu = ia64_cpu_from_cpu_state(cs);
 
     return cpu->env.psr & IA64_PSR_IS ? (uint32_t)result : result;
 }
-
 
 static int ia64_tlb_perm_to_prot(uint8_t perm)
 {
@@ -310,8 +304,8 @@ static int ia64_tlb_perm_to_prot(uint8_t perm)
     return prot;
 }
 
-static int ia64_tlb_prot_for_pte_psr(uint64_t pte, uint8_t perm,
-                                     bool is_ifetch, uint64_t psr)
+static int ia64_tlb_prot_for_pte_psr(uint64_t pte, uint8_t perm, bool is_ifetch,
+                                     uint64_t psr)
 {
     int prot = ia64_tlb_perm_to_prot(perm);
 
@@ -339,14 +333,14 @@ static int ia64_tlb_prot_for_pte_psr(uint64_t pte, uint8_t perm,
     return prot;
 }
 
-static int ia64_tlb_prot_for_pte(CPUIA64State *env, uint64_t pte,
-                                 uint8_t perm, bool is_ifetch)
+static int ia64_tlb_prot_for_pte(CPUIA64State *env, uint64_t pte, uint8_t perm,
+                                 bool is_ifetch)
 {
     return ia64_tlb_prot_for_pte_psr(pte, perm, is_ifetch, env->psr);
 }
 
 static void ia64_record_suppressed_tlb_fill(CPUIA64State *env, vaddr addr,
-                                             int mmu_idx)
+                                            int mmu_idx)
 {
     uint64_t page = addr & TARGET_PAGE_MASK;
     uint16_t idxmap = 1u << mmu_idx;
@@ -369,9 +363,11 @@ static void ia64_record_suppressed_tlb_fill(CPUIA64State *env, vaddr addr,
     env->exception_state.suppressed_tlb_idxmaps[i] = idxmap;
 }
 
-static void ia64_record_suppressed_tlb_fill_if_needed(
-    CPUIA64State *env, vaddr addr, int mmu_idx, uint64_t pte, uint8_t perm,
-    bool is_ifetch, int prot)
+static void ia64_record_suppressed_tlb_fill_if_needed(CPUIA64State *env,
+                                                      vaddr addr, int mmu_idx,
+                                                      uint64_t pte,
+                                                      uint8_t perm,
+                                                      bool is_ifetch, int prot)
 {
     uint64_t unsuppressed_psr = env->psr & ~(IA64_PSR_DA | IA64_PSR_IA);
     int unsuppressed_prot;
@@ -380,8 +376,8 @@ static void ia64_record_suppressed_tlb_fill_if_needed(
         return;
     }
 
-    unsuppressed_prot = ia64_tlb_prot_for_pte_psr(
-        pte, perm, is_ifetch, unsuppressed_psr);
+    unsuppressed_prot =
+        ia64_tlb_prot_for_pte_psr(pte, perm, is_ifetch, unsuppressed_psr);
     if (prot != unsuppressed_prot) {
         ia64_record_suppressed_tlb_fill(env, addr, mmu_idx);
     }
@@ -446,9 +442,9 @@ static bool ia64_cpu_tlb_fill(CPUState *cs, vaddr addr, int size,
 {
     IA64CPU *cpu = ia64_cpu_from_cpu_state(cs);
     bool is_ifetch = (access_type == MMU_INST_FETCH);
-    uint8_t needed = is_ifetch ? IA64_TLB_X :
-                     (access_type == MMU_DATA_STORE ? IA64_TLB_W :
-                      IA64_TLB_R);
+    uint8_t needed =
+        is_ifetch ? IA64_TLB_X
+                  : (access_type == MMU_DATA_STORE ? IA64_TLB_W : IA64_TLB_R);
     uint64_t pa;
     uint8_t perm;
     uint32_t rid;
@@ -473,58 +469,55 @@ static bool ia64_cpu_tlb_fill(CPUState *cs, vaddr addr, int size,
             if (probe) {
                 return false;
             }
-            excp = is_ifetch ? IA64_EXCP_UNIMPL_INST_ADDR :
-                   IA64_EXCP_UNIMPL_DATA_ADDR;
+            excp = is_ifetch ? IA64_EXCP_UNIMPL_INST_ADDR
+                             : IA64_EXCP_UNIMPL_DATA_ADDR;
             if (is_ifetch) {
                 cpu->env.ip = ia64_pa_canonicalize(&cpu->env, addr);
             }
             goto raise_exception;
         }
         pa = ia64_physical_address(addr);
-        ia64_tlb_set_entry_page(
-            cs, addr, pa, TARGET_PAGE_SIZE,
-            PAGE_READ | PAGE_WRITE | PAGE_EXEC, mmu_idx,
-            (addr & IA64_PHYS_UC_BIT) ? IA64_MEM_NON_SPECULATIVE :
-                                       IA64_MEM_LIMITED_SPECULATION,
-            (addr & IA64_PHYS_UC_BIT) ? 4 : 0);
+        ia64_tlb_set_entry_page(cs, addr, pa, TARGET_PAGE_SIZE,
+                                PAGE_READ | PAGE_WRITE | PAGE_EXEC, mmu_idx,
+                                (addr & IA64_PHYS_UC_BIT)
+                                    ? IA64_MEM_NON_SPECULATIVE
+                                    : IA64_MEM_LIMITED_SPECULATION,
+                                (addr & IA64_PHYS_UC_BIT) ? 4 : 0);
         return true;
     }
 
     if (is_rse) {
         access_level = ia64_rsc_pl(cpu->env.ar_rsc);
     } else {
-        g_assert(mmu_idx >= MMU_IDX_VIRT_CPL0 &&
-                 mmu_idx <= MMU_IDX_VIRT_CPL3);
+        g_assert(mmu_idx >= MMU_IDX_VIRT_CPL0 && mmu_idx <= MMU_IDX_VIRT_CPL3);
         access_level = mmu_idx - MMU_IDX_VIRT_CPL0;
     }
 
     /* A translated MMU index is itself the serialized translation state. */
     virt_translation_enabled = true;
-    if (virt_translation_enabled &&
-        !ia64_va_is_implemented(&cpu->env, addr)) {
+    if (virt_translation_enabled && !ia64_va_is_implemented(&cpu->env, addr)) {
         if (probe) {
             return false;
         }
-        excp = is_ifetch ? IA64_EXCP_UNIMPL_INST_ADDR :
-               IA64_EXCP_UNIMPL_DATA_ADDR;
+        excp =
+            is_ifetch ? IA64_EXCP_UNIMPL_INST_ADDR : IA64_EXCP_UNIMPL_DATA_ADDR;
         if (is_ifetch) {
             cpu->env.ip = ia64_va_canonicalize(&cpu->env, addr);
         }
         goto raise_exception;
     }
 
-    if (ia64_firmware_identity_pa(&cpu->env,
-                                  addr, &pa)) {
+    if (ia64_firmware_identity_pa(&cpu->env, addr, &pa)) {
         int prot = is_ifetch ? PAGE_EXEC : (PAGE_READ | PAGE_WRITE);
 
-        ia64_tlb_set_entry_page(cs, addr, pa, TARGET_PAGE_SIZE, prot,
-                                mmu_idx, IA64_MEM_SPECULATIVE, 0);
+        ia64_tlb_set_entry_page(cs, addr, pa, TARGET_PAGE_SIZE, prot, mmu_idx,
+                                IA64_MEM_SPECULATIVE, 0);
         return true;
     }
 
     {
-        const IA64TlbEntry *entry = ia64_tlb_find_cached(
-            &cpu->env, addr, rid, is_ifetch);
+        const IA64TlbEntry *entry =
+            ia64_tlb_find_cached(&cpu->env, addr, rid, is_ifetch);
 
         if (entry) {
             int prot;
@@ -541,16 +534,14 @@ static bool ia64_cpu_tlb_fill(CPUState *cs, vaddr addr, int size,
                 excp = pte_excp;
                 goto raise_exception;
             }
-            prot = ia64_tlb_prot_for_pte(&cpu->env, entry->pte, perm,
-                                         is_ifetch);
+            prot =
+                ia64_tlb_prot_for_pte(&cpu->env, entry->pte, perm, is_ifetch);
             ia64_record_suppressed_tlb_fill_if_needed(
                 &cpu->env, addr, mmu_idx, entry->pte, perm, is_ifetch, prot);
             qemu_log_mask(CPU_LOG_MMU,
-                          "ia64 tlb hit %c va=0x%016" PRIx64
-                          " rid=0x%06" PRIx32 " pa=0x%016" PRIx64
-                          " perm=0x%x\n",
-                          is_ifetch ? 'i' : 'd', (uint64_t)addr, rid, pa,
-                          perm);
+                          "ia64 tlb hit %c va=0x%016" PRIx64 " rid=0x%06" PRIx32
+                          " pa=0x%016" PRIx64 " perm=0x%x\n",
+                          is_ifetch ? 'i' : 'd', (uint64_t)addr, rid, pa, perm);
             /*
              * An L1 replacement can flush a derived softmmu entry.  Do it
              * before installing this access's host entry so the fill caller
@@ -559,10 +550,9 @@ static bool ia64_cpu_tlb_fill(CPUState *cs, vaddr addr, int size,
             if (!is_ifetch && !probe) {
                 ia64_mmu_data_access(&cpu->env, addr, size, true);
             }
-            ia64_tlb_set_entry_page(
-                cs, addr, pa, entry->ps, prot, mmu_idx,
-                ia64_pte_memory_speculation(entry->pte),
-                (entry->pte >> 2) & 7);
+            ia64_tlb_set_entry_page(cs, addr, pa, entry->ps, prot, mmu_idx,
+                                    ia64_pte_memory_speculation(entry->pte),
+                                    (entry->pte >> 2) & 7);
             return true;
         }
     }
@@ -579,13 +569,13 @@ static bool ia64_cpu_tlb_fill(CPUState *cs, vaddr addr, int size,
             IA64Exception pte_excp;
             uint64_t page_size = new_entry ? new_entry->ps : TARGET_PAGE_SIZE;
 
-            pte_excp = new_entry ?
-                ia64_tlb_exception_for_access(
-                    &cpu->env, new_entry, perm, needed, false,
-                    access_type == MMU_DATA_STORE, is_rse) :
-                ia64_translation_exception_for_access(
-                    &cpu->env, pte, key, perm, needed, false,
-                    access_type == MMU_DATA_STORE, is_rse);
+            pte_excp = new_entry
+                           ? ia64_tlb_exception_for_access(
+                                 &cpu->env, new_entry, perm, needed, false,
+                                 access_type == MMU_DATA_STORE, is_rse)
+                           : ia64_translation_exception_for_access(
+                                 &cpu->env, pte, key, perm, needed, false,
+                                 access_type == MMU_DATA_STORE, is_rse);
             if (pte_excp != IA64_EXCP_NONE) {
                 if (probe) {
                     return false;
@@ -593,16 +583,15 @@ static bool ia64_cpu_tlb_fill(CPUState *cs, vaddr addr, int size,
                 excp = pte_excp;
                 goto raise_exception;
             }
-            prot = ia64_tlb_prot_for_pte(&cpu->env,
-                                         new_entry ? new_entry->pte : pte,
-                                         perm, false);
+            prot = ia64_tlb_prot_for_pte(
+                &cpu->env, new_entry ? new_entry->pte : pte, perm, false);
             ia64_record_suppressed_tlb_fill_if_needed(
-                &cpu->env, addr, mmu_idx,
-                new_entry ? new_entry->pte : pte, perm, false, prot);
+                &cpu->env, addr, mmu_idx, new_entry ? new_entry->pte : pte,
+                perm, false, prot);
             qemu_log_mask(CPU_LOG_MMU,
-                          "ia64 vhpt hit d va=0x%016" PRIx64
-                          " rid=0x%06" PRIx32 " pa=0x%016" PRIx64
-                          " perm=0x%x iha=0x%016" PRIx64 "\n",
+                          "ia64 vhpt hit d va=0x%016" PRIx64 " rid=0x%06" PRIx32
+                          " pa=0x%016" PRIx64 " perm=0x%x iha=0x%016" PRIx64
+                          "\n",
                           (uint64_t)addr, rid, pa, perm,
                           ia64_vhpt_hash_address(&cpu->env, addr));
             if (!probe) {
@@ -610,8 +599,7 @@ static bool ia64_cpu_tlb_fill(CPUState *cs, vaddr addr, int size,
             }
             ia64_tlb_set_entry_page(
                 cs, addr, pa, page_size, prot, mmu_idx,
-                ia64_pte_memory_speculation(new_entry ? new_entry->pte :
-                                                        pte),
+                ia64_pte_memory_speculation(new_entry ? new_entry->pte : pte),
                 ((new_entry ? new_entry->pte : pte) >> 2) & 7);
             return true;
         }
@@ -622,18 +610,19 @@ static bool ia64_cpu_tlb_fill(CPUState *cs, vaddr addr, int size,
         uint64_t pte = 0;
         uint32_t key = 0;
 
-        if (ia64_vhpt_walk_full(&cpu->env, addr, rid, true, false,
-                                access_level, &pa, &perm, &pte, &key,
-                                &new_entry)) {
+        if (ia64_vhpt_walk_full(&cpu->env, addr, rid, true, false, access_level,
+                                &pa, &perm, &pte, &key, &new_entry)) {
             int prot;
             IA64Exception pte_excp;
             uint64_t page_size = new_entry ? new_entry->ps : TARGET_PAGE_SIZE;
 
-            pte_excp = new_entry ?
-                ia64_tlb_exception_for_access(
-                    &cpu->env, new_entry, perm, needed, true, false, false) :
-                ia64_translation_exception_for_access(
-                    &cpu->env, pte, key, perm, needed, true, false, false);
+            pte_excp =
+                new_entry
+                    ? ia64_tlb_exception_for_access(&cpu->env, new_entry, perm,
+                                                    needed, true, false, false)
+                    : ia64_translation_exception_for_access(&cpu->env, pte, key,
+                                                            perm, needed, true,
+                                                            false, false);
             if (pte_excp != IA64_EXCP_NONE) {
                 if (probe) {
                     return false;
@@ -641,22 +630,20 @@ static bool ia64_cpu_tlb_fill(CPUState *cs, vaddr addr, int size,
                 excp = pte_excp;
                 goto raise_exception;
             }
-            prot = ia64_tlb_prot_for_pte(&cpu->env,
-                                         new_entry ? new_entry->pte : pte,
-                                         perm, true);
+            prot = ia64_tlb_prot_for_pte(
+                &cpu->env, new_entry ? new_entry->pte : pte, perm, true);
             ia64_record_suppressed_tlb_fill_if_needed(
-                &cpu->env, addr, mmu_idx,
-                new_entry ? new_entry->pte : pte, perm, true, prot);
+                &cpu->env, addr, mmu_idx, new_entry ? new_entry->pte : pte,
+                perm, true, prot);
             qemu_log_mask(CPU_LOG_MMU,
-                          "ia64 vhpt hit i va=0x%016" PRIx64
-                          " rid=0x%06" PRIx32 " pa=0x%016" PRIx64
-                          " perm=0x%x iha=0x%016" PRIx64 "\n",
+                          "ia64 vhpt hit i va=0x%016" PRIx64 " rid=0x%06" PRIx32
+                          " pa=0x%016" PRIx64 " perm=0x%x iha=0x%016" PRIx64
+                          "\n",
                           (uint64_t)addr, rid, pa, perm,
                           ia64_vhpt_hash_address(&cpu->env, addr));
             ia64_tlb_set_entry_page(
                 cs, addr, pa, page_size, prot, mmu_idx,
-                ia64_pte_memory_speculation(new_entry ? new_entry->pte :
-                                                        pte),
+                ia64_pte_memory_speculation(new_entry ? new_entry->pte : pte),
                 ((new_entry ? new_entry->pte : pte) >> 2) & 7);
             return true;
         }
@@ -669,16 +656,14 @@ static bool ia64_cpu_tlb_fill(CPUState *cs, vaddr addr, int size,
         uint64_t vhpt_entry_va;
         uint8_t vhpt_size;
         bool vhpt_long_format;
-        bool vhpt_enabled = ia64_vhpt_walker_enabled(&cpu->env, addr,
-                                                     is_ifetch, is_rse,
-                                                     &vhpt_size,
-                                                     &vhpt_long_format);
+        bool vhpt_enabled = ia64_vhpt_walker_enabled(
+            &cpu->env, addr, is_ifetch, is_rse, &vhpt_size, &vhpt_long_format);
 
         if (!is_ifetch && ia64_data_nested_tlb_active(&cpu->env)) {
             excp = IA64_EXCP_DATA_NESTED_TLB;
         } else if (vhpt_enabled &&
-                   ia64_vhpt_pte_not_present(&cpu->env, addr, is_ifetch,
-                                             is_rse, &vhpt_entry_va)) {
+                   ia64_vhpt_pte_not_present(&cpu->env, addr, is_ifetch, is_rse,
+                                             &vhpt_entry_va)) {
             excp = IA64_EXCP_PAGE_NOT_PRESENT;
         } else if (!ia64_vhpt_entry_accessible(&cpu->env, addr, is_ifetch,
                                                is_rse, &vhpt_entry_va)) {
@@ -706,8 +691,7 @@ raise_exception:
         cpu->env.exception_state.fault_ip = cpu->env.ip;
     }
     if (is_ifetch && excp == IA64_EXCP_PAGE_NOT_PRESENT &&
-        (cpu->env.psr & IA64_PSR_IC) &&
-        !(cpu->env.psr & IA64_PSR_IS)) {
+        (cpu->env.psr & IA64_PSR_IC) && !(cpu->env.psr & IA64_PSR_IS)) {
         /*
          * IIP receives IP on interruption entry, and for faults it must point
          * at the faulting instruction bundle when interruption collection is
@@ -726,11 +710,12 @@ raise_exception:
      * and the handler's rfi would skip slots of the target bundle.
      */
     cpu->env.exception_state.fault_slot =
-        cpu->env.psr & IA64_PSR_IS ? 0 :
-        (cpu->env.psr & IA64_PSR_RI_MASK) >> IA64_PSR_RI_SHIFT;
+        cpu->env.psr & IA64_PSR_IS
+            ? 0
+            : (cpu->env.psr & IA64_PSR_RI_MASK) >> IA64_PSR_RI_SHIFT;
     if (cpu->env.psr & IA64_PSR_IC) {
-        cpu->env.cr_ifa = is_ifetch && (cpu->env.psr & IA64_PSR_IS) ?
-                          addr & ~0xfULL : addr;
+        cpu->env.cr_ifa =
+            is_ifetch && (cpu->env.psr & IA64_PSR_IS) ? addr & ~0xfULL : addr;
         if (ia64_exception_initializes_iha(excp)) {
             cpu->env.cr_iha = ia64_vhpt_hash_address(&cpu->env, addr);
         }
@@ -739,15 +724,16 @@ raise_exception:
     }
     if (excp != IA64_EXCP_DATA_NESTED_TLB) {
         if (excp == IA64_EXCP_UNIMPL_DATA_ADDR) {
-            cpu->env.cr_isr = IA64_GENEX_UNIMPL_DATA_ADDR |
-                              (access_type == MMU_DATA_STORE ?
-                               IA64_ISR_W : IA64_ISR_R);
+            cpu->env.cr_isr =
+                IA64_GENEX_UNIMPL_DATA_ADDR |
+                (access_type == MMU_DATA_STORE ? IA64_ISR_W : IA64_ISR_R);
         } else if (excp == IA64_EXCP_UNIMPL_INST_ADDR) {
             cpu->env.cr_isr = IA64_GENEX_UNIMPL_INST_ADDR | IA64_ISR_X;
         } else {
-            cpu->env.cr_isr = is_ifetch ? IA64_ISR_X :
-                              (access_type == MMU_DATA_STORE ? IA64_ISR_W :
-                               IA64_ISR_R);
+            cpu->env.cr_isr =
+                is_ifetch
+                    ? IA64_ISR_X
+                    : (access_type == MMU_DATA_STORE ? IA64_ISR_W : IA64_ISR_R);
             if (excp == IA64_EXCP_NAT_CONSUMPTION) {
                 /*
                  * NaT Page Consumption reports ISR.code{5:4} = 2; the
@@ -769,14 +755,12 @@ raise_exception:
         }
     }
     qemu_log_mask(CPU_LOG_MMU,
-                  "ia64 tlb miss %c va=0x%016" PRIx64
-                  " rid=0x%06" PRIx32 " ps=0x%016" PRIx64
-                  " iha=0x%016" PRIx64 " pta=0x%016" PRIx64
+                  "ia64 tlb miss %c va=0x%016" PRIx64 " rid=0x%06" PRIx32
+                  " ps=0x%016" PRIx64 " iha=0x%016" PRIx64 " pta=0x%016" PRIx64
                   " isr=0x%016" PRIx64 "\n",
-                  is_ifetch ? 'i' :
-                  (access_type == MMU_DATA_STORE ? 'w' : 'r'),
-                  (uint64_t)addr, rid, cpu->env.cr_itir,
-                  cpu->env.cr_iha, cpu->env.cr_pta, cpu->env.cr_isr);
+                  is_ifetch ? 'i' : (access_type == MMU_DATA_STORE ? 'w' : 'r'),
+                  (uint64_t)addr, rid, cpu->env.cr_itir, cpu->env.cr_iha,
+                  cpu->env.cr_pta, cpu->env.cr_isr);
     cs->exception_index = excp;
     if (is_rse) {
         cpu->env.rse.rse_access = false;
@@ -787,14 +771,13 @@ raise_exception:
     cpu_loop_exit_restore(cs, retaddr);
 }
 
-
 bool ia64_firmware_contains(CPUIA64State *env, uint64_t address)
 {
     IA64CPU *cpu = env_archcpu(env);
-    uint64_t base = cpu->boot_info_valid ? cpu->boot_info.firmware_base :
-                    IA64_FW_IDENTITY_BASE;
-    uint64_t size = cpu->boot_info_valid ? cpu->boot_info.firmware_size :
-                    IA64_FW_IDENTITY_SIZE;
+    uint64_t base = cpu->boot_info_valid ? cpu->boot_info.firmware_base
+                                         : IA64_FW_IDENTITY_BASE;
+    uint64_t size = cpu->boot_info_valid ? cpu->boot_info.firmware_size
+                                         : IA64_FW_IDENTITY_SIZE;
 
     return address >= base && address - base < size;
 }
@@ -887,9 +870,9 @@ static void ia64_cpu_apply_boot_info(IA64CPU *cpu)
      */
     env->cr_pta = 15ULL << IA64_PTA_SIZE_SHIFT;
     env->cr_dcr = IA64_DCR_DM | IA64_DCR_DP;
-    env->ar_kr0 = info->platform_addresses_valid ?
-        info->io_port_base :
-        ia64_cpu_default_io_block_pa(IA64_CPU_GET_CLASS(cpu));
+    env->ar_kr0 = info->platform_addresses_valid
+                      ? info->io_port_base
+                      : ia64_cpu_default_io_block_pa(IA64_CPU_GET_CLASS(cpu));
     env->ar_kr7 = 0;
     env->ar_rsc = info->rsc;
     env->ar_bsp = info->bsp;
@@ -944,7 +927,7 @@ static void ia64_cpu_reset_hold(Object *obj, ResetType type)
     set_float_2nan_prop_rule(float_2nan_prop_ab, &cpu->env.fp.fp_status);
     set_float_3nan_prop_rule(float_3nan_prop_abc, &cpu->env.fp.fp_status);
     set_float_infzeronan_rule(float_infzeronan_dnan_never |
-                              float_infzeronan_suppress_invalid,
+                                  float_infzeronan_suppress_invalid,
                               &cpu->env.fp.fp_status);
     set_float_default_nan_pattern(0b11000000, &cpu->env.fp.fp_status);
     cpu->env.cr[IA64_CR_SAPIC_LID] =
@@ -961,13 +944,11 @@ static void ia64_cpu_reset_hold(Object *obj, ResetType type)
         cpu->env.pmc[13] = 1;
     }
     cpu->env.pal.pal_bus_feature_status = 0;
-    cpu->env.pal.pal_proc_feature_status =
-        icc->pal_proc_feature_available;
+    cpu->env.pal.pal_proc_feature_status = icc->pal_proc_feature_available;
     cpu->env.pal.pal_proc_copy_valid = false;
     cpu->env.pal.pal_proc_copy_addr = 0;
     cpu->env.pal.pal_interrupt_block_addr = IA64_LOCAL_SAPIC_PA;
-    cpu->env.pal.pal_io_block_addr =
-        ia64_cpu_default_io_block_pa(icc);
+    cpu->env.pal.pal_io_block_addr = ia64_cpu_default_io_block_pa(icc);
     ia64_cpu_apply_boot_info(cpu);
 }
 
@@ -975,16 +956,11 @@ static const struct {
     const char *name;
     const char *model;
 } ia64_cpu_aliases[] = {
-    { "merced", "merced-800" },
-    { "mckinley", "mckinley-1000" },
-    { "deerfield", "deerfield-1000" },
-    { "madison", "madison-1600-3m" },
-    { "montecito", "montecito-9050" },
-    { "montvale", "montvale-9150n" },
-    { "tukwila", "tukwila-9350" },
-    { "itanium-9300", "tukwila-9350" },
-    { "itanium", "merced-800" },
-    { "itanium2", "montecito-9050" },
+    { "merced", "merced-800" },        { "mckinley", "mckinley-1000" },
+    { "deerfield", "deerfield-1000" }, { "madison", "madison-1600-3m" },
+    { "montecito", "montecito-9050" }, { "montvale", "montvale-9150n" },
+    { "tukwila", "tukwila-9350" },     { "itanium-9300", "tukwila-9350" },
+    { "itanium", "merced-800" },       { "itanium2", "montecito-9050" },
 };
 
 static ObjectClass *ia64_cpu_class_by_name(const char *cpu_model)
@@ -1078,16 +1054,14 @@ enum {
     IA64_QTEST_RAS_MCA_UNMASKED = BIT(16),
 };
 
-static void ia64_qtest_ras_min_state_work(CPUState *cs,
-                                           run_on_cpu_data data)
+static void ia64_qtest_ras_min_state_work(CPUState *cs, run_on_cpu_data data)
 {
     IA64QTestRasMinStateWork *work = data.host_ptr;
     IA64CPU *cpu = ia64_cpu_from_cpu_state(cs);
     CPUIA64State *env = &cpu->env;
-    const uint64_t save_address =
-        IA64_PHYS_UC_BIT | IA64_QTEST_MCA_SAVE_PA;
-    const uint64_t original_psr = IA64_PSR_BE | IA64_PSR_MFL |
-        IA64_PSR_IC | IA64_PSR_I | IA64_PSR_PK | IA64_PSR_BN;
+    const uint64_t save_address = IA64_PHYS_UC_BIT | IA64_QTEST_MCA_SAVE_PA;
+    const uint64_t original_psr = IA64_PSR_BE | IA64_PSR_MFL | IA64_PSR_IC |
+                                  IA64_PSR_I | IA64_PSR_PK | IA64_PSR_BN;
     const uint64_t original_rsc = IA64_RSC_MODE | IA64_RSC_BE;
     const uint16_t bank0_nats = 0x5555;
     const uint16_t bank1_nats = 0xaaaa;
@@ -1099,8 +1073,7 @@ static void ia64_qtest_ras_min_state_work(CPUState *cs,
     uint64_t image[128];
     unsigned int i;
 
-    if (env->cfm_sof != 0 || env->rse.rse_invalid !=
-        IA64_STACKED_GR_COUNT) {
+    if (env->cfm_sof != 0 || env->rse.rse_invalid != IA64_STACKED_GR_COUNT) {
         return;
     }
 
@@ -1122,8 +1095,7 @@ static void ia64_qtest_ras_min_state_work(CPUState *cs,
     env->ar_rsc = original_rsc;
     ia64_rse_alloc(env, 0, 4 | (2 << IA64_CFM_SOL_SHIFT), 0, 0, 0);
     for (i = 0; i < 4; i++) {
-        env->gr[IA64_STACKED_GR_BASE + i] =
-            UINT64_C(0x6600000000000000) + i;
+        env->gr[IA64_STACKED_GR_BASE + i] = UINT64_C(0x6600000000000000) + i;
         ia64_gr_nat_set(env, IA64_STACKED_GR_BASE + i, i == 1);
         ia64_rse_mark_gr_dirty(env, IA64_STACKED_GR_BASE + i);
     }
@@ -1154,8 +1126,7 @@ static void ia64_qtest_ras_min_state_work(CPUState *cs,
 
     /* Unmasking reasserts the request even with ordinary interrupts off. */
     ia64_set_psr(env, original_psr & ~IA64_PSR_I);
-    if (!cpu_test_interrupt(cs, CPU_INTERRUPT_HARD) ||
-        !ia64_cpu_has_work(cs)) {
+    if (!cpu_test_interrupt(cs, CPU_INTERRUPT_HARD) || !ia64_cpu_has_work(cs)) {
         return;
     }
     work->result |= IA64_QTEST_RAS_MCA_UNMASKED;
@@ -1165,12 +1136,10 @@ static void ia64_qtest_ras_min_state_work(CPUState *cs,
         return;
     }
     work->result |= IA64_QTEST_RAS_ENTERED;
-    if (ia64_rse_current_cfm(env) == 0 &&
-        env->ar_bsp != original_bsp) {
+    if (ia64_rse_current_cfm(env) == 0 && env->ar_bsp != original_bsp) {
         work->result |= IA64_QTEST_RAS_ENTRY_CFM;
     }
-    if (env->psr == (IA64_PSR_MC | IA64_PSR_MFL | IA64_PSR_PK |
-                     IA64_PSR_BN) &&
+    if (env->psr == (IA64_PSR_MC | IA64_PSR_MFL | IA64_PSR_PK | IA64_PSR_BN) &&
         env->ar_rsc == (original_rsc & ~IA64_RSC_MODE)) {
         work->result |= IA64_QTEST_RAS_ENTRY_CONTROL;
     }
@@ -1204,8 +1173,7 @@ static void ia64_qtest_ras_min_state_work(CPUState *cs,
 
     if (env->psr == original_psr && env->ar_rsc == original_rsc &&
         env->ip == UINT64_C(0x123450) &&
-        env->gr[IA64_GR_GLOBAL_POINTER] ==
-            UINT64_C(0x1100000000000001) &&
+        env->gr[IA64_GR_GLOBAL_POINTER] == UINT64_C(0x1100000000000001) &&
         ia64_gr_nat_get(env, IA64_GR_GLOBAL_POINTER) &&
         env->gr[IA64_GR_RETURN0] == UINT64_C(0x1100000000000008) &&
         env->gr[IA64_GR_RETURN1] == UINT64_C(0x1100000000000009) &&
@@ -1226,26 +1194,21 @@ static void ia64_qtest_ras_min_state_work(CPUState *cs,
         work->result |= IA64_QTEST_RAS_BANK_VALUES;
     }
     for (i = 0; i < 16; i++) {
-        if (((env->banked_nat >> i) & 1) !=
-                ((bank0_nats >> i) & 1) ||
-            ia64_gr_nat_get(env, 16 + i) !=
-                ((bank1_nats >> i) & 1)) {
+        if (((env->banked_nat >> i) & 1) != ((bank0_nats >> i) & 1) ||
+            ia64_gr_nat_get(env, 16 + i) != ((bank1_nats >> i) & 1)) {
             break;
         }
     }
     if (i == 16) {
         work->result |= IA64_QTEST_RAS_BANK_NATS;
     }
-    if (ia64_rse_current_cfm(env) ==
-            (4 | (2 << IA64_CFM_SOL_SHIFT)) &&
-        env->ar_bsp == original_bsp &&
-        env->ar_bspstore == original_bspstore &&
+    if (ia64_rse_current_cfm(env) == (4 | (2 << IA64_CFM_SOL_SHIFT)) &&
+        env->ar_bsp == original_bsp && env->ar_bspstore == original_bspstore &&
         env->rse.rse_bol == original_bol &&
         env->rse.rse_dirty == original_dirty &&
         env->rse.rse_invalid == original_invalid &&
         env->gr[IA64_STACKED_GR_BASE] == UINT64_C(0x6600000000000000) &&
-        env->gr[IA64_STACKED_GR_BASE + 1] ==
-            UINT64_C(0x6600000000000001) &&
+        env->gr[IA64_STACKED_GR_BASE + 1] == UINT64_C(0x6600000000000001) &&
         ia64_gr_nat_get(env, IA64_STACKED_GR_BASE + 1)) {
         work->result |= IA64_QTEST_RAS_RSE_STATE;
     }
@@ -1278,8 +1241,7 @@ static void ia64_qtest_ras_min_state_work(CPUState *cs,
     }
     if (le64_to_cpu(image[54]) == UINT64_C(0xabc000) &&
         le64_to_cpu(image[55]) == original_psr &&
-        le64_to_cpu(image[56]) ==
-            (IA64_IFS_V | ia64_rse_current_cfm(env))) {
+        le64_to_cpu(image[56]) == (IA64_IFS_V | ia64_rse_current_cfm(env))) {
         work->result |= IA64_QTEST_RAS_SECOND_LEVEL_STATE;
     }
 
@@ -1287,14 +1249,11 @@ static void ia64_qtest_ras_min_state_work(CPUState *cs,
     image[49] = cpu_to_le64(UINT64_C(0x7200000000000000));
     image[50] = cpu_to_le64(original_rsc);
     image[51] = cpu_to_le64(UINT64_C(0x730000));
-    image[52] = cpu_to_le64(original_psr &
-                            ~(IA64_PSR_IC | IA64_PSR_I));
-    image[53] = cpu_to_le64(
-        IA64_IFS_V | (4 | (2 << IA64_CFM_SOL_SHIFT)));
+    image[52] = cpu_to_le64(original_psr & ~(IA64_PSR_IC | IA64_PSR_I));
+    image[53] = cpu_to_le64(IA64_IFS_V | (4 | (2 << IA64_CFM_SOL_SHIFT)));
     image[54] = cpu_to_le64(UINT64_C(0x740000));
     image[55] = cpu_to_le64(original_psr);
-    image[56] = cpu_to_le64(
-        IA64_IFS_V | (4 | (2 << IA64_CFM_SOL_SHIFT)));
+    image[56] = cpu_to_le64(IA64_IFS_V | (4 | (2 << IA64_CFM_SOL_SHIFT)));
     image[57] = cpu_to_le64(UINT64_C(0x7500000000000000));
     if (!ia64_exec_physical_rw(ia64_physical_address(save_address), image,
                                sizeof(image), true)) {
@@ -1313,29 +1272,23 @@ static void ia64_qtest_ras_min_state_work(CPUState *cs,
     }
     if (env->ip == UINT64_C(0x730000) &&
         env->psr == (original_psr & ~(IA64_PSR_IC | IA64_PSR_I)) &&
-        env->gr[IA64_GR_GLOBAL_POINTER] ==
-            UINT64_C(0x7100000000000001) &&
+        env->gr[IA64_GR_GLOBAL_POINTER] == UINT64_C(0x7100000000000001) &&
         env->br[IA64_BR_RETURN_LINK] == UINT64_C(0x7200000000000000) &&
         env->br[IA64_BR_STATIC0] == UINT64_C(0x7600000000000000) &&
-        env->cr_iip == UINT64_C(0x740000) &&
-        env->cr_ipsr == original_psr &&
-        env->cr_ifs ==
-            (IA64_IFS_V | (4 | (2 << IA64_CFM_SOL_SHIFT))) &&
-        ia64_rse_current_cfm(env) ==
-            (4 | (2 << IA64_CFM_SOL_SHIFT)) &&
+        env->cr_iip == UINT64_C(0x740000) && env->cr_ipsr == original_psr &&
+        env->cr_ifs == (IA64_IFS_V | (4 | (2 << IA64_CFM_SOL_SHIFT))) &&
+        ia64_rse_current_cfm(env) == (4 | (2 << IA64_CFM_SOL_SHIFT)) &&
         !cpu->mca_rse_valid && !env->pal.pal_mca_active) {
         work->result |= IA64_QTEST_RAS_NEW_CONTEXT;
     }
 
-    ia64_cpu_set_init_entry(cs, UINT64_C(0x101000),
-                            UINT64_C(0x701000));
+    ia64_cpu_set_init_entry(cs, UINT64_C(0x101000), UINT64_C(0x701000));
     ia64_sapic_set_init(cs, 1);
     if (!ia64_ras_enter_init(cpu)) {
         return;
     }
     if (env->pal.pal_init_active && cpu->mca_rse_valid &&
-        env->ip == UINT64_C(0x101000) &&
-        env->gr[IA64_GR_RETURN0] == 1 &&
+        env->ip == UINT64_C(0x101000) && env->gr[IA64_GR_RETURN0] == 1 &&
         env->gr[IA64_GR_RETURN1] == save_address) {
         work->result |= IA64_QTEST_RAS_INIT_ENTRY;
     }
@@ -1350,7 +1303,7 @@ static void ia64_qtest_ras_min_state_work(CPUState *cs,
 }
 
 static void ia64_qtest_stale_victim_load_work(CPUState *cs,
-                                               run_on_cpu_data data)
+                                              run_on_cpu_data data)
 {
     IA64QTestStaleVictimWork *work = data.host_ptr;
     CPUIA64State *env = cpu_env(cs);
@@ -1369,13 +1322,12 @@ static void ia64_qtest_stale_victim_load_work(CPUState *cs,
     RCU_READ_LOCK_GUARD();
 
     /* Establish one deterministic translated data context at CPL 0. */
-    env->psr &= ~(IA64_PSR_CPL_MASK | IA64_PSR_IS | IA64_PSR_PK |
-                  IA64_PSR_DB | IA64_PSR_DA | IA64_PSR_DD |
-                  IA64_PSR_ED | IA64_PSR_VM);
+    env->psr &= ~(IA64_PSR_CPL_MASK | IA64_PSR_IS | IA64_PSR_PK | IA64_PSR_DB |
+                  IA64_PSR_DA | IA64_PSR_DD | IA64_PSR_ED | IA64_PSR_VM);
     env->psr |= IA64_PSR_DT;
     tlb_flush(cs);
-    work->model_ready = ia64_mmu_insert_firmware_tc(
-        env, work->va, work->new_pa, true, TARGET_PAGE_BITS);
+    work->model_ready = ia64_mmu_insert_firmware_tc(env, work->va, work->new_pa,
+                                                    true, TARGET_PAGE_BITS);
     if (!work->model_ready) {
         return;
     }
@@ -1396,12 +1348,11 @@ static void ia64_qtest_stale_victim_load_work(CPUState *cs,
 
     /* Match the Merced helper emitted immediately before a translated load. */
     ia64_mmu_data_access(env, work->va, 8, true);
-    work->value = ia64_exec_load_mmuidx(env, work->va, 8, false,
-                                       mmu_idx, 0);
+    work->value = ia64_exec_load_mmuidx(env, work->va, 8, false, mmu_idx, 0);
 }
 
 static void ia64_qtest_alat_writer_setup_work(CPUState *cs,
-                                               run_on_cpu_data data)
+                                              run_on_cpu_data data)
 {
     IA64QTestAlatWriterWork *work = data.host_ptr;
     CPUIA64State *env = cpu_env(cs);
@@ -1412,27 +1363,24 @@ static void ia64_qtest_alat_writer_setup_work(CPUState *cs,
         return;
     }
 
-    env->psr &= ~(IA64_PSR_CPL_MASK | IA64_PSR_IS | IA64_PSR_PK |
-                  IA64_PSR_DB | IA64_PSR_DA | IA64_PSR_DD |
-                  IA64_PSR_ED | IA64_PSR_VM);
+    env->psr &= ~(IA64_PSR_CPL_MASK | IA64_PSR_IS | IA64_PSR_PK | IA64_PSR_DB |
+                  IA64_PSR_DA | IA64_PSR_DD | IA64_PSR_ED | IA64_PSR_VM);
     env->psr |= IA64_PSR_DT;
     tlb_flush(cs);
     work->model_ready = ia64_mmu_insert_firmware_tc(
-        env, IA64_QTEST_ALAT_VA, IA64_QTEST_ALAT_PA, true,
-        TARGET_PAGE_BITS);
+        env, IA64_QTEST_ALAT_VA, IA64_QTEST_ALAT_PA, true, TARGET_PAGE_BITS);
     if (!work->model_ready) {
         return;
     }
 
     generation = ia64_alat_load_begin(env);
-    ia64_alat_set(env, IA64_QTEST_ALAT_REG, IA64_QTEST_ALAT_VA, 8,
-                  generation);
-    work->setup_hit = ia64_alat_check_load_addr(
-        env, IA64_QTEST_ALAT_REG, IA64_QTEST_ALAT_VA, 8, false);
+    ia64_alat_set(env, IA64_QTEST_ALAT_REG, IA64_QTEST_ALAT_VA, 8, generation);
+    work->setup_hit = ia64_alat_check_load_addr(env, IA64_QTEST_ALAT_REG,
+                                                IA64_QTEST_ALAT_VA, 8, false);
 }
 
 static void ia64_qtest_alat_writer_active_work(CPUState *cs,
-                                                run_on_cpu_data data)
+                                               run_on_cpu_data data)
 {
     IA64QTestAlatWriterWork *work = data.host_ptr;
     CPUIA64State *env = cpu_env(cs);
@@ -1450,19 +1398,17 @@ static void ia64_qtest_alat_writer_active_work(CPUState *cs,
     env->alat_state.alat_active_count = 1;
     env->alat_state.alat_occupied = 1;
     env->alat_state.alat_reg_slot[0][IA64_QTEST_ALAT_REG] = 1;
-    work->active_hit = ia64_alat_check_load_addr(
-        env, IA64_QTEST_ALAT_REG, IA64_QTEST_ALAT_VA, 8, false);
+    work->active_hit = ia64_alat_check_load_addr(env, IA64_QTEST_ALAT_REG,
+                                                 IA64_QTEST_ALAT_VA, 8, false);
 
     generation = ia64_alat_load_begin(env);
-    ia64_alat_set(env, IA64_QTEST_ALAT_REG, IA64_QTEST_ALAT_VA, 8,
-                  generation);
+    ia64_alat_set(env, IA64_QTEST_ALAT_REG, IA64_QTEST_ALAT_VA, 8, generation);
     work->active_alloc_count = env->alat_state.alat_active_count;
     work->active_alloc_hit = ia64_alat_check_load_addr(
         env, IA64_QTEST_ALAT_REG, IA64_QTEST_ALAT_VA, 8, false);
 }
 
-static void ia64_qtest_alat_smp_store_work(CPUState *cs,
-                                           run_on_cpu_data data)
+static void ia64_qtest_alat_smp_store_work(CPUState *cs, run_on_cpu_data data)
 {
     IA64QTestAlatWriterWork *work = data.host_ptr;
     CPUIA64State *env = cpu_env(cs);
@@ -1471,8 +1417,9 @@ static void ia64_qtest_alat_smp_store_work(CPUState *cs,
     /* Exercise a CPU store, independently of the external/DMA generation. */
     ia64_exec_store_mmuidx(env, IA64_QTEST_ALAT_PA, value, 8, false,
                            MMU_PHYS_IDX, 0);
-    work->memory_write_ok = ia64_exec_load_mmuidx(
-        env, IA64_QTEST_ALAT_PA, 8, false, MMU_PHYS_IDX, 0) == value;
+    work->memory_write_ok =
+        ia64_exec_load_mmuidx(env, IA64_QTEST_ALAT_PA, 8, false, MMU_PHYS_IDX,
+                              0) == value;
 }
 
 static void ia64_qtest_alat_writer_begin_work(CPUState *cs,
@@ -1487,14 +1434,13 @@ static void ia64_qtest_alat_writer_cancel_work(CPUState *cs,
     ia64_alat_write_cancel(cpu_env(cs));
 }
 
-static void ia64_qtest_alat_smp_check_work(CPUState *cs,
-                                           run_on_cpu_data data)
+static void ia64_qtest_alat_smp_check_work(CPUState *cs, run_on_cpu_data data)
 {
     IA64QTestAlatWriterWork *work = data.host_ptr;
     CPUIA64State *env = cpu_env(cs);
 
-    work->smp_hit = ia64_alat_check_load_addr(
-        env, IA64_QTEST_ALAT_REG, IA64_QTEST_ALAT_VA, 8, false);
+    work->smp_hit = ia64_alat_check_load_addr(env, IA64_QTEST_ALAT_REG,
+                                              IA64_QTEST_ALAT_VA, 8, false);
 }
 
 static bool ia64_qtest_alat_writer_command(CharFrontend *chr, gchar **words)
@@ -1557,14 +1503,12 @@ static bool ia64_qtest_alat_writer_command(CharFrontend *chr, gchar **words)
         work.active_alloc_hit |= cpu_work.active_alloc_hit;
     }
 
-    qtest_sendf(chr, "OK %u %u %u %u\n",
-                work.setup_hit, work.active_hit,
+    qtest_sendf(chr, "OK %u %u %u %u\n", work.setup_hit, work.active_hit,
                 work.active_alloc_count, work.active_alloc_hit);
     return true;
 }
 
-static bool ia64_qtest_alat_smp_writer_command(CharFrontend *chr,
-                                                gchar **words)
+static bool ia64_qtest_alat_smp_writer_command(CharFrontend *chr, gchar **words)
 {
     IA64QTestAlatWriterWork work = { 0 };
     CPUState *cs;
@@ -1599,15 +1543,13 @@ static bool ia64_qtest_alat_smp_writer_command(CharFrontend *chr,
 
     run_on_cpu(other_cs, ia64_qtest_alat_smp_store_work,
                RUN_ON_CPU_HOST_PTR(&work));
-    run_on_cpu(cs, ia64_qtest_alat_smp_check_work,
-               RUN_ON_CPU_HOST_PTR(&work));
-    qtest_sendf(chr, "OK %u %u %u\n", work.setup_hit,
-                work.memory_write_ok, work.smp_hit);
+    run_on_cpu(cs, ia64_qtest_alat_smp_check_work, RUN_ON_CPU_HOST_PTR(&work));
+    qtest_sendf(chr, "OK %u %u %u\n", work.setup_hit, work.memory_write_ok,
+                work.smp_hit);
     return true;
 }
 
-static bool ia64_qtest_ras_min_state_command(CharFrontend *chr,
-                                              gchar **words)
+static bool ia64_qtest_ras_min_state_command(CharFrontend *chr, gchar **words)
 {
     IA64QTestRasMinStateWork work = { 0 };
     CPUState *cs;
@@ -1626,8 +1568,7 @@ static bool ia64_qtest_ras_min_state_command(CharFrontend *chr,
         return true;
     }
 
-    run_on_cpu(cs, ia64_qtest_ras_min_state_work,
-               RUN_ON_CPU_HOST_PTR(&work));
+    run_on_cpu(cs, ia64_qtest_ras_min_state_work, RUN_ON_CPU_HOST_PTR(&work));
     qtest_sendf(chr, "OK 0x%016" PRIx64 "\n", work.result);
     return true;
 }
@@ -1643,7 +1584,7 @@ typedef struct IA64QTestRasInjectWork {
 } IA64QTestRasInjectWork;
 
 static void ia64_qtest_ras_inject_processor_work(CPUState *cs,
-                                                  run_on_cpu_data data)
+                                                 run_on_cpu_data data)
 {
     IA64QTestRasInjectWork *work = data.host_ptr;
     CPUIA64State *env = cpu_env(cs);
@@ -1652,8 +1593,8 @@ static void ia64_qtest_ras_inject_processor_work(CPUState *cs,
         env->cr[IA64_CR_CMCV] = work->cmc_vector;
     }
     work->accepted = ia64_ras_hub_report_processor_error(
-        work->hub, cs, work->severity, work->status,
-        work->address, work->information);
+        work->hub, cs, work->severity, work->status, work->address,
+        work->information);
 }
 
 static bool ia64_qtest_ras_inject_command(CharFrontend *chr, gchar **words)
@@ -1678,8 +1619,8 @@ static bool ia64_qtest_ras_inject_command(CharFrontend *chr, gchar **words)
         qtest_sendf(chr, "FAIL invalid argument\n");
         return true;
     }
-    hub = IA64_RAS_HUB(object_resolve_path_type(
-        "", TYPE_IA64_RAS_HUB, &ambiguous));
+    hub = IA64_RAS_HUB(
+        object_resolve_path_type("", TYPE_IA64_RAS_HUB, &ambiguous));
     if (!hub || ambiguous) {
         qtest_sendf(chr, "FAIL requires one IA-64 RAS hub\n");
         return true;
@@ -1710,8 +1651,7 @@ static bool ia64_qtest_ras_inject_command(CharFrontend *chr, gchar **words)
         IA64ChipsetFault fault;
 
         if (args[0] > IA64_CHIPSET_FAULT_POWER ||
-            args[1] > IA64_RAS_SEVERITY_CORRECTED ||
-            args[5] > UINT32_MAX) {
+            args[1] > IA64_RAS_SEVERITY_CORRECTED || args[5] > UINT32_MAX) {
             qtest_sendf(chr, "FAIL invalid chipset error\n");
             return true;
         }
@@ -1750,25 +1690,25 @@ static void ia64_qtest_sapic_cpu_work(CPUState *cs, run_on_cpu_data data)
         uint8_t bytes[8] = { 0 };
 
         stq_le_p(bytes, work->value);
-        work->result = ia64_exec_physical_rw(
-            work->address, bytes, work->size, true);
+        work->result =
+            ia64_exec_physical_rw(work->address, bytes, work->size, true);
     } else if (strcmp(work->operation, "xtp") == 0) {
         ia64_sapic_set_xtp(cs, work->value);
         work->result = ia64_sapic_get_xtp(cs);
     } else if (strcmp(work->operation, "state") == 0) {
         unsigned int vector = work->value;
 
-        work->result = ia64_sapic_get_xtp(cs) |
-            ((env->interrupt.sapic_irr[vector / 64] >>
-              (vector % 64)) & 1) << 8 |
-            ((env->interrupt.sapic_isr[vector / 64] >>
-              (vector % 64)) & 1) << 9 |
-            ((vector < 16 ? env->interrupt.sapic_pmi_pending >> vector : 0)
-             & 1) << 10 |
+        work->result =
+            ia64_sapic_get_xtp(cs) |
+            ((env->interrupt.sapic_irr[vector / 64] >> (vector % 64)) & 1)
+                << 8 |
+            ((env->interrupt.sapic_isr[vector / 64] >> (vector % 64)) & 1)
+                << 9 |
+            ((vector < 16 ? env->interrupt.sapic_pmi_pending >> vector : 0) & 1)
+                << 10 |
             (uint64_t)env->interrupt.sapic_init_pending << 11;
     } else if (strcmp(work->operation, "halt-state") == 0) {
-        work->result = cs->halted |
-            (uint64_t)env->interrupt.pal_halt_wake << 1;
+        work->result = cs->halted | (uint64_t)env->interrupt.pal_halt_wake << 1;
     } else if (strcmp(work->operation, "accept") == 0) {
         work->result = ia64_sapic_accept(env);
     } else if (strcmp(work->operation, "accept-pmi") == 0) {
@@ -1783,17 +1723,14 @@ static void ia64_qtest_sapic_cpu_work(CPUState *cs, run_on_cpu_data data)
             work->result = 0;
             return;
         }
-        env->pal.pal_mc_save_addr =
-            IA64_PHYS_UC_BIT | IA64_QTEST_MCA_SAVE_PA;
+        env->pal.pal_mc_save_addr = IA64_PHYS_UC_BIT | IA64_QTEST_MCA_SAVE_PA;
         ia64_cpu_record_machine_check(
-            cs, IA64_RAS_SEVERITY_RECOVERABLE,
-            UINT64_C(0x1111222233334444), UINT64_C(0x12345000),
-            UINT64_C(0x5555666677778888));
+            cs, IA64_RAS_SEVERITY_RECOVERABLE, UINT64_C(0x1111222233334444),
+            UINT64_C(0x12345000), UINT64_C(0x5555666677778888));
         ia64_cpu_request_mca(cs, UINT64_C(0x100000), UINT64_C(0x700000),
-                             UINT64_C(0x778899),
-                             IA64_RAS_SEVERITY_RECOVERABLE);
-        work->result = ia64_ras_enter_mca(cpu) &&
-            env->pal.pal_mca_active && cpu->mca_rse_valid;
+                             UINT64_C(0x778899), IA64_RAS_SEVERITY_RECOVERABLE);
+        work->result = ia64_ras_enter_mca(cpu) && env->pal.pal_mca_active &&
+                       cpu->mca_rse_valid;
     } else if (strcmp(work->operation, "ras-resume") == 0) {
         IA64CPU *cpu = ia64_cpu_from_cpu_state(cs);
         uint64_t save_address = env->pal.pal_mc_save_addr;
@@ -1811,9 +1748,9 @@ static void ia64_qtest_sapic_cpu_work(CPUState *cs, run_on_cpu_data data)
             !env->pal.pal_mca_active && !cpu->mca_rse_valid;
     } else if (strcmp(work->operation, "ras-state") == 0) {
         work->result = (uint64_t)env->pal.pal_mca_pending |
-            (uint64_t)env->pal.pal_mca_active << 1 |
-            (uint64_t)env->pal.pal_cmc_pending << 2 |
-            (uint64_t)env->pal.pal_mc_log_valid << 3;
+                       (uint64_t)env->pal.pal_mca_active << 1 |
+                       (uint64_t)env->pal.pal_cmc_pending << 2 |
+                       (uint64_t)env->pal.pal_mc_log_valid << 3;
     } else {
         g_assert(strcmp(work->operation, "eoi") == 0);
         ia64_sapic_eoi(env);
@@ -1824,9 +1761,9 @@ static void ia64_qtest_sapic_cpu_work(CPUState *cs, run_on_cpu_data data)
 static bool ia64_qtest_sapic_command(CharFrontend *chr, gchar **words)
 {
     static const char *const cpu_operations[] = {
-        "xtp", "state", "halt-state", "accept", "accept-pmi",
-        "accept-init", "eoi", "ras-arm", "ras-resume", "ras-state",
-        "pib-read", "pib-write",
+        "xtp",        "state",       "halt-state", "accept",
+        "accept-pmi", "accept-init", "eoi",        "ras-arm",
+        "ras-resume", "ras-state",   "pib-read",   "pib-write",
     };
     IA64QTestSapicWork work = { 0 };
     uint64_t args[5];
@@ -1851,14 +1788,13 @@ static bool ia64_qtest_sapic_command(CharFrontend *chr, gchar **words)
         uint8_t id = args[1] >> 8;
         uint8_t eid = args[1];
 
-        if (args[0] > IA64_SAPIC_DESTINATION_LOGICAL ||
-            args[1] > UINT16_MAX || args[2] > 7 || args[3] > 1 ||
-            args[4] > UINT8_MAX) {
+        if (args[0] > IA64_SAPIC_DESTINATION_LOGICAL || args[1] > UINT16_MAX ||
+            args[2] > 7 || args[3] > 1 || args[4] > UINT8_MAX) {
             qtest_sendf(chr, "FAIL invalid delivery\n");
             return true;
         }
-        work.result = ia64_sapic_deliver(
-            args[0], id, eid, args[3], args[2], args[4]);
+        work.result =
+            ia64_sapic_deliver(args[0], id, eid, args[3], args[2], args[4]);
         qtest_sendf(chr, "OK %" PRId64 "\n", work.result);
         return true;
     }
@@ -1927,8 +1863,8 @@ static bool ia64_qtest_command(CharFrontend *chr, gchar **words)
     ret = qemu_strtou64(words[1], NULL, 0, &work.va);
     ret |= qemu_strtou64(words[2], NULL, 0, &work.old_pa);
     ret |= qemu_strtou64(words[3], NULL, 0, &work.new_pa);
-    if (ret || ((work.va | work.old_pa | work.new_pa) &
-                ~TARGET_PAGE_MASK) || work.old_pa == work.new_pa) {
+    if (ret || ((work.va | work.old_pa | work.new_pa) & ~TARGET_PAGE_MASK) ||
+        work.old_pa == work.new_pa) {
         qtest_sendf(chr, "FAIL invalid or unaligned address\n");
         return true;
     }
@@ -1950,8 +1886,8 @@ static bool ia64_qtest_command(CharFrontend *chr, gchar **words)
         return true;
     }
 
-    qtest_sendf(chr, "OK %" PRIu64 " 0x%016" PRIx64 "\n",
-                work.probe_result, work.value);
+    qtest_sendf(chr, "OK %" PRIu64 " 0x%016" PRIx64 "\n", work.probe_result,
+                work.value);
     return true;
 }
 
@@ -2083,8 +2019,7 @@ static void ia64_cpu_class_init(ObjectClass *oc, const void *data)
     IA64CPUClass *icc = IA64_CPU_CLASS(oc);
     ResettableClass *rc = RESETTABLE_CLASS(oc);
 
-    device_class_set_parent_realize(dc, ia64_cpu_realize,
-                                    &icc->parent_realize);
+    device_class_set_parent_realize(dc, ia64_cpu_realize, &icc->parent_realize);
     device_class_set_parent_unrealize(dc, ia64_cpu_unrealize,
                                       &icc->parent_unrealize);
     resettable_class_set_parent_phases(rc, NULL, ia64_cpu_reset_hold, NULL,
@@ -2107,8 +2042,7 @@ static void ia64_cpu_class_init(ObjectClass *oc, const void *data)
     icc->cpuid_version = 0x0000000020000704ULL;
     icc->cpuid_features = IA64_CPUID4_LB | IA64_CPUID4_AO;
     icc->pal_version = 0x0000096801000968ULL;
-    icc->pal_brand =
-        "QEMU Montecito-compatible IA-64 CPU 1.60GHz 24MB";
+    icc->pal_brand = "QEMU Montecito-compatible IA-64 CPU 1.60GHz 24MB";
     icc->frequency_base_hz = 100000000;
     icc->itc_frequency_hz = 400000000;
     icc->pal_l2i_cache_size = 1 * MiB;
@@ -2246,20 +2180,18 @@ static void ia64_cpu_model_class_init(ObjectClass *oc, const void *data)
     icc->implemented_pmd_mask = model->implemented_pmd_mask;
     icc->perf_cycles_mask = model->perf_cycles_mask;
     icc->perf_retired_mask = model->perf_retired_mask;
-    icc->pal_proc_feature_available = model->is_montecito ?
-        PAL_PROC_MONTECITO_AVAILABLE : 0;
-    icc->pal_proc_feature_controllable = model->is_montecito ?
-        PAL_PROC_MONTECITO_CONTROLLABLE : 0;
+    icc->pal_proc_feature_available =
+        model->is_montecito ? PAL_PROC_MONTECITO_AVAILABLE : 0;
+    icc->pal_proc_feature_controllable =
+        model->is_montecito ? PAL_PROC_MONTECITO_CONTROLLABLE : 0;
     icc->rse_has_clean_partition = model->rse_has_clean_partition;
     icc->data_debug_cross_16byte = model->data_debug_cross_16byte;
     icc->has_native_ia32 = model->has_native_ia32;
     icc->has_virtualization = model->has_virtualization;
     icc->is_montecito = model->is_montecito;
 
-    g_assert(model->itlb_entries > 0 &&
-             model->itlb_entries <= IA64_TLB_MAX);
-    g_assert(model->dtlb_entries > 0 &&
-             model->dtlb_entries <= IA64_TLB_MAX);
+    g_assert(model->itlb_entries > 0 && model->itlb_entries <= IA64_TLB_MAX);
+    g_assert(model->dtlb_entries > 0 && model->dtlb_entries <= IA64_TLB_MAX);
     g_assert(model->itr_count <= model->itlb_entries);
     g_assert(model->dtr_count <= model->dtlb_entries);
     g_assert(model->frequency_base_hz > 0);
@@ -2267,11 +2199,10 @@ static void ia64_cpu_model_class_init(ObjectClass *oc, const void *data)
              model->itc_frequency_hz <= 1600000000);
     g_assert((uint32_t)model->itc_frequency_ratio != 0);
     g_assert((uint64_t)model->frequency_base_hz *
-             (model->itc_frequency_ratio >> 32) /
-             (uint32_t)model->itc_frequency_ratio ==
+                 (model->itc_frequency_ratio >> 32) /
+                 (uint32_t)model->itc_frequency_ratio ==
              model->itc_frequency_hz);
-    g_assert(model->fc_line_size >= 32 &&
-             is_power_of_2(model->fc_line_size));
+    g_assert(model->fc_line_size >= 32 && is_power_of_2(model->fc_line_size));
     g_assert(model->pal_brand != NULL);
     g_assert(model->pal_l3_cache_size > 0);
     g_assert(model->pal_package_cache_size >= model->pal_l3_cache_size);
@@ -2520,8 +2451,8 @@ static void ia64_cpu_variant_class_init(ObjectClass *oc, const void *data)
     }
 
     g_assert((uint64_t)icc->frequency_base_hz *
-             (icc->itc_frequency_ratio >> 32) /
-             (uint32_t)icc->itc_frequency_ratio ==
+                 (icc->itc_frequency_ratio >> 32) /
+                 (uint32_t)icc->itc_frequency_ratio ==
              icc->itc_frequency_hz);
 }
 
@@ -2561,17 +2492,23 @@ static const IA64CPUVariantDef ia64_cpu_mckinley = {
 };
 
 IA64_SINGLE_CORE_VARIANT(ia64_cpu_mckinley_900,
-    "QEMU McKinley-compatible IA-64 CPU 900MHz 1.5MB", 900, 1536, 6);
+                         "QEMU McKinley-compatible IA-64 CPU 900MHz 1.5MB", 900,
+                         1536, 6);
 IA64_SINGLE_CORE_VARIANT(ia64_cpu_deerfield,
-    "QEMU Deerfield-compatible IA-64 CPU 1.00GHz 1.5MB", 1000, 1536, 6);
+                         "QEMU Deerfield-compatible IA-64 CPU 1.00GHz 1.5MB",
+                         1000, 1536, 6);
 IA64_SINGLE_CORE_VARIANT(ia64_cpu_madison_1500k,
-    "QEMU Madison-compatible IA-64 CPU 1.40GHz 1.5MB", 1400, 1536, 6);
+                         "QEMU Madison-compatible IA-64 CPU 1.40GHz 1.5MB",
+                         1400, 1536, 6);
 IA64_SINGLE_CORE_VARIANT(ia64_cpu_madison_3m,
-    "QEMU Madison-compatible IA-64 CPU 1.60GHz 3MB", 1600, 3072, 12);
+                         "QEMU Madison-compatible IA-64 CPU 1.60GHz 3MB", 1600,
+                         3072, 12);
 IA64_SINGLE_CORE_VARIANT(ia64_cpu_madison_4m,
-    "QEMU Madison-compatible IA-64 CPU 1.40GHz 4MB", 1400, 4096, 16);
+                         "QEMU Madison-compatible IA-64 CPU 1.40GHz 4MB", 1400,
+                         4096, 16);
 IA64_SINGLE_CORE_VARIANT(ia64_cpu_madison_6m,
-    "QEMU Madison-compatible IA-64 CPU 1.50GHz 6MB", 1500, 6144, 24);
+                         "QEMU Madison-compatible IA-64 CPU 1.50GHz 6MB", 1500,
+                         6144, 24);
 static const IA64CPUVariantDef ia64_cpu_madison_9m = {
     .semantic_profile_id = 0x6d6164396d000001ULL,
     .brand = "QEMU Madison-compatible IA-64 CPU 1.60GHz 9MB",
@@ -2675,7 +2612,7 @@ static const IA64CPUVariantDef ia64_cpu_montecito_9050 = {
     .l3_associativity = 12,
 };
 
-#define IA64_MONTVALE_VARIANT(_name, _number, _mhz, _l3_mb, _package_mb, \
+#define IA64_MONTVALE_VARIANT(_name, _number, _mhz, _l3_mb, _package_mb,       \
                               _bus_num, _bus_den, _assoc, _no_ht)       \
     static const IA64CPUVariantDef _name = {                           \
         .semantic_profile_id = UINT64_C(0x2000000000000000) |         \
@@ -2698,20 +2635,20 @@ static const IA64CPUVariantDef ia64_cpu_montecito_9050 = {
         .disable_ht = (_no_ht),                                       \
     }
 
-IA64_MONTVALE_VARIANT(ia64_cpu_montvale_9110n, 9110N, 1600, 12, 12,
-                       16, 3, 12, true);
-IA64_MONTVALE_VARIANT(ia64_cpu_montvale_9120n, 9120N, 1420, 6, 12,
-                       16, 3, 6, false);
-IA64_MONTVALE_VARIANT(ia64_cpu_montvale_9130m, 9130M, 1666, 4, 8,
-                       20, 3, 4, true);
-IA64_MONTVALE_VARIANT(ia64_cpu_montvale_9140m, 9140M, 1666, 9, 18,
-                       20, 3, 9, false);
-IA64_MONTVALE_VARIANT(ia64_cpu_montvale_9140n, 9140N, 1600, 9, 18,
-                       16, 3, 9, false);
-IA64_MONTVALE_VARIANT(ia64_cpu_montvale_9150m, 9150M, 1666, 12, 24,
-                       20, 3, 12, false);
-IA64_MONTVALE_VARIANT(ia64_cpu_montvale_9152m, 9152M, 1666, 12, 24,
-                       20, 3, 12, false);
+IA64_MONTVALE_VARIANT(ia64_cpu_montvale_9110n, 9110N, 1600, 12, 12, 16, 3, 12,
+                      true);
+IA64_MONTVALE_VARIANT(ia64_cpu_montvale_9120n, 9120N, 1420, 6, 12, 16, 3, 6,
+                      false);
+IA64_MONTVALE_VARIANT(ia64_cpu_montvale_9130m, 9130M, 1666, 4, 8, 20, 3, 4,
+                      true);
+IA64_MONTVALE_VARIANT(ia64_cpu_montvale_9140m, 9140M, 1666, 9, 18, 20, 3, 9,
+                      false);
+IA64_MONTVALE_VARIANT(ia64_cpu_montvale_9140n, 9140N, 1600, 9, 18, 16, 3, 9,
+                      false);
+IA64_MONTVALE_VARIANT(ia64_cpu_montvale_9150m, 9150M, 1666, 12, 24, 20, 3, 12,
+                      false);
+IA64_MONTVALE_VARIANT(ia64_cpu_montvale_9152m, 9152M, 1666, 12, 24, 20, 3, 12,
+                      false);
 
 static const IA64CPUVariantDef ia64_cpu_montvale = {
     .semantic_profile_id = 0x6d6f6e0039313530ULL,

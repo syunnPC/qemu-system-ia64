@@ -12,8 +12,8 @@
 #define HP_ZX2_MIO_CAPABILITIES_VALUE UINT64_C(0x0000003208040001)
 
 static bool hp_zx2_mio_access(uint64_t offset, unsigned int size,
-                              uint64_t *base, uint64_t *mask,
-                              uint64_t *data, uint64_t value)
+                              uint64_t *base, uint64_t *mask, uint64_t *data,
+                              uint64_t value)
 {
     unsigned int lane = offset & 7;
 
@@ -22,8 +22,8 @@ static bool hp_zx2_mio_access(uint64_t offset, unsigned int size,
         return false;
     }
     *base = offset & ~UINT64_C(7);
-    *mask = size == 8 ? UINT64_MAX :
-            ((UINT64_C(1) << (size * 8)) - 1) << (lane * 8);
+    *mask = size == 8 ? UINT64_MAX
+                      : ((UINT64_C(1) << (size * 8)) - 1) << (lane * 8);
     *data = (value << (lane * 8)) & *mask;
     return true;
 }
@@ -69,11 +69,11 @@ bool hp_zx2_mio_regs_read(const HPZX2MIORegs *regs, uint64_t offset,
     }
     if (base == HP_ZX2_MIO_CAPABILITIES) {
         reg = HP_ZX2_MIO_CAPABILITIES_VALUE;
-    } else if (hp_zx2_mio_group_register(
-                   base, HP_ZX2_MIO_GROUP_ROPES(0), &group)) {
+    } else if (hp_zx2_mio_group_register(base, HP_ZX2_MIO_GROUP_ROPES(0),
+                                         &group)) {
         reg = regs->group_ropes[group];
-    } else if (hp_zx2_mio_group_register(
-                   base, HP_ZX2_MIO_GROUP_CONTROL(0), &group)) {
+    } else if (hp_zx2_mio_group_register(base, HP_ZX2_MIO_GROUP_CONTROL(0),
+                                         &group)) {
         reg = regs->group_control[group];
     } else {
         switch (base) {
@@ -110,24 +110,20 @@ bool hp_zx2_mio_regs_write(HPZX2MIORegs *regs, uint64_t offset,
     uint64_t *reg;
     unsigned int group;
 
-    if (!regs ||
-        !hp_zx2_mio_access(offset, size, &base, &mask, &data, value)) {
+    if (!regs || !hp_zx2_mio_access(offset, size, &base, &mask, &data, value)) {
         return false;
     }
-    if (base == HP_ZX2_MIO_CAPABILITIES ||
-        base == HP_ZX2_MIO_ERROR_ADDRESS ||
+    if (base == HP_ZX2_MIO_CAPABILITIES || base == HP_ZX2_MIO_ERROR_ADDRESS ||
         base == HP_ZX2_MIO_ERROR_INFORMATION) {
         return true;
     }
-    if (hp_zx2_mio_group_register(base, HP_ZX2_MIO_GROUP_ROPES(0),
-                                  &group)) {
+    if (hp_zx2_mio_group_register(base, HP_ZX2_MIO_GROUP_ROPES(0), &group)) {
         reg = &regs->group_ropes[group];
         writable = HP_ZX2_MIO_ROPE_MASK;
-    } else if (hp_zx2_mio_group_register(
-                   base, HP_ZX2_MIO_GROUP_CONTROL(0), &group)) {
+    } else if (hp_zx2_mio_group_register(base, HP_ZX2_MIO_GROUP_CONTROL(0),
+                                         &group)) {
         reg = &regs->group_control[group];
-        writable = HP_ZX2_MIO_GROUP_ENABLE |
-                   HP_ZX2_MIO_GROUP_CONTEXT_MASK;
+        writable = HP_ZX2_MIO_GROUP_ENABLE | HP_ZX2_MIO_GROUP_CONTEXT_MASK;
     } else if (base == HP_ZX2_MIO_IOMMU_SELECT) {
         reg = &regs->iommu_select;
         writable = HP_ZX2_MIO_IOMMU_SELECT_MASK;
@@ -138,8 +134,7 @@ bool hp_zx2_mio_regs_write(HPZX2MIORegs *regs, uint64_t offset,
                    HP_ZX2_MIO_ERROR_INTERRUPT_ID |
                    HP_ZX2_MIO_ERROR_INTERRUPT_EID;
     } else if (base == HP_ZX2_MIO_ERROR_STATUS) {
-        regs->error_status &= ~(data & mask &
-            HP_ZX1_MIO_ERROR_STATUS_W1C);
+        regs->error_status &= ~(data & mask & HP_ZX1_MIO_ERROR_STATUS_W1C);
         if (!(regs->error_status & HP_ZX1_MIO_ERROR_VALID)) {
             regs->error_status = 0;
             regs->error_address = 0;
@@ -153,9 +148,8 @@ bool hp_zx2_mio_regs_write(HPZX2MIORegs *regs, uint64_t offset,
     return true;
 }
 
-bool hp_zx2_mio_regs_group_for_ropes(const HPZX2MIORegs *regs,
-                                     uint16_t ropes, unsigned int *group,
-                                     unsigned int *context)
+bool hp_zx2_mio_regs_group_for_ropes(const HPZX2MIORegs *regs, uint16_t ropes,
+                                     unsigned int *group, unsigned int *context)
 {
     unsigned int index;
 
@@ -168,9 +162,9 @@ bool hp_zx2_mio_regs_group_for_ropes(const HPZX2MIORegs *regs,
         if ((regs->group_control[index] & HP_ZX2_MIO_GROUP_ENABLE) &&
             (ropes & map) == ropes) {
             *group = index;
-            *context = (regs->group_control[index] &
-                        HP_ZX2_MIO_GROUP_CONTEXT_MASK) >>
-                       HP_ZX2_MIO_GROUP_CONTEXT_SHIFT;
+            *context =
+                (regs->group_control[index] & HP_ZX2_MIO_GROUP_CONTEXT_MASK) >>
+                HP_ZX2_MIO_GROUP_CONTEXT_SHIFT;
             return true;
         }
     }
@@ -180,8 +174,8 @@ bool hp_zx2_mio_regs_group_for_ropes(const HPZX2MIORegs *regs,
 void hp_zx2_mio_regs_report_fault(HPZX2MIORegs *regs, uint64_t status,
                                   uint64_t address, uint64_t information)
 {
-    if (!regs || !(status & (HP_ZX1_MIO_ERROR_IOMMU |
-                            HP_ZX1_MIO_ERROR_CSR_DECODE))) {
+    if (!regs ||
+        !(status & (HP_ZX1_MIO_ERROR_IOMMU | HP_ZX1_MIO_ERROR_CSR_DECODE))) {
         return;
     }
     if (regs->error_status & HP_ZX1_MIO_ERROR_VALID) {
@@ -201,8 +195,7 @@ bool hp_zx2_mio_regs_state_valid(const HPZX2MIORegs *regs)
     if (!regs || (regs->iommu_select & ~HP_ZX2_MIO_IOMMU_SELECT_MASK) ||
         (regs->error_interrupt &
          ~(HP_ZX2_MIO_ERROR_INTERRUPT_ENABLE |
-           HP_ZX2_MIO_ERROR_INTERRUPT_VECTOR |
-           HP_ZX2_MIO_ERROR_INTERRUPT_ID |
+           HP_ZX2_MIO_ERROR_INTERRUPT_VECTOR | HP_ZX2_MIO_ERROR_INTERRUPT_ID |
            HP_ZX2_MIO_ERROR_INTERRUPT_EID)) ||
         (regs->error_status & ~HP_ZX1_MIO_ERROR_STATUS_W1C)) {
         return false;
@@ -213,8 +206,8 @@ bool hp_zx2_mio_regs_state_valid(const HPZX2MIORegs *regs)
 
         if (!ropes || (ropes & ~(uint64_t)HP_ZX2_MIO_ROPE_MASK) ||
             (assigned & ropes) ||
-            (control & ~(HP_ZX2_MIO_GROUP_ENABLE |
-                         HP_ZX2_MIO_GROUP_CONTEXT_MASK))) {
+            (control &
+             ~(HP_ZX2_MIO_GROUP_ENABLE | HP_ZX2_MIO_GROUP_CONTEXT_MASK))) {
             return false;
         }
         assigned |= ropes;

@@ -23,7 +23,8 @@ OBJECT_DECLARE_SIMPLE_TYPE(Intel82466GXIHPCState, INTEL_82466GX_IHPC)
 #define INTEL_82466GX_IHPC_GPIO_SLOT_SWITCH "slot-switch"
 #define INTEL_82466GX_IHPC_GPIO_POWER_FAULT "power-fault"
 
-void intel_82466gx_ihpc_set_fault_notify(
-    Intel82466GXIHPCState *s, IA64ChipsetFaultNotify notify, void *opaque);
+void intel_82466gx_ihpc_set_fault_notify(Intel82466GXIHPCState *s,
+                                         IA64ChipsetFaultNotify notify,
+                                         void *opaque);
 
 #endif /* HW_IA64_INTEL_460GX_IHPC_H */

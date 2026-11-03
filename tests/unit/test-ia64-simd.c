@@ -23,8 +23,8 @@ static const char *expect_u64(const char *operation, uint64_t actual,
         return NULL;
     }
     snprintf(failure, sizeof(failure),
-             "%s: expected %016" PRIx64 " got %016" PRIx64,
-             operation, expected, actual);
+             "%s: expected %016" PRIx64 " got %016" PRIx64, operation, expected,
+             actual);
     return failure;
 }
 
@@ -32,35 +32,31 @@ static const char *test_average_compare_minmax(void)
 {
     const char *error;
 
-    error = expect_u64(
-        "pavg1",
-        ia64_simd_pavg_value(0, UINT64_C(0x0001020304050607),
-                             UINT64_C(0x0807060504030201)),
-        UINT64_C(0x0404040404040404));
+    error = expect_u64("pavg1",
+                       ia64_simd_pavg_value(0, UINT64_C(0x0001020304050607),
+                                            UINT64_C(0x0807060504030201)),
+                       UINT64_C(0x0404040404040404));
     if (error) {
         return error;
     }
-    error = expect_u64(
-        "pcmpeq1",
-        ia64_simd_pcmp_value(0, UINT64_C(0x0011223344556677),
-                             UINT64_C(0x0011aa3344bb6677)),
-        UINT64_C(0xffff00ffff00ffff));
+    error = expect_u64("pcmpeq1",
+                       ia64_simd_pcmp_value(0, UINT64_C(0x0011223344556677),
+                                            UINT64_C(0x0011aa3344bb6677)),
+                       UINT64_C(0xffff00ffff00ffff));
     if (error) {
         return error;
     }
-    error = expect_u64(
-        "pmax1.u",
-        ia64_simd_pminmax_value(0, UINT64_C(0x0102030405060708),
-                                UINT64_C(0x0807060504030201)),
-        UINT64_C(0x0807060505060708));
+    error = expect_u64("pmax1.u",
+                       ia64_simd_pminmax_value(0, UINT64_C(0x0102030405060708),
+                                               UINT64_C(0x0807060504030201)),
+                       UINT64_C(0x0807060505060708));
     if (error) {
         return error;
     }
-    return expect_u64(
-        "pmin1.u",
-        ia64_simd_pminmax_value(1, UINT64_C(0x0102030405060708),
-                                UINT64_C(0x0807060504030201)),
-        UINT64_C(0x0102030404030201));
+    return expect_u64("pmin1.u",
+                      ia64_simd_pminmax_value(1, UINT64_C(0x0102030405060708),
+                                              UINT64_C(0x0807060504030201)),
+                      UINT64_C(0x0102030404030201));
 }
 
 static const char *test_multiply_and_sad(void)
@@ -89,9 +85,9 @@ static const char *test_permutations(void)
     const uint64_t b = UINT64_C(0x8888777766665555);
     const char *error;
 
-    error = expect_u64("mux1 broadcast",
-                       ia64_simd_mux_value(0, UINT64_C(0x5a), 0),
-                       UINT64_C(0x5a5a5a5a5a5a5a5a));
+    error =
+        expect_u64("mux1 broadcast", ia64_simd_mux_value(0, UINT64_C(0x5a), 0),
+                   UINT64_C(0x5a5a5a5a5a5a5a5a));
     if (error) {
         return error;
     }
@@ -116,20 +112,18 @@ static const char *test_permutations(void)
 
 static const char *test_saturation(void)
 {
-    return expect_u64(
-        "pack2.uss",
-        ia64_simd_pack_value(1, UINT64_C(0x010000ff0001ffff),
-                             UINT64_C(0x7fff0080007f8000)),
-        UINT64_C(0xff807f00ffff0100));
+    return expect_u64("pack2.uss",
+                      ia64_simd_pack_value(1, UINT64_C(0x010000ff0001ffff),
+                                           UINT64_C(0x7fff0080007f8000)),
+                      UINT64_C(0xff807f00ffff0100));
 }
 
 static const char *test_pshladd2_shift_saturation(void)
 {
-    return expect_u64(
-        "pshladd2 shift overflow suppresses add",
-        ia64_simd_pshladd2_value(UINT64_C(0xc0003fffbfff4000),
-                                 UINT64_C(0x000100010001ffff), 1),
-        UINT64_C(0x80017fff80007fff));
+    return expect_u64("pshladd2 shift overflow suppresses add",
+                      ia64_simd_pshladd2_value(UINT64_C(0xc0003fffbfff4000),
+                                               UINT64_C(0x000100010001ffff), 1),
+                      UINT64_C(0x80017fff80007fff));
 }
 
 static const char *test_count_zero_and_sum(void)
@@ -137,22 +131,19 @@ static const char *test_count_zero_and_sum(void)
     const char *error;
 
     error = expect_u64("czx1.r",
-                       ia64_simd_czx_value(1, UINT64_C(0x0000000000020201)),
-                       3);
+                       ia64_simd_czx_value(1, UINT64_C(0x0000000000020201)), 3);
     if (error) {
         return error;
     }
     error = expect_u64("czx1.l",
-                       ia64_simd_czx_value(0, UINT64_C(0x0102000000000000)),
-                       2);
+                       ia64_simd_czx_value(0, UINT64_C(0x0102000000000000)), 2);
     if (error) {
         return error;
     }
-    return expect_u64(
-        "pshr2.u",
-        ia64_simd_sum_value(UINT64_C(0x0004000300020001),
-                            UINT64_C(0x0008000700060005)),
-        UINT64_C(0x00070003000f000b));
+    return expect_u64("pshr2.u",
+                      ia64_simd_sum_value(UINT64_C(0x0004000300020001),
+                                          UINT64_C(0x0008000700060005)),
+                      UINT64_C(0x00070003000f000b));
 }
 
 int main(void)

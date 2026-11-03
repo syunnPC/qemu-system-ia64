@@ -78,12 +78,12 @@
 #define IA64_RAS_SAL_STATUS_FATAL       1U
 #define IA64_RAS_SAL_STATUS_CORRECTED   2U
 
-static inline unsigned long long ia64_ras_record_bank_offset(
-    unsigned int cpu, unsigned int type)
+static inline unsigned long long ia64_ras_record_bank_offset(unsigned int cpu,
+                                                             unsigned int type)
 {
     return IA64_RAS_RECORD_BANK_BASE +
-        ((unsigned long long)cpu * IA64_RAS_RECORD_TYPE_COUNT + type) *
-        IA64_RAS_RECORD_BANK_STRIDE;
+           ((unsigned long long)cpu * IA64_RAS_RECORD_TYPE_COUNT + type) *
+               IA64_RAS_RECORD_BANK_STRIDE;
 }
 
 #endif /* HW_IA64_RAS_ABI_H */

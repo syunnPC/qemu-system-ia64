@@ -84,8 +84,7 @@ static void ifb_bmdma_bar_init(PCIIDEState *d)
         memory_region_init_io(&bm->addr_ioport, OBJECT(d),
                               &bmdma_addr_ioport_ops, bm,
                               TYPE_INTEL_82468GX_IFB_IDE ".descriptor", 4);
-        memory_region_add_subregion(&d->bmdma_bar, i * 8 + 4,
-                                    &bm->addr_ioport);
+        memory_region_add_subregion(&d->bmdma_bar, i * 8 + 4, &bm->addr_ioport);
     }
 }
 
@@ -108,8 +107,7 @@ static void ifb_ide_reset(DeviceState *dev)
     pci_set_word(pci->config + 0x4a, 0);
 }
 
-static void ifb_ide_init_bus(PCIIDEState *d, ISABus *isa_bus,
-                             unsigned channel)
+static void ifb_ide_init_bus(PCIIDEState *d, ISABus *isa_bus, unsigned channel)
 {
     static const struct {
         uint16_t command;
@@ -124,16 +122,13 @@ static void ifb_ide_init_bus(PCIIDEState *d, ISABus *isa_bus,
     ide_bus_init(bus, sizeof(*bus), DEVICE(d), channel, 2);
     portio_list_init(&bus->portio_list, OBJECT(d), ide_portio_list, bus,
                      TYPE_INTEL_82468GX_IFB_IDE ".command");
-    portio_list_add(&bus->portio_list,
-                    pci_address_space_io(PCI_DEVICE(d)),
+    portio_list_add(&bus->portio_list, pci_address_space_io(PCI_DEVICE(d)),
                     ports[channel].command);
     portio_list_init(&bus->portio2_list, OBJECT(d), ide_portio2_list, bus,
                      TYPE_INTEL_82468GX_IFB_IDE ".control");
-    portio_list_add(&bus->portio2_list,
-                    pci_address_space_io(PCI_DEVICE(d)),
+    portio_list_add(&bus->portio2_list, pci_address_space_io(PCI_DEVICE(d)),
                     ports[channel].control);
-    ide_bus_init_output_irq(bus, isa_bus_get_irq(isa_bus,
-                                                 ports[channel].irq));
+    ide_bus_init_output_irq(bus, isa_bus_get_irq(isa_bus, ports[channel].irq));
     bmdma_init(bus, &d->bmdma[channel], d);
     ide_bus_register_restart_cb(bus);
 }
@@ -150,8 +145,7 @@ static void ifb_ide_realize(PCIDevice *pci, Error **errp)
                    TYPE_INTEL_82468GX_IFB_IDE);
         return;
     }
-    isa_bus = intel_82468gx_ifb_isa_bus(
-        INTEL_82468GX_IFB(function_zero));
+    isa_bus = intel_82468gx_ifb_isa_bus(INTEL_82468GX_IFB(function_zero));
     if (!isa_bus) {
         error_setg(errp, "%s requires a realized IFB ISA bus",
                    TYPE_INTEL_82468GX_IFB_IDE);
@@ -166,8 +160,7 @@ static void ifb_ide_realize(PCIDevice *pci, Error **errp)
     memset(pci->w1cmask, 0, pci_config_size(pci));
     pci->config[PCI_CLASS_PROG] = 0x80;
     pci_set_word(pci->wmask + PCI_COMMAND, BIT(2) | BIT(0));
-    pci_set_word(pci->w1cmask + PCI_STATUS,
-                 BIT(13) | BIT(12) | BIT(11));
+    pci_set_word(pci->w1cmask + PCI_STATUS, BIT(13) | BIT(12) | BIT(11));
     pci->wmask[PCI_LATENCY_TIMER] = 0xf0;
     pci_set_word(pci->wmask + 0x40, 0xf3ff);
     pci_set_word(pci->wmask + 0x42, 0xf3ff);
@@ -197,8 +190,7 @@ static void ifb_ide_exit(PCIDevice *pci)
             portio_list_destroy(&d->bus[i].portio_list);
         }
         memory_region_del_subregion(&d->bmdma_bar, &d->bmdma[i].extra_io);
-        memory_region_del_subregion(&d->bmdma_bar,
-                                    &d->bmdma[i].addr_ioport);
+        memory_region_del_subregion(&d->bmdma_bar, &d->bmdma[i].addr_ioport);
     }
 }
 

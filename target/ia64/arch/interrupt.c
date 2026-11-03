@@ -15,8 +15,7 @@
 /* ---- Local SAPIC helpers ---- */
 
 static int sapic_find_isr(CPUIA64State *env);
-static void ia64_sapic_set_special_work(CPUState *cs,
-                                        run_on_cpu_data data);
+static void ia64_sapic_set_special_work(CPUState *cs, run_on_cpu_data data);
 
 CPUState *ia64_cpu_by_sapic_id(uint8_t id, uint8_t eid)
 {
@@ -93,8 +92,8 @@ static void sapic_deliver_to(CPUState *cs, IA64SapicDeliveryMode delivery,
 {
     if (delivery == IA64_SAPIC_DELIVERY_PMI ||
         delivery == IA64_SAPIC_DELIVERY_INIT) {
-        run_on_cpu_data data = RUN_ON_CPU_HOST_INT(
-            ((unsigned int)delivery << 8) | vector);
+        run_on_cpu_data data =
+            RUN_ON_CPU_HOST_INT(((unsigned int)delivery << 8) | vector);
 
         if (qemu_cpu_is_self(cs)) {
             ia64_sapic_set_special_work(cs, data);
@@ -106,8 +105,8 @@ static void sapic_deliver_to(CPUState *cs, IA64SapicDeliveryMode delivery,
     }
 }
 
-bool ia64_sapic_deliver(IA64SapicDestinationMode destination_mode,
-                        uint8_t id, uint8_t eid, bool redirect,
+bool ia64_sapic_deliver(IA64SapicDestinationMode destination_mode, uint8_t id,
+                        uint8_t eid, bool redirect,
                         IA64SapicDeliveryMode delivery, uint8_t vector)
 {
     CPUState *cs;
@@ -234,8 +233,7 @@ static int sapic_find_irr(CPUIA64State *env)
         return 0;
     }
     vector = sapic_find_highest_normal(env->interrupt.sapic_irr);
-    if (vector != IA64_SPURIOUS_VECTOR &&
-        sapic_vector_unmasked(env, vector)) {
+    if (vector != IA64_SPURIOUS_VECTOR && sapic_vector_unmasked(env, vector)) {
         return vector;
     }
     return IA64_SPURIOUS_VECTOR;
@@ -255,13 +253,11 @@ static int sapic_find_isr(CPUIA64State *env)
 void ia64_sapic_update_interrupt(CPUIA64State *env)
 {
     CPUState *cs = env_cpu(env);
-    bool special = (env->pal.pal_mca_pending &&
-                    !(env->psr & IA64_PSR_MC)) ||
-                   (env->interrupt.sapic_init_pending &&
-                    !(env->psr & IA64_PSR_MC)) ||
-                   (env->interrupt.sapic_pmi_pending &&
-                    (env->psr & IA64_PSR_IC) &&
-                    env->pal.pal_pmi_entry != 0);
+    bool special =
+        (env->pal.pal_mca_pending && !(env->psr & IA64_PSR_MC)) ||
+        (env->interrupt.sapic_init_pending && !(env->psr & IA64_PSR_MC)) ||
+        (env->interrupt.sapic_pmi_pending && (env->psr & IA64_PSR_IC) &&
+         env->pal.pal_pmi_entry != 0);
 
     if (special || sapic_find_irr(env) != IA64_SPURIOUS_VECTOR) {
         cpu_set_interrupt(cs, CPU_INTERRUPT_HARD);
@@ -382,16 +378,14 @@ static uint64_t ia64_itc_delay_ns(CPUIA64State *env, uint64_t delta_ticks)
         return INT64_MAX;
     }
     required_ticks = delta_ticks + env->interrupt.itc_tick_debt;
-    maximum_ticks = ia64_itc_ticks_for_ns(INT64_MAX,
-                                          icc->itc_frequency_hz,
-                                          env->interrupt.itc_fraction,
-                                          NULL);
+    maximum_ticks = ia64_itc_ticks_for_ns(INT64_MAX, icc->itc_frequency_hz,
+                                          env->interrupt.itc_fraction, NULL);
     if (required_ticks > maximum_ticks) {
         return INT64_MAX;
     }
 
-    delay_ns = muldiv64(required_ticks, NANOSECONDS_PER_SECOND,
-                        icc->itc_frequency_hz);
+    delay_ns =
+        muldiv64(required_ticks, NANOSECONDS_PER_SECOND, icc->itc_frequency_hz);
     /*
      * muldiv64() rounds down.  Host timers have nanosecond resolution, so
      * choose the first representable instant at which the model oscillator
@@ -399,8 +393,8 @@ static uint64_t ia64_itc_delay_ns(CPUIA64State *env, uint64_t delta_ticks)
      * 1 GHz, where several guest ticks can elapse in one host nanosecond.
      */
     if (ia64_itc_ticks_for_ns(delay_ns, icc->itc_frequency_hz,
-                             env->interrupt.itc_fraction, NULL) <
-        required_ticks) {
+                              env->interrupt.itc_fraction,
+                              NULL) < required_ticks) {
         delay_ns++;
     }
     return delay_ns;
@@ -415,8 +409,7 @@ void ia64_itc_advance_pending_itm(CPUIA64State *env)
      * ITM yet.  Expose at least the first tick after the matched deadline so a
      * handler cannot observe the equality as still pending.
      */
-    if (!env->interrupt.itm_armed &&
-        env->interrupt.itm_last_match_valid &&
+    if (!env->interrupt.itm_armed && env->interrupt.itm_last_match_valid &&
         ia64_itm_interrupt_active(env) &&
         (int64_t)(env->ar_itc - (env->interrupt.itm_last_match + 1)) < 0) {
         uint64_t ticks = env->interrupt.itm_last_match + 1 - env->ar_itc;
@@ -429,8 +422,9 @@ void ia64_itc_advance_pending_itm(CPUIA64State *env)
          * repeated handler reads do not make the model clock run fast.
          */
         env->interrupt.itc_tick_debt =
-            ticks > UINT64_MAX - env->interrupt.itc_tick_debt ?
-            UINT64_MAX : env->interrupt.itc_tick_debt + ticks;
+            ticks > UINT64_MAX - env->interrupt.itc_tick_debt
+                ? UINT64_MAX
+                : env->interrupt.itc_tick_debt + ticks;
     }
 }
 
@@ -500,8 +494,7 @@ void ia64_sapic_set_init(CPUState *cs, uint8_t reason)
     }
 }
 
-static void ia64_sapic_set_special_work(CPUState *cs,
-                                        run_on_cpu_data data)
+static void ia64_sapic_set_special_work(CPUState *cs, run_on_cpu_data data)
 {
     IA64CPU *cpu = ia64_cpu_from_cpu_state(cs);
     unsigned int encoded = data.host_int;
@@ -540,8 +533,7 @@ static void ia64_itm_raise(CPUIA64State *env, uint64_t itm_value)
 
     env->interrupt.itm_last_match = itm_value;
     env->interrupt.itm_last_match_valid = true;
-    trace_ia64_itm(CPU(cpu)->cpu_index, "fire", env->ar_itc, itm_value,
-                   vector);
+    trace_ia64_itm(CPU(cpu)->cpu_index, "fire", env->ar_itc, itm_value, vector);
     ia64_sapic_set_irq(CPU(cpu), vector);
 }
 
@@ -592,8 +584,7 @@ static void ia64_itm_timer_work(CPUState *cs, run_on_cpu_data data)
 
     ia64_itc_advance_pending_itm(&cpu->env);
 
-    if (!ia64_itm_update_pending(&cpu->env, cpu->env.ar_itc, itm,
-                                 was_armed)) {
+    if (!ia64_itm_update_pending(&cpu->env, cpu->env.ar_itc, itm, was_armed)) {
         ia64_itm_update(&cpu->env, itm);
     }
 }
@@ -616,8 +607,8 @@ void ia64_itm_update(CPUIA64State *env, uint64_t itm_value)
     int64_t delta_ticks;
     uint64_t delay_ns;
     int64_t deadline_ns;
-    bool was_armed = env->interrupt.itm_armed &&
-                     env->interrupt.itm_armed_value == itm_value;
+    bool was_armed =
+        env->interrupt.itm_armed && env->interrupt.itm_armed_value == itm_value;
 
     ia64_itc_advance_pending_itm(env);
     itc = env->ar_itc;
@@ -651,9 +642,9 @@ void ia64_itc_sync(CPUIA64State *env)
     int64_t elapsed = now - env->interrupt.itc_last_ns;
 
     if (elapsed > 0) {
-        uint64_t ticks = ia64_itc_ticks_for_ns(
-            elapsed, icc->itc_frequency_hz, env->interrupt.itc_fraction,
-            &env->interrupt.itc_fraction);
+        uint64_t ticks = ia64_itc_ticks_for_ns(elapsed, icc->itc_frequency_hz,
+                                               env->interrupt.itc_fraction,
+                                               &env->interrupt.itc_fraction);
 
         env->interrupt.itc_last_ns = now;
         if (ticks <= env->interrupt.itc_tick_debt) {
@@ -692,8 +683,8 @@ bool ia64_cpu_has_work(CPUState *cs)
     IA64CPU *cpu = ia64_cpu_from_cpu_state(cs);
     CPUIA64State *env = &cpu->env;
     bool nmi_pending = (env->interrupt.sapic_irr[0] & (1ULL << 2)) != 0;
-    bool interrupts_enabled = (env->psr & IA64_PSR_I) ||
-                              (cs->halted && env->interrupt.pal_halt_wake);
+    bool interrupts_enabled =
+        (env->psr & IA64_PSR_I) || (cs->halted && env->interrupt.pal_halt_wake);
 
     /*
      * ia64_sapic_update_interrupt() maintains CPU_INTERRUPT_HARD whenever
@@ -705,13 +696,10 @@ bool ia64_cpu_has_work(CPUState *cs)
     return cpu_test_interrupt(cs, CPU_INTERRUPT_HARD) &&
            (interrupts_enabled || nmi_pending ||
             (env->pal.pal_mca_pending && !(env->psr & IA64_PSR_MC)) ||
-            (env->interrupt.sapic_pmi_pending &&
-             (env->psr & IA64_PSR_IC) &&
+            (env->interrupt.sapic_pmi_pending && (env->psr & IA64_PSR_IC) &&
              env->pal.pal_pmi_entry != 0) ||
-            (env->interrupt.sapic_init_pending &&
-             !(env->psr & IA64_PSR_MC)));
+            (env->interrupt.sapic_init_pending && !(env->psr & IA64_PSR_MC)));
 }
-
 
 uint64_t ia64_interrupt_itc_read(CPUIA64State *env)
 {

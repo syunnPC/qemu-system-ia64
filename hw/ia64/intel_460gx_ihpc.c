@@ -122,12 +122,11 @@ static uint8_t ihpc_slot_mask(const Intel82466GXIHPCState *s)
 
 static void ihpc_update_irq(Intel82466GXIHPCState *s)
 {
-    bool level = (s->interrupt_pending & ~s->interrupt_mask) != 0 ||
-                 (s->misc & IHPC_MISC_GENERAL_PENDING) != 0 ||
-                 (s->misc & (IHPC_MISC_SHIFT_PENDING |
-                             IHPC_MISC_SHIFT_IRQ_ENABLE)) ==
-                 (IHPC_MISC_SHIFT_PENDING |
-                  IHPC_MISC_SHIFT_IRQ_ENABLE);
+    bool level =
+        (s->interrupt_pending & ~s->interrupt_mask) != 0 ||
+        (s->misc & IHPC_MISC_GENERAL_PENDING) != 0 ||
+        (s->misc & (IHPC_MISC_SHIFT_PENDING | IHPC_MISC_SHIFT_IRQ_ENABLE)) ==
+            (IHPC_MISC_SHIFT_PENDING | IHPC_MISC_SHIFT_IRQ_ENABLE);
 
     if (s->irq_asserted != level) {
         s->irq_asserted = level;
@@ -140,14 +139,10 @@ static uint32_t ihpc_compose_inputs(const Intel82466GXIHPCState *s)
     uint32_t value = 0;
     uint8_t slots = ihpc_slot_mask(s);
 
-    value |= (uint32_t)(~s->switch_closed & slots)
-             << IHPC_INPUT_SWITCH_SHIFT;
-    value |= (uint32_t)(~s->power_fault & slots)
-             << IHPC_INPUT_FAULT_SHIFT;
-    value |= (uint32_t)(~s->present & slots)
-             << IHPC_INPUT_PRESENT1_SHIFT;
-    value |= (uint32_t)(~s->present & slots)
-             << IHPC_INPUT_PRESENT0_SHIFT;
+    value |= (uint32_t)(~s->switch_closed & slots) << IHPC_INPUT_SWITCH_SHIFT;
+    value |= (uint32_t)(~s->power_fault & slots) << IHPC_INPUT_FAULT_SHIFT;
+    value |= (uint32_t)(~s->present & slots) << IHPC_INPUT_PRESENT1_SHIFT;
+    value |= (uint32_t)(~s->present & slots) << IHPC_INPUT_PRESENT0_SHIFT;
     return value & IHPC_INPUT_VALID_MASK;
 }
 
@@ -161,8 +156,7 @@ static void ihpc_latch_input_changes(Intel82466GXIHPCState *s,
     unsigned int slot;
 
     for (slot = 0; slot < s->slot_count; slot++) {
-        if ((switch_bits & BIT(slot)) &&
-            (s->switch_redirect & BIT(slot))) {
+        if ((switch_bits & BIT(slot)) && (s->switch_redirect & BIT(slot))) {
             redirected |= BIT(slot);
         }
     }
@@ -170,14 +164,13 @@ static void ihpc_latch_input_changes(Intel82466GXIHPCState *s,
         PCI_DEVICE(s)->config[IHPC_CFG_SWITCH_SERR] |= redirected;
         if (pci_get_word(PCI_DEVICE(s)->config + PCI_COMMAND) &
             PCI_COMMAND_SERR) {
-            pci_word_test_and_set_mask(
-                PCI_DEVICE(s)->config + PCI_STATUS,
-                PCI_STATUS_SIG_SYSTEM_ERROR);
+            pci_word_test_and_set_mask(PCI_DEVICE(s)->config + PCI_STATUS,
+                                       PCI_STATUS_SIG_SYSTEM_ERROR);
         }
     }
     eligible &= ~redirected;
-    s->interrupt_latch = (s->interrupt_latch & ~eligible) |
-                         (s->inputs & eligible);
+    s->interrupt_latch =
+        (s->interrupt_latch & ~eligible) | (s->inputs & eligible);
     s->interrupt_pending |= eligible;
     ihpc_update_irq(s);
 }
@@ -198,16 +191,15 @@ static uint32_t ihpc_interrupt_value(const Intel82466GXIHPCState *s)
 }
 
 static PCIDevice *ihpc_device_in_slot(Intel82466GXIHPCState *s,
-                                      unsigned int slot,
-                                      unsigned int function)
+                                      unsigned int slot, unsigned int function)
 {
     PCIBus *bus = pci_get_bus(PCI_DEVICE(s));
 
     return bus->devices[PCI_DEVFN(s->first_slot + slot, function)];
 }
 
-static void ihpc_set_slot_power(Intel82466GXIHPCState *s,
-                                unsigned int slot, bool power)
+static void ihpc_set_slot_power(Intel82466GXIHPCState *s, unsigned int slot,
+                                bool power)
 {
     unsigned int function;
 
@@ -268,8 +260,7 @@ static void ihpc_apply_outputs(Intel82466GXIHPCState *s)
         bool new_power = power & BIT(slot);
 
         ihpc_set_slot_power(s, slot, new_power);
-        if (!(enable & BIT(slot)) &&
-            ihpc_slot_has_pending_unplug(s, slot)) {
+        if (!(enable & BIT(slot)) && ihpc_slot_has_pending_unplug(s, slot)) {
             ihpc_unplug_slot(s, slot);
         }
     }
@@ -280,8 +271,7 @@ static void ihpc_apply_outputs(Intel82466GXIHPCState *s)
     ihpc_update_irq(s);
 }
 
-static uint32_t ihpc_mmio_readl(Intel82466GXIHPCState *s,
-                                hwaddr aligned)
+static uint32_t ihpc_mmio_readl(Intel82466GXIHPCState *s, hwaddr aligned)
 {
     switch (aligned) {
     case 0x00:
@@ -295,8 +285,8 @@ static uint32_t ihpc_mmio_readl(Intel82466GXIHPCState *s,
     case IHPC_REG_SERIAL_DATA:
         return (uint32_t)s->general_output << 24 |
                (uint32_t)s->serial_pointer << 8 |
-               ((ihpc_interrupt_value(s) >>
-                 ((s->serial_pointer & 3) * 8)) & 0xff);
+               ((ihpc_interrupt_value(s) >> ((s->serial_pointer & 3) * 8)) &
+                0xff);
     case IHPC_REG_NON_INTERRUPT:
         return s->m66_enable & ihpc_slot_mask(s);
     case IHPC_REG_SLOT_ID:
@@ -322,12 +312,10 @@ static void ihpc_mmio_writel(Intel82466GXIHPCState *s, hwaddr aligned,
         if (byte_mask & 0xffff0000) {
             uint16_t write = value >> 16;
             uint16_t mask = byte_mask >> 16;
-            uint16_t writable = IHPC_MISC_SERR_POWER_FAULT |
-                                IHPC_MISC_INPUT_SCAN_COMPLETE |
-                                IHPC_MISC_POWER_FAULT_ENABLE |
-                                IHPC_MISC_AUTO_POWER_DOWN_DIS |
-                                IHPC_MISC_SHIFT_IRQ_ENABLE |
-                                IHPC_MISC_SOGO;
+            uint16_t writable =
+                IHPC_MISC_SERR_POWER_FAULT | IHPC_MISC_INPUT_SCAN_COMPLETE |
+                IHPC_MISC_POWER_FAULT_ENABLE | IHPC_MISC_AUTO_POWER_DOWN_DIS |
+                IHPC_MISC_SHIFT_IRQ_ENABLE | IHPC_MISC_SOGO;
 
             if (PCI_DEVICE(s)->config[IHPC_CFG_MISC + 1] & BIT(4)) {
                 writable &= ~IHPC_MISC_AUTO_POWER_DOWN_DIS;
@@ -336,8 +324,7 @@ static void ihpc_mmio_writel(Intel82466GXIHPCState *s, hwaddr aligned,
                 s->misc &= ~IHPC_MISC_SHIFT_PENDING;
             }
             s->misc = (s->misc & ~(mask & writable)) |
-                      (write & mask & writable) |
-                      IHPC_MISC_RESERVED_ONE;
+                      (write & mask & writable) | IHPC_MISC_RESERVED_ONE;
             if (s->misc & IHPC_MISC_SOGO) {
                 s->misc |= IHPC_MISC_BUSY;
                 ihpc_apply_outputs(s);
@@ -346,18 +333,16 @@ static void ihpc_mmio_writel(Intel82466GXIHPCState *s, hwaddr aligned,
         }
         break;
     case IHPC_REG_LED:
-        s->led_control = (s->led_control & ~byte_mask) |
-                         (value & byte_mask);
+        s->led_control = (s->led_control & ~byte_mask) | (value & byte_mask);
         s->led_control &= UINT32_C(0x3f3f3f3f);
         break;
     case IHPC_REG_INTERRUPT:
-        s->interrupt_pending &= ~(value & byte_mask &
-                                  IHPC_INPUT_VALID_MASK);
+        s->interrupt_pending &= ~(value & byte_mask & IHPC_INPUT_VALID_MASK);
         ihpc_update_irq(s);
         break;
     case IHPC_REG_INTERRUPT_MASK:
-        s->interrupt_mask = (s->interrupt_mask & ~byte_mask) |
-                            (value & byte_mask);
+        s->interrupt_mask =
+            (s->interrupt_mask & ~byte_mask) | (value & byte_mask);
         s->interrupt_mask |= ~IHPC_INPUT_VALID_MASK;
         ihpc_update_irq(s);
         break;
@@ -404,8 +389,7 @@ static uint64_t ihpc_mmio_read(void *opaque, hwaddr addr, unsigned int size)
         hwaddr byte_addr = addr + i;
         uint32_t word = ihpc_mmio_readl(s, byte_addr & ~3);
 
-        value |= (uint64_t)((word >> ((byte_addr & 3) * 8)) & 0xff)
-                 << (i * 8);
+        value |= (uint64_t)((word >> ((byte_addr & 3) * 8)) & 0xff) << (i * 8);
     }
     return value;
 }
@@ -464,8 +448,7 @@ static void ihpc_sync_config(Intel82466GXIHPCState *s)
     pci_set_word(pdev->config + IHPC_CFG_SLOT_ID, s->slot_id);
     pci_set_long(pdev->config + IHPC_CFG_INDEX, index);
     if (misc & IHPC_CFG_MISC_INDEX_ENABLE) {
-        pci_set_long(pdev->config + IHPC_CFG_DATA,
-                     ihpc_mmio_readl(s, index));
+        pci_set_long(pdev->config + IHPC_CFG_DATA, ihpc_mmio_readl(s, index));
     } else {
         pci_set_long(pdev->config + IHPC_CFG_DATA, 0);
     }
@@ -479,8 +462,8 @@ static uint32_t ihpc_read_config(PCIDevice *pdev, uint32_t address, int len)
     return pci_default_read_config(pdev, address, len);
 }
 
-static void ihpc_write_config(PCIDevice *pdev, uint32_t address,
-                              uint32_t value, int len)
+static void ihpc_write_config(PCIDevice *pdev, uint32_t address, uint32_t value,
+                              int len)
 {
     Intel82466GXIHPCState *s = INTEL_82466GX_IHPC(pdev);
     uint16_t old_misc = pci_get_word(pdev->config + IHPC_CFG_MISC);
@@ -500,10 +483,9 @@ static void ihpc_write_config(PCIDevice *pdev, uint32_t address,
 
     if (ranges_overlap(address, len, IHPC_CFG_MISC, 2)) {
         uint16_t new_misc = pci_get_word(pdev->config + IHPC_CFG_MISC);
-        uint16_t writable = IHPC_CFG_MISC_POWER_FAULT |
-                            IHPC_CFG_MISC_INDEX_ENABLE;
-        uint16_t once = IHPC_CFG_MISC_CHANGE_DID |
-                        IHPC_CFG_MISC_INHIBIT |
+        uint16_t writable =
+            IHPC_CFG_MISC_POWER_FAULT | IHPC_CFG_MISC_INDEX_ENABLE;
+        uint16_t once = IHPC_CFG_MISC_CHANGE_DID | IHPC_CFG_MISC_INHIBIT |
                         IHPC_CFG_MISC_LOCK_AUTO_DOWN;
 
         if (!s->config_write_once) {
@@ -516,12 +498,12 @@ static void ihpc_write_config(PCIDevice *pdev, uint32_t address,
                    IHPC_CFG_MISC_RESERVED_ONE;
         pci_set_word(pdev->config + IHPC_CFG_MISC, new_misc);
         if (new_misc & IHPC_CFG_MISC_CHANGE_DID) {
-            pci_set_word(pdev->config + PCI_DEVICE_ID,
-                         IHPC_HIDDEN_DEVICE_ID);
+            pci_set_word(pdev->config + PCI_DEVICE_ID, IHPC_HIDDEN_DEVICE_ID);
         }
         s->misc = (s->misc & ~IHPC_MISC_POWER_FAULT_ENABLE) |
-                  ((new_misc & IHPC_CFG_MISC_POWER_FAULT) ?
-                   IHPC_MISC_POWER_FAULT_ENABLE : 0);
+                  ((new_misc & IHPC_CFG_MISC_POWER_FAULT)
+                       ? IHPC_MISC_POWER_FAULT_ENABLE
+                       : 0);
     }
     if (ranges_overlap(address, len, IHPC_CFG_SWITCH_SERR, 1)) {
         pdev->config[IHPC_CFG_SWITCH_SERR] =
@@ -557,10 +539,8 @@ static bool ihpc_get_slot(Intel82466GXIHPCState *s, PCIDevice *pdev,
 {
     unsigned int pci_slot = PCI_SLOT(pdev->devfn);
 
-    if (pci_slot < s->first_slot ||
-        pci_slot >= s->first_slot + s->slot_count) {
-        error_setg(errp,
-                   "Intel 82466GX IHPC controls PCI slots %u through %u",
+    if (pci_slot < s->first_slot || pci_slot >= s->first_slot + s->slot_count) {
+        error_setg(errp, "Intel 82466GX IHPC controls PCI slots %u through %u",
                    s->first_slot, s->first_slot + s->slot_count - 1);
         return false;
     }
@@ -637,8 +617,7 @@ static void ihpc_device_unplug_request(HotplugHandler *hotplug_dev,
     }
 }
 
-static bool ihpc_is_hotpluggable_bus(HotplugHandler *hotplug_dev,
-                                     BusState *bus)
+static bool ihpc_is_hotpluggable_bus(HotplugHandler *hotplug_dev, BusState *bus)
 {
     return bus == BUS(pci_get_bus(PCI_DEVICE(hotplug_dev)));
 }
@@ -678,8 +657,7 @@ static void ihpc_power_fault(void *opaque, int n, int level)
         s->power_fault &= ~BIT(n);
     }
     ihpc_set_input_state(s);
-    if (level &&
-        (s->misc & IHPC_MISC_POWER_FAULT_ENABLE) &&
+    if (level && (s->misc & IHPC_MISC_POWER_FAULT_ENABLE) &&
         (s->applied_power & BIT(n))) {
         pdev->config[IHPC_CFG_POWER_FAULT_SERR] |= BIT(n);
         if ((s->misc & IHPC_MISC_SERR_POWER_FAULT) &&
@@ -693,8 +671,8 @@ static void ihpc_power_fault(void *opaque, int n, int level)
                 .reason = IA64_CHIPSET_FAULT_POWER,
                 .bus = pci_bus_num(pci_get_bus(pdev)),
                 .severity = IA64_RAS_SEVERITY_FATAL,
-                .requester = PCI_BUILD_BDF(pci_bus_num(pci_get_bus(pdev)),
-                                           pdev->devfn),
+                .requester =
+                    PCI_BUILD_BDF(pci_bus_num(pci_get_bus(pdev)), pdev->devfn),
                 .status = BIT(n),
                 .information = n,
             };
@@ -732,8 +710,7 @@ static void ihpc_reset(DeviceState *dev)
     s->switch_redirect = 0;
     s->general_output = 0;
     s->serial_pointer = 0;
-    s->slot_id = ((s->first_slot & 0xf) << 4) |
-                 (s->slot_count & 0xf);
+    s->slot_id = ((s->first_slot & 0xf) << 4) | (s->slot_count & 0xf);
     s->misc = IHPC_MISC_RESERVED_ONE;
     s->led_control = (uint32_t)present | (uint32_t)present << 8;
     s->inputs = ihpc_compose_inputs(s);
@@ -746,8 +723,7 @@ static void ihpc_reset(DeviceState *dev)
     pci_set_word(pdev->config + PCI_COMMAND, 0);
     pci_set_word(pdev->config + PCI_STATUS, PCI_STATUS_DEVSEL_MEDIUM);
     pci_set_word(pdev->config + PCI_DEVICE_ID, IHPC_DEVICE_ID);
-    pci_set_word(pdev->config + IHPC_CFG_MISC,
-                 IHPC_CFG_MISC_RESERVED_ONE);
+    pci_set_word(pdev->config + IHPC_CFG_MISC, IHPC_CFG_MISC_RESERVED_ONE);
     pci_set_word(pdev->config + IHPC_CFG_FEATURES, 0);
     pdev->config[IHPC_CFG_SWITCH_SERR] = 0;
     pdev->config[IHPC_CFG_POWER_FAULT_SERR] = 0;
@@ -767,15 +743,14 @@ static bool ihpc_validate_migrated_state(Intel82466GXIHPCState *s)
     uint8_t slots = ihpc_slot_mask(s);
     uint8_t actual = 0;
     uint16_t cfg_misc = pci_get_word(pdev->config + IHPC_CFG_MISC);
-    uint16_t cfg_once = IHPC_CFG_MISC_CHANGE_DID |
-                        IHPC_CFG_MISC_INHIBIT |
+    uint16_t cfg_once = IHPC_CFG_MISC_CHANGE_DID | IHPC_CFG_MISC_INHIBIT |
                         IHPC_CFG_MISC_LOCK_AUTO_DOWN;
     unsigned int slot;
 
-    if ((s->slot_enable | s->slot_power | s->applied_enable |
-         s->applied_power | s->present | s->switch_closed |
-         s->power_fault | s->m66_enable | s->switch_redirect |
-         s->general_output) & ~slots) {
+    if ((s->slot_enable | s->slot_power | s->applied_enable | s->applied_power |
+         s->present | s->switch_closed | s->power_fault | s->m66_enable |
+         s->switch_redirect | s->general_output) &
+        ~slots) {
         return false;
     }
     if ((s->applied_enable & ~s->applied_power) ||
@@ -786,8 +761,7 @@ static bool ihpc_validate_migrated_state(Intel82466GXIHPCState *s)
         (s->interrupt_latch & ~IHPC_INPUT_VALID_MASK) ||
         (s->interrupt_pending & ~IHPC_INPUT_VALID_MASK) ||
         (~s->interrupt_mask & ~IHPC_INPUT_VALID_MASK) ||
-        s->serial_pointer > 0xf ||
-        s->inputs != ihpc_compose_inputs(s) ||
+        s->serial_pointer > 0xf || s->inputs != ihpc_compose_inputs(s) ||
         s->config_write_once != !!(cfg_misc & cfg_once) ||
         (!!(cfg_misc & IHPC_CFG_MISC_CHANGE_DID) !=
          (pci_get_word(pdev->config + PCI_DEVICE_ID) ==
@@ -831,42 +805,42 @@ static const VMStateDescription vmstate_intel_82466gx_ihpc = {
     .version_id = 1,
     .minimum_version_id = 1,
     .post_load = ihpc_post_load,
-    .fields = (const VMStateField[]) {
-        VMSTATE_PCI_DEVICE(parent_obj, Intel82466GXIHPCState),
-        VMSTATE_UINT8_EQUAL(first_slot, Intel82466GXIHPCState),
-        VMSTATE_UINT8_EQUAL(slot_count, Intel82466GXIHPCState),
-        VMSTATE_UINT8(slot_enable, Intel82466GXIHPCState),
-        VMSTATE_UINT8(slot_power, Intel82466GXIHPCState),
-        VMSTATE_UINT8(applied_enable, Intel82466GXIHPCState),
-        VMSTATE_UINT8(applied_power, Intel82466GXIHPCState),
-        VMSTATE_UINT8(present, Intel82466GXIHPCState),
-        VMSTATE_UINT8(switch_closed, Intel82466GXIHPCState),
-        VMSTATE_UINT8(power_fault, Intel82466GXIHPCState),
-        VMSTATE_UINT8(m66_enable, Intel82466GXIHPCState),
-        VMSTATE_UINT8(switch_redirect, Intel82466GXIHPCState),
-        VMSTATE_UINT8(general_output, Intel82466GXIHPCState),
-        VMSTATE_UINT8(serial_pointer, Intel82466GXIHPCState),
-        VMSTATE_UINT8(slot_id, Intel82466GXIHPCState),
-        VMSTATE_UINT16(misc, Intel82466GXIHPCState),
-        VMSTATE_UINT32(led_control, Intel82466GXIHPCState),
-        VMSTATE_UINT32(inputs, Intel82466GXIHPCState),
-        VMSTATE_UINT32(interrupt_latch, Intel82466GXIHPCState),
-        VMSTATE_UINT32(interrupt_pending, Intel82466GXIHPCState),
-        VMSTATE_UINT32(interrupt_mask, Intel82466GXIHPCState),
-        VMSTATE_BOOL(config_write_once, Intel82466GXIHPCState),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) {
+            VMSTATE_PCI_DEVICE(parent_obj, Intel82466GXIHPCState),
+            VMSTATE_UINT8_EQUAL(first_slot, Intel82466GXIHPCState),
+            VMSTATE_UINT8_EQUAL(slot_count, Intel82466GXIHPCState),
+            VMSTATE_UINT8(slot_enable, Intel82466GXIHPCState),
+            VMSTATE_UINT8(slot_power, Intel82466GXIHPCState),
+            VMSTATE_UINT8(applied_enable, Intel82466GXIHPCState),
+            VMSTATE_UINT8(applied_power, Intel82466GXIHPCState),
+            VMSTATE_UINT8(present, Intel82466GXIHPCState),
+            VMSTATE_UINT8(switch_closed, Intel82466GXIHPCState),
+            VMSTATE_UINT8(power_fault, Intel82466GXIHPCState),
+            VMSTATE_UINT8(m66_enable, Intel82466GXIHPCState),
+            VMSTATE_UINT8(switch_redirect, Intel82466GXIHPCState),
+            VMSTATE_UINT8(general_output, Intel82466GXIHPCState),
+            VMSTATE_UINT8(serial_pointer, Intel82466GXIHPCState),
+            VMSTATE_UINT8(slot_id, Intel82466GXIHPCState),
+            VMSTATE_UINT16(misc, Intel82466GXIHPCState),
+            VMSTATE_UINT32(led_control, Intel82466GXIHPCState),
+            VMSTATE_UINT32(inputs, Intel82466GXIHPCState),
+            VMSTATE_UINT32(interrupt_latch, Intel82466GXIHPCState),
+            VMSTATE_UINT32(interrupt_pending, Intel82466GXIHPCState),
+            VMSTATE_UINT32(interrupt_mask, Intel82466GXIHPCState),
+            VMSTATE_BOOL(config_write_once, Intel82466GXIHPCState),
+            VMSTATE_END_OF_LIST() },
 };
 
 static void ihpc_realize(PCIDevice *pdev, Error **errp)
 {
     Intel82466GXIHPCState *s = INTEL_82466GX_IHPC(pdev);
 
-    if (!s->slot_count ||
-        s->slot_count > INTEL_82466GX_IHPC_MAX_SLOTS ||
+    if (!s->slot_count || s->slot_count > INTEL_82466GX_IHPC_MAX_SLOTS ||
         s->first_slot + s->slot_count > PCI_SLOT_MAX + 1) {
-        error_setg(errp,
-                   "Intel 82466GX IHPC requires 1..6 slots in the PCI slot range");
+        error_setg(
+            errp,
+            "Intel 82466GX IHPC requires 1..6 slots in the PCI slot range");
         return;
     }
     if (PCI_SLOT(pdev->devfn) >= s->first_slot &&
@@ -878,11 +852,9 @@ static void ihpc_realize(PCIDevice *pdev, Error **errp)
     memset(pdev->wmask, 0, pci_config_size(pdev));
     memset(pdev->w1cmask, 0, pci_config_size(pdev));
     pci_set_word(pdev->wmask + PCI_COMMAND,
-                 PCI_COMMAND_MEMORY | PCI_COMMAND_PARITY |
-                 PCI_COMMAND_SERR);
+                 PCI_COMMAND_MEMORY | PCI_COMMAND_PARITY | PCI_COMMAND_SERR);
     pci_set_word(pdev->w1cmask + PCI_STATUS,
-                 PCI_STATUS_DETECTED_PARITY |
-                 PCI_STATUS_SIG_SYSTEM_ERROR);
+                 PCI_STATUS_DETECTED_PARITY | PCI_STATUS_SIG_SYSTEM_ERROR);
     pdev->wmask[PCI_CACHE_LINE_SIZE] = 0xff;
     pdev->wmask[PCI_LATENCY_TIMER] = 0xff;
     pdev->wmask[PCI_INTERRUPT_LINE] = 0xff;
@@ -910,10 +882,10 @@ static void ihpc_realize(PCIDevice *pdev, Error **errp)
 }
 
 static const Property ihpc_properties[] = {
-    DEFINE_PROP_UINT8(INTEL_82466GX_IHPC_PROP_FIRST_SLOT,
-                      Intel82466GXIHPCState, first_slot, 1),
-    DEFINE_PROP_UINT8(INTEL_82466GX_IHPC_PROP_SLOT_COUNT,
-                      Intel82466GXIHPCState, slot_count, 6),
+    DEFINE_PROP_UINT8(INTEL_82466GX_IHPC_PROP_FIRST_SLOT, Intel82466GXIHPCState,
+                      first_slot, 1),
+    DEFINE_PROP_UINT8(INTEL_82466GX_IHPC_PROP_SLOT_COUNT, Intel82466GXIHPCState,
+                      slot_count, 6),
 };
 
 static void ihpc_class_init(ObjectClass *klass, const void *data)
@@ -947,15 +919,15 @@ static const TypeInfo ihpc_type_info = {
     .parent = TYPE_PCI_DEVICE,
     .instance_size = sizeof(Intel82466GXIHPCState),
     .class_init = ihpc_class_init,
-    .interfaces = (const InterfaceInfo[]) {
-        { INTERFACE_CONVENTIONAL_PCI_DEVICE },
-        { TYPE_HOTPLUG_HANDLER },
-        { }
-    },
+    .interfaces =
+        (const InterfaceInfo[]) { { INTERFACE_CONVENTIONAL_PCI_DEVICE },
+                                  { TYPE_HOTPLUG_HANDLER },
+                                  {} },
 };
 
-void intel_82466gx_ihpc_set_fault_notify(
-    Intel82466GXIHPCState *s, IA64ChipsetFaultNotify notify, void *opaque)
+void intel_82466gx_ihpc_set_fault_notify(Intel82466GXIHPCState *s,
+                                         IA64ChipsetFaultNotify notify,
+                                         void *opaque)
 {
     s->fault_notify = notify;
     s->fault_opaque = opaque;

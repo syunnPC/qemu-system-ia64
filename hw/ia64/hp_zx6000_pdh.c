@@ -86,16 +86,14 @@ static void hp_zx6000_pdh_nvram_commit(HPZX6000PDHState *s)
             if (!s->nvram_write_warning) {
                 warn_report("refusing to overwrite zx6000 NVRAM '%s': "
                             "expected %zu or %zu bytes, found %zu",
-                            s->nvram_path,
-                            (size_t)IA64_PLATFORM_MIN_NVRAM_SIZE,
+                            s->nvram_path, (size_t)IA64_PLATFORM_MIN_NVRAM_SIZE,
                             sizeof(s->nvram_data), (size_t)length);
                 s->nvram_write_warning = true;
             }
             return;
         }
     } else if (read_err &&
-               !g_error_matches(read_err, G_FILE_ERROR,
-                                G_FILE_ERROR_NOENT)) {
+               !g_error_matches(read_err, G_FILE_ERROR, G_FILE_ERROR_NOENT)) {
         if (!s->nvram_write_warning) {
             warn_report("failed to read zx6000 NVRAM '%s' before saving: %s",
                         s->nvram_path, read_err->message);
@@ -105,24 +103,22 @@ static void hp_zx6000_pdh_nvram_commit(HPZX6000PDHState *s)
     } else {
         length = sizeof(s->nvram_data);
     }
-    if (!g_file_set_contents(s->nvram_path, (const char *)s->nvram_data,
-                             length, &err) &&
+    if (!g_file_set_contents(s->nvram_path, (const char *)s->nvram_data, length,
+                             &err) &&
         !s->nvram_write_warning) {
-        warn_report("failed to save zx6000 NVRAM '%s': %s",
-                    s->nvram_path,
+        warn_report("failed to save zx6000 NVRAM '%s': %s", s->nvram_path,
                     err ? err->message : "unknown error");
         s->nvram_write_warning = true;
     }
 }
 
-static void hp_zx6000_pdh_nvram_write(void *opaque, hwaddr addr,
-                                      uint64_t value, unsigned int size)
+static void hp_zx6000_pdh_nvram_write(void *opaque, hwaddr addr, uint64_t value,
+                                      unsigned int size)
 {
     HPZX6000PDHState *s = opaque;
     unsigned int i;
 
-    if (addr == HP_ZX6000_PDH_NVRAM_COMMIT_OFFSET &&
-        size == sizeof(value) &&
+    if (addr == HP_ZX6000_PDH_NVRAM_COMMIT_OFFSET && size == sizeof(value) &&
         value == HP_ZX6000_PDH_NVRAM_COMMIT_MAGIC) {
         hp_zx6000_pdh_nvram_commit(s);
         return;
@@ -171,8 +167,8 @@ static uint64_t hp_zx6000_pdh_rtc_read(void *opaque, hwaddr addr,
     return now + s->rtc_offset;
 }
 
-static void hp_zx6000_pdh_rtc_write(void *opaque, hwaddr addr,
-                                    uint64_t value, unsigned int size)
+static void hp_zx6000_pdh_rtc_write(void *opaque, hwaddr addr, uint64_t value,
+                                    unsigned int size)
 {
     HPZX6000PDHState *s = opaque;
 
@@ -246,15 +242,15 @@ static void hp_zx6000_pdh_acpi_update_sci(ACPIREGS *ar)
 }
 
 static uint64_t hp_zx6000_pdh_acpi_gpe_read(void *opaque, hwaddr addr,
-                                             unsigned int size)
+                                            unsigned int size)
 {
     HPZX6000PDHState *s = opaque;
     uint64_t value = 0;
     unsigned int i;
 
     for (i = 0; i < size; i++) {
-        value |= (uint64_t)acpi_gpe_ioport_readb(
-            &s->acpi_regs, addr + i) << (i * 8);
+        value |= (uint64_t)acpi_gpe_ioport_readb(&s->acpi_regs, addr + i)
+                 << (i * 8);
     }
     return value;
 }
@@ -266,8 +262,7 @@ static void hp_zx6000_pdh_acpi_gpe_write(void *opaque, hwaddr addr,
     unsigned int i;
 
     for (i = 0; i < size; i++) {
-        acpi_gpe_ioport_writeb(&s->acpi_regs, addr + i,
-                               value >> (i * 8));
+        acpi_gpe_ioport_writeb(&s->acpi_regs, addr + i, value >> (i * 8));
     }
     hp_zx6000_pdh_acpi_update_sci(&s->acpi_regs);
 }
@@ -290,8 +285,8 @@ static const MemoryRegionOps hp_zx6000_pdh_acpi_gpe_ops = {
 
 static void hp_zx6000_pdh_powerdown(Notifier *notifier, void *opaque)
 {
-    HPZX6000PDHState *s = container_of(notifier, HPZX6000PDHState,
-                                       powerdown_notifier);
+    HPZX6000PDHState *s =
+        container_of(notifier, HPZX6000PDHState, powerdown_notifier);
 
     (void)opaque;
     if (s->acpi_regs.pm1.evt.en & ACPI_BITMASK_POWER_BUTTON_ENABLE) {
@@ -314,8 +309,7 @@ static void hp_zx6000_pdh_reset(DeviceState *dev)
 
 bool hp_zx6000_pdh_nvram_persistent(const HPZX6000PDHState *s)
 {
-    return s->nvram_path != NULL &&
-        g_strcmp0(s->nvram_path, "none") != 0;
+    return s->nvram_path != NULL && g_strcmp0(s->nvram_path, "none") != 0;
 }
 
 MemoryRegion *hp_zx6000_pdh_acpi_pm_io(HPZX6000PDHState *s)
@@ -337,26 +331,23 @@ static bool hp_zx6000_pdh_load_nvram(HPZX6000PDHState *s, Error **errp)
         if (g_error_matches(err, G_FILE_ERROR, G_FILE_ERROR_NOENT)) {
             return true;
         }
-        error_setg(errp, "failed to load zx6000 NVRAM '%s': %s",
-                   s->nvram_path, err->message);
+        error_setg(errp, "failed to load zx6000 NVRAM '%s': %s", s->nvram_path,
+                   err->message);
         return false;
     }
     if (length == 0) {
         return true;
     }
     if (length > sizeof(s->nvram_data)) {
-        error_setg(errp,
-                   "zx6000 NVRAM '%s' is %zu bytes; maximum is %zu bytes",
-                   s->nvram_path, (size_t)length,
-                   sizeof(s->nvram_data));
+        error_setg(errp, "zx6000 NVRAM '%s' is %zu bytes; maximum is %zu bytes",
+                   s->nvram_path, (size_t)length, sizeof(s->nvram_data));
         return false;
     }
     if (length != IA64_PLATFORM_MIN_NVRAM_SIZE &&
         length != sizeof(s->nvram_data)) {
         error_setg(errp,
                    "zx6000 NVRAM '%s' must be %zu or %zu bytes; found %zu",
-                   s->nvram_path,
-                   (size_t)IA64_PLATFORM_MIN_NVRAM_SIZE,
+                   s->nvram_path, (size_t)IA64_PLATFORM_MIN_NVRAM_SIZE,
                    sizeof(s->nvram_data), (size_t)length);
         return false;
     }
@@ -384,62 +375,47 @@ static void hp_zx6000_pdh_realize(DeviceState *dev, Error **errp)
         DeviceState *uart = DEVICE(&s->uart[i]);
 
         qdev_prop_set_uint8(uart, "regshift", 0);
-        qdev_prop_set_uint32(uart, "baudbase",
-                            HP_ZX6000_PDH_UART_BAUDBASE);
+        qdev_prop_set_uint32(uart, "baudbase", HP_ZX6000_PDH_UART_BAUDBASE);
         qdev_prop_set_uint8(uart, "endianness", DEVICE_LITTLE_ENDIAN);
         if (!sysbus_realize(SYS_BUS_DEVICE(uart), errp)) {
             return;
         }
         sysbus_connect_irq(SYS_BUS_DEVICE(uart), 0,
                            qdev_get_gpio_in_named(dev, "uart-irq", i));
-        sysbus_init_mmio(sbd,
-                         sysbus_mmio_get_region(SYS_BUS_DEVICE(uart), 0));
+        sysbus_init_mmio(sbd, sysbus_mmio_get_region(SYS_BUS_DEVICE(uart), 0));
     }
 
     memory_region_init_io(&s->nvram, OBJECT(s), &hp_zx6000_pdh_nvram_ops, s,
-                          "hp-zx6000-pdh.nvram",
-                          HP_ZX6000_PDH_NVRAM_SIZE);
+                          "hp-zx6000-pdh.nvram", HP_ZX6000_PDH_NVRAM_SIZE);
     memory_region_init_io(&s->rtc, OBJECT(s), &hp_zx6000_pdh_rtc_ops, s,
                           "hp-zx6000-pdh.rtc", HP_ZX6000_PDH_RTC_SIZE);
-    memory_region_init_io(&s->control, OBJECT(s),
-                          &hp_zx6000_pdh_control_ops, s,
-                          "hp-zx6000-pdh.control",
-                          HP_ZX6000_PDH_CONTROL_SIZE);
-    memory_region_init(&s->acpi_pm, OBJECT(s),
-                       "hp-zx6000-pdh.acpi-pm",
+    memory_region_init_io(&s->control, OBJECT(s), &hp_zx6000_pdh_control_ops, s,
+                          "hp-zx6000-pdh.control", HP_ZX6000_PDH_CONTROL_SIZE);
+    memory_region_init(&s->acpi_pm, OBJECT(s), "hp-zx6000-pdh.acpi-pm",
                        IA64_PLATFORM_ACPI_PM_SIZE);
     acpi_pm1_evt_init(&s->acpi_regs, hp_zx6000_pdh_acpi_update_sci,
                       &s->acpi_pm);
-    acpi_pm1_cnt_init(&s->acpi_regs, &s->acpi_pm,
-                      false, false, 0, true);
-    acpi_pm_tmr_init(&s->acpi_regs, hp_zx6000_pdh_acpi_update_sci,
-                     &s->acpi_pm);
+    acpi_pm1_cnt_init(&s->acpi_regs, &s->acpi_pm, false, false, 0, true);
+    acpi_pm_tmr_init(&s->acpi_regs, hp_zx6000_pdh_acpi_update_sci, &s->acpi_pm);
     /* The common helpers use PC-style offsets; relocate their leaf regions. */
     memory_region_del_subregion(&s->acpi_pm, &s->acpi_regs.pm1.evt.io);
     memory_region_del_subregion(&s->acpi_pm, &s->acpi_regs.pm1.cnt.io);
     memory_region_del_subregion(&s->acpi_pm, &s->acpi_regs.tmr.io);
-    memory_region_add_subregion(&s->acpi_pm,
-                                IA64_PLATFORM_ACPI_PM1_EVT_OFFSET,
+    memory_region_add_subregion(&s->acpi_pm, IA64_PLATFORM_ACPI_PM1_EVT_OFFSET,
                                 &s->acpi_regs.pm1.evt.io);
-    memory_region_add_subregion(&s->acpi_pm,
-                                IA64_PLATFORM_ACPI_PM1_CNT_OFFSET,
+    memory_region_add_subregion(&s->acpi_pm, IA64_PLATFORM_ACPI_PM1_CNT_OFFSET,
                                 &s->acpi_regs.pm1.cnt.io);
-    memory_region_add_subregion(&s->acpi_pm,
-                                IA64_PLATFORM_ACPI_PM_TMR_OFFSET,
+    memory_region_add_subregion(&s->acpi_pm, IA64_PLATFORM_ACPI_PM_TMR_OFFSET,
                                 &s->acpi_regs.tmr.io);
     acpi_gpe_init(&s->acpi_regs, IA64_PLATFORM_ACPI_GPE0_LENGTH);
-    memory_region_init_io(&s->acpi_gpe, OBJECT(s),
-                          &hp_zx6000_pdh_acpi_gpe_ops, s,
-                          "hp-zx6000-pdh.acpi-gpe",
+    memory_region_init_io(&s->acpi_gpe, OBJECT(s), &hp_zx6000_pdh_acpi_gpe_ops,
+                          s, "hp-zx6000-pdh.acpi-gpe",
                           IA64_PLATFORM_ACPI_GPE0_LENGTH);
-    memory_region_add_subregion(&s->acpi_pm,
-                                IA64_PLATFORM_ACPI_GPE0_STS_OFFSET,
+    memory_region_add_subregion(&s->acpi_pm, IA64_PLATFORM_ACPI_GPE0_STS_OFFSET,
                                 &s->acpi_gpe);
-    memory_region_init_alias(&s->acpi_pm_io, OBJECT(s),
-                             "hp-zx6000-pdh.acpi-pm-io",
-                             &s->acpi_pm,
-                             IA64_PLATFORM_ACPI_PM_IO_BASE,
-                             IA64_PLATFORM_ACPI_PM_IO_SIZE);
+    memory_region_init_alias(
+        &s->acpi_pm_io, OBJECT(s), "hp-zx6000-pdh.acpi-pm-io", &s->acpi_pm,
+        IA64_PLATFORM_ACPI_PM_IO_BASE, IA64_PLATFORM_ACPI_PM_IO_SIZE);
     s->powerdown_notifier.notify = hp_zx6000_pdh_powerdown;
     qemu_register_powerdown_notifier(&s->powerdown_notifier);
     sysbus_init_mmio(sbd, &s->nvram);
@@ -454,8 +430,8 @@ static void hp_zx6000_pdh_init(Object *obj)
     SysBusDevice *sbd = SYS_BUS_DEVICE(obj);
     unsigned int i;
 
-    qdev_init_gpio_in_named(DEVICE(obj), hp_zx6000_pdh_uart_irq,
-                            "uart-irq", HP_ZX6000_PDH_UART_COUNT);
+    qdev_init_gpio_in_named(DEVICE(obj), hp_zx6000_pdh_uart_irq, "uart-irq",
+                            HP_ZX6000_PDH_UART_COUNT);
     for (i = 0; i < HP_ZX6000_PDH_UART_COUNT; i++) {
         g_autofree char *name = g_strdup_printf("uart[%u]", i);
         g_autofree char *property = g_strdup_printf("chardev%u", i);
@@ -474,12 +450,10 @@ static int hp_zx6000_pdh_post_load(void *opaque, int version_id)
     uint16_t pm_enable;
 
     pm_enable = s->acpi_regs.pm1.evt.en;
-    qemu_system_wakeup_enable(
-        QEMU_WAKEUP_REASON_RTC,
-        (pm_enable & ACPI_BITMASK_RT_CLOCK_ENABLE) != 0);
-    qemu_system_wakeup_enable(
-        QEMU_WAKEUP_REASON_PMTIMER,
-        (pm_enable & ACPI_BITMASK_TIMER_ENABLE) != 0);
+    qemu_system_wakeup_enable(QEMU_WAKEUP_REASON_RTC,
+                              (pm_enable & ACPI_BITMASK_RT_CLOCK_ENABLE) != 0);
+    qemu_system_wakeup_enable(QEMU_WAKEUP_REASON_PMTIMER,
+                              (pm_enable & ACPI_BITMASK_TIMER_ENABLE) != 0);
     hp_zx6000_pdh_acpi_update_sci(&s->acpi_regs);
     return 0;
 }
@@ -489,28 +463,25 @@ static const VMStateDescription vmstate_hp_zx6000_pdh = {
     .version_id = 3,
     .minimum_version_id = 3,
     .post_load = hp_zx6000_pdh_post_load,
-    .fields = (const VMStateField[]) {
-        VMSTATE_UINT8_ARRAY(nvram_data, HPZX6000PDHState,
-                            HP_ZX6000_PDH_NVRAM_SIZE),
-        VMSTATE_INT64(rtc_offset, HPZX6000PDHState),
-        VMSTATE_UINT16(acpi_regs.pm1.evt.sts, HPZX6000PDHState),
-        VMSTATE_UINT16(acpi_regs.pm1.evt.en, HPZX6000PDHState),
-        VMSTATE_UINT16(acpi_regs.pm1.cnt.cnt, HPZX6000PDHState),
-        VMSTATE_TIMER_PTR(acpi_regs.tmr.timer, HPZX6000PDHState),
-        VMSTATE_INT64(acpi_regs.tmr.overflow_time, HPZX6000PDHState),
-        VMSTATE_BUFFER_POINTER_UNSAFE(acpi_regs.gpe.sts,
-                                      HPZX6000PDHState, 0,
-                                      IA64_PLATFORM_ACPI_GPE0_LENGTH),
-        VMSTATE_BUFFER_POINTER_UNSAFE(acpi_regs.gpe.en,
-                                      HPZX6000PDHState, 0,
-                                      IA64_PLATFORM_ACPI_GPE0_LENGTH),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) {
+            VMSTATE_UINT8_ARRAY(nvram_data, HPZX6000PDHState,
+                                HP_ZX6000_PDH_NVRAM_SIZE),
+            VMSTATE_INT64(rtc_offset, HPZX6000PDHState),
+            VMSTATE_UINT16(acpi_regs.pm1.evt.sts, HPZX6000PDHState),
+            VMSTATE_UINT16(acpi_regs.pm1.evt.en, HPZX6000PDHState),
+            VMSTATE_UINT16(acpi_regs.pm1.cnt.cnt, HPZX6000PDHState),
+            VMSTATE_TIMER_PTR(acpi_regs.tmr.timer, HPZX6000PDHState),
+            VMSTATE_INT64(acpi_regs.tmr.overflow_time, HPZX6000PDHState),
+            VMSTATE_BUFFER_POINTER_UNSAFE(acpi_regs.gpe.sts, HPZX6000PDHState,
+                                          0, IA64_PLATFORM_ACPI_GPE0_LENGTH),
+            VMSTATE_BUFFER_POINTER_UNSAFE(acpi_regs.gpe.en, HPZX6000PDHState, 0,
+                                          IA64_PLATFORM_ACPI_GPE0_LENGTH),
+            VMSTATE_END_OF_LIST() },
 };
 
 static const Property hp_zx6000_pdh_properties[] = {
-    DEFINE_PROP_STRING(HP_ZX6000_PDH_PROP_NVRAM,
-                       HPZX6000PDHState, nvram_path),
+    DEFINE_PROP_STRING(HP_ZX6000_PDH_PROP_NVRAM, HPZX6000PDHState, nvram_path),
 };
 
 static void hp_zx6000_pdh_class_init(ObjectClass *oc, const void *data)

@@ -30,31 +30,32 @@ G_STATIC_ASSERT(LPC47B27_CONFIG_LDN_KEYBOARD ==
 
 static void enter_config(LPC47B27ConfigState *state)
 {
-    g_assert_cmphex(lpc47b27_config_write(
-                        state, LPC47B27_CONFIG_INDEX_PORT,
-                        LPC47B27_CONFIG_ENTER_KEY), ==,
-                    LPC47B27_CONFIG_CHANGE_CONFIG_MODE);
+    g_assert_cmphex(lpc47b27_config_write(state, LPC47B27_CONFIG_INDEX_PORT,
+                                          LPC47B27_CONFIG_ENTER_KEY),
+                    ==, LPC47B27_CONFIG_CHANGE_CONFIG_MODE);
 }
 
 static void select_index(LPC47B27ConfigState *state, uint8_t index)
 {
-    LPC47B27ConfigChange expected = state->index == index ?
-        LPC47B27_CONFIG_CHANGE_NONE : LPC47B27_CONFIG_CHANGE_INDEX;
+    LPC47B27ConfigChange expected = state->index == index
+                                        ? LPC47B27_CONFIG_CHANGE_NONE
+                                        : LPC47B27_CONFIG_CHANGE_INDEX;
 
-    g_assert_cmphex(lpc47b27_config_write(
-                        state, LPC47B27_CONFIG_INDEX_PORT, index), ==,
-                    expected);
+    g_assert_cmphex(
+        lpc47b27_config_write(state, LPC47B27_CONFIG_INDEX_PORT, index), ==,
+        expected);
 }
 
 static void select_ldn(LPC47B27ConfigState *state, uint8_t ldn)
 {
-    LPC47B27ConfigChange expected = state->ldn == ldn ?
-        LPC47B27_CONFIG_CHANGE_NONE : LPC47B27_CONFIG_CHANGE_LDN;
+    LPC47B27ConfigChange expected = state->ldn == ldn
+                                        ? LPC47B27_CONFIG_CHANGE_NONE
+                                        : LPC47B27_CONFIG_CHANGE_LDN;
 
     select_index(state, LPC47B27_CONFIG_CR_LDN);
-    g_assert_cmphex(lpc47b27_config_write(
-                        state, LPC47B27_CONFIG_DATA_PORT, ldn), ==,
-                    expected);
+    g_assert_cmphex(
+        lpc47b27_config_write(state, LPC47B27_CONFIG_DATA_PORT, ldn), ==,
+        expected);
     g_assert_cmphex(state->ldn, ==, ldn);
 }
 
@@ -83,18 +84,18 @@ static void test_reset_and_run_mode(void)
     g_assert_false(state.config_mode);
     g_assert_cmphex(state.index, ==, 0);
     g_assert_cmphex(state.ldn, ==, 0);
-    g_assert_cmphex(lpc47b27_config_read(
-                        &state, LPC47B27_CONFIG_INDEX_PORT), ==, 0xff);
-    g_assert_cmphex(lpc47b27_config_read(
-                        &state, LPC47B27_CONFIG_DATA_PORT), ==, 0xff);
+    g_assert_cmphex(lpc47b27_config_read(&state, LPC47B27_CONFIG_INDEX_PORT),
+                    ==, 0xff);
+    g_assert_cmphex(lpc47b27_config_read(&state, LPC47B27_CONFIG_DATA_PORT), ==,
+                    0xff);
     g_assert_cmphex(lpc47b27_config_read(&state, 0x30), ==, 0xff);
 
-    g_assert_cmphex(lpc47b27_config_write(
-                        &state, LPC47B27_CONFIG_INDEX_PORT, 0x54), ==,
-                    LPC47B27_CONFIG_CHANGE_NONE);
-    g_assert_cmphex(lpc47b27_config_write(
-                        &state, LPC47B27_CONFIG_DATA_PORT, 0x55), ==,
-                    LPC47B27_CONFIG_CHANGE_NONE);
+    g_assert_cmphex(
+        lpc47b27_config_write(&state, LPC47B27_CONFIG_INDEX_PORT, 0x54), ==,
+        LPC47B27_CONFIG_CHANGE_NONE);
+    g_assert_cmphex(
+        lpc47b27_config_write(&state, LPC47B27_CONFIG_DATA_PORT, 0x55), ==,
+        LPC47B27_CONFIG_CHANGE_NONE);
     g_assert_cmphex(lpc47b27_config_write(&state, 0x30, 0x55), ==,
                     LPC47B27_CONFIG_CHANGE_NONE);
 
@@ -119,26 +120,25 @@ static void test_enter_exit_and_index(void)
     lpc47b27_config_reset(&state);
     enter_config(&state);
     g_assert_true(state.config_mode);
-    g_assert_cmphex(lpc47b27_config_read(
-                        &state, LPC47B27_CONFIG_INDEX_PORT), ==, 0);
+    g_assert_cmphex(lpc47b27_config_read(&state, LPC47B27_CONFIG_INDEX_PORT),
+                    ==, 0);
 
     select_index(&state, 0x55);
-    g_assert_cmphex(lpc47b27_config_read(
-                        &state, LPC47B27_CONFIG_INDEX_PORT), ==, 0x55);
-    g_assert_cmphex(lpc47b27_config_read(
-                        &state, LPC47B27_CONFIG_DATA_PORT), ==, 0);
+    g_assert_cmphex(lpc47b27_config_read(&state, LPC47B27_CONFIG_INDEX_PORT),
+                    ==, 0x55);
+    g_assert_cmphex(lpc47b27_config_read(&state, LPC47B27_CONFIG_DATA_PORT), ==,
+                    0);
 
-    g_assert_cmphex(lpc47b27_config_write(
-                        &state, LPC47B27_CONFIG_INDEX_PORT,
-                        LPC47B27_CONFIG_EXIT_KEY), ==,
-                    LPC47B27_CONFIG_CHANGE_CONFIG_MODE);
+    g_assert_cmphex(lpc47b27_config_write(&state, LPC47B27_CONFIG_INDEX_PORT,
+                                          LPC47B27_CONFIG_EXIT_KEY),
+                    ==, LPC47B27_CONFIG_CHANGE_CONFIG_MODE);
     g_assert_false(state.config_mode);
-    g_assert_cmphex(lpc47b27_config_read(
-                        &state, LPC47B27_CONFIG_INDEX_PORT), ==, 0xff);
+    g_assert_cmphex(lpc47b27_config_read(&state, LPC47B27_CONFIG_INDEX_PORT),
+                    ==, 0xff);
 
     enter_config(&state);
-    g_assert_cmphex(lpc47b27_config_read(
-                        &state, LPC47B27_CONFIG_INDEX_PORT), ==, 0x55);
+    g_assert_cmphex(lpc47b27_config_read(&state, LPC47B27_CONFIG_INDEX_PORT),
+                    ==, 0x55);
 }
 
 static void test_global_registers(void)
@@ -150,8 +150,8 @@ static void test_global_registers(void)
 
     g_assert_cmphex(read_data(&state, LPC47B27_CONFIG_CR_DEVICE_ID), ==,
                     LPC47B27_CONFIG_DEVICE_ID);
-    g_assert_cmphex(write_data(&state, LPC47B27_CONFIG_CR_DEVICE_ID, 0xff),
-                    ==, LPC47B27_CONFIG_CHANGE_NONE);
+    g_assert_cmphex(write_data(&state, LPC47B27_CONFIG_CR_DEVICE_ID, 0xff), ==,
+                    LPC47B27_CONFIG_CHANGE_NONE);
     g_assert_cmphex(read_data(&state, LPC47B27_CONFIG_CR_DEVICE_ID), ==,
                     LPC47B27_CONFIG_DEVICE_ID);
 
@@ -173,14 +173,14 @@ static void test_serial1_registers(void)
     enter_config(&state);
     select_ldn(&state, LPC47B27_CONFIG_LDN_SERIAL1);
 
-    g_assert_cmphex(write_data(&state, LPC47B27_CONFIG_CR_ACTIVATE, 0xff),
-                    ==, LPC47B27_CONFIG_CHANGE_UART_ACTIVATE);
+    g_assert_cmphex(write_data(&state, LPC47B27_CONFIG_CR_ACTIVATE, 0xff), ==,
+                    LPC47B27_CONFIG_CHANGE_UART_ACTIVATE);
     g_assert_cmphex(read_data(&state, LPC47B27_CONFIG_CR_ACTIVATE), ==, 0x01);
 
-    g_assert_cmphex(write_data(&state, LPC47B27_CONFIG_CR_BASE_MSB, 0x13),
-                    ==, LPC47B27_CONFIG_CHANGE_UART_BASE);
-    g_assert_cmphex(write_data(&state, LPC47B27_CONFIG_CR_BASE_LSB, 0xff),
-                    ==, LPC47B27_CONFIG_CHANGE_UART_BASE);
+    g_assert_cmphex(write_data(&state, LPC47B27_CONFIG_CR_BASE_MSB, 0x13), ==,
+                    LPC47B27_CONFIG_CHANGE_UART_BASE);
+    g_assert_cmphex(write_data(&state, LPC47B27_CONFIG_CR_BASE_LSB, 0xff), ==,
+                    LPC47B27_CONFIG_CHANGE_UART_BASE);
     g_assert_cmphex(read_data(&state, LPC47B27_CONFIG_CR_BASE_MSB), ==, 0x03);
     g_assert_cmphex(read_data(&state, LPC47B27_CONFIG_CR_BASE_LSB), ==, 0xf8);
 
@@ -238,8 +238,8 @@ static void test_keyboard_registers(void)
     enter_config(&state);
     select_ldn(&state, LPC47B27_CONFIG_LDN_KEYBOARD);
 
-    g_assert_cmphex(write_data(&state, LPC47B27_CONFIG_CR_ACTIVATE, 0xff),
-                    ==, LPC47B27_CONFIG_CHANGE_I8042_ACTIVATE);
+    g_assert_cmphex(write_data(&state, LPC47B27_CONFIG_CR_ACTIVATE, 0xff), ==,
+                    LPC47B27_CONFIG_CHANGE_I8042_ACTIVATE);
     g_assert_cmphex(write_data(&state, LPC47B27_CONFIG_CR_PRIMARY_IRQ, 0xf1),
                     ==, LPC47B27_CONFIG_CHANGE_I8042_KBD_IRQ);
     g_assert_cmphex(write_data(&state, LPC47B27_CONFIG_CR_SECONDARY_IRQ, 0xfc),
@@ -296,11 +296,9 @@ static void test_unsupported_selection(void)
     g_assert_cmphex(before.mode, ==, after.mode);
 
     select_ldn(&state, LPC47B27_CONFIG_LDN_SERIAL1);
-    g_assert_cmphex(write_data(&state, LPC47B27_CONFIG_CR_SECONDARY_IRQ,
-                               0xff), ==,
-                    LPC47B27_CONFIG_CHANGE_NONE);
-    g_assert_cmphex(read_data(&state, LPC47B27_CONFIG_CR_SECONDARY_IRQ), ==,
-                    0);
+    g_assert_cmphex(write_data(&state, LPC47B27_CONFIG_CR_SECONDARY_IRQ, 0xff),
+                    ==, LPC47B27_CONFIG_CHANGE_NONE);
+    g_assert_cmphex(read_data(&state, LPC47B27_CONFIG_CR_SECONDARY_IRQ), ==, 0);
 }
 
 static void test_reset_clears_resources(void)
@@ -327,8 +325,7 @@ static void test_reset_clears_resources(void)
 static void test_irq_router_wired_or(void)
 {
     uint8_t routed_irq[LPC47B27_IRQ_ROUTER_SOURCE_COUNT] = { 4, 4, 12 };
-    bool source_level[LPC47B27_IRQ_ROUTER_SOURCE_COUNT] = { true, true,
-                                                            false };
+    bool source_level[LPC47B27_IRQ_ROUTER_SOURCE_COUNT] = { true, true, false };
 
     g_assert_false(lpc47b27_irq_router_level(routed_irq, source_level, 0));
     g_assert_true(lpc47b27_irq_router_level(routed_irq, source_level, 4));
@@ -352,12 +349,10 @@ int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
 
-    g_test_add_func("/lpc47b27/config/reset-run-mode",
-                    test_reset_and_run_mode);
+    g_test_add_func("/lpc47b27/config/reset-run-mode", test_reset_and_run_mode);
     g_test_add_func("/lpc47b27/config/enter-exit-index",
                     test_enter_exit_and_index);
-    g_test_add_func("/lpc47b27/config/global-registers",
-                    test_global_registers);
+    g_test_add_func("/lpc47b27/config/global-registers", test_global_registers);
     g_test_add_func("/lpc47b27/config/serial1-registers",
                     test_serial1_registers);
     g_test_add_func("/lpc47b27/config/uart-base-validity",
@@ -368,8 +363,7 @@ int main(int argc, char **argv)
                     test_unsupported_selection);
     g_test_add_func("/lpc47b27/config/reset-clears-resources",
                     test_reset_clears_resources);
-    g_test_add_func("/lpc47b27/irq-router/wired-or",
-                    test_irq_router_wired_or);
+    g_test_add_func("/lpc47b27/irq-router/wired-or", test_irq_router_wired_or);
 
     return g_test_run();
 }

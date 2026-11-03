@@ -247,11 +247,10 @@ typedef struct HPZX6000PciResourceProfile {
     uint32_t console_bars[3];
 } HPZX6000PciResourceProfile;
 
-typedef bool (*HPZX6000CreateDevices)(HPZX6000MachineState *s,
-                                      Error **errp);
+typedef bool (*HPZX6000CreateDevices)(HPZX6000MachineState *s, Error **errp);
 typedef void (*HPZX6000ConfigureDevices)(HPZX6000MachineState *s);
-typedef bool (*HPZX6000AttachRoot)(HPZX6000MachineState *s,
-                                   unsigned int root, Error **errp);
+typedef bool (*HPZX6000AttachRoot)(HPZX6000MachineState *s, unsigned int root,
+                                   Error **errp);
 
 struct HPZX6000MachineProfile {
     const char *machine_type;
@@ -371,7 +370,8 @@ static const HPZX6000RootLayout hp_zx2000_roots[] = {
         .descriptor_flags = IA64_PLATFORM_PCI_ROOT_FLAG_AGP,
         .sapic_entries = HP_ZX6000_AGP_INPUT_COUNT,
         .gsi_base = 16,
-    }, {
+    },
+    {
         .cpu_mmio_base = UINT64_C(0xc0000000),
         .mmio_size = UINT64_C(0x10000000),
         .io_base = 0x8000,
@@ -382,7 +382,8 @@ static const HPZX6000RootLayout hp_zx2000_roots[] = {
         .bus_mode = HP_ZX1_IOA_BUS_MODE_ROPE_2X_L |
                     (UINT64_C(1) << HP_ZX1_IOA_BUS_MODE_BUS_SHIFT),
         .gsi_base = 27,
-    }, {
+    },
+    {
         .cpu_mmio_base = UINT64_C(0xd0000000),
         .mmio_size = UINT64_C(0x10000000),
         .io_base = 0xa000,
@@ -392,7 +393,8 @@ static const HPZX6000RootLayout hp_zx2000_roots[] = {
         .mode = HP_ZX1_IOA_MODE_PCI,
         .bus_mode = HP_ZX1_IOA_BUS_MODE_ROPE_2X_L,
         .gsi_base = 38,
-    }, {
+    },
+    {
         .cpu_mmio_base = UINT64_C(0xe0000000),
         .mmio_size = UINT64_C(0x10000000),
         .io_base = 0xc000,
@@ -465,7 +467,8 @@ static const HPZX6000RootLayout hp_zx6000_roots[] = {
         .mode = HP_ZX1_IOA_MODE_PCI,
         .bus_mode = HP_ZX1_IOA_BUS_MODE_ROPE_2X_L,
         .gsi_base = 16,
-    }, {
+    },
+    {
         .cpu_mmio_base = UINT64_C(0x88000000),
         .mmio_size = HP_ZX6000_PCI_MMIO_SIZE,
         .io_base = 0x2000,
@@ -476,7 +479,8 @@ static const HPZX6000RootLayout hp_zx6000_roots[] = {
         .bus_mode = HP_ZX1_IOA_BUS_MODE_ROPE_2X_L |
                     (UINT64_C(1) << HP_ZX1_IOA_BUS_MODE_BUS_SHIFT),
         .gsi_base = 27,
-    }, {
+    },
+    {
         .cpu_mmio_base = UINT64_C(0x90000000),
         .mmio_size = HP_ZX6000_PCI_MMIO_SIZE,
         .io_base = 0x4000,
@@ -487,7 +491,8 @@ static const HPZX6000RootLayout hp_zx6000_roots[] = {
         .bus_mode = HP_ZX1_IOA_BUS_MODE_ROPE_2X_L |
                     (UINT64_C(1) << HP_ZX1_IOA_BUS_MODE_BUS_SHIFT),
         .gsi_base = 38,
-    }, {
+    },
+    {
         .cpu_mmio_base = UINT64_C(0x98000000),
         .mmio_size = HP_ZX6000_PCI_MMIO_SIZE,
         .io_base = 0x6000,
@@ -498,7 +503,8 @@ static const HPZX6000RootLayout hp_zx6000_roots[] = {
         .bus_mode = HP_ZX1_IOA_BUS_MODE_ROPE_2X_L |
                     (UINT64_C(1) << HP_ZX1_IOA_BUS_MODE_BUS_SHIFT),
         .gsi_base = 49,
-    }, {
+    },
+    {
         .cpu_mmio_base = UINT64_C(0xa0000000),
         .mmio_size = HP_ZX6000_AGP_MMIO_SIZE,
         .io_base = 0x8000,
@@ -510,7 +516,8 @@ static const HPZX6000RootLayout hp_zx6000_roots[] = {
         .descriptor_flags = IA64_PLATFORM_PCI_ROOT_FLAG_AGP,
         .sapic_entries = HP_ZX6000_AGP_INPUT_COUNT,
         .gsi_base = 60,
-    }, {
+    },
+    {
         .cpu_mmio_base = UINT64_C(0xb0000000),
         .mmio_size = HP_ZX6000_PCI_MMIO_SIZE,
         .io_base = 0xa000,
@@ -540,7 +547,8 @@ static const HPZX6000RootLayout hp_rx2660_roots[] = {
         .mode = HP_ZX1_IOA_MODE_PCI,
         .bus_mode = HP_ZX1_IOA_BUS_MODE_ROPE_2X_L,
         .gsi_base = 16,
-    }, {
+    },
+    {
         .cpu_mmio_base = UINT64_C(0xa0000000),
         .mmio_size = UINT64_C(0x10000000),
         .cpu_mmio64_base = UINT64_C(0x80204000000),
@@ -553,7 +561,8 @@ static const HPZX6000RootLayout hp_rx2660_roots[] = {
         .bus_mode = HP_ZX1_IOA_BUS_MODE_ROPE_2X_L |
                     (UINT64_C(1) << HP_ZX1_IOA_BUS_MODE_BUS_SHIFT),
         .gsi_base = 27,
-    }, {
+    },
+    {
         .cpu_mmio_base = UINT64_C(0xb0000000),
         .mmio_size = UINT64_C(0x10000000),
         .cpu_mmio64_base = UINT64_C(0x80304000000),
@@ -566,7 +575,8 @@ static const HPZX6000RootLayout hp_rx2660_roots[] = {
         .bus_mode = HP_ZX1_IOA_BUS_MODE_ROPE_2X_L |
                     (UINT64_C(1) << HP_ZX1_IOA_BUS_MODE_BUS_SHIFT),
         .gsi_base = 38,
-    }, {
+    },
+    {
         .cpu_mmio_base = UINT64_C(0xe0000000),
         .mmio_size = UINT64_C(0x10000000),
         .cpu_mmio64_base = UINT64_C(0x80604000000),
@@ -579,7 +589,8 @@ static const HPZX6000RootLayout hp_rx2660_roots[] = {
         .bus_mode = HP_ZX1_IOA_BUS_MODE_ROPE_2X_L |
                     (UINT64_C(1) << HP_ZX1_IOA_BUS_MODE_BUS_SHIFT),
         .gsi_base = 49,
-    }, {
+    },
+    {
         .cpu_mmio_base = UINT64_C(0xf0000000),
         .mmio_size = UINT64_C(0x0e000000),
         .cpu_mmio64_base = UINT64_C(0x80704000000),
@@ -614,19 +625,14 @@ static const HPZX6000IntxRoute hp_zx6000_intx_routes[] = {
 
 static const HPZX6000PlatformRoute hp_zx6000_platform_routes[] = {
     { HP_ZX6000_AGP_ROOT, HP_ZX6000_RV100_SLOT, 0, HP_ZX_ROUTE_VGA },
-    { HP_ZX6000_CORE_PCI_ROOT, HP_ZX6000_CMD649_SLOT, 0,
-      HP_ZX_ROUTE_ALWAYS },
-    { HP_ZX6000_CORE_PCI_ROOT, HP_ZX6000_I82550_SLOT, 0,
-      HP_ZX_ROUTE_ALWAYS },
+    { HP_ZX6000_CORE_PCI_ROOT, HP_ZX6000_CMD649_SLOT, 0, HP_ZX_ROUTE_ALWAYS },
+    { HP_ZX6000_CORE_PCI_ROOT, HP_ZX6000_I82550_SLOT, 0, HP_ZX_ROUTE_ALWAYS },
     { HP_ZX6000_CORE_PCI_ROOT, HP_ZX6000_OHCI_SLOT, 0, HP_ZX_ROUTE_USB },
     { HP_ZX6000_CORE_PCI_ROOT, HP_ZX6000_OHCI_SLOT, 1, HP_ZX_ROUTE_USB },
     { HP_ZX6000_CORE_PCI_ROOT, HP_ZX6000_OHCI_SLOT, 2, HP_ZX_ROUTE_USB },
-    { HP_ZX6000_SCSI_ROOT, HP_ZX6000_LSI53C1030_SLOT, 0,
-      HP_ZX_ROUTE_ALWAYS },
-    { HP_ZX6000_SCSI_ROOT, HP_ZX6000_LSI53C1030_SLOT, 1,
-      HP_ZX_ROUTE_ALWAYS },
-    { HP_ZX6000_SCSI_ROOT, HP_ZX6000_BCM5701_SLOT, 0,
-      HP_ZX_ROUTE_ALWAYS },
+    { HP_ZX6000_SCSI_ROOT, HP_ZX6000_LSI53C1030_SLOT, 0, HP_ZX_ROUTE_ALWAYS },
+    { HP_ZX6000_SCSI_ROOT, HP_ZX6000_LSI53C1030_SLOT, 1, HP_ZX_ROUTE_ALWAYS },
+    { HP_ZX6000_SCSI_ROOT, HP_ZX6000_BCM5701_SLOT, 0, HP_ZX_ROUTE_ALWAYS },
 };
 
 static const HPZX6000IntxRoute hp_rx2660_intx_routes[] = {
@@ -649,12 +655,9 @@ static const HPZX6000PlatformRoute hp_rx2660_platform_routes[] = {
     { HP_RX2660_CORE_PCI_ROOT, HP_RX2660_USB_SLOT, 0, HP_ZX_ROUTE_USB },
     { HP_RX2660_CORE_PCI_ROOT, HP_RX2660_USB_SLOT, 1, HP_ZX_ROUTE_USB },
     { HP_RX2660_CORE_PCI_ROOT, HP_RX2660_USB_SLOT, 2, HP_ZX_ROUTE_USB },
-    { HP_RX2660_FAST_PCI_ROOT, HP_RX2660_SAS1068_SLOT, 0,
-      HP_ZX_ROUTE_ALWAYS },
-    { HP_RX2660_FAST_PCI_ROOT, HP_RX2660_BCM5704_SLOT, 0,
-      HP_ZX_ROUTE_ALWAYS },
-    { HP_RX2660_FAST_PCI_ROOT, HP_RX2660_BCM5704_SLOT, 1,
-      HP_ZX_ROUTE_ALWAYS },
+    { HP_RX2660_FAST_PCI_ROOT, HP_RX2660_SAS1068_SLOT, 0, HP_ZX_ROUTE_ALWAYS },
+    { HP_RX2660_FAST_PCI_ROOT, HP_RX2660_BCM5704_SLOT, 0, HP_ZX_ROUTE_ALWAYS },
+    { HP_RX2660_FAST_PCI_ROOT, HP_RX2660_BCM5704_SLOT, 1, HP_ZX_ROUTE_ALWAYS },
 };
 
 static unsigned int hp_zx_root_count(const HPZX6000MachineState *s)
@@ -662,8 +665,8 @@ static unsigned int hp_zx_root_count(const HPZX6000MachineState *s)
     return s->profile->root_count;
 }
 
-static const HPZX6000RootLayout *hp_zx_root_layout(
-    const HPZX6000MachineState *s, unsigned int root)
+static const HPZX6000RootLayout *
+hp_zx_root_layout(const HPZX6000MachineState *s, unsigned int root)
 {
     g_assert(root < s->profile->root_count);
     return &s->profile->roots[root];
@@ -691,8 +694,7 @@ static bool hp_zx6000_validate_profile(const HPZX6000MachineProfile *profile,
         !profile->mio_type || !profile->ioa_type || !profile->roots ||
         !profile->cpus || !profile->cpu_count || !profile->create_devices ||
         !profile->configure_devices || !profile->pci_resources ||
-        !profile->attach_root ||
-        !profile->root_count ||
+        !profile->attach_root || !profile->root_count ||
         profile->root_count > HP_ZX_MAX_PCI_ROOTS ||
         profile->core_root >= profile->root_count ||
         profile->vga_root >= profile->root_count ||
@@ -711,13 +713,11 @@ static bool hp_zx6000_validate_profile(const HPZX6000MachineProfile *profile,
         profile->management_slot >= PCI_SLOT_MAX ||
         !profile->pdh_uart_base[0] || !profile->pdh_uart_base[1] ||
         !profile->network_bar_count || profile->network_bar_count > 3 ||
-        profile->storage_bar_count > 5 ||
-        !profile->max_sockets || !profile->max_cores_per_socket ||
-        !profile->max_threads_per_core ||
+        profile->storage_bar_count > 5 || !profile->max_sockets ||
+        !profile->max_cores_per_socket || !profile->max_threads_per_core ||
         profile->physical_address_bits < 32 ||
         profile->physical_address_bits >= 64 ||
-        profile->pci_root_identity >
-            IA64_PLATFORM_PCI_ROOT_IDENTITY_HP_ZX ||
+        profile->pci_root_identity > IA64_PLATFORM_PCI_ROOT_IDENTITY_HP_ZX ||
         (profile->intx_route_count && !profile->intx_routes) ||
         (profile->platform_route_count && !profile->platform_routes)) {
         error_setg(errp, "invalid HP zx-family machine profile");
@@ -725,11 +725,11 @@ static bool hp_zx6000_validate_profile(const HPZX6000MachineProfile *profile,
     }
 
     if (MAX(profile->pdh_uart_input[0], profile->pdh_uart_input[1]) >=
-            (profile->roots[profile->core_root].sapic_entries ?:
-             HP_ZX6000_PCI_INPUT_COUNT) ||
+            (profile->roots[profile->core_root].sapic_entries
+                 ?: HP_ZX6000_PCI_INPUT_COUNT) ||
         profile->pdh_sci_input >=
-            (profile->roots[profile->core_root].sapic_entries ?:
-             HP_ZX6000_PCI_INPUT_COUNT)) {
+            (profile->roots[profile->core_root].sapic_entries
+                 ?: HP_ZX6000_PCI_INPUT_COUNT)) {
         error_setg(errp, "%s PDH interrupts exceed core root inputs",
                    profile->machine_type);
         return false;
@@ -751,20 +751,19 @@ static bool hp_zx6000_validate_profile(const HPZX6000MachineProfile *profile,
 
     for (root = 0; root < profile->root_count; root++) {
         const HPZX6000RootLayout *layout = &profile->roots[root];
-        unsigned int entries = layout->sapic_entries ?:
-                               HP_ZX6000_PCI_INPUT_COUNT;
+        unsigned int entries =
+            layout->sapic_entries ?: HP_ZX6000_PCI_INPUT_COUNT;
         unsigned int other;
 
         if (!layout->rope_mask || (layout->rope_mask & used_ropes) ||
             layout->kind > HP_ZX_ROOT_PCIE ||
-            (layout->kind == HP_ZX_ROOT_LBA &&
-             layout->rope_mask > UINT8_MAX) ||
+            (layout->kind == HP_ZX_ROOT_LBA && layout->rope_mask > UINT8_MAX) ||
             layout->first_bus > layout->last_bus || !layout->mmio_size ||
             entries > IA64_IOSAPIC_NUM_PINS ||
             (layout->kind == HP_ZX_ROOT_PCIE &&
              (!layout->config_base || !layout->io_sapic_base ||
-              (layout->config_base &
-               (IA64_PLATFORM_PCI_ECAM_ALIGNMENT - 1U)) != 0 ||
+              (layout->config_base & (IA64_PLATFORM_PCI_ECAM_ALIGNMENT - 1U)) !=
+                  0 ||
               (layout->io_sapic_base &
                (IA64_PLATFORM_IO_SAPIC_ALIGNMENT - 1U)) != 0 ||
               layout->mmio64_size != 0)) ||
@@ -782,26 +781,22 @@ static bool hp_zx6000_validate_profile(const HPZX6000MachineProfile *profile,
 
         for (other = 0; other < root; other++) {
             const HPZX6000RootLayout *previous = &profile->roots[other];
-            unsigned int previous_entries = previous->sapic_entries ?:
-                                            HP_ZX6000_PCI_INPUT_COUNT;
+            unsigned int previous_entries =
+                previous->sapic_entries ?: HP_ZX6000_PCI_INPUT_COUNT;
 
             if (!(layout->last_bus < previous->first_bus ||
                   previous->last_bus < layout->first_bus) ||
-                hp_zx_ranges_overlap(layout->io_base,
-                                     HP_ZX6000_PCI_IO_SIZE,
+                hp_zx_ranges_overlap(layout->io_base, HP_ZX6000_PCI_IO_SIZE,
                                      previous->io_base,
                                      HP_ZX6000_PCI_IO_SIZE) ||
-                hp_zx_ranges_overlap(layout->cpu_mmio_base,
-                                     layout->mmio_size,
+                hp_zx_ranges_overlap(layout->cpu_mmio_base, layout->mmio_size,
                                      previous->cpu_mmio_base,
                                      previous->mmio_size) ||
-                hp_zx_ranges_overlap(layout->cpu_mmio64_base,
-                                     layout->mmio64_size,
-                                     previous->cpu_mmio64_base,
-                                     previous->mmio64_size) ||
+                hp_zx_ranges_overlap(
+                    layout->cpu_mmio64_base, layout->mmio64_size,
+                    previous->cpu_mmio64_base, previous->mmio64_size) ||
                 hp_zx_ranges_overlap(layout->gsi_base, entries,
-                                     previous->gsi_base,
-                                     previous_entries)) {
+                                     previous->gsi_base, previous_entries)) {
                 error_setg(errp, "%s PCI roots %u and %u overlap",
                            profile->machine_type, other, root);
                 return false;
@@ -824,14 +819,14 @@ static bool hp_zx6000_validate_profile(const HPZX6000MachineProfile *profile,
         const HPZX6000IntxRoute *route = &profile->intx_routes[index];
         unsigned int entries;
 
-        if (route->root >= profile->root_count ||
-            route->slot >= PCI_SLOT_MAX || route->pin >= PCI_NUM_PINS) {
+        if (route->root >= profile->root_count || route->slot >= PCI_SLOT_MAX ||
+            route->pin >= PCI_NUM_PINS) {
             error_setg(errp, "%s has invalid INTx route %zu",
                        profile->machine_type, index);
             return false;
         }
-        entries = profile->roots[route->root].sapic_entries ?:
-                  HP_ZX6000_PCI_INPUT_COUNT;
+        entries = profile->roots[route->root].sapic_entries
+                      ?: HP_ZX6000_PCI_INPUT_COUNT;
         if (route->input >= entries) {
             error_setg(errp, "%s INTx route %zu exceeds root %u inputs",
                        profile->machine_type, index, route->root);
@@ -840,12 +835,10 @@ static bool hp_zx6000_validate_profile(const HPZX6000MachineProfile *profile,
     }
 
     for (index = 0; index < profile->platform_route_count; index++) {
-        const HPZX6000PlatformRoute *route =
-            &profile->platform_routes[index];
+        const HPZX6000PlatformRoute *route = &profile->platform_routes[index];
 
-        if (route->root >= profile->root_count ||
-            route->slot >= PCI_SLOT_MAX || route->pin >= PCI_NUM_PINS ||
-            route->presence > HP_ZX_ROUTE_USB) {
+        if (route->root >= profile->root_count || route->slot >= PCI_SLOT_MAX ||
+            route->pin >= PCI_NUM_PINS || route->presence > HP_ZX_ROUTE_USB) {
             error_setg(errp, "%s has invalid platform route %zu",
                        profile->machine_type, index);
             return false;
@@ -858,31 +851,30 @@ static hwaddr hp_zx_ioa_address(const HPZX6000MachineState *s,
                                 unsigned int root)
 {
     return HP_ZX6000_IOA_BASE +
-        ctz32(hp_zx_root_layout(s, root)->rope_mask) *
-        HP_ZX6000_IOA_STRIDE;
+           ctz32(hp_zx_root_layout(s, root)->rope_mask) * HP_ZX6000_IOA_STRIDE;
 }
 
 static PCIBus *hp_zx_root_bus(HPZX6000MachineState *s, unsigned int root)
 {
-    return hp_zx_root_layout(s, root)->kind == HP_ZX_ROOT_PCIE ?
-        ia64_pci_host_bus(s->pcie_host[root]) :
-        hp_zx1_ioa_bus(s->ioa[root]);
+    return hp_zx_root_layout(s, root)->kind == HP_ZX_ROOT_PCIE
+               ? ia64_pci_host_bus(s->pcie_host[root])
+               : hp_zx1_ioa_bus(s->ioa[root]);
 }
 
 static MemoryRegion *hp_zx_root_pci_mem(HPZX6000MachineState *s,
                                         unsigned int root)
 {
-    return hp_zx_root_layout(s, root)->kind == HP_ZX_ROOT_PCIE ?
-        ia64_pci_host_memory(s->pcie_host[root]) :
-        hp_zx1_ioa_pci_mem(s->ioa[root]);
+    return hp_zx_root_layout(s, root)->kind == HP_ZX_ROOT_PCIE
+               ? ia64_pci_host_memory(s->pcie_host[root])
+               : hp_zx1_ioa_pci_mem(s->ioa[root]);
 }
 
 static MemoryRegion *hp_zx_root_pci_io(HPZX6000MachineState *s,
                                        unsigned int root)
 {
-    return hp_zx_root_layout(s, root)->kind == HP_ZX_ROOT_PCIE ?
-        ia64_pci_host_io(s->pcie_host[root]) :
-        hp_zx1_ioa_pci_io(s->ioa[root]);
+    return hp_zx_root_layout(s, root)->kind == HP_ZX_ROOT_PCIE
+               ? ia64_pci_host_io(s->pcie_host[root])
+               : hp_zx1_ioa_pci_io(s->ioa[root]);
 }
 
 static qemu_irq hp_zx_root_irq(HPZX6000MachineState *s, unsigned int root,
@@ -891,8 +883,8 @@ static qemu_irq hp_zx_root_irq(HPZX6000MachineState *s, unsigned int root,
     if (hp_zx_root_layout(s, root)->kind == HP_ZX_ROOT_PCIE) {
         return qdev_get_gpio_in(s->io_sapic[root], input);
     }
-    return qdev_get_gpio_in_named(DEVICE(s->ioa[root]),
-                                  HP_ZX1_IOA_GPIO_INTX, input);
+    return qdev_get_gpio_in_named(DEVICE(s->ioa[root]), HP_ZX1_IOA_GPIO_INTX,
+                                  input);
 }
 
 static bool hp_zx6000_attach_lba_root(HPZX6000MachineState *s,
@@ -906,15 +898,15 @@ static bool hp_zx6000_attach_lba_root(HPZX6000MachineState *s,
     return hp_zx1_mio_attach_ioa(s->mio, s->ioa[root], errp);
 }
 
-static bool hp_rx2660_attach_root(HPZX6000MachineState *s,
-                                  unsigned int root, Error **errp)
+static bool hp_rx2660_attach_root(HPZX6000MachineState *s, unsigned int root,
+                                  Error **errp)
 {
     const HPZX6000RootLayout *layout = hp_zx_root_layout(s, root);
 
     if (layout->kind == HP_ZX_ROOT_PCIE) {
-        return hp_zx2_mio_attach_pci_root(
-            s->mio, ia64_pci_host_bus(s->pcie_host[root]),
-            layout->rope_mask, errp);
+        return hp_zx2_mio_attach_pci_root(s->mio,
+                                          ia64_pci_host_bus(s->pcie_host[root]),
+                                          layout->rope_mask, errp);
     }
     return hp_zx1_mio_attach_ioa(s->mio, s->ioa[root], errp);
 }
@@ -930,8 +922,7 @@ static DeviceState *hp_zx6000_add_child(HPZX6000MachineState *s,
 }
 
 static unsigned int hp_zx_route_input(const HPZX6000MachineState *s,
-                                      unsigned int root,
-                                      unsigned int slot,
+                                      unsigned int root, unsigned int slot,
                                       unsigned int pin)
 {
     const HPZX6000RootLayout *layout = hp_zx_root_layout(s, root);
@@ -940,13 +931,11 @@ static unsigned int hp_zx_route_input(const HPZX6000MachineState *s,
     for (index = 0; index < s->profile->intx_route_count; index++) {
         const HPZX6000IntxRoute *route = &s->profile->intx_routes[index];
 
-        if (route->root == root && route->slot == slot &&
-            route->pin == pin) {
+        if (route->root == root && route->slot == slot && route->pin == pin) {
             return route->input;
         }
     }
-    return (slot + pin) %
-        (layout->sapic_entries ?: HP_ZX6000_PCI_INPUT_COUNT);
+    return (slot + pin) % (layout->sapic_entries ?: HP_ZX6000_PCI_INPUT_COUNT);
 }
 
 static uint32_t hp_zx6000_device_gsi(const HPZX6000MachineState *s,
@@ -963,19 +952,18 @@ static hwaddr hp_zx6000_sparse_io_port(hwaddr encoded)
 }
 
 static AddressSpace *hp_zx6000_io_space_for_port(HPZX6000MachineState *s,
-                                                 hwaddr port,
-                                                 unsigned int size)
+                                                 hwaddr port, unsigned int size)
 {
-    bool vga_legacy = port >= HP_ZX6000_VGA_LEGACY_IO_BASE &&
-        port < HP_ZX6000_VGA_LEGACY_IO_BASE +
-               HP_ZX6000_VGA_LEGACY_IO_SIZE &&
-        size <= HP_ZX6000_VGA_LEGACY_IO_BASE +
-                HP_ZX6000_VGA_LEGACY_IO_SIZE - port;
-    bool vbe_legacy = port >= HP_ZX6000_VBE_LEGACY_IO_BASE &&
-        port < HP_ZX6000_VBE_LEGACY_IO_BASE +
-               HP_ZX6000_VBE_LEGACY_IO_SIZE &&
-        size <= HP_ZX6000_VBE_LEGACY_IO_BASE +
-                HP_ZX6000_VBE_LEGACY_IO_SIZE - port;
+    bool vga_legacy =
+        port >= HP_ZX6000_VGA_LEGACY_IO_BASE &&
+        port < HP_ZX6000_VGA_LEGACY_IO_BASE + HP_ZX6000_VGA_LEGACY_IO_SIZE &&
+        size <=
+            HP_ZX6000_VGA_LEGACY_IO_BASE + HP_ZX6000_VGA_LEGACY_IO_SIZE - port;
+    bool vbe_legacy =
+        port >= HP_ZX6000_VBE_LEGACY_IO_BASE &&
+        port < HP_ZX6000_VBE_LEGACY_IO_BASE + HP_ZX6000_VBE_LEGACY_IO_SIZE &&
+        size <=
+            HP_ZX6000_VBE_LEGACY_IO_BASE + HP_ZX6000_VBE_LEGACY_IO_SIZE - port;
     unsigned int root;
 
     if (s->rv100 && (vga_legacy || vbe_legacy)) {
@@ -1038,8 +1026,7 @@ static MemTxResult hp_zx6000_io_write(AddressSpace *as, hwaddr addr,
 }
 
 static MemTxResult hp_zx6000_sparse_io_read(void *opaque, hwaddr addr,
-                                            uint64_t *value,
-                                            unsigned int size,
+                                            uint64_t *value, unsigned int size,
                                             MemTxAttrs attrs)
 {
     HPZX6000MachineState *s = opaque;
@@ -1054,16 +1041,15 @@ static MemTxResult hp_zx6000_sparse_io_read(void *opaque, hwaddr addr,
 }
 
 static MemTxResult hp_zx6000_sparse_io_write(void *opaque, hwaddr addr,
-                                             uint64_t value,
-                                             unsigned int size,
+                                             uint64_t value, unsigned int size,
                                              MemTxAttrs attrs)
 {
     HPZX6000MachineState *s = opaque;
     hwaddr port = hp_zx6000_sparse_io_port(addr);
     AddressSpace *as = hp_zx6000_io_space_for_port(s, port, size);
 
-    return as ? hp_zx6000_io_write(as, port, value, size, attrs) :
-                MEMTX_DECODE_ERROR;
+    return as ? hp_zx6000_io_write(as, port, value, size, attrs)
+              : MEMTX_DECODE_ERROR;
 }
 
 static const MemoryRegionOps hp_zx6000_sparse_io_ops = {
@@ -1092,8 +1078,8 @@ static void hp_zx6000_deliver_interrupt(void *opaque,
         message->address > HP_ZX6000_PIB_BASE + HP_ZX6000_PIB_SIZE - 8) {
         return;
     }
-    address_space_stq_le(&address_space_memory, message->address,
-                         message->data, MEMTXATTRS_UNSPECIFIED, &result);
+    address_space_stq_le(&address_space_memory, message->address, message->data,
+                         MEMTXATTRS_UNSPECIFIED, &result);
 }
 
 static void hp_zx6000_map_ram(HPZX6000MachineState *s)
@@ -1101,18 +1087,17 @@ static void hp_zx6000_map_ram(HPZX6000MachineState *s)
     MachineState *machine = MACHINE(s);
     uint64_t low_size = MIN(machine->ram_size, HP_ZX6000_LOW_RAM_LIMIT);
     uint64_t high_size = machine->ram_size - low_size;
-    g_autofree char *low_name = g_strdup_printf("%s.low-ram",
-                                                s->profile->region_prefix);
-    g_autofree char *high_name = g_strdup_printf("%s.high-ram",
-                                                 s->profile->region_prefix);
+    g_autofree char *low_name =
+        g_strdup_printf("%s.low-ram", s->profile->region_prefix);
+    g_autofree char *high_name =
+        g_strdup_printf("%s.high-ram", s->profile->region_prefix);
 
-    memory_region_init_alias(&s->low_ram, OBJECT(s), low_name,
-                             machine->ram, 0, low_size);
+    memory_region_init_alias(&s->low_ram, OBJECT(s), low_name, machine->ram, 0,
+                             low_size);
     memory_region_add_subregion(get_system_memory(), 0, &s->low_ram);
     if (high_size) {
         memory_region_init_alias(&s->high_ram, OBJECT(s), high_name,
-                                 machine->ram,
-                                 low_size, high_size);
+                                 machine->ram, low_size, high_size);
         memory_region_add_subregion(get_system_memory(),
                                     HP_ZX6000_HIGH_RAM_BASE, &s->high_ram);
     }
@@ -1127,12 +1112,11 @@ static bool hp_zx6000_create_chipset(HPZX6000MachineState *s, Error **errp)
     dev = hp_zx6000_add_child(s, "mio", s->profile->mio_type);
     s->mio = HP_ZX1_MIO(dev);
     if (!hp_zx1_mio_configure_iommu_reset(s->mio, &iommu_reset, errp) ||
-        !hp_zx1_mio_set_fault_notifier(
-            s->mio, ia64_ras_hub_report_chipset_fault,
-            HP_IA64_MACHINE(s)->ras, errp) ||
-        !hp_zx1_mio_set_error_delivery(s->mio,
-                                       hp_zx6000_deliver_interrupt,
-                                       s, errp) ||
+        !hp_zx1_mio_set_fault_notifier(s->mio,
+                                       ia64_ras_hub_report_chipset_fault,
+                                       HP_IA64_MACHINE(s)->ras, errp) ||
+        !hp_zx1_mio_set_error_delivery(s->mio, hp_zx6000_deliver_interrupt, s,
+                                       errp) ||
         !sysbus_realize(SYS_BUS_DEVICE(dev), errp)) {
         return false;
     }
@@ -1142,14 +1126,11 @@ static bool hp_zx6000_create_chipset(HPZX6000MachineState *s, Error **errp)
         const HPZX6000RootLayout *layout = hp_zx_root_layout(s, root);
         g_autofree char *name = g_strdup_printf("ioa%u", root);
         g_autofree char *mmio_name =
-            g_strdup_printf("%s.root%u-mmio",
-                            s->profile->region_prefix, root);
-        g_autofree char *mmio64_name =
-            g_strdup_printf("%s.root%u-mmio64",
-                            s->profile->region_prefix, root);
+            g_strdup_printf("%s.root%u-mmio", s->profile->region_prefix, root);
+        g_autofree char *mmio64_name = g_strdup_printf(
+            "%s.root%u-mmio64", s->profile->region_prefix, root);
         g_autofree char *io_name =
-            g_strdup_printf("%s.root%u-io",
-                            s->profile->region_prefix, root);
+            g_strdup_printf("%s.root%u-io", s->profile->region_prefix, root);
         unsigned int pin;
         unsigned int slot;
 
@@ -1165,7 +1146,7 @@ static bool hp_zx6000_create_chipset(HPZX6000MachineState *s, Error **errp)
                 .mmio_bus_base = layout->cpu_mmio_base,
                 .mmio_size = layout->mmio_size,
                 .io_cpu_base = HP_ZX6000_LEGACY_IO_BASE +
-                    ((uint64_t)layout->io_base << 10),
+                               ((uint64_t)layout->io_base << 10),
                 .io_bus_base = layout->io_base,
                 .io_size = HP_ZX6000_PCI_IO_SIZE,
                 .gsi_base = layout->gsi_base,
@@ -1174,30 +1155,25 @@ static bool hp_zx6000_create_chipset(HPZX6000MachineState *s, Error **errp)
             g_autofree char *sapic_name =
                 g_strdup_printf("pcie-iosapic%u", root);
 
-            dev = hp_zx6000_add_child(
-                s, host_name, TYPE_IA64_PCIE_HOST_BRIDGE);
+            dev = hp_zx6000_add_child(s, host_name, TYPE_IA64_PCIE_HOST_BRIDGE);
             s->pcie_host[root] = IA64_PCI_HOST_BRIDGE(dev);
-            if (!ia64_pci_host_configure(
-                    s->pcie_host[root], &config, errp) ||
+            if (!ia64_pci_host_configure(s->pcie_host[root], &config, errp) ||
                 !ia64_pcie_host_set_fault_notifier(
-                    s->pcie_host[root],
-                    ia64_ras_hub_report_chipset_fault,
+                    s->pcie_host[root], ia64_ras_hub_report_chipset_fault,
                     HP_IA64_MACHINE(s)->ras, errp) ||
                 !sysbus_realize(SYS_BUS_DEVICE(dev), errp)) {
                 return false;
             }
-            s->io_sapic[root] = hp_zx6000_add_child(
-                s, sapic_name, TYPE_IA64_IOSAPIC);
-            if (!sysbus_realize(
-                    SYS_BUS_DEVICE(s->io_sapic[root]), errp)) {
+            s->io_sapic[root] =
+                hp_zx6000_add_child(s, sapic_name, TYPE_IA64_IOSAPIC);
+            if (!sysbus_realize(SYS_BUS_DEVICE(s->io_sapic[root]), errp)) {
                 return false;
             }
             sysbus_mmio_map(SYS_BUS_DEVICE(s->io_sapic[root]), 0,
                             layout->io_sapic_base);
             for (pin = 0; pin < IA64_PCI_INTX_LINES; pin++) {
-                qdev_connect_gpio_out(
-                    DEVICE(s->pcie_host[root]), pin,
-                    qdev_get_gpio_in(s->io_sapic[root], pin));
+                qdev_connect_gpio_out(DEVICE(s->pcie_host[root]), pin,
+                                      qdev_get_gpio_in(s->io_sapic[root], pin));
             }
             if (!s->profile->attach_root(s, root, errp)) {
                 return false;
@@ -1235,27 +1211,24 @@ static bool hp_zx6000_create_chipset(HPZX6000MachineState *s, Error **errp)
             !s->profile->attach_root(s, root, errp)) {
             return false;
         }
-        sysbus_mmio_map(SYS_BUS_DEVICE(dev), 0,
-                        hp_zx_ioa_address(s, root));
+        sysbus_mmio_map(SYS_BUS_DEVICE(dev), 0, hp_zx_ioa_address(s, root));
 
         memory_region_init_alias(&s->root_mmio[root], OBJECT(s), mmio_name,
                                  hp_zx1_ioa_pci_mem(s->ioa[root]),
-                                 layout->cpu_mmio_base,
-                                 layout->mmio_size);
-        memory_region_add_subregion(get_system_memory(),
-                                    layout->cpu_mmio_base,
+                                 layout->cpu_mmio_base, layout->mmio_size);
+        memory_region_add_subregion(get_system_memory(), layout->cpu_mmio_base,
                                     &s->root_mmio[root]);
         if (layout->mmio64_size) {
             memory_region_init_alias(
                 &s->root_mmio64[root], OBJECT(s), mmio64_name,
-                hp_zx1_ioa_pci_mem(s->ioa[root]),
-                layout->cpu_mmio64_base, layout->mmio64_size);
+                hp_zx1_ioa_pci_mem(s->ioa[root]), layout->cpu_mmio64_base,
+                layout->mmio64_size);
             memory_region_add_subregion(get_system_memory(),
                                         layout->cpu_mmio64_base,
                                         &s->root_mmio64[root]);
         }
-        address_space_init(&s->root_io[root],
-                           hp_zx1_ioa_pci_io(s->ioa[root]), io_name);
+        address_space_init(&s->root_io[root], hp_zx1_ioa_pci_io(s->ioa[root]),
+                           io_name);
         s->root_io_initialized[root] = true;
     }
     return true;
@@ -1264,15 +1237,12 @@ static bool hp_zx6000_create_chipset(HPZX6000MachineState *s, Error **errp)
 static bool hp_zx6000_create_pdh(HPZX6000MachineState *s, Error **errp)
 {
     const hwaddr bases[] = {
-        s->profile->pdh_uart_base[0],
-        s->profile->pdh_uart_base[1],
-        HP_ZX6000_PDH_NVRAM_BASE,
-        HP_ZX6000_PDH_RTC_BASE,
-        HP_ZX6000_PDH_CONTROL_BASE,
-        HP_ZX6000_PDH_ACPI_PM_BASE,
+        s->profile->pdh_uart_base[0], s->profile->pdh_uart_base[1],
+        HP_ZX6000_PDH_NVRAM_BASE,     HP_ZX6000_PDH_RTC_BASE,
+        HP_ZX6000_PDH_CONTROL_BASE,   HP_ZX6000_PDH_ACPI_PM_BASE,
     };
-    g_autofree char *nvram_path = ia64_machine_resolve_nvram_path(
-        MACHINE(s), s->nvram_path);
+    g_autofree char *nvram_path =
+        ia64_machine_resolve_nvram_path(MACHINE(s), s->nvram_path);
     DeviceState *dev = hp_zx6000_add_child(s, "pdh", TYPE_HP_ZX6000_PDH);
     Chardev *chardev;
     unsigned int region, root;
@@ -1287,20 +1257,19 @@ static bool hp_zx6000_create_pdh(HPZX6000MachineState *s, Error **errp)
     if (chardev) {
         qdev_prop_set_chr(dev, "chardev1", chardev);
     }
-    qdev_prop_set_string(dev, HP_ZX6000_PDH_PROP_NVRAM,
-                         nvram_path ?: "none");
+    qdev_prop_set_string(dev, HP_ZX6000_PDH_PROP_NVRAM, nvram_path ?: "none");
     if (!sysbus_realize(SYS_BUS_DEVICE(dev), errp)) {
         return false;
     }
     sysbus_connect_irq(SYS_BUS_DEVICE(dev), 0,
-        hp_zx_root_irq(s, s->profile->core_root,
-                       s->profile->pdh_uart_input[0]));
+                       hp_zx_root_irq(s, s->profile->core_root,
+                                      s->profile->pdh_uart_input[0]));
     sysbus_connect_irq(SYS_BUS_DEVICE(dev), 1,
-        hp_zx_root_irq(s, s->profile->core_root,
-                       s->profile->pdh_uart_input[1]));
-    sysbus_connect_irq(SYS_BUS_DEVICE(dev), 2,
-        hp_zx_root_irq(s, s->profile->core_root,
-                       s->profile->pdh_sci_input));
+                       hp_zx_root_irq(s, s->profile->core_root,
+                                      s->profile->pdh_uart_input[1]));
+    sysbus_connect_irq(
+        SYS_BUS_DEVICE(dev), 2,
+        hp_zx_root_irq(s, s->profile->core_root, s->profile->pdh_sci_input));
     for (region = 0; region < G_N_ELEMENTS(bases); region++) {
         sysbus_mmio_map(SYS_BUS_DEVICE(dev), region, bases[region]);
     }
@@ -1311,7 +1280,7 @@ static bool hp_zx6000_create_pdh(HPZX6000MachineState *s, Error **errp)
 
         if (IA64_PLATFORM_ACPI_PM_IO_BASE >= layout->io_base &&
             IA64_PLATFORM_ACPI_PM_IO_BASE + IA64_PLATFORM_ACPI_PM_IO_SIZE <=
-            layout->io_base + HP_ZX6000_PCI_IO_SIZE) {
+                layout->io_base + HP_ZX6000_PCI_IO_SIZE) {
             memory_region_add_subregion_overlap(
                 hp_zx_root_pci_io(s, root), IA64_PLATFORM_ACPI_PM_IO_BASE,
                 hp_zx6000_pdh_acpi_pm_io(s->pdh), 2);
@@ -1352,33 +1321,30 @@ static const MemoryRegionOps hp_rx2660_management_ops = {
 
 static void hp_rx2660_management_realize(PCIDevice *dev, Error **errp)
 {
-    HPRX2660ManagementState *s =
-        (HPRX2660ManagementState *)OBJECT_CHECK(
-            HPRX2660ManagementState, dev, TYPE_HP_RX2660_MANAGEMENT_BASE);
+    HPRX2660ManagementState *s = (HPRX2660ManagementState *)OBJECT_CHECK(
+        HPRX2660ManagementState, dev, TYPE_HP_RX2660_MANAGEMENT_BASE);
 
     if (object_dynamic_cast(OBJECT(dev), TYPE_HP_RX2660_MP_INTERFACE)) {
-        memory_region_init_io(&s->bar1, OBJECT(s),
-                              &hp_rx2660_management_ops, s,
+        memory_region_init_io(&s->bar1, OBJECT(s), &hp_rx2660_management_ops, s,
                               "hp-rx2660-mp-interface-mmio", 4 * KiB);
         pci_register_bar(dev, 1,
                          PCI_BASE_ADDRESS_SPACE_MEMORY |
-                         PCI_BASE_ADDRESS_MEM_TYPE_64,
+                             PCI_BASE_ADDRESS_MEM_TYPE_64,
                          &s->bar1);
-        memory_region_init_io(&s->bar3, OBJECT(s),
-                              &hp_rx2660_management_ops, s,
+        memory_region_init_io(&s->bar3, OBJECT(s), &hp_rx2660_management_ops, s,
                               "hp-rx2660-mp-interface-mmio64", 128 * KiB);
         pci_register_bar(dev, 3,
                          PCI_BASE_ADDRESS_SPACE_MEMORY |
-                         PCI_BASE_ADDRESS_MEM_TYPE_64 |
-                         PCI_BASE_ADDRESS_MEM_PREFETCH,
+                             PCI_BASE_ADDRESS_MEM_TYPE_64 |
+                             PCI_BASE_ADDRESS_MEM_PREFETCH,
                          &s->bar3);
     }
 }
 
 static void hp_rx2660_console_realize(PCIDevice *dev, Error **errp)
 {
-    HPRX2660ConsoleState *s = OBJECT_CHECK(
-        HPRX2660ConsoleState, dev, TYPE_HP_RX2660_CONSOLE);
+    HPRX2660ConsoleState *s =
+        OBJECT_CHECK(HPRX2660ConsoleState, dev, TYPE_HP_RX2660_CONSOLE);
 
     if (!qdev_realize(DEVICE(&s->uart), NULL, errp)) {
         return;
@@ -1388,14 +1354,13 @@ static void hp_rx2660_console_realize(PCIDevice *dev, Error **errp)
      * The RMP3 Diva (103c:1048, subsystem 103c:1301) has one 16550 at BAR1
      * offset zero with byte register spacing and a 115200 baud base.
      */
-    memory_region_init(&s->bar1, OBJECT(s),
-                       "hp-rx2660-console-mmio", 4 * KiB);
+    memory_region_init(&s->bar1, OBJECT(s), "hp-rx2660-console-mmio", 4 * KiB);
     memory_region_init_io(&s->uart.io, OBJECT(s), &serial_io_ops, &s->uart,
                           "hp-rx2660-console-uart", 8);
     memory_region_add_subregion(&s->bar1, 0, &s->uart.io);
-    pci_register_bar(dev, 1,
-                     PCI_BASE_ADDRESS_SPACE_MEMORY |
-                     PCI_BASE_ADDRESS_MEM_TYPE_64, &s->bar1);
+    pci_register_bar(
+        dev, 1, PCI_BASE_ADDRESS_SPACE_MEMORY | PCI_BASE_ADDRESS_MEM_TYPE_64,
+        &s->bar1);
     pci_set_byte(dev->config + PCI_CLASS_PROG, 0x02);
     pci_set_byte(dev->config + PCI_INTERRUPT_PIN, 1);
     s->uart.irq = pci_allocate_irq(dev);
@@ -1403,8 +1368,8 @@ static void hp_rx2660_console_realize(PCIDevice *dev, Error **errp)
 
 static void hp_rx2660_console_exit(PCIDevice *dev)
 {
-    HPRX2660ConsoleState *s = OBJECT_CHECK(
-        HPRX2660ConsoleState, dev, TYPE_HP_RX2660_CONSOLE);
+    HPRX2660ConsoleState *s =
+        OBJECT_CHECK(HPRX2660ConsoleState, dev, TYPE_HP_RX2660_CONSOLE);
 
     memory_region_del_subregion(&s->bar1, &s->uart.io);
     qdev_unrealize(DEVICE(&s->uart));
@@ -1413,8 +1378,8 @@ static void hp_rx2660_console_exit(PCIDevice *dev)
 
 static void hp_rx2660_console_init(Object *obj)
 {
-    HPRX2660ConsoleState *s = OBJECT_CHECK(
-        HPRX2660ConsoleState, obj, TYPE_HP_RX2660_CONSOLE);
+    HPRX2660ConsoleState *s =
+        OBJECT_CHECK(HPRX2660ConsoleState, obj, TYPE_HP_RX2660_CONSOLE);
 
     object_initialize_child(obj, "uart", &s->uart, TYPE_SERIAL);
     qdev_alias_all_properties(DEVICE(&s->uart), obj);
@@ -1424,12 +1389,12 @@ static const VMStateDescription vmstate_hp_rx2660_console = {
     .name = TYPE_HP_RX2660_CONSOLE,
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (const VMStateField[]) {
-        VMSTATE_PCI_DEVICE(parent_obj, HPRX2660ConsoleState),
-        VMSTATE_STRUCT(uart, HPRX2660ConsoleState, 0,
-                       vmstate_serial, SerialState),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) {
+            VMSTATE_PCI_DEVICE(parent_obj, HPRX2660ConsoleState),
+            VMSTATE_STRUCT(uart, HPRX2660ConsoleState, 0, vmstate_serial,
+                           SerialState),
+            VMSTATE_END_OF_LIST() },
 };
 
 typedef struct HPRX2660ManagementInfo {
@@ -1440,7 +1405,7 @@ typedef struct HPRX2660ManagementInfo {
 } HPRX2660ManagementInfo;
 
 static void hp_rx2660_management_class_init(ObjectClass *klass,
-                                             const void *data)
+                                            const void *data)
 {
     const HPRX2660ManagementInfo *info = data;
     DeviceClass *dc = DEVICE_CLASS(klass);
@@ -1459,8 +1424,7 @@ static void hp_rx2660_management_class_init(ObjectClass *klass,
     set_bit(DEVICE_CATEGORY_MISC, dc->categories);
 }
 
-static void hp_rx2660_console_class_init(ObjectClass *klass,
-                                         const void *data)
+static void hp_rx2660_console_class_init(ObjectClass *klass, const void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
     PCIDeviceClass *pc = PCI_DEVICE_CLASS(klass);
@@ -1478,12 +1442,14 @@ static const HPRX2660ManagementInfo hp_rx2660_management_info[] = {
         .subsystem_id = 0x1303,
         .class_id = 0xff00,
         .description = "HP rx2660 management function",
-    }, {
+    },
+    {
         .device_id = 0x1302,
         .subsystem_id = 0x1302,
         .class_id = PCI_CLASS_COMMUNICATION_OTHER,
         .description = "HP rx2660 management processor interface",
-    }, {
+    },
+    {
         .device_id = 0x1048,
         .subsystem_id = 0x1301,
         .class_id = PCI_CLASS_COMMUNICATION_SERIAL,
@@ -1496,10 +1462,11 @@ static const TypeInfo hp_rx2660_management_base_type = {
     .parent = TYPE_PCI_DEVICE,
     .instance_size = sizeof(HPRX2660ManagementState),
     .abstract = true,
-    .interfaces = (const InterfaceInfo[]) {
-        { INTERFACE_CONVENTIONAL_PCI_DEVICE },
-        { },
-    },
+    .interfaces =
+        (const InterfaceInfo[]) {
+            { INTERFACE_CONVENTIONAL_PCI_DEVICE },
+            {},
+        },
 };
 
 static const TypeInfo hp_rx2660_management_types[] = {
@@ -1508,27 +1475,29 @@ static const TypeInfo hp_rx2660_management_types[] = {
         .parent = TYPE_HP_RX2660_MANAGEMENT_BASE,
         .class_init = hp_rx2660_management_class_init,
         .class_data = &hp_rx2660_management_info[0],
-    }, {
+    },
+    {
         .name = TYPE_HP_RX2660_MP_INTERFACE,
         .parent = TYPE_HP_RX2660_MANAGEMENT_BASE,
         .class_init = hp_rx2660_management_class_init,
         .class_data = &hp_rx2660_management_info[1],
-    }, {
+    },
+    {
         .name = TYPE_HP_RX2660_CONSOLE,
         .parent = TYPE_PCI_DEVICE,
         .instance_size = sizeof(HPRX2660ConsoleState),
         .instance_init = hp_rx2660_console_init,
         .class_init = hp_rx2660_console_class_init,
         .class_data = &hp_rx2660_management_info[2],
-        .interfaces = (const InterfaceInfo[]) {
-            { INTERFACE_CONVENTIONAL_PCI_DEVICE },
-            { },
-        },
+        .interfaces =
+            (const InterfaceInfo[]) {
+                { INTERFACE_CONVENTIONAL_PCI_DEVICE },
+                {},
+            },
     },
 };
 
-static bool hp_rx2660_create_pci_devices(HPZX6000MachineState *s,
-                                         Error **errp)
+static bool hp_rx2660_create_pci_devices(HPZX6000MachineState *s, Error **errp)
 {
     static const char *const management_types[] = {
         TYPE_HP_RX2660_MANAGEMENT,
@@ -1547,8 +1516,8 @@ static bool hp_rx2660_create_pci_devices(HPZX6000MachineState *s,
 
     s->rv100 = pci_vga_new();
     if (s->rv100) {
-        g_autofree char *legacy_name = g_strdup_printf(
-            "%s.vga-legacy", s->profile->region_prefix);
+        g_autofree char *legacy_name =
+            g_strdup_printf("%s.vga-legacy", s->profile->region_prefix);
 
         if (!object_dynamic_cast(OBJECT(s->rv100), TYPE_ATI_VGA)) {
             error_setg(errp, "%s supports ATI VGA or no VGA",
@@ -1558,8 +1527,7 @@ static bool hp_rx2660_create_pci_devices(HPZX6000MachineState *s,
             return false;
         }
         s->rv100->devfn = PCI_DEVFN(s->profile->vga_slot, 0);
-        qdev_prop_set_string(DEVICE(s->rv100), "model",
-                             s->profile->vga_model);
+        qdev_prop_set_string(DEVICE(s->rv100), "model", s->profile->vga_model);
         qdev_prop_set_uint32(DEVICE(s->rv100), "romsize",
                              s->profile->vga_rom_size);
         if (s->profile->vga_memory_mb) {
@@ -1575,19 +1543,18 @@ static bool hp_rx2660_create_pci_devices(HPZX6000MachineState *s,
                      PCI_VENDOR_ID_HP);
         pci_set_word(s->rv100->config + PCI_SUBSYSTEM_ID,
                      s->profile->vga_subsystem_id);
-        memory_region_init_alias(
-            &s->vga_legacy, OBJECT(s), legacy_name,
-            hp_zx_root_pci_mem(s, s->profile->vga_root),
-            HP_ZX6000_VGA_LEGACY_BASE, HP_ZX6000_VGA_LEGACY_SIZE);
+        memory_region_init_alias(&s->vga_legacy, OBJECT(s), legacy_name,
+                                 hp_zx_root_pci_mem(s, s->profile->vga_root),
+                                 HP_ZX6000_VGA_LEGACY_BASE,
+                                 HP_ZX6000_VGA_LEGACY_SIZE);
         memory_region_add_subregion_overlap(
-            get_system_memory(), HP_ZX6000_VGA_LEGACY_BASE,
-            &s->vga_legacy, 1);
+            get_system_memory(), HP_ZX6000_VGA_LEGACY_BASE, &s->vga_legacy, 1);
     }
 
     machine->usb |= defaults_enabled() && !machine->usb_disabled;
     if (machine->usb) {
-        s->ehci = pci_new_multifunction(
-            PCI_DEVFN(s->profile->usb_slot, 2), TYPE_NEC_USB_EHCI);
+        s->ehci = pci_new_multifunction(PCI_DEVFN(s->profile->usb_slot, 2),
+                                        TYPE_NEC_USB_EHCI);
         qdev_prop_set_uint8(DEVICE(s->ehci), "interrupt-pin", 3);
         qdev_prop_set_uint8(DEVICE(s->ehci), "num-ports", 5);
         if (!hp_zx6000_realize_pci_device(s->ehci, usb, errp)) {
@@ -1600,11 +1567,9 @@ static bool hp_rx2660_create_pci_devices(HPZX6000MachineState *s,
                        TYPE_NEC_USB_EHCI);
             return false;
         }
-        for (function = 0; function < HP_ZX6000_OHCI_FUNCTIONS;
-             function++) {
+        for (function = 0; function < HP_ZX6000_OHCI_FUNCTIONS; function++) {
             s->ohci[function] = pci_new_multifunction(
-                PCI_DEVFN(s->profile->usb_slot, function),
-                TYPE_NEC_USB_OHCI);
+                PCI_DEVFN(s->profile->usb_slot, function), TYPE_NEC_USB_OHCI);
             qdev_prop_set_string(DEVICE(s->ohci[function]), "masterbus",
                                  usb_bus->name);
             qdev_prop_set_uint32(DEVICE(s->ohci[function]), "firstport",
@@ -1612,10 +1577,9 @@ static bool hp_rx2660_create_pci_devices(HPZX6000MachineState *s,
             qdev_prop_set_uint32(DEVICE(s->ohci[function]), "portstride", 2);
             qdev_prop_set_uint32(DEVICE(s->ohci[function]), "num-ports",
                                  function ? 2 : 3);
-            qdev_prop_set_uint8(DEVICE(s->ohci[function]),
-                                "interrupt-pin", function + 1);
-            if (!hp_zx6000_realize_pci_device(s->ohci[function], usb,
-                                               errp)) {
+            qdev_prop_set_uint8(DEVICE(s->ohci[function]), "interrupt-pin",
+                                function + 1);
+            if (!hp_zx6000_realize_pci_device(s->ohci[function], usb, errp)) {
                 return false;
             }
             pci_set_byte(s->ohci[function]->config + PCI_REVISION_ID, 0x41);
@@ -1626,8 +1590,8 @@ static bool hp_rx2660_create_pci_devices(HPZX6000MachineState *s,
         }
     }
 
-    s->lsi53c1030[0] = pci_new(
-        PCI_DEVFN(s->profile->storage_slot, 0), TYPE_MPTSAS1068);
+    s->lsi53c1030[0] =
+        pci_new(PCI_DEVFN(s->profile->storage_slot, 0), TYPE_MPTSAS1068);
     qdev_prop_set_bit(DEVICE(s->lsi53c1030[0]), "x-pci-64bit-bars", true);
     qdev_prop_set_uint32(DEVICE(s->lsi53c1030[0]), "x-pci-rom-size",
                          s->profile->storage_rom_size);
@@ -1643,14 +1607,12 @@ static bool hp_rx2660_create_pci_devices(HPZX6000MachineState *s,
     scsi_bus = mpt_fusion_get_scsi_bus(s->lsi53c1030[0]);
     scsi_bus_legacy_handle_cmdline(scsi_bus);
 
-    for (function = 0; function < HP_RX2660_BCM5704_FUNCTIONS;
-         function++) {
+    for (function = 0; function < HP_RX2660_BCM5704_FUNCTIONS; function++) {
         s->bcm5704[function] = pci_new_multifunction(
             PCI_DEVFN(s->profile->network_slot, function), TYPE_BCM5704);
-        qemu_configure_nic_device(DEVICE(s->bcm5704[function]), true,
-                                  NULL);
+        qemu_configure_nic_device(DEVICE(s->bcm5704[function]), true, NULL);
         if (!hp_zx6000_realize_pci_device(s->bcm5704[function], network,
-                                           errp)) {
+                                          errp)) {
             return false;
         }
         pci_set_word(s->bcm5704[function]->config + PCI_SUBSYSTEM_VENDOR_ID,
@@ -1659,8 +1621,7 @@ static bool hp_rx2660_create_pci_devices(HPZX6000MachineState *s,
                      s->profile->network_subsystem_id);
     }
 
-    for (function = 0; function < G_N_ELEMENTS(management_types);
-         function++) {
+    for (function = 0; function < G_N_ELEMENTS(management_types); function++) {
         s->management[function] = pci_new_multifunction(
             PCI_DEVFN(s->profile->management_slot, function),
             management_types[function]);
@@ -1668,13 +1629,11 @@ static bool hp_rx2660_create_pci_devices(HPZX6000MachineState *s,
             qdev_prop_set_chr(DEVICE(s->management[function]), "chardev",
                               serial_hd(0));
         }
-        if (!hp_zx6000_realize_pci_device(s->management[function],
-                                           management,
-                                           errp)) {
+        if (!hp_zx6000_realize_pci_device(s->management[function], management,
+                                          errp)) {
             return false;
         }
-        pci_set_byte(s->management[function]->config + PCI_INTERRUPT_PIN,
-                     1);
+        pci_set_byte(s->management[function]->config + PCI_INTERRUPT_PIN, 1);
     }
     return true;
 }
@@ -1685,8 +1644,8 @@ static bool hp_zx_create_vga(HPZX6000MachineState *s, Error **errp)
 
     s->rv100 = pci_vga_new();
     if (s->rv100) {
-        g_autofree char *legacy_name = g_strdup_printf(
-            "%s.vga-legacy", s->profile->region_prefix);
+        g_autofree char *legacy_name =
+            g_strdup_printf("%s.vga-legacy", s->profile->region_prefix);
 
         if (!object_dynamic_cast(OBJECT(s->rv100), TYPE_ATI_VGA)) {
             error_setg(errp, "%s supports ATI VGA or no VGA",
@@ -1696,8 +1655,7 @@ static bool hp_zx_create_vga(HPZX6000MachineState *s, Error **errp)
             return false;
         }
         s->rv100->devfn = PCI_DEVFN(s->profile->vga_slot, 0);
-        qdev_prop_set_string(DEVICE(s->rv100), "model",
-                             s->profile->vga_model);
+        qdev_prop_set_string(DEVICE(s->rv100), "model", s->profile->vga_model);
         qdev_prop_set_uint32(DEVICE(s->rv100), "vgamem_mb",
                              s->profile->vga_memory_mb);
         if (!hp_zx6000_realize_pci_device(s->rv100, vga, errp)) {
@@ -1707,13 +1665,12 @@ static bool hp_zx_create_vga(HPZX6000MachineState *s, Error **errp)
                      s->profile->vga_subsystem_vendor_id);
         pci_set_word(s->rv100->config + PCI_SUBSYSTEM_ID,
                      s->profile->vga_subsystem_id);
-        memory_region_init_alias(
-            &s->vga_legacy, OBJECT(s), legacy_name,
-            hp_zx_root_pci_mem(s, s->profile->vga_root),
-            HP_ZX6000_VGA_LEGACY_BASE, HP_ZX6000_VGA_LEGACY_SIZE);
+        memory_region_init_alias(&s->vga_legacy, OBJECT(s), legacy_name,
+                                 hp_zx_root_pci_mem(s, s->profile->vga_root),
+                                 HP_ZX6000_VGA_LEGACY_BASE,
+                                 HP_ZX6000_VGA_LEGACY_SIZE);
         memory_region_add_subregion_overlap(
-            get_system_memory(), HP_ZX6000_VGA_LEGACY_BASE,
-            &s->vga_legacy, 1);
+            get_system_memory(), HP_ZX6000_VGA_LEGACY_BASE, &s->vga_legacy, 1);
     }
     return true;
 }
@@ -1724,8 +1681,7 @@ static bool hp_zx_create_ide(HPZX6000MachineState *s, Error **errp)
     DriveInfo *ide_drive;
     unsigned int channel, unit;
 
-    s->cmd649 = pci_new(PCI_DEVFN(s->profile->ide_slot, 0),
-                        TYPE_CMD649_IDE);
+    s->cmd649 = pci_new(PCI_DEVFN(s->profile->ide_slot, 0), TYPE_CMD649_IDE);
     qdev_prop_set_bit(DEVICE(s->cmd649), "primary-cable80", true);
     if (!hp_zx6000_realize_pci_device(s->cmd649, ide, errp)) {
         return false;
@@ -1755,10 +1711,9 @@ static bool hp_zx_create_i82550(HPZX6000MachineState *s, Error **errp)
     }
     qdev_prop_set_uint8(DEVICE(s->i82550), "x-pci-revision",
                         s->profile->network_revision);
-    qdev_prop_set_uint16(DEVICE(s->i82550),
-                         "x-pci-subsystem-vendor-id", PCI_VENDOR_ID_HP);
-    qdev_prop_set_uint16(DEVICE(s->i82550),
-                         "x-pci-subsystem-id",
+    qdev_prop_set_uint16(DEVICE(s->i82550), "x-pci-subsystem-vendor-id",
+                         PCI_VENDOR_ID_HP);
+    qdev_prop_set_uint16(DEVICE(s->i82550), "x-pci-subsystem-id",
                          s->profile->network_subsystem_id);
     qemu_configure_nic_device(DEVICE(s->i82550), true, NULL);
     if (!hp_zx6000_realize_pci_device(s->i82550, network, errp)) {
@@ -1776,9 +1731,8 @@ static bool hp_zx_create_usb(HPZX6000MachineState *s, Error **errp)
 
     machine->usb |= defaults_enabled() && !machine->usb_disabled;
     if (machine->usb) {
-        s->ehci = pci_new_multifunction(
-            PCI_DEVFN(s->profile->usb_slot, 2),
-            TYPE_NEC_USB_EHCI);
+        s->ehci = pci_new_multifunction(PCI_DEVFN(s->profile->usb_slot, 2),
+                                        TYPE_NEC_USB_EHCI);
         qdev_prop_set_uint8(DEVICE(s->ehci), "interrupt-pin", 3);
         qdev_prop_set_uint8(DEVICE(s->ehci), "num-ports", 5);
         if (!hp_zx6000_realize_pci_device(s->ehci, usb, errp)) {
@@ -1791,11 +1745,9 @@ static bool hp_zx_create_usb(HPZX6000MachineState *s, Error **errp)
                        TYPE_NEC_USB_EHCI);
             return false;
         }
-        for (function = 0; function < HP_ZX6000_OHCI_FUNCTIONS;
-             function++) {
+        for (function = 0; function < HP_ZX6000_OHCI_FUNCTIONS; function++) {
             s->ohci[function] = pci_new_multifunction(
-                PCI_DEVFN(s->profile->usb_slot, function),
-                TYPE_NEC_USB_OHCI);
+                PCI_DEVFN(s->profile->usb_slot, function), TYPE_NEC_USB_OHCI);
             qdev_prop_set_string(DEVICE(s->ohci[function]), "masterbus",
                                  usb_bus->name);
             qdev_prop_set_uint32(DEVICE(s->ohci[function]), "firstport",
@@ -1803,10 +1755,9 @@ static bool hp_zx_create_usb(HPZX6000MachineState *s, Error **errp)
             qdev_prop_set_uint32(DEVICE(s->ohci[function]), "portstride", 2);
             qdev_prop_set_uint32(DEVICE(s->ohci[function]), "num-ports",
                                  function ? 2 : 3);
-            qdev_prop_set_uint8(DEVICE(s->ohci[function]),
-                                "interrupt-pin", function + 1);
-            if (!hp_zx6000_realize_pci_device(s->ohci[function], usb,
-                                               errp)) {
+            qdev_prop_set_uint8(DEVICE(s->ohci[function]), "interrupt-pin",
+                                function + 1);
+            if (!hp_zx6000_realize_pci_device(s->ohci[function], usb, errp)) {
                 return false;
             }
             pci_set_byte(s->ohci[function]->config + PCI_REVISION_ID, 0x41);
@@ -1827,10 +1778,9 @@ static bool hp_zx_create_scsi(HPZX6000MachineState *s, Error **errp)
 
     for (function = 0; function < HP_ZX6000_LSI_FUNCTIONS; function++) {
         s->lsi53c1030[function] = pci_new_multifunction(
-            PCI_DEVFN(s->profile->storage_slot, function),
-            TYPE_LSI53C1030);
+            PCI_DEVFN(s->profile->storage_slot, function), TYPE_LSI53C1030);
         if (!hp_zx6000_realize_pci_device(s->lsi53c1030[function], storage,
-                                           errp)) {
+                                          errp)) {
             return false;
         }
         pci_set_byte(s->lsi53c1030[function]->config + PCI_REVISION_ID,
@@ -1848,12 +1798,10 @@ static bool hp_zx_create_bcm5701(HPZX6000MachineState *s, Error **errp)
     PCIBus *secondary_network =
         hp_zx_root_bus(s, s->profile->secondary_network_root);
 
-    s->bcm5701 = pci_new(
-        PCI_DEVFN(s->profile->secondary_network_slot, 0),
-                         TYPE_BCM5701);
+    s->bcm5701 =
+        pci_new(PCI_DEVFN(s->profile->secondary_network_slot, 0), TYPE_BCM5701);
     qemu_configure_nic_device(DEVICE(s->bcm5701), true, NULL);
-    if (!hp_zx6000_realize_pci_device(s->bcm5701, secondary_network,
-                                       errp)) {
+    if (!hp_zx6000_realize_pci_device(s->bcm5701, secondary_network, errp)) {
         return false;
     }
     pci_set_word(s->bcm5701->config + PCI_SUBSYSTEM_VENDOR_ID,
@@ -1864,28 +1812,23 @@ static bool hp_zx_create_bcm5701(HPZX6000MachineState *s, Error **errp)
     return true;
 }
 
-static bool hp_zx6000_create_pci_devices(HPZX6000MachineState *s,
-                                         Error **errp)
+static bool hp_zx6000_create_pci_devices(HPZX6000MachineState *s, Error **errp)
 {
-    return hp_zx_create_vga(s, errp) &&
-           hp_zx_create_ide(s, errp) &&
-           hp_zx_create_i82550(s, errp) &&
-           hp_zx_create_usb(s, errp) &&
-           hp_zx_create_scsi(s, errp) &&
-           hp_zx_create_bcm5701(s, errp);
+    return hp_zx_create_vga(s, errp) && hp_zx_create_ide(s, errp) &&
+           hp_zx_create_i82550(s, errp) && hp_zx_create_usb(s, errp) &&
+           hp_zx_create_scsi(s, errp) && hp_zx_create_bcm5701(s, errp);
 }
 
 static void hp_zx6000_write_bar(PCIDevice *dev, unsigned int bar,
                                 uint32_t address)
 {
-    pci_default_write_config(dev, PCI_BASE_ADDRESS_0 + bar * 4,
-                             address, sizeof(address));
+    pci_default_write_config(dev, PCI_BASE_ADDRESS_0 + bar * 4, address,
+                             sizeof(address));
 }
 
 static void hp_zx6000_write_rom_bar(PCIDevice *dev, uint32_t address)
 {
-    pci_default_write_config(dev, PCI_ROM_ADDRESS, address,
-                             sizeof(address));
+    pci_default_write_config(dev, PCI_ROM_ADDRESS, address, sizeof(address));
 }
 
 static void hp_zx6000_enable_pci_device(PCIDevice *dev, uint16_t command,
@@ -1898,30 +1841,26 @@ static void hp_zx6000_enable_pci_device(PCIDevice *dev, uint16_t command,
 
 static void hp_rx2660_configure_pci(HPZX6000MachineState *s)
 {
-    const HPZX6000PciResourceProfile *resources =
-        s->profile->pci_resources;
+    const HPZX6000PciResourceProfile *resources = s->profile->pci_resources;
     unsigned int bar;
     unsigned int function;
 
     if (s->rv100) {
         for (bar = 0; bar < G_N_ELEMENTS(resources->vga_bars); bar++) {
-            hp_zx6000_write_bar(s->rv100, bar,
-                                resources->vga_bars[bar]);
+            hp_zx6000_write_bar(s->rv100, bar, resources->vga_bars[bar]);
         }
-        hp_zx6000_write_rom_bar(s->rv100,
-                                s->profile->vga_rom_bar |
-                                (s->profile->vga_rom_enabled ?
-                                 PCI_ROM_ADDRESS_ENABLE : 0));
+        hp_zx6000_write_rom_bar(
+            s->rv100,
+            s->profile->vga_rom_bar |
+                (s->profile->vga_rom_enabled ? PCI_ROM_ADDRESS_ENABLE : 0));
         hp_zx6000_enable_pci_device(
-            s->rv100, PCI_COMMAND_IO | PCI_COMMAND_MEMORY |
-            PCI_COMMAND_MASTER,
-            hp_zx6000_device_gsi(s, s->profile->vga_root,
-                                 s->profile->vga_slot, 0));
+            s->rv100, PCI_COMMAND_IO | PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER,
+            hp_zx6000_device_gsi(s, s->profile->vga_root, s->profile->vga_slot,
+                                 0));
     }
 
     if (s->ehci) {
-        for (function = 0; function < HP_ZX6000_OHCI_FUNCTIONS;
-            function++) {
+        for (function = 0; function < HP_ZX6000_OHCI_FUNCTIONS; function++) {
             hp_zx6000_write_bar(s->ohci[function], 0,
                                 resources->ohci_bars[function]);
             hp_zx6000_enable_pci_device(
@@ -1932,30 +1871,27 @@ static void hp_rx2660_configure_pci(HPZX6000MachineState *s)
         hp_zx6000_write_bar(s->ehci, 0, resources->ehci_bar);
         hp_zx6000_enable_pci_device(
             s->ehci, PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER,
-            hp_zx6000_device_gsi(s, s->profile->usb_root,
-                                 s->profile->usb_slot, 2));
+            hp_zx6000_device_gsi(s, s->profile->usb_root, s->profile->usb_slot,
+                                 2));
     }
 
     for (bar = 0; bar < s->profile->storage_bar_count; bar++) {
         hp_zx6000_write_bar(s->lsi53c1030[0], bar,
                             resources->storage_bars[0][bar]);
     }
-    hp_zx6000_write_rom_bar(s->lsi53c1030[0],
-                            s->profile->storage_rom_bar);
+    hp_zx6000_write_rom_bar(s->lsi53c1030[0], s->profile->storage_rom_bar);
     hp_zx6000_enable_pci_device(
         s->lsi53c1030[0],
         PCI_COMMAND_IO | PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER,
         hp_zx6000_device_gsi(s, s->profile->storage_root,
                              s->profile->storage_slot, 0));
 
-    for (function = 0; function < HP_RX2660_BCM5704_FUNCTIONS;
-         function++) {
+    for (function = 0; function < HP_RX2660_BCM5704_FUNCTIONS; function++) {
         pci_set_byte(s->bcm5704[function]->config + PCI_INTERRUPT_PIN,
                      function + 1);
         for (bar = 0; bar < s->profile->network_bar_count; bar++) {
-            hp_zx6000_write_bar(
-                s->bcm5704[function], bar,
-                resources->network_bars[function][bar]);
+            hp_zx6000_write_bar(s->bcm5704[function], bar,
+                                resources->network_bars[function][bar]);
         }
         hp_zx6000_write_rom_bar(s->bcm5704[function],
                                 resources->network_rom_bars[function]);
@@ -1969,8 +1905,8 @@ static void hp_rx2660_configure_pci(HPZX6000MachineState *s)
         hp_zx6000_write_bar(s->management[1], bar,
                             resources->management_bars[bar]);
     }
-    hp_zx6000_enable_pci_device(
-        s->management[1], PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER, 0);
+    hp_zx6000_enable_pci_device(s->management[1],
+                                PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER, 0);
 
     for (bar = 1; bar < G_N_ELEMENTS(resources->console_bars); bar++) {
         hp_zx6000_write_bar(s->management[2], bar,
@@ -1980,30 +1916,26 @@ static void hp_rx2660_configure_pci(HPZX6000MachineState *s)
         s->management[2], PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER,
         hp_zx6000_device_gsi(s, s->profile->management_root,
                              s->profile->management_slot, 0));
-
 }
 
 static void hp_zx_configure_vga_ide_usb(HPZX6000MachineState *s)
 {
-    const HPZX6000PciResourceProfile *resources =
-        s->profile->pci_resources;
+    const HPZX6000PciResourceProfile *resources = s->profile->pci_resources;
     unsigned int bar;
     unsigned int function;
 
     if (s->rv100) {
         for (bar = 0; bar < G_N_ELEMENTS(resources->vga_bars); bar++) {
-            hp_zx6000_write_bar(s->rv100, bar,
-                                resources->vga_bars[bar]);
+            hp_zx6000_write_bar(s->rv100, bar, resources->vga_bars[bar]);
         }
-        hp_zx6000_write_rom_bar(s->rv100,
-                                s->profile->vga_rom_bar |
-                                (s->profile->vga_rom_enabled ?
-                                 PCI_ROM_ADDRESS_ENABLE : 0));
+        hp_zx6000_write_rom_bar(
+            s->rv100,
+            s->profile->vga_rom_bar |
+                (s->profile->vga_rom_enabled ? PCI_ROM_ADDRESS_ENABLE : 0));
         hp_zx6000_enable_pci_device(
-            s->rv100, PCI_COMMAND_IO | PCI_COMMAND_MEMORY |
-            PCI_COMMAND_MASTER,
-            hp_zx6000_device_gsi(s, s->profile->vga_root,
-                                 s->profile->vga_slot, 0));
+            s->rv100, PCI_COMMAND_IO | PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER,
+            hp_zx6000_device_gsi(s, s->profile->vga_root, s->profile->vga_slot,
+                                 0));
     }
 
     for (bar = 0; bar < G_N_ELEMENTS(resources->ide_bars); bar++) {
@@ -2011,12 +1943,10 @@ static void hp_zx_configure_vga_ide_usb(HPZX6000MachineState *s)
     }
     hp_zx6000_enable_pci_device(
         s->cmd649, PCI_COMMAND_IO | PCI_COMMAND_MASTER,
-        hp_zx6000_device_gsi(s, s->profile->ide_root,
-                             s->profile->ide_slot, 0));
+        hp_zx6000_device_gsi(s, s->profile->ide_root, s->profile->ide_slot, 0));
 
     if (s->ehci) {
-        for (function = 0; function < HP_ZX6000_OHCI_FUNCTIONS;
-            function++) {
+        for (function = 0; function < HP_ZX6000_OHCI_FUNCTIONS; function++) {
             hp_zx6000_write_bar(s->ohci[function], 0,
                                 resources->ohci_bars[function]);
             hp_zx6000_enable_pci_device(
@@ -2027,8 +1957,8 @@ static void hp_zx_configure_vga_ide_usb(HPZX6000MachineState *s)
         hp_zx6000_write_bar(s->ehci, 0, resources->ehci_bar);
         hp_zx6000_enable_pci_device(
             s->ehci, PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER,
-            hp_zx6000_device_gsi(s, s->profile->usb_root,
-                                 s->profile->usb_slot, 2));
+            hp_zx6000_device_gsi(s, s->profile->usb_root, s->profile->usb_slot,
+                                 2));
     }
 }
 
@@ -2040,8 +1970,7 @@ static void hp_zx6000_configure_pci(HPZX6000MachineState *s)
     hp_zx_configure_vga_ide_usb(s);
 
     for (bar = 0; bar < s->profile->network_bar_count; bar++) {
-        hp_zx6000_write_bar(s->i82550, bar,
-                            resources->network_bars[0][bar]);
+        hp_zx6000_write_bar(s->i82550, bar, resources->network_bars[0][bar]);
     }
     hp_zx6000_enable_pci_device(
         s->i82550, PCI_COMMAND_IO | PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER,
@@ -2050,9 +1979,8 @@ static void hp_zx6000_configure_pci(HPZX6000MachineState *s)
 
     for (function = 0; function < HP_ZX6000_LSI_FUNCTIONS; function++) {
         for (bar = 0; bar < s->profile->storage_bar_count; bar++) {
-            hp_zx6000_write_bar(
-                s->lsi53c1030[function], bar,
-                resources->storage_bars[function][bar]);
+            hp_zx6000_write_bar(s->lsi53c1030[function], bar,
+                                resources->storage_bars[function][bar]);
         }
         hp_zx6000_enable_pci_device(
             s->lsi53c1030[function],
@@ -2061,10 +1989,10 @@ static void hp_zx6000_configure_pci(HPZX6000MachineState *s)
                                  s->profile->storage_slot, function));
     }
 
-    for (bar = 0;
-         bar < G_N_ELEMENTS(resources->secondary_network_bars[0]); bar++) {
-        hp_zx6000_write_bar(
-            s->bcm5701, bar, resources->secondary_network_bars[0][bar]);
+    for (bar = 0; bar < G_N_ELEMENTS(resources->secondary_network_bars[0]);
+         bar++) {
+        hp_zx6000_write_bar(s->bcm5701, bar,
+                            resources->secondary_network_bars[0][bar]);
     }
     hp_zx6000_enable_pci_device(
         s->bcm5701, PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER,
@@ -2145,9 +2073,8 @@ static bool hp_zx6000_init_int10(HPZX6000MachineState *s, Error **errp)
 }
 
 static void hp_zx6000_add_route(const HPZX6000MachineState *s,
-                                IA64PlatformPciRoute *route,
-                                unsigned int root, unsigned int slot,
-                                unsigned int pin)
+                                IA64PlatformPciRoute *route, unsigned int root,
+                                unsigned int slot, unsigned int pin)
 {
     route->Segment = cpu_to_le16(hp_zx_root_layout(s, root)->segment);
     route->Bus = hp_zx_root_layout(s, root)->first_bus;
@@ -2156,8 +2083,8 @@ static void hp_zx6000_add_route(const HPZX6000MachineState *s,
     route->Gsi = cpu_to_le32(hp_zx6000_device_gsi(s, root, slot, pin));
 }
 
-static unsigned int hp_zx6000_populate_routes(
-    HPZX6000MachineState *s, IA64PlatformPciRoute *routes)
+static unsigned int hp_zx6000_populate_routes(HPZX6000MachineState *s,
+                                              IA64PlatformPciRoute *routes)
 {
     unsigned int route_count = 0;
     size_t index;
@@ -2170,16 +2097,17 @@ static unsigned int hp_zx6000_populate_routes(
             (route->presence == HP_ZX_ROUTE_USB && !s->ehci)) {
             continue;
         }
-        hp_zx6000_add_route(s, &routes[route_count++], route->root,
-                            route->slot, route->pin);
+        hp_zx6000_add_route(s, &routes[route_count++], route->root, route->slot,
+                            route->pin);
     }
     return route_count;
 }
 
-static void hp_zx6000_add_onboard_device(
-    HPZX6000MachineState *s, IA64PlatformDescriptor *descriptor,
-    PCIDevice *device, uint8_t type, unsigned int root, uint8_t bar,
-    uint64_t bar_size)
+static void hp_zx6000_add_onboard_device(HPZX6000MachineState *s,
+                                         IA64PlatformDescriptor *descriptor,
+                                         PCIDevice *device, uint8_t type,
+                                         unsigned int root, uint8_t bar,
+                                         uint64_t bar_size)
 {
     IA64PlatformOnboardDevice *entry;
     uint32_t count;
@@ -2196,16 +2124,15 @@ static void hp_zx6000_add_onboard_device(
     entry->Function = PCI_FUNC(device->devfn);
     entry->Type = type;
     entry->Bar = bar;
-    entry->VendorDeviceId = cpu_to_le32(
-        pci_get_long(device->config + PCI_VENDOR_ID));
-    entry->ClassCode = cpu_to_le32(
-        pci_get_long(device->config + PCI_CLASS_REVISION) >> 8);
+    entry->VendorDeviceId =
+        cpu_to_le32(pci_get_long(device->config + PCI_VENDOR_ID));
+    entry->ClassCode =
+        cpu_to_le32(pci_get_long(device->config + PCI_CLASS_REVISION) >> 8);
     entry->BarSize = cpu_to_le64(bar_size);
     descriptor->OnboardDeviceCount = cpu_to_le32(count + 1U);
 }
 
-static bool hp_zx6000_install_descriptor(HPZX6000MachineState *s,
-                                         Error **errp)
+static bool hp_zx6000_install_descriptor(HPZX6000MachineState *s, Error **errp)
 {
     MachineState *machine = MACHINE(s);
     HPIA64MachineState *hp = HP_IA64_MACHINE(s);
@@ -2224,48 +2151,43 @@ static bool hp_zx6000_install_descriptor(HPZX6000MachineState *s,
         .SocketCount = cpu_to_le32(machine->smp.sockets),
         .CoresPerSocket = cpu_to_le32(machine->smp.cores),
         .ThreadsPerCore = cpu_to_le32(machine->smp.threads),
-        .PhysicalAddressBits = cpu_to_le32(
-            s->profile->physical_address_bits),
+        .PhysicalAddressBits = cpu_to_le32(s->profile->physical_address_bits),
         .MaxSockets = cpu_to_le32(s->profile->max_sockets),
-        .MaxCoresPerSocket = cpu_to_le32(
-            s->profile->max_cores_per_socket),
-        .MaxThreadsPerCore = cpu_to_le32(
-            s->profile->max_threads_per_core),
+        .MaxCoresPerSocket = cpu_to_le32(s->profile->max_cores_per_socket),
+        .MaxThreadsPerCore = cpu_to_le32(s->profile->max_threads_per_core),
         .MaxPciRoots = cpu_to_le32(s->profile->root_count),
-        .PciRootIdentity = cpu_to_le32(
-            s->profile->pci_root_identity),
+        .PciRootIdentity = cpu_to_le32(s->profile->pci_root_identity),
         .NumaNodeCount = cpu_to_le32(1),
         .LegacyIoBase = cpu_to_le64(HP_ZX6000_LEGACY_IO_BASE),
         .LegacyIoSize = cpu_to_le64(HP_ZX6000_LEGACY_IO_SIZE),
         .LocalSapicBase = cpu_to_le64(HP_ZX6000_PIB_BASE),
         .LocalSapicSize = cpu_to_le64(HP_ZX6000_PIB_SIZE),
-        .ConsoleBase = cpu_to_le64(s->profile->pci_console ?
-            s->profile->pci_resources->console_bars[1] :
-            s->profile->pdh_uart_base[0]),
+        .ConsoleBase = cpu_to_le64(
+            s->profile->pci_console ? s->profile->pci_resources->console_bars[1]
+                                    : s->profile->pdh_uart_base[0]),
         .ConsoleRegisterStride = cpu_to_le32(1),
-        .ConsoleClockHz = cpu_to_le32(
-            HP_ZX6000_PDH_UART_INPUT_CLOCK_HZ),
-        .ConsoleIrq = cpu_to_le32(s->profile->pci_console ?
-            hp_zx6000_device_gsi(s, s->profile->management_root,
-                                 s->profile->management_slot, 0) :
-            hp_zx_root_layout(s, s->profile->core_root)->gsi_base +
-            s->profile->pdh_uart_input[0]),
+        .ConsoleClockHz = cpu_to_le32(HP_ZX6000_PDH_UART_INPUT_CLOCK_HZ),
+        .ConsoleIrq = cpu_to_le32(
+            s->profile->pci_console
+                ? hp_zx6000_device_gsi(s, s->profile->management_root,
+                                       s->profile->management_slot, 0)
+                : hp_zx_root_layout(s, s->profile->core_root)->gsi_base +
+                      s->profile->pdh_uart_input[0]),
         .NvramBase = cpu_to_le64(HP_ZX6000_PDH_NVRAM_BASE),
         .NvramSize = cpu_to_le64(HP_ZX6000_PDH_NVRAM_SIZE),
         .RtcBase = cpu_to_le64(HP_ZX6000_PDH_RTC_BASE),
         .RtcSize = cpu_to_le64(HP_ZX6000_PDH_RTC_SIZE),
         .ControlBase = cpu_to_le64(HP_ZX6000_PDH_CONTROL_BASE),
         .ControlSize = cpu_to_le64(HP_ZX6000_PDH_CONTROL_SIZE),
-        .ResetControlOffset = cpu_to_le32(
-            HP_ZX6000_PDH_CONTROL_RESET_OFFSET),
-        .PoweroffControlOffset = cpu_to_le32(
-            HP_ZX6000_PDH_CONTROL_POWEROFF_OFFSET),
+        .ResetControlOffset = cpu_to_le32(HP_ZX6000_PDH_CONTROL_RESET_OFFSET),
+        .PoweroffControlOffset =
+            cpu_to_le32(HP_ZX6000_PDH_CONTROL_POWEROFF_OFFSET),
         .ControlValue = cpu_to_le32(HP_ZX6000_PDH_CONTROL_VALUE),
         .AcpiPmBase = cpu_to_le64(HP_ZX6000_PDH_ACPI_PM_BASE),
         .AcpiPmSize = cpu_to_le64(IA64_PLATFORM_ACPI_PM_SIZE),
-        .AcpiSciGsi = cpu_to_le32(
-            hp_zx_root_layout(s, s->profile->core_root)->gsi_base +
-            s->profile->pdh_sci_input),
+        .AcpiSciGsi =
+            cpu_to_le32(hp_zx_root_layout(s, s->profile->core_root)->gsi_base +
+                        s->profile->pdh_sci_input),
         .RasBase = cpu_to_le64(IA64_RAS_HUB_DEFAULT_BASE),
         .RasSize = cpu_to_le64(IA64_RAS_HUB_SIZE),
     };
@@ -2273,15 +2195,16 @@ static bool hp_zx6000_install_descriptor(HPZX6000MachineState *s,
         {
             .Base = cpu_to_le64(0),
             .Size = cpu_to_le64(low_size),
-        }, {
+        },
+        {
             .Base = cpu_to_le64(HP_ZX6000_HIGH_RAM_BASE),
             .Size = cpu_to_le64(high_size),
         },
     };
     IA64PlatformPciRoot roots[HP_ZX_MAX_PCI_ROOTS] = { 0 };
     IA64PlatformIoSapic sapics[HP_ZX_MAX_PCI_ROOTS] = { 0 };
-    g_autofree IA64PlatformPciRoute *routes = g_new0(
-        IA64PlatformPciRoute, s->profile->platform_route_count);
+    g_autofree IA64PlatformPciRoute *routes =
+        g_new0(IA64PlatformPciRoute, s->profile->platform_route_count);
     IA64PlatformDescriptorArrays arrays = {
         .ram_ranges = ram,
         .ram_range_count = high_size ? 2 : 1,
@@ -2294,8 +2217,8 @@ static bool hp_zx6000_install_descriptor(HPZX6000MachineState *s,
     unsigned int route_count = 0;
     unsigned int root;
 
-    header.ConsoleFlags = cpu_to_le32(
-        s->rv100 ? IA64_PLATFORM_CONSOLE_FLAG_VGA_PRIMARY : 0);
+    header.ConsoleFlags =
+        cpu_to_le32(s->rv100 ? IA64_PLATFORM_CONSOLE_FLAG_VGA_PRIMARY : 0);
     header.NumaNode[0].ProcessorCount = cpu_to_le32(machine->smp.cpus);
     header.NumaNode[0].RamRangeMask = cpu_to_le32(high_size ? 3U : 1U);
     header.NumaNode[0].Distance[0] = 10;
@@ -2303,55 +2226,54 @@ static bool hp_zx6000_install_descriptor(HPZX6000MachineState *s,
         s, &header, s->rv100, IA64_PLATFORM_ONBOARD_GRAPHICS,
         s->profile->vga_root, 0, s->profile->framebuffer_size);
     for (root = 0; root < HP_ZX6000_OHCI_FUNCTIONS; root++) {
-        hp_zx6000_add_onboard_device(
-            s, &header, s->ohci[root], IA64_PLATFORM_ONBOARD_OHCI,
-            s->profile->usb_root, 0, 0x1000);
+        hp_zx6000_add_onboard_device(s, &header, s->ohci[root],
+                                     IA64_PLATFORM_ONBOARD_OHCI,
+                                     s->profile->usb_root, 0, 0x1000);
     }
-    hp_zx6000_add_onboard_device(
-        s, &header, s->ehci, IA64_PLATFORM_ONBOARD_EHCI,
-        s->profile->usb_root, 0, 0x1000);
-    hp_zx6000_add_onboard_device(
-        s, &header, s->cmd649, IA64_PLATFORM_ONBOARD_IDE,
-        s->profile->ide_root, 4, 0x10);
+    hp_zx6000_add_onboard_device(s, &header, s->ehci,
+                                 IA64_PLATFORM_ONBOARD_EHCI,
+                                 s->profile->usb_root, 0, 0x1000);
+    hp_zx6000_add_onboard_device(s, &header, s->cmd649,
+                                 IA64_PLATFORM_ONBOARD_IDE,
+                                 s->profile->ide_root, 4, 0x10);
     for (root = 0; root < HP_ZX6000_LSI_FUNCTIONS; root++) {
-        hp_zx6000_add_onboard_device(
-            s, &header, s->lsi53c1030[root], IA64_PLATFORM_ONBOARD_MPT,
-            s->profile->storage_root, 1, 0x4000);
+        hp_zx6000_add_onboard_device(s, &header, s->lsi53c1030[root],
+                                     IA64_PLATFORM_ONBOARD_MPT,
+                                     s->profile->storage_root, 1, 0x4000);
     }
-    hp_zx6000_add_onboard_device(
-        s, &header, s->e1000, IA64_PLATFORM_ONBOARD_NETWORK,
-        s->profile->network_root, UINT8_MAX, 0);
-    hp_zx6000_add_onboard_device(
-        s, &header, s->i82550, IA64_PLATFORM_ONBOARD_NETWORK,
-        s->profile->network_root, UINT8_MAX, 0);
+    hp_zx6000_add_onboard_device(s, &header, s->e1000,
+                                 IA64_PLATFORM_ONBOARD_NETWORK,
+                                 s->profile->network_root, UINT8_MAX, 0);
+    hp_zx6000_add_onboard_device(s, &header, s->i82550,
+                                 IA64_PLATFORM_ONBOARD_NETWORK,
+                                 s->profile->network_root, UINT8_MAX, 0);
     hp_zx6000_add_onboard_device(
         s, &header, s->bcm5701, IA64_PLATFORM_ONBOARD_NETWORK,
         s->profile->secondary_network_root, UINT8_MAX, 0);
     for (root = 0; root < HP_RX2660_BCM5704_FUNCTIONS; root++) {
-        hp_zx6000_add_onboard_device(
-            s, &header, s->bcm5704[root], IA64_PLATFORM_ONBOARD_NETWORK,
-            s->profile->network_root, UINT8_MAX, 0);
+        hp_zx6000_add_onboard_device(s, &header, s->bcm5704[root],
+                                     IA64_PLATFORM_ONBOARD_NETWORK,
+                                     s->profile->network_root, UINT8_MAX, 0);
     }
     for (root = 0; root < G_N_ELEMENTS(s->management); root++) {
         hp_zx6000_add_onboard_device(
             s, &header, s->management[root],
-            root == 2 ? IA64_PLATFORM_ONBOARD_UART :
-                        IA64_PLATFORM_ONBOARD_MGMT,
-            s->profile->management_root,
-            root == 2 ? 1 : UINT8_MAX, root == 2 ? 0x1000 : 0);
+            root == 2 ? IA64_PLATFORM_ONBOARD_UART : IA64_PLATFORM_ONBOARD_MGMT,
+            s->profile->management_root, root == 2 ? 1 : UINT8_MAX,
+            root == 2 ? 0x1000 : 0);
     }
 
     if (hp_zx6000_pdh_nvram_persistent(s->pdh)) {
         header.Flags = cpu_to_le32(le32_to_cpu(header.Flags) |
-            IA64_PLATFORM_FLAG_NVRAM_PERSISTENT);
+                                   IA64_PLATFORM_FLAG_NVRAM_PERSISTENT);
     }
 
     if (s->profile->platform_id == IA64_PLATFORM_ID_HP_ZX2000 ||
         s->profile->platform_id == IA64_PLATFORM_ID_HP_ZX6000) {
         header.UartCount = cpu_to_le32(HP_ZX6000_PDH_UART_COUNT);
         for (root = 0; root < HP_ZX6000_PDH_UART_COUNT; root++) {
-            header.Uart[root].Base = cpu_to_le64(
-                s->profile->pdh_uart_base[root]);
+            header.Uart[root].Base =
+                cpu_to_le64(s->profile->pdh_uart_base[root]);
             header.Uart[root].Gsi = cpu_to_le32(
                 hp_zx_root_layout(s, s->profile->core_root)->gsi_base +
                 s->profile->pdh_uart_input[root]);
@@ -2366,22 +2288,21 @@ static bool hp_zx6000_install_descriptor(HPZX6000MachineState *s,
 
         roots[root].Segment = cpu_to_le16(layout->segment);
         roots[root].Bus = layout->first_bus;
-        roots[root].ConfigType = layout->kind == HP_ZX_ROOT_PCIE ?
-            IA64_PLATFORM_PCI_CONFIG_ECAM :
-            IA64_PLATFORM_PCI_CONFIG_ZX1_LBA;
+        roots[root].ConfigType = layout->kind == HP_ZX_ROOT_PCIE
+                                     ? IA64_PLATFORM_PCI_CONFIG_ECAM
+                                     : IA64_PLATFORM_PCI_CONFIG_ZX1_LBA;
         roots[root].Flags = cpu_to_le32(
             IA64_PLATFORM_PCI_ROOT_FLAG_IDENTITY_DMA |
-            IA64_PLATFORM_PCI_ROOT_FLAG_SPARSE_IO |
-            layout->descriptor_flags |
-            (s->rv100 && root == s->profile->vga_root ?
-             IA64_PLATFORM_PCI_ROOT_FLAG_VGA_LEGACY : 0));
-        roots[root].ConfigBase = cpu_to_le64(
-            layout->kind == HP_ZX_ROOT_PCIE ? layout->config_base :
-                                               hp_zx_ioa_address(s, root));
+            IA64_PLATFORM_PCI_ROOT_FLAG_SPARSE_IO | layout->descriptor_flags |
+            (s->rv100 && root == s->profile->vga_root
+                 ? IA64_PLATFORM_PCI_ROOT_FLAG_VGA_LEGACY
+                 : 0));
+        roots[root].ConfigBase = cpu_to_le64(layout->kind == HP_ZX_ROOT_PCIE
+                                                 ? layout->config_base
+                                                 : hp_zx_ioa_address(s, root));
         roots[root].IoBase = cpu_to_le64(layout->io_base);
         roots[root].IoSize = cpu_to_le64(HP_ZX6000_PCI_IO_SIZE);
-        roots[root].IoTranslationOffset = cpu_to_le64(
-            HP_ZX6000_LEGACY_IO_BASE);
+        roots[root].IoTranslationOffset = cpu_to_le64(HP_ZX6000_LEGACY_IO_BASE);
         roots[root].Mmio32Base = cpu_to_le64(layout->cpu_mmio_base);
         roots[root].Mmio32Size = cpu_to_le64(layout->mmio_size);
         roots[root].Mmio64Base = cpu_to_le64(layout->cpu_mmio64_base);
@@ -2393,30 +2314,27 @@ static bool hp_zx6000_install_descriptor(HPZX6000MachineState *s,
         roots[root].Mmio32TranslationOffset = 0;
 
         sapics[root].Base = cpu_to_le64(
-            layout->kind == HP_ZX_ROOT_LBA ?
-            hp_zx_ioa_address(s, root) +
-                IA64_PLATFORM_ZX1_IO_SAPIC_OFFSET :
-            layout->io_sapic_base);
+            layout->kind == HP_ZX_ROOT_LBA
+                ? hp_zx_ioa_address(s, root) + IA64_PLATFORM_ZX1_IO_SAPIC_OFFSET
+                : layout->io_sapic_base);
         sapics[root].GsiBase = cpu_to_le32(layout->gsi_base);
-        sapics[root].RedirectionEntries = cpu_to_le32(
-            layout->sapic_entries ?: HP_ZX6000_PCI_INPUT_COUNT);
-        sapics[root].Version = cpu_to_le32(
-            layout->kind == HP_ZX_ROOT_PCIE ? IA64_IOSAPIC_VERSION :
-                                               HP_ZX6000_IO_SAPIC_VERSION);
+        sapics[root].RedirectionEntries =
+            cpu_to_le32(layout->sapic_entries ?: HP_ZX6000_PCI_INPUT_COUNT);
+        sapics[root].Version = cpu_to_le32(layout->kind == HP_ZX_ROOT_PCIE
+                                               ? IA64_IOSAPIC_VERSION
+                                               : HP_ZX6000_IO_SAPIC_VERSION);
         sapics[root].Id = ctz32(layout->rope_mask);
     }
 
     route_count = hp_zx6000_populate_routes(s, routes);
     arrays.pci_route_count = route_count;
 
-    return hp_ia64_machine_install_platform_descriptor(hp, &header,
-                                                        &arrays, errp);
+    return hp_ia64_machine_install_platform_descriptor(hp, &header, &arrays,
+                                                       errp);
 }
 
-static IA64BootInfo hp_zx6000_boot_info(unsigned int cpu_index,
-                                        uint64_t entry,
-                                        uint64_t global_pointer,
-                                        void *opaque)
+static IA64BootInfo hp_zx6000_boot_info(unsigned int cpu_index, uint64_t entry,
+                                        uint64_t global_pointer, void *opaque)
 {
     HPZX6000MachineState *s = HP_ZX6000_MACHINE(opaque);
     HPIA64MachineState *hp = HP_IA64_MACHINE(s);
@@ -2429,10 +2347,11 @@ static IA64BootInfo hp_zx6000_boot_info(unsigned int cpu_index,
         .global_pointer = global_pointer,
         .iva = HP_ZX6000_IVT_BASE,
         .bsp = assist_base + IA64_FW_EARLY_RSE_OFFSET +
-            cpu_index * IA64_FW_EARLY_RSE_SIZE,
-        .stack_pointer = cpu_index == 0 ? low_ram_end - 16 :
-            assist_base + IA64_FW_BOOTSTRAP_STACK_TOP_OFFSET - 16 -
-            cpu_index * IA64_FW_CPU_STACK_SIZE,
+               cpu_index * IA64_FW_EARLY_RSE_SIZE,
+        .stack_pointer =
+            cpu_index == 0 ? low_ram_end - 16
+                           : assist_base + IA64_FW_BOOTSTRAP_STACK_TOP_OFFSET -
+                                 16 - cpu_index * IA64_FW_CPU_STACK_SIZE,
         .rsc = IA64_RSC_MODE,
         .low_ram_size = low_ram_end,
         .io_port_base = HP_ZX6000_LEGACY_IO_BASE,
@@ -2453,9 +2372,10 @@ static IA64BootInfo hp_zx6000_initial_boot_info(unsigned int cpu_index,
                                IA64_PLATFORM_FIRMWARE_BASE, opaque);
 }
 
-static IA64BootInfo hp_zx6000_firmware_boot_info(
-    unsigned int cpu_index, uint64_t entry, uint64_t global_pointer,
-    void *opaque)
+static IA64BootInfo hp_zx6000_firmware_boot_info(unsigned int cpu_index,
+                                                 uint64_t entry,
+                                                 uint64_t global_pointer,
+                                                 void *opaque)
 {
     return hp_zx6000_boot_info(cpu_index, entry, global_pointer, opaque);
 }
@@ -2474,8 +2394,7 @@ hp_zx6000_find_cpu_profile(const HPZX6000MachineProfile *profile,
     return NULL;
 }
 
-static bool hp_zx6000_validate_smp(const MachineState *machine,
-                                   Error **errp)
+static bool hp_zx6000_validate_smp(const MachineState *machine, Error **errp)
 {
     const HPZX6000MachineState *s = HP_ZX6000_MACHINE(machine);
     const HPZX6000CPUProfile *cpu =
@@ -2494,11 +2413,12 @@ static bool hp_zx6000_validate_smp(const MachineState *machine,
         return false;
     }
     if (smp->sockets < 1 || smp->sockets > s->profile->max_sockets ||
-        smp->cores != cpu->cores_per_socket ||
-        smp->threads < 1 || smp->threads > cpu->max_threads_per_core ||
+        smp->cores != cpu->cores_per_socket || smp->threads < 1 ||
+        smp->threads > cpu->max_threads_per_core ||
         smp->cpus != smp->sockets * smp->cores * smp->threads ||
         smp->max_cpus != smp->cpus) {
-        error_setg(errp, "%s with %s requires one to %u sockets, "
+        error_setg(errp,
+                   "%s with %s requires one to %u sockets, "
                    "%u core%s per socket, one to %u threads per core, "
                    "and no CPU hotplug headroom",
                    s->profile->machine_type, machine->cpu_type,
@@ -2531,33 +2451,29 @@ static bool hp_zx6000_build(MachineState *machine, Error **errp)
                    s->profile->cpu_requirement);
         return false;
     }
-    if (!machine->ram || memory_region_size(machine->ram) !=
-        machine->ram_size) {
-        error_setg(errp, "%s requires machine RAM",
-                   s->profile->machine_type);
+    if (!machine->ram ||
+        memory_region_size(machine->ram) != machine->ram_size) {
+        error_setg(errp, "%s requires machine RAM", s->profile->machine_type);
         return false;
     }
 
     hp_zx6000_map_ram(s);
-    if (!hp_ia64_machine_create_ras(
-            hp, IA64_RAS_HUB_DEFAULT_BASE, errp)) {
+    if (!hp_ia64_machine_create_ras(hp, IA64_RAS_HUB_DEFAULT_BASE, errp)) {
         return false;
     }
-    ia64_machine_map_pib(OBJECT(s), &hp->pib,
-                         s->profile->pib_region_name,
+    ia64_machine_map_pib(OBJECT(s), &hp->pib, s->profile->pib_region_name,
                          HP_ZX6000_PIB_BASE, HP_ZX6000_PIB_SIZE);
     memory_region_add_subregion(get_system_memory(), HP_ZX6000_LEGACY_IO_BASE,
                                 &s->sparse_io);
 
-    if (!hp_zx6000_create_chipset(s, errp) ||
-        !hp_zx6000_create_pdh(s, errp) ||
+    if (!hp_zx6000_create_chipset(s, errp) || !hp_zx6000_create_pdh(s, errp) ||
         !s->profile->create_devices(s, errp)) {
         return false;
     }
     s->profile->configure_devices(s);
-    if (!ia64_machine_load_firmware(machine, &hp->firmware,
-                                      MIN(machine->ram_size,
-                                          HP_ZX6000_LOW_RAM_LIMIT), errp)) {
+    if (!ia64_machine_load_firmware(
+            machine, &hp->firmware,
+            MIN(machine->ram_size, HP_ZX6000_LOW_RAM_LIMIT), errp)) {
         return false;
     }
     if (!hp_zx6000_init_int10(s, errp) ||
@@ -2605,8 +2521,7 @@ static void hp_zx6000_set_nvram(Object *obj, const char *value, Error **errp)
 
     (void)errp;
     g_free(s->nvram_path);
-    s->nvram_path = g_strcmp0(value, "auto") == 0 ?
-                    NULL : g_strdup(value);
+    s->nvram_path = g_strcmp0(value, "auto") == 0 ? NULL : g_strdup(value);
 }
 
 static void hp_zx6000_instance_init(Object *obj)
@@ -2615,8 +2530,7 @@ static void hp_zx6000_instance_init(Object *obj)
 
     s->profile = &hp_zx6000_profile;
     memory_region_init_io(&s->sparse_io, obj, &hp_zx6000_sparse_io_ops, s,
-                          "hp-zx6000.sparse-io",
-                          HP_ZX6000_LEGACY_IO_SIZE);
+                          "hp-zx6000.sparse-io", HP_ZX6000_LEGACY_IO_SIZE);
     s->sparse_io.disable_reentrancy_guard = true;
 }
 
@@ -2740,14 +2654,11 @@ static const HPZX6000MachineProfile hp_zx6000_profile = {
     .mio_type = TYPE_HP_ZX1_MIO,
     .ioa_type = TYPE_HP_ZX1_IOA,
     .platform_id = IA64_PLATFORM_ID_HP_ZX6000,
-    .descriptor_flags = IA64_PLATFORM_FLAG_NO_MCFG |
-                        IA64_PLATFORM_FLAG_QEMU_EXTENSION |
-                        IA64_PLATFORM_FLAG_IDE_DMA |
-                        IA64_PLATFORM_FLAG_FAMILY_HP_ZX |
-                        IA64_PLATFORM_FLAG_PCI_ZX1_LBA |
-                        IA64_PLATFORM_FLAG_SPARSE_IO |
-                        IA64_PLATFORM_FLAG_EMBEDDED_IO_SAPIC |
-                        IA64_PLATFORM_FLAG_ACPI_PM,
+    .descriptor_flags =
+        IA64_PLATFORM_FLAG_NO_MCFG | IA64_PLATFORM_FLAG_QEMU_EXTENSION |
+        IA64_PLATFORM_FLAG_IDE_DMA | IA64_PLATFORM_FLAG_FAMILY_HP_ZX |
+        IA64_PLATFORM_FLAG_PCI_ZX1_LBA | IA64_PLATFORM_FLAG_SPARSE_IO |
+        IA64_PLATFORM_FLAG_EMBEDDED_IO_SAPIC | IA64_PLATFORM_FLAG_ACPI_PM,
     .physical_address_bits = IA64_PLATFORM_ZX6000_PHYS_ADDR_BITS,
     .pci_root_identity = IA64_PLATFORM_PCI_ROOT_IDENTITY_HP_ZX,
     .roots = hp_zx6000_roots,
@@ -2822,14 +2733,11 @@ static const HPZX6000MachineProfile hp_zx2000_profile = {
     .mio_type = TYPE_HP_ZX1_MIO,
     .ioa_type = TYPE_HP_ZX1_IOA,
     .platform_id = IA64_PLATFORM_ID_HP_ZX2000,
-    .descriptor_flags = IA64_PLATFORM_FLAG_NO_MCFG |
-                        IA64_PLATFORM_FLAG_QEMU_EXTENSION |
-                        IA64_PLATFORM_FLAG_IDE_DMA |
-                        IA64_PLATFORM_FLAG_FAMILY_HP_ZX |
-                        IA64_PLATFORM_FLAG_PCI_ZX1_LBA |
-                        IA64_PLATFORM_FLAG_SPARSE_IO |
-                        IA64_PLATFORM_FLAG_EMBEDDED_IO_SAPIC |
-                        IA64_PLATFORM_FLAG_ACPI_PM,
+    .descriptor_flags =
+        IA64_PLATFORM_FLAG_NO_MCFG | IA64_PLATFORM_FLAG_QEMU_EXTENSION |
+        IA64_PLATFORM_FLAG_IDE_DMA | IA64_PLATFORM_FLAG_FAMILY_HP_ZX |
+        IA64_PLATFORM_FLAG_PCI_ZX1_LBA | IA64_PLATFORM_FLAG_SPARSE_IO |
+        IA64_PLATFORM_FLAG_EMBEDDED_IO_SAPIC | IA64_PLATFORM_FLAG_ACPI_PM,
     .physical_address_bits = IA64_PLATFORM_ZX6000_PHYS_ADDR_BITS,
     .pci_root_identity = IA64_PLATFORM_PCI_ROOT_IDENTITY_HP_ZX,
     .roots = hp_zx2000_roots,
@@ -2915,13 +2823,11 @@ static const HPZX6000MachineProfile hp_rx2660_profile = {
     .mio_type = TYPE_HP_ZX2_MIO,
     .ioa_type = TYPE_HP_ZX1_IOA,
     .platform_id = IA64_PLATFORM_ID_HP_RX2660,
-    .descriptor_flags = IA64_PLATFORM_FLAG_NO_MCFG |
-                        IA64_PLATFORM_FLAG_QEMU_EXTENSION |
-                        IA64_PLATFORM_FLAG_FAMILY_HP_ZX |
-                        IA64_PLATFORM_FLAG_PCI_ZX1_LBA |
-                        IA64_PLATFORM_FLAG_SPARSE_IO |
-                        IA64_PLATFORM_FLAG_EMBEDDED_IO_SAPIC |
-                        IA64_PLATFORM_FLAG_ACPI_PM,
+    .descriptor_flags =
+        IA64_PLATFORM_FLAG_NO_MCFG | IA64_PLATFORM_FLAG_QEMU_EXTENSION |
+        IA64_PLATFORM_FLAG_FAMILY_HP_ZX | IA64_PLATFORM_FLAG_PCI_ZX1_LBA |
+        IA64_PLATFORM_FLAG_SPARSE_IO | IA64_PLATFORM_FLAG_EMBEDDED_IO_SAPIC |
+        IA64_PLATFORM_FLAG_ACPI_PM,
     .physical_address_bits = IA64_PLATFORM_ZX6000_PHYS_ADDR_BITS,
     .pci_root_identity = IA64_PLATFORM_PCI_ROOT_IDENTITY_HP_ZX,
     .roots = hp_rx2660_roots,
@@ -2992,7 +2898,7 @@ static const HPZX6000RootLayout hp_zx_pcie_test_roots[] = {
 };
 
 static bool hp_zx_pcie_test_create_devices(HPZX6000MachineState *s,
-                                            Error **errp)
+                                           Error **errp)
 {
     (void)s;
     (void)errp;
@@ -3014,11 +2920,10 @@ static const HPZX6000MachineProfile hp_zx_pcie_test_profile = {
     .mio_type = TYPE_HP_ZX2_MIO,
     .ioa_type = TYPE_HP_ZX1_IOA,
     .platform_id = IA64_PLATFORM_ID_HP_RX2660,
-    .descriptor_flags = IA64_PLATFORM_FLAG_QEMU_EXTENSION |
-                        IA64_PLATFORM_FLAG_FAMILY_HP_ZX |
-                        IA64_PLATFORM_FLAG_PCI_ECAM |
-                        IA64_PLATFORM_FLAG_SPARSE_IO |
-                        IA64_PLATFORM_FLAG_ACPI_PM,
+    .descriptor_flags =
+        IA64_PLATFORM_FLAG_QEMU_EXTENSION | IA64_PLATFORM_FLAG_FAMILY_HP_ZX |
+        IA64_PLATFORM_FLAG_PCI_ECAM | IA64_PLATFORM_FLAG_SPARSE_IO |
+        IA64_PLATFORM_FLAG_ACPI_PM,
     .physical_address_bits = IA64_PLATFORM_ZX6000_PHYS_ADDR_BITS,
     .pci_root_identity = IA64_PLATFORM_PCI_ROOT_IDENTITY_HP_ZX,
     .roots = hp_zx_pcie_test_roots,
@@ -3179,7 +3084,7 @@ static void hp_zx_pcie_test_instance_init(Object *obj)
 }
 
 static void hp_zx_pcie_test_machine_class_init(ObjectClass *oc,
-                                                const void *data)
+                                               const void *data)
 {
     MachineClass *mc = MACHINE_CLASS(oc);
     HPIA64MachineClass *hmc = HP_IA64_MACHINE_CLASS(oc);

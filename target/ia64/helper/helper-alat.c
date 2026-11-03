@@ -49,8 +49,7 @@ void helper_invalidate_alat_fp_reg(CPUIA64State *env, uint32_t reg)
     ia64_alat_invalidate_fp_reg(env, reg);
 }
 
-uint64_t helper_check_load_alat(CPUIA64State *env, uint32_t reg,
-                                uint32_t clear)
+uint64_t helper_check_load_alat(CPUIA64State *env, uint32_t reg, uint32_t clear)
 {
     return ia64_alat_check_load(env, reg, clear);
 }

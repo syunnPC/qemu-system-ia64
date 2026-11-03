@@ -405,19 +405,16 @@ int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
 
-    g_test_add_func("/ia64/i2000-io-layout/fixed",
-                    test_fixed_layout);
+    g_test_add_func("/ia64/i2000-io-layout/fixed", test_fixed_layout);
     g_test_add_func("/ia64/i2000-io-layout/null", test_null_layout);
     g_test_add_func("/ia64/i2000-io-layout/parent-pci",
                     test_parent_and_pci_mutations);
     g_test_add_func("/ia64/i2000-io-layout/ports", test_port_mutations);
     g_test_add_func("/ia64/i2000-io-layout/irqs", test_irq_mutations);
-    g_test_add_func("/ia64/i2000-io-layout/superio",
-                    test_superio_mutations);
+    g_test_add_func("/ia64/i2000-io-layout/superio", test_superio_mutations);
     g_test_add_func("/ia64/i2000-io-layout/rtc-ide",
                     test_rtc_and_ide_mutations);
-    g_test_add_func("/ia64/i2000-io-layout/features",
-                    test_feature_mutations);
+    g_test_add_func("/ia64/i2000-io-layout/features", test_feature_mutations);
 
     return g_test_run();
 }

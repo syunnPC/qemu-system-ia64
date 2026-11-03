@@ -7,3 +7,5 @@
 *.pei
 *.generated.lds
 *.fixups
+ia64-firmware.commit
+ia64-firmware.commit.tmp

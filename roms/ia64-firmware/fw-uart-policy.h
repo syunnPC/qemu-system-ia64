@@ -35,20 +35,19 @@ typedef struct {
     UINT32 HcdpAcpiHid;
 } FW_UART_POLICY;
 
-static inline BOOLEAN fw_i2000_uart_policy_init(
-    UINT64 LegacyIoBase, UINT64 LegacyIoSize, UINT16 LogicalPort,
-    UINT8 RegisterCount, UINT32 ProfileFlags, FW_UART_POLICY *Policy)
+static inline BOOLEAN
+fw_i2000_uart_policy_init(UINT64 LegacyIoBase, UINT64 LegacyIoSize,
+                          UINT16 LogicalPort, UINT8 RegisterCount,
+                          UINT32 ProfileFlags, FW_UART_POLICY *Policy)
 {
     UINTN last_port;
     UINT64 last_offset;
     FW_UART_POLICY result = { 0 };
 
-    if (Policy == NULL ||
-        LogicalPort != IA64_I2000_PROFILE_UART_PORT ||
+    if (Policy == NULL || LogicalPort != IA64_I2000_PROFILE_UART_PORT ||
         RegisterCount != IA64_I2000_PROFILE_UART_SIZE ||
         (ProfileFlags & IA64_I2000_PROFILE_FLAG_CONSOLE_POLL_ONLY) == 0 ||
-        LegacyIoSize == 0 ||
-        LegacyIoBase > ~(UINT64)0 - LegacyIoSize ||
+        LegacyIoSize == 0 || LegacyIoBase > ~(UINT64)0 - LegacyIoSize ||
         LogicalPort > 0xffffU - (RegisterCount - 1U)) {
         return 0;
     }
@@ -78,8 +77,9 @@ static inline BOOLEAN fw_i2000_uart_policy_init(
     return 1;
 }
 
-static inline BOOLEAN fw_uart_policy_reg_address(
-    const FW_UART_POLICY *Policy, UINTN Register, UINT64 *Address)
+static inline BOOLEAN fw_uart_policy_reg_address(const FW_UART_POLICY *Policy,
+                                                 UINTN Register,
+                                                 UINT64 *Address)
 {
     UINTN logical_port;
     UINT64 offset;

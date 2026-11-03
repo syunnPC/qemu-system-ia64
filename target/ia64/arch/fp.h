@@ -24,8 +24,7 @@ void ia64_fp_fma(CPUIA64State *arg0, uint32_t arg1, uint32_t arg2,
 void ia64_fp_fma4(CPUIA64State *arg0, uint32_t arg1, uint32_t arg2,
                   uint32_t arg3, uint32_t arg4, uint32_t arg5);
 void ia64_fp_fcmp(CPUIA64State *arg0, uint32_t arg1, uint32_t arg2,
-                  uint32_t arg3, uint32_t arg4, uint32_t arg5,
-                  uint32_t arg6);
+                  uint32_t arg3, uint32_t arg4, uint32_t arg5, uint32_t arg6);
 void ia64_fp_fmin(CPUIA64State *arg0, uint32_t arg1, uint32_t arg2,
                   uint32_t arg3, uint32_t arg4);
 void ia64_fp_fmax(CPUIA64State *arg0, uint32_t arg1, uint32_t arg2,
@@ -48,8 +47,8 @@ void ia64_fp_fmerge_se(CPUIA64State *arg0, uint32_t arg1, uint32_t arg2,
                        uint32_t arg3);
 void ia64_fp_flogical_and(CPUIA64State *arg0, uint32_t arg1, uint32_t arg2,
                           uint32_t arg3);
-void ia64_fp_flogical_andcm(CPUIA64State *arg0, uint32_t arg1,
-                            uint32_t arg2, uint32_t arg3);
+void ia64_fp_flogical_andcm(CPUIA64State *arg0, uint32_t arg1, uint32_t arg2,
+                            uint32_t arg3);
 void ia64_fp_flogical_or(CPUIA64State *arg0, uint32_t arg1, uint32_t arg2,
                          uint32_t arg3);
 void ia64_fp_flogical_xor(CPUIA64State *arg0, uint32_t arg1, uint32_t arg2,
@@ -70,8 +69,7 @@ void ia64_fp_fpcmp(CPUIA64State *arg0, uint32_t arg1, uint32_t arg2,
 void ia64_fp_fpcvt(CPUIA64State *arg0, uint32_t arg1, uint32_t arg2,
                    uint32_t arg3, uint32_t arg4, uint32_t arg5);
 void ia64_fp_fpma(CPUIA64State *arg0, uint32_t arg1, uint32_t arg2,
-                  uint32_t arg3, uint32_t arg4, uint32_t arg5,
-                  uint32_t arg6);
+                  uint32_t arg3, uint32_t arg4, uint32_t arg5, uint32_t arg6);
 void ia64_fp_fsetc(CPUIA64State *arg0, uint32_t arg1, uint32_t arg2,
                    uint32_t arg3);
 void ia64_fp_fclrf(CPUIA64State *arg0, uint32_t arg1);

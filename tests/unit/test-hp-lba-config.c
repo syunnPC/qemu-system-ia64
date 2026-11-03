@@ -14,9 +14,8 @@ static void test_selector_access_valid(void)
         uint64_t offset;
         unsigned int size;
     } invalid[] = {
-        { 0, 1 }, { 0, 2 }, { 0, 3 }, { 0, 5 }, { 0, 16 },
-        { 1, 4 }, { 2, 4 }, { 3, 4 }, { 5, 4 }, { 8, 4 },
-        { 4, 8 }, { 8, 8 },
+        { 0, 1 }, { 0, 2 }, { 0, 3 }, { 0, 5 }, { 0, 16 }, { 1, 4 },
+        { 2, 4 }, { 3, 4 }, { 5, 4 }, { 8, 4 }, { 4, 8 },  { 8, 8 },
     };
     unsigned int i;
 
@@ -25,8 +24,8 @@ static void test_selector_access_valid(void)
     g_assert_true(hp_lba_config_selector_access_valid(0, 8));
 
     for (i = 0; i < G_N_ELEMENTS(invalid); i++) {
-        g_assert_false(hp_lba_config_selector_access_valid(
-                           invalid[i].offset, invalid[i].size));
+        g_assert_false(hp_lba_config_selector_access_valid(invalid[i].offset,
+                                                           invalid[i].size));
     }
 }
 
@@ -48,15 +47,13 @@ static void test_selector_write_lanes(void)
     uint64_t selector = UINT64_C(0x1122334455667788);
     uint32_t effective = UINT32_MAX;
 
-    g_assert_true(hp_lba_config_selector_write(
-                      &selector, &effective, 4, 4,
-                      UINT64_C(0xdeadbeefaabbccdd)));
+    g_assert_true(hp_lba_config_selector_write(&selector, &effective, 4, 4,
+                                               UINT64_C(0xdeadbeefaabbccdd)));
     g_assert_cmphex(selector, ==, UINT64_C(0xaabbccdd55667788));
     g_assert_cmphex(effective, ==, UINT32_C(0x55667788));
 
-    g_assert_true(hp_lba_config_selector_write(
-                      &selector, &effective, 0, 4,
-                      UINT64_C(0xdeadbeefeeff0011)));
+    g_assert_true(hp_lba_config_selector_write(&selector, &effective, 0, 4,
+                                               UINT64_C(0xdeadbeefeeff0011)));
     g_assert_cmphex(selector, ==, UINT64_C(0xaabbccddeeff0011));
     g_assert_cmphex(effective, ==, UINT32_C(0xeeff0011));
 }
@@ -70,9 +67,8 @@ static void test_selector_eight_byte(void)
     g_assert_true(hp_lba_config_selector_read(selector, 0, 8, &value));
     g_assert_cmphex(value, ==, selector);
 
-    g_assert_true(hp_lba_config_selector_write(
-                      &selector, &effective, 0, 8,
-                      UINT64_C(0x5aa55aa500000800)));
+    g_assert_true(hp_lba_config_selector_write(&selector, &effective, 0, 8,
+                                               UINT64_C(0x5aa55aa500000800)));
     g_assert_cmphex(selector, ==, UINT64_C(0x5aa55aa500000800));
     g_assert_cmphex(effective, ==, UINT32_C(0x800));
 }
@@ -82,10 +78,10 @@ static void test_selector_decomposed_eight_byte(void)
     uint64_t selector = UINT64_MAX;
     uint32_t effective = UINT32_MAX;
 
-    g_assert_true(hp_lba_config_selector_write(
-                      &selector, &effective, 0, 4, UINT32_C(0x00000800)));
-    g_assert_true(hp_lba_config_selector_write(
-                      &selector, &effective, 4, 4, UINT32_C(0x5aa55aa5)));
+    g_assert_true(hp_lba_config_selector_write(&selector, &effective, 0, 4,
+                                               UINT32_C(0x00000800)));
+    g_assert_true(hp_lba_config_selector_write(&selector, &effective, 4, 4,
+                                               UINT32_C(0x5aa55aa5)));
     g_assert_cmphex(selector, ==, UINT64_C(0x5aa55aa500000800));
     g_assert_cmphex(effective, ==, UINT32_C(0x800));
 }
@@ -110,14 +106,12 @@ static void test_selector_sync_reset_post_load(void)
 static void test_data_lanes(void)
 {
     static const uint32_t expected[] = {
-        0x800, 0x801, 0x802, 0x803,
-        0x800, 0x801, 0x802, 0x803,
+        0x800, 0x801, 0x802, 0x803, 0x800, 0x801, 0x802, 0x803,
     };
     unsigned int i;
 
     for (i = 0; i < G_N_ELEMENTS(expected); i++) {
-        g_assert_cmphex(hp_lba_config_data_address(0x800, i), ==,
-                        expected[i]);
+        g_assert_cmphex(hp_lba_config_data_address(0x800, i), ==, expected[i]);
     }
     g_assert_cmphex(hp_lba_config_data_address(0x803, 0), ==, 0x803);
     g_assert_cmphex(hp_lba_config_data_address(0x803, 7), ==, 0x803);
@@ -132,16 +126,14 @@ static void test_selector_invalid_unchanged(void)
     g_assert_false(hp_lba_config_selector_read(selector, 4, 8, &value));
     g_assert_cmphex(value, ==, UINT64_C(0xdeadbeefcafef00d));
 
-    g_assert_false(hp_lba_config_selector_write(
-                       &selector, &effective, 1, 4, UINT64_MAX));
+    g_assert_false(
+        hp_lba_config_selector_write(&selector, &effective, 1, 4, UINT64_MAX));
     g_assert_cmphex(selector, ==, UINT64_C(0x1122334455667788));
     g_assert_cmphex(effective, ==, UINT32_C(0xaabbccdd));
 
     g_assert_false(hp_lba_config_selector_read(selector, 0, 4, NULL));
-    g_assert_false(hp_lba_config_selector_write(
-                       NULL, &effective, 0, 4, 0));
-    g_assert_false(hp_lba_config_selector_write(
-                       &selector, NULL, 0, 4, 0));
+    g_assert_false(hp_lba_config_selector_write(NULL, &effective, 0, 4, 0));
+    g_assert_false(hp_lba_config_selector_write(&selector, NULL, 0, 4, 0));
 }
 
 int main(int argc, char **argv)

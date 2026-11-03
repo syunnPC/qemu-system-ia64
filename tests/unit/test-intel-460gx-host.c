@@ -73,15 +73,14 @@ static const Intel460GXConfigTargetOps target_ops = {
     .write = target_write,
 };
 
-static uint32_t config_address(unsigned bus, unsigned device,
-                               unsigned function, unsigned reg)
+static uint32_t config_address(unsigned bus, unsigned device, unsigned function,
+                               unsigned reg)
 {
     return INTEL_460GX_CONFIG_ENABLE | bus << 16 | device << 11 |
            function << 8 | (reg & 0xfc);
 }
 
-static void core_init(Intel460GXHostCore *core, uint8_t cbn,
-                      uint32_t present)
+static void core_init(Intel460GXHostCore *core, uint8_t cbn, uint32_t present)
 {
     memset(core, 0, sizeof(*core));
     intel_460gx_host_core_init(core, cbn, present);
@@ -124,8 +123,7 @@ static void test_mechanism_one_and_absent(void)
                     UINT16_MAX);
 
     intel_460gx_host_core_address_write(&core, UINT32_C(0xffffffff), 4);
-    g_assert_cmphex(core.config_address, ==,
-                    INTEL_460GX_CONFIG_ADDRESS_MASK);
+    g_assert_cmphex(core.config_address, ==, INTEL_460GX_CONFIG_ADDRESS_MASK);
     g_assert_cmphex(intel_460gx_host_core_data_read(&core, 0, 4), ==,
                     UINT32_MAX);
 
@@ -147,8 +145,7 @@ static void test_bootstrap_sac_priority(void)
     g_assert_null(err);
 
     intel_460gx_host_core_address_write(
-        &core, config_address(0, INTEL_460GX_BOOTSTRAP_SAC_DEVICE, 0, 0x20),
-        4);
+        &core, config_address(0, INTEL_460GX_BOOTSTRAP_SAC_DEVICE, 0, 0x20), 4);
     g_assert_cmphex(intel_460gx_host_core_data_read(&core, 1, 1), ==, 0xd4);
     g_assert_cmpuint(target.offset, ==, 0x21);
     g_assert_cmpuint(target.reads, ==, 1);
@@ -176,8 +173,8 @@ static void test_cbn_partition_and_presence(void)
         &core, 4, 2, &target_ops, &target, &err));
     g_assert_null(err);
 
-    intel_460gx_host_core_address_write(
-        &core, config_address(0x40, 4, 2, 0x30), 4);
+    intel_460gx_host_core_address_write(&core, config_address(0x40, 4, 2, 0x30),
+                                        4);
     g_assert_cmphex(intel_460gx_host_core_data_read(&core, 2, 2), ==,
                     UINT16_MAX);
     g_assert_cmpuint(target.reads, ==, 0);
@@ -192,16 +189,15 @@ static void test_cbn_partition_and_presence(void)
     core.cbn = 0x41;
     g_assert_cmphex(intel_460gx_host_core_data_read(&core, 0, 4), ==,
                     UINT32_MAX);
-    intel_460gx_host_core_address_write(
-        &core, config_address(0x41, 4, 2, 0x30), 4);
+    intel_460gx_host_core_address_write(&core, config_address(0x41, 4, 2, 0x30),
+                                        4);
     g_assert_cmphex(intel_460gx_host_core_data_read(&core, 0, 4), ==,
                     target.read_value);
 
     g_assert_false(intel_460gx_host_core_register_chipset(
         &core, 2, 0, &target_ops, &target, &err));
     assert_error_and_clear(&err);
-    g_assert_false(intel_460gx_host_core_set_present(&core, 0x1f, true,
-                                                     &err));
+    g_assert_false(intel_460gx_host_core_set_present(&core, 0x1f, true, &err));
     assert_error_and_clear(&err);
 }
 
@@ -218,18 +214,16 @@ static void test_downstream_attachment(void)
         &core, 0, expected_pci_bus, 5, 8, &err));
     g_assert_null(err);
 
-    intel_460gx_host_core_address_write(
-        &core, config_address(6, 3, 1, 0x44), 4);
+    intel_460gx_host_core_address_write(&core, config_address(6, 3, 1, 0x44),
+                                        4);
     g_assert_cmphex(intel_460gx_host_core_data_read(&core, 0, 4), ==,
                     UINT32_C(0x78563412));
     g_assert_cmpuint(downstream_reads, ==, 1);
-    g_assert_cmphex(downstream_address, ==,
-                    config_address(6, 3, 1, 0x44));
+    g_assert_cmphex(downstream_address, ==, config_address(6, 3, 1, 0x44));
 
     intel_460gx_host_core_data_write(&core, 1, 0xab, 1);
     g_assert_cmpuint(downstream_writes, ==, 1);
-    g_assert_cmphex(downstream_address, ==,
-                    config_address(6, 3, 1, 0x44) | 1);
+    g_assert_cmphex(downstream_address, ==, config_address(6, 3, 1, 0x44) | 1);
     g_assert_cmphex(downstream_value, ==, 0xab);
     g_assert_cmpuint(downstream_size, ==, 1);
 
@@ -237,8 +231,7 @@ static void test_downstream_attachment(void)
         &core, 1, (PCIBus *)(uintptr_t)0x5678, 8, 9, &err));
     assert_error_and_clear(&err);
 
-    intel_460gx_host_core_address_write(
-        &core, config_address(9, 0, 0, 0), 4);
+    intel_460gx_host_core_address_write(&core, config_address(9, 0, 0, 0), 4);
     g_assert_cmphex(intel_460gx_host_core_data_read(&core, 0, 4), ==,
                     UINT32_MAX);
 }
@@ -251,12 +244,12 @@ static void test_downstream_range_update(void)
     Error *err = NULL;
 
     core_init(&core, 0x40, 0);
-    g_assert_true(intel_460gx_host_core_attach_downstream(
-        &core, 0, bus0, 5, 8, &err));
+    g_assert_true(
+        intel_460gx_host_core_attach_downstream(&core, 0, bus0, 5, 8, &err));
     g_assert_null(err);
 
-    g_assert_true(intel_460gx_host_core_set_downstream_range(
-        &core, 0, 10, 12, &err));
+    g_assert_true(
+        intel_460gx_host_core_set_downstream_range(&core, 0, 10, 12, &err));
     g_assert_null(err);
     g_assert_cmpuint(core.downstream[0].first_bus, ==, 10);
     g_assert_cmpuint(core.downstream[0].last_bus, ==, 12);
@@ -264,30 +257,30 @@ static void test_downstream_range_update(void)
     g_assert_cmpuint(core.downstream[0].reset_last_bus, ==, 8);
 
     /* Attachment must also preserve non-overlapping reset baselines. */
-    g_assert_false(intel_460gx_host_core_attach_downstream(
-        &core, 1, bus1, 6, 7, &err));
+    g_assert_false(
+        intel_460gx_host_core_attach_downstream(&core, 1, bus1, 6, 7, &err));
     assert_error_and_clear(&err);
     g_assert_false(core.downstream[1].attached);
 
-    g_assert_true(intel_460gx_host_core_attach_downstream(
-        &core, 1, bus1, 20, 24, &err));
+    g_assert_true(
+        intel_460gx_host_core_attach_downstream(&core, 1, bus1, 20, 24, &err));
     g_assert_null(err);
 
     /* An overlapping update is rejected without changing either endpoint. */
-    g_assert_false(intel_460gx_host_core_set_downstream_range(
-        &core, 0, 22, 25, &err));
+    g_assert_false(
+        intel_460gx_host_core_set_downstream_range(&core, 0, 22, 25, &err));
     assert_error_and_clear(&err);
     g_assert_cmpuint(core.downstream[0].first_bus, ==, 10);
     g_assert_cmpuint(core.downstream[0].last_bus, ==, 12);
 
-    g_assert_false(intel_460gx_host_core_set_downstream_range(
-        &core, 0, 13, 12, &err));
+    g_assert_false(
+        intel_460gx_host_core_set_downstream_range(&core, 0, 13, 12, &err));
     assert_error_and_clear(&err);
     g_assert_cmpuint(core.downstream[0].first_bus, ==, 10);
     g_assert_cmpuint(core.downstream[0].last_bus, ==, 12);
 
-    g_assert_false(intel_460gx_host_core_set_downstream_range(
-        &core, 2, 30, 31, &err));
+    g_assert_false(
+        intel_460gx_host_core_set_downstream_range(&core, 2, 30, 31, &err));
     assert_error_and_clear(&err);
     g_assert_false(intel_460gx_host_core_set_downstream_range(
         &core, INTEL_460GX_DOWNSTREAM_PORTS, 30, 31, &err));
@@ -295,13 +288,13 @@ static void test_downstream_range_update(void)
 
     expected_pci_bus = bus0;
     downstream_reads = 0;
-    intel_460gx_host_core_address_write(
-        &core, config_address(11, 3, 1, 0x44), 4);
+    intel_460gx_host_core_address_write(&core, config_address(11, 3, 1, 0x44),
+                                        4);
     g_assert_cmphex(intel_460gx_host_core_data_read(&core, 0, 4), ==,
                     UINT32_C(0x78563412));
     g_assert_cmpuint(downstream_reads, ==, 1);
-    intel_460gx_host_core_address_write(
-        &core, config_address(6, 3, 1, 0x44), 4);
+    intel_460gx_host_core_address_write(&core, config_address(6, 3, 1, 0x44),
+                                        4);
     g_assert_cmphex(intel_460gx_host_core_data_read(&core, 0, 4), ==,
                     UINT32_MAX);
     g_assert_cmpuint(downstream_reads, ==, 1);
@@ -311,8 +304,8 @@ static void test_downstream_range_update(void)
     g_assert_cmpuint(core.downstream[0].last_bus, ==, 8);
     g_assert_cmpuint(core.downstream[1].first_bus, ==, 20);
     g_assert_cmpuint(core.downstream[1].last_bus, ==, 24);
-    intel_460gx_host_core_address_write(
-        &core, config_address(6, 3, 1, 0x44), 4);
+    intel_460gx_host_core_address_write(&core, config_address(6, 3, 1, 0x44),
+                                        4);
     g_assert_cmphex(intel_460gx_host_core_data_read(&core, 0, 4), ==,
                     UINT32_C(0x78563412));
     g_assert_cmpuint(downstream_reads, ==, 2);
@@ -326,8 +319,7 @@ static void assert_decoded_state_equal(const Intel460GXHostCore *actual,
     unsigned i;
 
     g_assert_cmpuint(actual->cbn, ==, expected->cbn);
-    g_assert_cmphex(actual->chipset_present, ==,
-                    expected->chipset_present);
+    g_assert_cmphex(actual->chipset_present, ==, expected->chipset_present);
     g_assert_cmpuint(actual->reset_cbn, ==, expected->reset_cbn);
     g_assert_cmphex(actual->reset_chipset_present, ==,
                     expected->reset_chipset_present);
@@ -366,15 +358,15 @@ static void test_decoded_update_success(void)
     Error *err = NULL;
 
     core_init(&core, 0x40, BIT(0));
-    g_assert_true(intel_460gx_host_core_attach_downstream(
-        &core, 0, bus0, 10, 19, &err));
+    g_assert_true(
+        intel_460gx_host_core_attach_downstream(&core, 0, bus0, 10, 19, &err));
     g_assert_null(err);
-    g_assert_true(intel_460gx_host_core_attach_downstream(
-        &core, 1, bus1, 20, 29, &err));
+    g_assert_true(
+        intel_460gx_host_core_attach_downstream(&core, 1, bus1, 20, 29, &err));
     g_assert_null(err);
 
-    g_assert_true(intel_460gx_host_core_apply_decoded_update(
-        &core, &update, &err));
+    g_assert_true(
+        intel_460gx_host_core_apply_decoded_update(&core, &update, &err));
     g_assert_null(err);
     g_assert_cmpuint(core.cbn, ==, 0x55);
     g_assert_cmphex(core.chipset_present, ==, BIT(4) | BIT(0x10));
@@ -410,11 +402,11 @@ static void test_decoded_update_rollback(void)
     Error *err = NULL;
 
     core_init(&core, 0x40, BIT(0));
-    g_assert_true(intel_460gx_host_core_attach_downstream(
-        &core, 0, bus0, 10, 19, &err));
+    g_assert_true(
+        intel_460gx_host_core_attach_downstream(&core, 0, bus0, 10, 19, &err));
     g_assert_null(err);
-    g_assert_true(intel_460gx_host_core_attach_downstream(
-        &core, 1, bus1, 20, 29, &err));
+    g_assert_true(
+        intel_460gx_host_core_attach_downstream(&core, 1, bus1, 20, 29, &err));
     g_assert_null(err);
     expected = core;
 
@@ -427,8 +419,8 @@ static void test_decoded_update_rollback(void)
         .route_mask = BIT(0),
         .routes[0] = { .first_bus = 30, .last_bus = 39 },
     };
-    g_assert_false(intel_460gx_host_core_apply_decoded_update(
-        &core, &update, &err));
+    g_assert_false(
+        intel_460gx_host_core_apply_decoded_update(&core, &update, &err));
     assert_error_and_clear(&err);
     assert_decoded_state_equal(&core, &expected);
 
@@ -441,8 +433,8 @@ static void test_decoded_update_rollback(void)
         .route_mask = BIT(2),
         .routes[2] = { .first_bus = 30, .last_bus = 39 },
     };
-    g_assert_false(intel_460gx_host_core_apply_decoded_update(
-        &core, &update, &err));
+    g_assert_false(
+        intel_460gx_host_core_apply_decoded_update(&core, &update, &err));
     assert_error_and_clear(&err);
     assert_decoded_state_equal(&core, &expected);
 
@@ -455,8 +447,8 @@ static void test_decoded_update_rollback(void)
         .route_mask = BIT(0),
         .routes[0] = { .first_bus = 39, .last_bus = 30 },
     };
-    g_assert_false(intel_460gx_host_core_apply_decoded_update(
-        &core, &update, &err));
+    g_assert_false(
+        intel_460gx_host_core_apply_decoded_update(&core, &update, &err));
     assert_error_and_clear(&err);
     assert_decoded_state_equal(&core, &expected);
 
@@ -469,8 +461,8 @@ static void test_decoded_update_rollback(void)
         .route_mask = BIT(0),
         .routes[0] = { .first_bus = 25, .last_bus = 35 },
     };
-    g_assert_false(intel_460gx_host_core_apply_decoded_update(
-        &core, &update, &err));
+    g_assert_false(
+        intel_460gx_host_core_apply_decoded_update(&core, &update, &err));
     assert_error_and_clear(&err);
     assert_decoded_state_equal(&core, &expected);
 
@@ -486,8 +478,8 @@ static void test_decoded_update_rollback(void)
             [1] = { .first_bus = 35, .last_bus = 44 },
         },
     };
-    g_assert_false(intel_460gx_host_core_apply_decoded_update(
-        &core, &update, &err));
+    g_assert_false(
+        intel_460gx_host_core_apply_decoded_update(&core, &update, &err));
     assert_error_and_clear(&err);
     assert_decoded_state_equal(&core, &expected);
 }
@@ -507,15 +499,15 @@ static void test_decoded_update_atomic_swap(void)
     Error *err = NULL;
 
     core_init(&core, 0x40, BIT(0));
-    g_assert_true(intel_460gx_host_core_attach_downstream(
-        &core, 0, bus0, 10, 19, &err));
+    g_assert_true(
+        intel_460gx_host_core_attach_downstream(&core, 0, bus0, 10, 19, &err));
     g_assert_null(err);
-    g_assert_true(intel_460gx_host_core_attach_downstream(
-        &core, 1, bus1, 20, 29, &err));
+    g_assert_true(
+        intel_460gx_host_core_attach_downstream(&core, 1, bus1, 20, 29, &err));
     g_assert_null(err);
 
-    g_assert_true(intel_460gx_host_core_apply_decoded_update(
-        &core, &update, &err));
+    g_assert_true(
+        intel_460gx_host_core_apply_decoded_update(&core, &update, &err));
     g_assert_null(err);
     g_assert_cmpuint(core.downstream[0].first_bus, ==, 20);
     g_assert_cmpuint(core.downstream[0].last_bus, ==, 29);
@@ -538,14 +530,13 @@ static void test_downstream_partition_priority(void)
     core_init(&core, 0x40, 0);
     unattached_first = core.downstream[2].first_bus;
     unattached_last = core.downstream[2].last_bus;
-    g_assert_true(intel_460gx_host_core_attach_downstream(
-        &core, 0, bus, 0, 0, &err));
+    g_assert_true(
+        intel_460gx_host_core_attach_downstream(&core, 0, bus, 0, 0, &err));
     g_assert_null(err);
 
     expected_pci_bus = bus;
     downstream_reads = 0;
-    intel_460gx_host_core_address_write(
-        &core, config_address(0, 3, 0, 0), 4);
+    intel_460gx_host_core_address_write(&core, config_address(0, 3, 0, 0), 4);
     g_assert_cmphex(intel_460gx_host_core_data_read(&core, 0, 4), ==,
                     UINT32_C(0x78563412));
     g_assert_cmpuint(downstream_reads, ==, 1);
@@ -557,12 +548,12 @@ static void test_downstream_partition_priority(void)
                     UINT32_MAX);
     g_assert_cmpuint(downstream_reads, ==, 1);
 
-    g_assert_true(intel_460gx_host_core_set_downstream_range(
-        &core, 0, 0x40, 0x40, &err));
+    g_assert_true(
+        intel_460gx_host_core_set_downstream_range(&core, 0, 0x40, 0x40, &err));
     g_assert_null(err);
     /* CBN remains wholly reserved even when an xXB range includes it. */
-    intel_460gx_host_core_address_write(
-        &core, config_address(0x40, 3, 0, 0), 4);
+    intel_460gx_host_core_address_write(&core, config_address(0x40, 3, 0, 0),
+                                        4);
     g_assert_cmphex(intel_460gx_host_core_data_read(&core, 0, 4), ==,
                     UINT32_MAX);
     g_assert_cmpuint(downstream_reads, ==, 1);
@@ -589,8 +580,8 @@ static void test_reset_state(void)
     Error *err = NULL;
 
     core_init(&core, 0x52, BIT(0) | BIT(4));
-    intel_460gx_host_core_address_write(
-        &core, config_address(7, 1, 0, 0x80), 4);
+    intel_460gx_host_core_address_write(&core, config_address(7, 1, 0, 0x80),
+                                        4);
     core.cbn = 0x61;
     g_assert_true(intel_460gx_host_core_set_present(&core, 4, false, &err));
     g_assert_null(err);

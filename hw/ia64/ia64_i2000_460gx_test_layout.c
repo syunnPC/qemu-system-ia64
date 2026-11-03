@@ -91,8 +91,7 @@ static bool fixture_range_contains(const IA64I2000460GXTestRange *outer,
 static bool fixture_ranges_overlap(const IA64I2000460GXTestRange *a,
                                    const IA64I2000460GXTestRange *b)
 {
-    return a->base < fixture_range_end(b) &&
-           b->base < fixture_range_end(a);
+    return a->base < fixture_range_end(b) && b->base < fixture_range_end(a);
 }
 
 static bool fixture_range_matches(const IA64I2000460GXTestRange *range,
@@ -228,26 +227,22 @@ bool ia64_i2000_460gx_test_layout_validate(
     fixed_ranges[7] = &layout->legacy_io;
 
     for (i = 0; i < G_N_ELEMENTS(fixed_ranges); i++) {
-        if (!fixture_range_valid(fixed_ranges[i], fixed_range_names[i],
-                                 errp)) {
+        if (!fixture_range_valid(fixed_ranges[i], fixed_range_names[i], errp)) {
             return false;
         }
     }
 
     if (!fixture_range_contains(&layout->ram, &layout->firmware) ||
-        !fixture_range_contains(&layout->ram,
-                                &layout->descriptor_envelope) ||
+        !fixture_range_contains(&layout->ram, &layout->descriptor_envelope) ||
         !fixture_range_contains(&layout->descriptor_envelope,
                                 &layout->descriptor_rom) ||
         fixture_ranges_overlap(&layout->firmware,
                                &layout->descriptor_envelope)) {
-        error_setg(errp,
-                   "i2000 460GX test RAM, firmware, and descriptor "
-                   "reservations are inconsistent");
+        error_setg(errp, "i2000 460GX test RAM, firmware, and descriptor "
+                         "reservations are inconsistent");
         return false;
     }
-    if (!fixture_range_contains(&layout->pid_envelope,
-                                &layout->pid_decode) ||
+    if (!fixture_range_contains(&layout->pid_envelope, &layout->pid_decode) ||
         fixture_ranges_overlap(&layout->pid_envelope, &layout->pib)) {
         error_setg(errp,
                    "i2000 460GX test PID and PIB ranges are inconsistent");
@@ -256,16 +251,13 @@ bool ia64_i2000_460gx_test_layout_validate(
     if (fixture_ranges_overlap(&layout->ram, &layout->pid_envelope) ||
         fixture_ranges_overlap(&layout->ram, &layout->pib) ||
         fixture_ranges_overlap(&layout->ram, &layout->legacy_io) ||
-        fixture_ranges_overlap(&layout->pid_envelope,
-                               &layout->legacy_io) ||
+        fixture_ranges_overlap(&layout->pid_envelope, &layout->legacy_io) ||
         fixture_ranges_overlap(&layout->pib, &layout->legacy_io)) {
-        error_setg(errp,
-                   "i2000 460GX test fixed CPU resources overlap");
+        error_setg(errp, "i2000 460GX test fixed CPU resources overlap");
         return false;
     }
     if (layout->cf8_io_root >= IA64_I2000_460GX_TEST_ROOT_COUNT) {
-        error_setg(errp,
-                   "i2000 460GX test CF8 I/O root is invalid");
+        error_setg(errp, "i2000 460GX test CF8 I/O root is invalid");
         return false;
     }
     if (layout->pid_pin_count == 0 ||
@@ -294,8 +286,7 @@ bool ia64_i2000_460gx_test_layout_validate(
             root->first_bus > root->last_bus ||
             root->host_port >= IA64_I2000_460GX_TEST_HOST_PORT_COUNT ||
             root->io_size == 0 || io_end > UINT64_C(0x10000)) {
-            error_setg(errp, "i2000 460GX test root %u layout is invalid",
-                       i);
+            error_setg(errp, "i2000 460GX test root %u layout is invalid", i);
             return false;
         }
         if (!fixture_range_valid(&pci_mmio, "root PCI MMIO32", errp) ||
@@ -304,20 +295,18 @@ bool ia64_i2000_460gx_test_layout_validate(
         }
         if (root->pci_mmio32_base != root->cpu_mmio32_base ||
             root->mmio64_base != 0 || root->mmio64_size != 0) {
-            error_setg(errp,
-                       "i2000 460GX test root %u MMIO apertures are invalid",
-                       i);
+            error_setg(
+                errp, "i2000 460GX test root %u MMIO apertures are invalid", i);
             return false;
         }
         if (!fixture_range_valid(&dma, "root DMA", errp)) {
             return false;
         }
         if (root->intx_base < layout->legacy_pin_count ||
-            (unsigned)root->intx_base +
-                IA64_I2000_460GX_TEST_PCI_INTX_COUNT >
+            (unsigned)root->intx_base + IA64_I2000_460GX_TEST_PCI_INTX_COUNT >
                 layout->pid_pin_count) {
-            error_setg(errp,
-                       "i2000 460GX test root %u INTx range is invalid", i);
+            error_setg(errp, "i2000 460GX test root %u INTx range is invalid",
+                       i);
             return false;
         }
         if (fixture_ranges_overlap(&cpu_mmio, &layout->ram) ||
@@ -326,7 +315,8 @@ bool ia64_i2000_460gx_test_layout_validate(
             fixture_ranges_overlap(&cpu_mmio, &layout->legacy_io)) {
             error_setg(errp,
                        "i2000 460GX test root %u CPU MMIO32 collides with "
-                       "a fixed resource", i);
+                       "a fixed resource",
+                       i);
             return false;
         }
         if (root->dma_base != layout->ram.base ||
@@ -335,7 +325,8 @@ bool ia64_i2000_460gx_test_layout_validate(
             root->dma_target_offset > layout->ram.size - root->dma_size) {
             error_setg(errp,
                        "i2000 460GX test root %u DMA alias is not the "
-                       "identity RAM view", i);
+                       "identity RAM view",
+                       i);
             return false;
         }
 
@@ -353,47 +344,47 @@ bool ia64_i2000_460gx_test_layout_validate(
             if (root->first_bus <= other->last_bus &&
                 other->first_bus <= root->last_bus) {
                 error_setg(errp,
-                           "i2000 460GX test roots %u and %u overlap buses",
-                           j, i);
+                           "i2000 460GX test roots %u and %u overlap buses", j,
+                           i);
                 return false;
             }
             if ((uint64_t)root->io_base <
                     (uint64_t)other->io_base + other->io_size &&
                 (uint64_t)other->io_base < io_end) {
-                error_setg(errp,
-                           "i2000 460GX test roots %u and %u overlap I/O",
+                error_setg(errp, "i2000 460GX test roots %u and %u overlap I/O",
                            j, i);
                 return false;
             }
             if (fixture_ranges_overlap(&pci_mmio, &other_pci_mmio) ||
                 fixture_ranges_overlap(&cpu_mmio, &other_cpu_mmio)) {
                 error_setg(errp,
-                           "i2000 460GX test roots %u and %u overlap MMIO",
-                           j, i);
+                           "i2000 460GX test roots %u and %u overlap MMIO", j,
+                           i);
                 return false;
             }
             if (root->host_port == other->host_port) {
                 error_setg(errp,
                            "i2000 460GX test roots %u and %u share a host "
-                           "port", j, i);
+                           "port",
+                           j, i);
                 return false;
             }
-            if (root->intx_base < other->intx_base +
-                    IA64_I2000_460GX_TEST_PCI_INTX_COUNT &&
-                other->intx_base < root->intx_base +
-                    IA64_I2000_460GX_TEST_PCI_INTX_COUNT) {
+            if (root->intx_base <
+                    other->intx_base + IA64_I2000_460GX_TEST_PCI_INTX_COUNT &&
+                other->intx_base <
+                    root->intx_base + IA64_I2000_460GX_TEST_PCI_INTX_COUNT) {
                 error_setg(errp,
-                           "i2000 460GX test roots %u and %u overlap INTx",
-                           j, i);
+                           "i2000 460GX test roots %u and %u overlap INTx", j,
+                           i);
                 return false;
             }
         }
     }
 
     if (layout->cf8_pa != ia64_i2000_460gx_test_sparse_io_pa(
-            IA64_I2000_460GX_TEST_CF8_PORT) ||
+                              IA64_I2000_460GX_TEST_CF8_PORT) ||
         layout->cfc_pa != ia64_i2000_460gx_test_sparse_io_pa(
-            IA64_I2000_460GX_TEST_CFC_PORT) ||
+                              IA64_I2000_460GX_TEST_CFC_PORT) ||
         layout->cf8_pa < layout->legacy_io.base ||
         layout->cfc_pa < layout->legacy_io.base ||
         layout->cf8_pa >= fixture_range_end(&layout->legacy_io) ||
@@ -403,60 +394,48 @@ bool ia64_i2000_460gx_test_layout_validate(
         return false;
     }
 
-    if (!fixture_range_matches(&layout->ram,
-                               IA64_I2000_460GX_TEST_RAM_BASE,
-                               IA64_I2000_460GX_TEST_RAM_SIZE,
-                               "RAM", errp) ||
-        !fixture_range_matches(&layout->firmware,
-                               IA64_I2000_460GX_TEST_FIRMWARE_BASE,
-                               IA64_I2000_460GX_TEST_FIRMWARE_SIZE,
-                               "firmware", errp) ||
-        !fixture_range_matches(&layout->descriptor_rom,
-                               IA64_I2000_460GX_TEST_DESC_ROM_BASE,
-                               IA64_I2000_460GX_TEST_DESC_ROM_SIZE,
-                               "descriptor ROM", errp) ||
+    if (!fixture_range_matches(&layout->ram, IA64_I2000_460GX_TEST_RAM_BASE,
+                               IA64_I2000_460GX_TEST_RAM_SIZE, "RAM", errp) ||
+        !fixture_range_matches(
+            &layout->firmware, IA64_I2000_460GX_TEST_FIRMWARE_BASE,
+            IA64_I2000_460GX_TEST_FIRMWARE_SIZE, "firmware", errp) ||
+        !fixture_range_matches(
+            &layout->descriptor_rom, IA64_I2000_460GX_TEST_DESC_ROM_BASE,
+            IA64_I2000_460GX_TEST_DESC_ROM_SIZE, "descriptor ROM", errp) ||
         !fixture_range_matches(&layout->descriptor_envelope,
                                IA64_I2000_460GX_TEST_DESC_ROM_BASE,
                                IA64_I2000_460GX_TEST_DESC_ENVELOPE_SIZE,
                                "descriptor envelope", errp) ||
-        !fixture_range_matches(&layout->pid_decode,
-                               IA64_I2000_460GX_TEST_PID_BASE,
-                               IA64_I2000_460GX_TEST_PID_SIZE,
-                               "PID decode", errp) ||
-        !fixture_range_matches(&layout->pid_envelope,
-                               IA64_I2000_460GX_TEST_PID_BASE,
-                               IA64_I2000_460GX_TEST_PID_ENVELOPE_SIZE,
-                               "PID envelope", errp) ||
-        !fixture_range_matches(&layout->pib,
-                               IA64_I2000_460GX_TEST_PIB_BASE,
-                               IA64_I2000_460GX_TEST_PIB_SIZE,
-                               "PIB", errp) ||
-        !fixture_range_matches(&layout->legacy_io,
-                               IA64_I2000_460GX_TEST_LEGACY_IO_BASE,
-                               IA64_I2000_460GX_TEST_LEGACY_IO_SIZE,
-                               "legacy I/O", errp)) {
+        !fixture_range_matches(
+            &layout->pid_decode, IA64_I2000_460GX_TEST_PID_BASE,
+            IA64_I2000_460GX_TEST_PID_SIZE, "PID decode", errp) ||
+        !fixture_range_matches(
+            &layout->pid_envelope, IA64_I2000_460GX_TEST_PID_BASE,
+            IA64_I2000_460GX_TEST_PID_ENVELOPE_SIZE, "PID envelope", errp) ||
+        !fixture_range_matches(&layout->pib, IA64_I2000_460GX_TEST_PIB_BASE,
+                               IA64_I2000_460GX_TEST_PIB_SIZE, "PIB", errp) ||
+        !fixture_range_matches(
+            &layout->legacy_io, IA64_I2000_460GX_TEST_LEGACY_IO_BASE,
+            IA64_I2000_460GX_TEST_LEGACY_IO_SIZE, "legacy I/O", errp)) {
         return false;
     }
 
     if (layout->cf8_pa != IA64_I2000_460GX_TEST_CF8_PA ||
         layout->cfc_pa != IA64_I2000_460GX_TEST_CFC_PA ||
         layout->cbn != IA64_I2000_460GX_TEST_CBN ||
-        layout->chipset_present !=
-            IA64_I2000_460GX_TEST_CHIPSET_PRESENT ||
+        layout->chipset_present != IA64_I2000_460GX_TEST_CHIPSET_PRESENT ||
         layout->pid_id != IA64_I2000_460GX_TEST_PID_ID ||
         layout->pid_pin_count != IA64_I2000_460GX_TEST_PID_PIN_COUNT ||
-        layout->legacy_pin_count !=
-            IA64_I2000_460GX_TEST_LEGACY_PIN_COUNT ||
+        layout->legacy_pin_count != IA64_I2000_460GX_TEST_LEGACY_PIN_COUNT ||
         layout->cf8_io_root != IA64_I2000_460GX_TEST_CF8_IO_ROOT) {
-        error_setg(errp,
-                   "i2000 460GX test host, PID, or CF8 I/O "
-                   "settings do not match the fixed layout");
+        error_setg(errp, "i2000 460GX test host, PID, or CF8 I/O "
+                         "settings do not match the fixed layout");
         return false;
     }
 
     for (i = 0; i < IA64_I2000_460GX_TEST_ROOT_COUNT; i++) {
-        if (!fixture_root_matches(&layout->roots[i], &fixed_roots[i],
-                                  i, errp)) {
+        if (!fixture_root_matches(&layout->roots[i], &fixed_roots[i], i,
+                                  errp)) {
             return false;
         }
     }

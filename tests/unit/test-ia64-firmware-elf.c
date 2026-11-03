@@ -12,10 +12,10 @@ static void test_load(void)
     IA64FirmwareElf original, moved;
     unsigned i;
 
-    g_assert(ia64_firmware_elf_load(firmware, firmware_size, 0,
-                                    &original, &error_abort));
-    g_assert(ia64_firmware_elf_load(firmware, firmware_size, 0x400000,
-                                    &moved, &error_abort));
+    g_assert(ia64_firmware_elf_load(firmware, firmware_size, 0, &original,
+                                    &error_abort));
+    g_assert(ia64_firmware_elf_load(firmware, firmware_size, 0x400000, &moved,
+                                    &error_abort));
     g_assert_cmpuint(original.size, <, 0x200000);
     g_assert_cmphex(original.base, ==, 0x100000);
     g_assert_cmphex(moved.base, ==, 0x400000);
@@ -24,8 +24,8 @@ static void test_load(void)
                     0x300000);
     g_assert_cmphex(moved.pal_entry - original.pal_entry, ==, 0x300000);
     for (i = 0; i < original.segments->len; i++) {
-        IA64FirmwareSegment *s = &g_array_index(original.segments,
-                                               IA64FirmwareSegment, i);
+        IA64FirmwareSegment *s =
+            &g_array_index(original.segments, IA64FirmwareSegment, i);
         g_assert_cmpuint(s->offset + s->size, <=, original.size);
     }
     ia64_firmware_elf_clear(&original);
@@ -49,7 +49,8 @@ static unsigned section_index(const char *name)
     uint64_t sh = ldq_le_p(firmware + 40);
     unsigned count = lduw_le_p(firmware + 60);
     unsigned names = lduw_le_p(firmware + 62);
-    const char *strings = (const char *)firmware +
+    const char *strings =
+        (const char *)firmware +
         ldq_le_p(firmware + sh + names * sizeof(Elf64_Shdr) + 24);
     unsigned i;
 
@@ -61,6 +62,54 @@ static unsigned section_index(const char *name)
         }
     }
     g_assert_not_reached();
+}
+
+/* Build IDs are optional, non-NUL-terminated full Git object IDs. */
+static void test_build_commit(void)
+{
+    static const char *commits[] = {
+        "0123456789abcdef0123456789abcdef01234567",
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        "",
+        "0123456",
+        "x123456789abcdef0123456789abcdef01234567",
+    };
+    uint64_t sh = ldq_le_p(firmware + 40);
+    unsigned index = section_index(".fw.build_commit");
+    unsigned i;
+
+    for (i = 0; i < G_N_ELEMENTS(commits); i++) {
+        size_t length = strlen(commits[i]);
+        g_autofree uint8_t *copy = g_malloc(firmware_size + length);
+        IA64FirmwareElf out;
+        uint8_t *section;
+
+        memcpy(copy, firmware, firmware_size);
+        memcpy(copy + firmware_size, commits[i], length);
+        section = copy + sh + index * sizeof(Elf64_Shdr);
+        stq_le_p(section + 24, firmware_size);
+        stq_le_p(section + 32, length);
+        g_assert_true(ia64_firmware_elf_load(copy, firmware_size + length, 0,
+                                             &out, &error_abort));
+        g_assert_cmpstr(out.build_commit, ==, i < 2 ? commits[i] : "");
+        ia64_firmware_elf_clear(&out);
+
+        /* Old images without build metadata must remain loadable. */
+        stl_le_p(section, 0);
+        g_assert_true(ia64_firmware_elf_load(copy, firmware_size + length,
+                                             0x400000, &out, &error_abort));
+        g_assert_cmpstr(out.build_commit, ==, "");
+        ia64_firmware_elf_clear(&out);
+
+        /* NOBITS has no file contents, even if its size looks like a hash. */
+        stl_le_p(section, ldl_le_p(firmware + sh + index * sizeof(Elf64_Shdr)));
+        stl_le_p(section + 4, SHT_NOBITS);
+        stq_le_p(section + 24, UINT64_MAX);
+        g_assert_true(ia64_firmware_elf_load(copy, firmware_size + length, 0,
+                                             &out, &error_abort));
+        g_assert_cmpstr(out.build_commit, ==, "");
+        ia64_firmware_elf_clear(&out);
+    }
 }
 
 static void test_got_relocations(void)
@@ -84,8 +133,8 @@ static void test_got_relocations(void)
     uint8_t *s;
 
     for (i = 1; i < ldq_le_p(symbols + 32) / sizeof(Elf64_Sym); i++) {
-        const uint8_t *sym = firmware + ldq_le_p(symbols + 24) +
-            i * sizeof(Elf64_Sym);
+        const uint8_t *sym =
+            firmware + ldq_le_p(symbols + 24) + i * sizeof(Elf64_Sym);
 
         if (lduw_le_p(sym + 6) == opd_index &&
             ELF64_ST_TYPE(sym[4]) == STT_SECTION) {
@@ -125,9 +174,9 @@ static void test_got_relocations(void)
         stq_le_p(rel + 16, value - symbol_value);
     }
     g_assert_true(ia64_firmware_elf_load(firmware, firmware_size, 0x400000,
-                                       &expected, &error_abort));
-    g_assert_true(ia64_firmware_elf_load(copy, size, 0x400000,
-                                       &actual, &error_abort));
+                                         &expected, &error_abort));
+    g_assert_true(
+        ia64_firmware_elf_load(copy, size, 0x400000, &actual, &error_abort));
     g_assert_cmpmem(actual.data, actual.size, expected.data, expected.size);
     ia64_firmware_elf_clear(&actual);
     ia64_firmware_elf_clear(&expected);
@@ -175,7 +224,7 @@ static void test_malformed(void)
 static void test_relative_encoding(void)
 {
     const unsigned types[] = {
-        R_IA64_GPREL22, R_IA64_GPREL64I, R_IA64_LTOFF_FPTR22,
+        R_IA64_GPREL22,  R_IA64_GPREL64I,   R_IA64_LTOFF_FPTR22,
         R_IA64_PCREL21B, R_IA64_PCREL64LSB, R_IA64_SEGREL64LSB,
     };
     uint64_t sh = ldq_le_p(firmware + 40);
@@ -213,8 +262,8 @@ static void test_relative_encoding(void)
                 if (instruction) {
                     address &= ~UINT64_C(15);
                 }
-                offset = ldq_le_p(target + 24) + address -
-                         ldq_le_p(target + 16);
+                offset =
+                    ldq_le_p(target + 24) + address - ldq_le_p(target + 16);
                 memset(copy + offset, 0xff, instruction ? 16 : 8);
                 reject(copy, firmware_size, 0x400000);
                 found = true;
@@ -232,22 +281,23 @@ int main(int argc, char **argv)
         g_assert(g_file_get_contents(argv[2], (char **)&firmware,
                                      &firmware_size, NULL));
         g_assert(ia64_firmware_elf_load(firmware, firmware_size,
-                                       g_ascii_strtoull(argv[3], NULL, 0),
-                                       &out, &error_abort));
-        g_assert(g_file_set_contents(argv[4], (char *)out.data,
-                                     out.size, NULL));
+                                        g_ascii_strtoull(argv[3], NULL, 0),
+                                        &out, &error_abort));
+        g_assert(
+            g_file_set_contents(argv[4], (char *)out.data, out.size, NULL));
         ia64_firmware_elf_clear(&out);
         g_free(firmware);
         return 0;
     }
     g_assert_cmpint(argc, >=, 2);
-    g_assert(g_file_get_contents(argv[1], (char **)&firmware,
-                                 &firmware_size, NULL));
+    g_assert(
+        g_file_get_contents(argv[1], (char **)&firmware, &firmware_size, NULL));
     argv[1] = argv[0];
     argc--;
     argv++;
     g_test_init(&argc, &argv, NULL);
     g_test_add_func("/ia64/firmware/elf/load", test_load);
+    g_test_add_func("/ia64/firmware/elf/build-commit", test_build_commit);
     g_test_add_func("/ia64/firmware/elf/malformed", test_malformed);
     g_test_add_func("/ia64/firmware/elf/relative-encoding",
                     test_relative_encoding);

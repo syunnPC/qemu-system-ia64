@@ -99,8 +99,7 @@ static void pid_update(Intel460GXPIDState *s, unsigned pin)
     bool level_route = pid_level_route(rte);
 
     if ((rte & RTE_MASKED) ||
-        (level_route && !pid_pin_active(s, pin) &&
-         !s->mask_latched[pin])) {
+        (level_route && !pid_pin_active(s, pin) && !s->mask_latched[pin])) {
         return;
     }
 
@@ -111,9 +110,8 @@ static void pid_update(Intel460GXPIDState *s, unsigned pin)
         s->rte[pin] |= RTE_REMOTE_IRR;
     }
 
-    if (!ia64_sapic_deliver(IA64_SAPIC_DESTINATION_PHYSICAL,
-                            id, eid, false, delivery,
-                            rte & RTE_VECTOR_MASK)) {
+    if (!ia64_sapic_deliver(IA64_SAPIC_DESTINATION_PHYSICAL, id, eid, false,
+                            delivery, rte & RTE_VECTOR_MASK)) {
         if (level_route) {
             s->rte[pin] &= ~RTE_REMOTE_IRR;
         }
@@ -133,8 +131,7 @@ static void pid_sync_level_status(Intel460GXPIDState *s, unsigned pin)
 {
     /* A value latched before masking is held until unmasked and delivered. */
     if (s->rte[pin] & RTE_MASKED) {
-        if (s->mask_latched[pin] &&
-            !(s->rte[pin] & RTE_REMOTE_IRR)) {
+        if (s->mask_latched[pin] && !(s->rte[pin] & RTE_REMOTE_IRR)) {
             s->rte[pin] |= RTE_DELIVERY_STATUS;
         } else {
             s->rte[pin] &= ~RTE_DELIVERY_STATUS;
@@ -168,8 +165,7 @@ static void pid_set_pin(Intel460GXPIDState *s, unsigned pin, int level)
         if (new_active) {
             pid_update(s, pin);
         }
-    } else if (new_active && !old_active &&
-               !(s->rte[pin] & RTE_MASKED)) {
+    } else if (new_active && !old_active && !(s->rte[pin] & RTE_MASKED)) {
         s->rte[pin] |= RTE_DELIVERY_STATUS;
         pid_update(s, pin);
     }
@@ -189,8 +185,8 @@ static void pid_legacy_handler(void *opaque, int line, int level)
     }
 }
 
-static void pid_rte_write(Intel460GXPIDState *s, unsigned pin,
-                          uint32_t value, bool high)
+static void pid_rte_write(Intel460GXPIDState *s, unsigned pin, uint32_t value,
+                          bool high)
 {
     uint64_t old = s->rte[pin];
     uint64_t candidate;
@@ -198,8 +194,8 @@ static void pid_rte_write(Intel460GXPIDState *s, unsigned pin,
     bool old_masked = old & RTE_MASKED;
 
     if (high) {
-        candidate = (old & UINT64_C(0x00000000ffffffff)) |
-                    ((uint64_t)value << 32);
+        candidate =
+            (old & UINT64_C(0x00000000ffffffff)) | ((uint64_t)value << 32);
     } else {
         candidate = (old & UINT64_C(0xffffffff00000000)) | value;
     }
@@ -212,7 +208,7 @@ static void pid_rte_write(Intel460GXPIDState *s, unsigned pin,
     if (pid_level_route(s->rte[pin])) {
         if (!old_level) {
             bool retain_masked = (old & RTE_DELIVERY_STATUS) &&
-                ((old | s->rte[pin]) & RTE_MASKED);
+                                 ((old | s->rte[pin]) & RTE_MASKED);
 
             /* An unmasked edge is not a sampled level assertion. */
             s->rte[pin] &= ~(RTE_DELIVERY_STATUS | RTE_REMOTE_IRR);
@@ -262,12 +258,10 @@ static uint64_t pid_mmio_read(void *opaque, hwaddr addr, unsigned size)
     case PID_IOWIN:
         index = s->reg_select;
         if (index == PID_REG_ID) {
-            return ((uint32_t)s->apic_id << 24) |
-                   PID_ID_DELIVERY_SAPIC;
+            return ((uint32_t)s->apic_id << 24) | PID_ID_DELIVERY_SAPIC;
         }
         if (index == PID_REG_VERSION) {
-            return ((INTEL_460GX_PID_NUM_PINS - 1) << 16) |
-                   PID_VERSION_SAPIC;
+            return ((INTEL_460GX_PID_NUM_PINS - 1) << 16) | PID_VERSION_SAPIC;
         }
         if (index == PID_REG_ARB_ID) {
             return (uint32_t)s->apic_arb_id << 24;
@@ -308,8 +302,7 @@ static void pid_mmio_write(void *opaque, hwaddr addr, uint64_t value,
             s->apic_id = (value >> 24) & 0xf;
             s->apic_arb_id = s->apic_id;
         } else if (index >= PID_RTE_BASE &&
-                   index < PID_RTE_BASE +
-                           INTEL_460GX_PID_NUM_PINS * 2) {
+                   index < PID_RTE_BASE + INTEL_460GX_PID_NUM_PINS * 2) {
             unsigned pin = (index - PID_RTE_BASE) / 2;
 
             pid_rte_write(s, pin, value, (index - PID_RTE_BASE) & 1);
@@ -364,8 +357,8 @@ static int pid_post_load(void *opaque, int version_id)
         s->rte[pin] &= RTE_WRITABLE | RTE_READ_ONLY;
         if (pid_level_route(s->rte[pin])) {
             s->mask_latched[pin] = !!s->mask_latched[pin] &&
-                (s->rte[pin] & RTE_DELIVERY_STATUS) &&
-                !(s->rte[pin] & RTE_REMOTE_IRR);
+                                   (s->rte[pin] & RTE_DELIVERY_STATUS) &&
+                                   !(s->rte[pin] & RTE_REMOTE_IRR);
             pid_sync_level_status(s, pin);
             pid_update(s, pin);
         } else {
@@ -381,22 +374,22 @@ static const VMStateDescription vmstate_intel_460gx_pid = {
     .version_id = 2,
     .minimum_version_id = 2,
     .post_load = pid_post_load,
-    .fields = (const VMStateField[]) {
-        /* Check the destination wiring before overwriting mutable state. */
-        VMSTATE_UINT16_EQUAL(initial_id_migration, Intel460GXPIDState),
-        VMSTATE_UINT32_EQUAL(legacy_pin, Intel460GXPIDState),
-        VMSTATE_UINT64_EQUAL(test_mmio_base, Intel460GXPIDState),
-        VMSTATE_UINT64_ARRAY(rte, Intel460GXPIDState,
-                             INTEL_460GX_PID_NUM_PINS),
-        VMSTATE_UINT8_ARRAY(irq_level, Intel460GXPIDState,
-                            INTEL_460GX_PID_NUM_PINS),
-        VMSTATE_UINT8_ARRAY(mask_latched, Intel460GXPIDState,
-                            INTEL_460GX_PID_NUM_PINS),
-        VMSTATE_UINT8(reg_select, Intel460GXPIDState),
-        VMSTATE_UINT8(apic_id, Intel460GXPIDState),
-        VMSTATE_UINT8(apic_arb_id, Intel460GXPIDState),
-        VMSTATE_END_OF_LIST()
-    },
+    .fields =
+        (const VMStateField[]) {
+            /* Check the destination wiring before overwriting mutable state. */
+            VMSTATE_UINT16_EQUAL(initial_id_migration, Intel460GXPIDState),
+            VMSTATE_UINT32_EQUAL(legacy_pin, Intel460GXPIDState),
+            VMSTATE_UINT64_EQUAL(test_mmio_base, Intel460GXPIDState),
+            VMSTATE_UINT64_ARRAY(rte, Intel460GXPIDState,
+                                 INTEL_460GX_PID_NUM_PINS),
+            VMSTATE_UINT8_ARRAY(irq_level, Intel460GXPIDState,
+                                INTEL_460GX_PID_NUM_PINS),
+            VMSTATE_UINT8_ARRAY(mask_latched, Intel460GXPIDState,
+                                INTEL_460GX_PID_NUM_PINS),
+            VMSTATE_UINT8(reg_select, Intel460GXPIDState),
+            VMSTATE_UINT8(apic_id, Intel460GXPIDState),
+            VMSTATE_UINT8(apic_arb_id, Intel460GXPIDState),
+            VMSTATE_END_OF_LIST() },
 };
 
 static void pid_realize(DeviceState *dev, Error **errp)
@@ -404,8 +397,7 @@ static void pid_realize(DeviceState *dev, Error **errp)
     Intel460GXPIDState *s = INTEL_460GX_PID(dev);
 
     if (s->initial_id > INTEL_460GX_PID_MAX_ID) {
-        error_setg(errp, "%s must be 0..%u",
-                   INTEL_460GX_PID_PROP_INITIAL_ID,
+        error_setg(errp, "%s must be 0..%u", INTEL_460GX_PID_PROP_INITIAL_ID,
                    INTEL_460GX_PID_MAX_ID);
         return;
     }
@@ -432,24 +424,22 @@ static void pid_init(Object *obj)
     Intel460GXPIDState *s = INTEL_460GX_PID(obj);
     DeviceState *dev = DEVICE(obj);
 
-    memory_region_init_io(&s->mmio, obj, &pid_mmio_ops, s,
-                          TYPE_INTEL_460GX_PID, PID_MMIO_SIZE);
+    memory_region_init_io(&s->mmio, obj, &pid_mmio_ops, s, TYPE_INTEL_460GX_PID,
+                          PID_MMIO_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(obj), &s->mmio);
-    qdev_init_gpio_in_named(dev, pid_irq_handler,
-                            INTEL_460GX_PID_GPIO_IRQ,
+    qdev_init_gpio_in_named(dev, pid_irq_handler, INTEL_460GX_PID_GPIO_IRQ,
                             INTEL_460GX_PID_NUM_PINS);
     qdev_init_gpio_in_named(dev, pid_legacy_handler,
                             INTEL_460GX_PID_GPIO_LEGACY, 1);
 }
 
 static const Property pid_properties[] = {
-    DEFINE_PROP_UINT8(INTEL_460GX_PID_PROP_INITIAL_ID,
-                      Intel460GXPIDState, initial_id, 0),
-    DEFINE_PROP_UINT32(INTEL_460GX_PID_PROP_LEGACY_PIN,
-                       Intel460GXPIDState, legacy_pin,
-                       INTEL_460GX_PID_LEGACY_PIN_DISCONNECTED),
-    DEFINE_PROP_UINT64("x-test-mmio-base", Intel460GXPIDState,
-                       test_mmio_base, PID_TEST_MMIO_UNMAPPED),
+    DEFINE_PROP_UINT8(INTEL_460GX_PID_PROP_INITIAL_ID, Intel460GXPIDState,
+                      initial_id, 0),
+    DEFINE_PROP_UINT32(INTEL_460GX_PID_PROP_LEGACY_PIN, Intel460GXPIDState,
+                       legacy_pin, INTEL_460GX_PID_LEGACY_PIN_DISCONNECTED),
+    DEFINE_PROP_UINT64("x-test-mmio-base", Intel460GXPIDState, test_mmio_base,
+                       PID_TEST_MMIO_UNMAPPED),
 };
 
 static void pid_class_init(ObjectClass *klass, const void *data)

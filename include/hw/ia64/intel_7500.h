@@ -10,6 +10,6 @@
 OBJECT_DECLARE_SIMPLE_TYPE(Intel7500State, INTEL_7500_IOMMU)
 
 /* Install before realizing endpoints; secondary bridge is at root slot 7. */
-bool intel_7500_create(Object *parent, PCIBus *bus, hwaddr base,
-                       bool coherent, Error **errp);
+bool intel_7500_create(Object *parent, PCIBus *bus, hwaddr base, bool coherent,
+                       Error **errp);
 #endif

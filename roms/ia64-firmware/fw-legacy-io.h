@@ -39,8 +39,8 @@ EFI_STATUS fw_pci_root_map(UINTN operation, VOID *host_address,
                            VOID **mapping);
 EFI_STATUS fw_pci_root_unmap(VOID *mapping);
 EFI_STATUS fw_pci_root_allocate_buffer(EFI_ALLOCATE_TYPE type,
-                                       EFI_MEMORY_TYPE memory_type,
-                                       UINTN pages, VOID **host_address);
+                                       EFI_MEMORY_TYPE memory_type, UINTN pages,
+                                       VOID **host_address);
 EFI_STATUS fw_pci_root_free_buffer(UINTN pages, VOID *host_address);
 EFI_STATUS fw_pci_root_flush(VOID);
 EFI_STATUS fw_pci_copy_device_path(UINT8 bus, UINT8 device, UINT8 function,
@@ -53,14 +53,14 @@ BOOLEAN fw_scsi_target_valid(UINT32 target, UINT64 lun);
 UINT32 fw_scsi_adapter_id(VOID);
 UINT64 fw_scsi_sas_address(UINT32 target);
 EFI_HANDLE fw_scsi_controller_handle(VOID);
-FW_LSI_SCRIPT_RESULT fw_scsi_execute_buffered(
-    UINT8 target, const UINT8 *cdb, UINTN cdb_length, VOID *data,
-    UINT32 data_length, BOOLEAN write_to_device, UINT64 timeout_100ns,
-    UINT8 *target_status, UINT32 *transferred, VOID *sense_data,
-    UINT8 *sense_length);
+FW_LSI_SCRIPT_RESULT
+fw_scsi_execute_buffered(UINT8 target, const UINT8 *cdb, UINTN cdb_length,
+                         VOID *data, UINT32 data_length,
+                         BOOLEAN write_to_device, UINT64 timeout_100ns,
+                         UINT8 *target_status, UINT32 *transferred,
+                         VOID *sense_data, UINT8 *sense_length);
 EFI_STATUS fw_scsi_reset_channel(VOID);
-FW_LSI_SCRIPT_RESULT fw_scsi_reset_target(UINT8 target,
-                                           UINT64 timeout_100ns);
+FW_LSI_SCRIPT_RESULT fw_scsi_reset_target(UINT8 target, UINT64 timeout_100ns);
 
 VOID *fw_serial_device_path(VOID);
 UINTN fw_serial_device_path_size(VOID);

@@ -38,23 +38,21 @@ typedef struct HPIOSAPICMessage {
     uint32_t data;
 } HPIOSAPICMessage;
 
-typedef void (*HPIOSAPICDeliver)(void *opaque,
-                                 const HPIOSAPICMessage *message);
+typedef void (*HPIOSAPICDeliver)(void *opaque, const HPIOSAPICMessage *message);
 
 extern const HPIOSAPICPolicy hp_io_sapic_astro_policy;
 extern const HPIOSAPICPolicy hp_io_sapic_zx1_policy;
 
 uint32_t hp_io_sapic_select_read(const HPIOSAPICPolicy *policy,
                                  uint32_t selector);
-void hp_io_sapic_select_write(const HPIOSAPICPolicy *policy,
-                              uint32_t *selector, uint64_t value);
+void hp_io_sapic_select_write(const HPIOSAPICPolicy *policy, uint32_t *selector,
+                              uint64_t value);
 
-bool hp_io_sapic_window_read(const HPIOSAPICPolicy *policy,
-                             uint32_t selector, const uint64_t *regs,
-                             size_t reg_count, uint64_t *value);
-bool hp_io_sapic_window_write(const HPIOSAPICPolicy *policy,
-                              uint32_t selector, uint64_t *regs,
-                              size_t reg_count, uint64_t value);
+bool hp_io_sapic_window_read(const HPIOSAPICPolicy *policy, uint32_t selector,
+                             const uint64_t *regs, size_t reg_count,
+                             uint64_t *value);
+bool hp_io_sapic_window_write(const HPIOSAPICPolicy *policy, uint32_t selector,
+                              uint64_t *regs, size_t reg_count, uint64_t value);
 
 bool hp_io_sapic_reset(const HPIOSAPICPolicy *policy, uint32_t *selector,
                        uint64_t *regs, size_t reg_count, uint32_t *ilr,
@@ -62,17 +60,15 @@ bool hp_io_sapic_reset(const HPIOSAPICPolicy *policy, uint32_t *selector,
 
 bool hp_io_sapic_make_message(const HPIOSAPICPolicy *policy,
                               const uint64_t *regs, size_t reg_count,
-                              unsigned int entry,
-                              HPIOSAPICMessage *message);
+                              unsigned int entry, HPIOSAPICMessage *message);
 
 /*
  * External-input transitions are supported by the Astro policy.  ZX1 board
  * wiring and polarity resolution are handled by its board model.
  */
 bool hp_io_sapic_set_input(const HPIOSAPICPolicy *policy, uint64_t *regs,
-                           size_t reg_count, uint32_t *ilr,
-                           unsigned int input, bool level,
-                           HPIOSAPICDeliver deliver, void *opaque);
+                           size_t reg_count, uint32_t *ilr, unsigned int input,
+                           bool level, HPIOSAPICDeliver deliver, void *opaque);
 
 /*
  * asserted is a bitmap of polarity-resolved active zx1 external

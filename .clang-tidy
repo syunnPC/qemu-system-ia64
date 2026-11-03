@@ -1,0 +1,12 @@
+Checks: >
+  -*,
+  clang-analyzer-*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-casting-through-void,
+  -bugprone-assignment-in-if-condition,
+  readability-braces-around-statements
+# GLib's g_assert and g_array_index expand to assignments and void-pointer casts.
+# Parameter-order heuristics also flag standard device callback signatures.
+CheckOptions:
+  readability-braces-around-statements.ShortStatementLines: 0

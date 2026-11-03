@@ -23,8 +23,7 @@ void helper_ia32_system_flag(CPUIA64State *env, target_ulong old_flags,
                              uint32_t ident, target_ulong next_eip);
 void helper_ia32_code_fetch_check(CPUIA64State *env);
 void helper_ia32_segment_access(CPUIA64State *env, target_ulong linear,
-                                uint32_t seg, uint32_t size,
-                                uint32_t access);
+                                uint32_t seg, uint32_t size, uint32_t access);
 void helper_ia32_bound_access(CPUIA64State *env, target_ulong linear,
                               uint32_t seg, uint32_t element_size);
 void helper_ia32_fxstate_access(CPUIA64State *env, target_ulong linear,
@@ -35,13 +34,10 @@ void helper_ia32_virtual_sti_check(CPUIA64State *env);
 void helper_ia32_virtual_popf(CPUIA64State *env, target_ulong value);
 void helper_ia32_taken_branch(CPUIA64State *env);
 G_NORETURN void helper_ia32_instruction_intercept(CPUIA64State *env,
-                                                  uint64_t iim,
-                                                  uint32_t code);
-void helper_ia32_complete_instruction(CPUIA64State *env,
-                                      target_ulong next_eip);
+                                                  uint64_t iim, uint32_t code);
+void helper_ia32_complete_instruction(CPUIA64State *env, target_ulong next_eip);
 void helper_ia32_rep_iteration(CPUIA64State *env);
-void helper_ia32_check_disabled_fp(CPUIA64State *env,
-                                   uint32_t fp_instruction);
+void helper_ia32_check_disabled_fp(CPUIA64State *env, uint32_t fp_instruction);
 void helper_ia32_sse_exception_begin(CPUIA64State *env);
 void helper_ia32_sse_exception_end(CPUIA64State *env);
 
@@ -57,8 +53,7 @@ static uint32_t ia32_trap_code(CPUIA64State *env)
     uint32_t eflags = cpu_compute_eflags(&env->ia32);
     uint32_t code = (env->ia32_data_breakpoints & 0xf) << 4;
 
-    return code |
-           (((env->psr & IA64_PSR_SS) || (eflags & TF_MASK)) ? 8 : 0);
+    return code | (((env->psr & IA64_PSR_SS) || (eflags & TF_MASK)) ? 8 : 0);
 }
 
 static bool ia32_debug_plm_match(uint64_t control, unsigned cpl)
@@ -72,8 +67,7 @@ static bool ia32_debug_address_match(uint64_t reference, uint64_t address,
     return (reference & mask) == (address & mask);
 }
 
-static bool ia32_instruction_breakpoint_match(CPUIA64State *env,
-                                              uint32_t ip)
+static bool ia32_instruction_breakpoint_match(CPUIA64State *env, uint32_t ip)
 {
     unsigned cpl = ia64_psr_cpl(env->psr);
     unsigned pair;
@@ -91,8 +85,7 @@ static bool ia32_instruction_breakpoint_match(CPUIA64State *env,
     return false;
 }
 
-static void ia32_record_data_breakpoints(CPUIA64State *env,
-                                         uint64_t reference,
+static void ia32_record_data_breakpoints(CPUIA64State *env, uint64_t reference,
                                          uint32_t size, uint32_t access,
                                          bool require_32bit_address)
 {
@@ -110,19 +103,17 @@ static void ia32_record_data_breakpoints(CPUIA64State *env,
         bool access_match =
             ((access & IA64_IA32_SEG_ACCESS_READ) &&
              (control & (1ULL << 63))) ||
-            ((access & IA64_IA32_SEG_ACCESS_WRITE) &&
-             (control & (1ULL << 62)));
+            ((access & IA64_IA32_SEG_ACCESS_WRITE) && (control & (1ULL << 62)));
         uint32_t byte;
 
-        if ((require_32bit_address && (address >> 32) != 0) ||
-            !access_match ||
+        if ((require_32bit_address && (address >> 32) != 0) || !access_match ||
             !ia32_debug_plm_match(control, cpl)) {
             continue;
         }
         for (byte = 0; byte < size; byte++) {
-            uint64_t byte_reference = require_32bit_address ?
-                                      (uint32_t)(reference + byte) :
-                                      reference + byte;
+            uint64_t byte_reference = require_32bit_address
+                                          ? (uint32_t)(reference + byte)
+                                          : reference + byte;
 
             if (ia32_debug_address_match(byte_reference, address,
                                          control & address_mask)) {
@@ -145,13 +136,13 @@ void ia64_ia32_record_io_access(CPUIA64State *env, uint64_t address,
     ia32_record_data_breakpoints(env, address, size, access, false);
 }
 
-void ia64_ia32_probe_access(CPUIA64State *env, uint32_t address,
-                            unsigned size, MMUAccessType access_type,
-                            int mmu_idx, uintptr_t retaddr)
+void ia64_ia32_probe_access(CPUIA64State *env, uint32_t address, unsigned size,
+                            MMUAccessType access_type, int mmu_idx,
+                            uintptr_t retaddr)
 {
     while (size > 0) {
-        unsigned page_left = TARGET_PAGE_SIZE -
-                             (address & (TARGET_PAGE_SIZE - 1));
+        unsigned page_left =
+            TARGET_PAGE_SIZE - (address & (TARGET_PAGE_SIZE - 1));
         unsigned chunk = MIN(size, page_left);
 
         probe_access(env, address, chunk, access_type, mmu_idx, retaddr);
@@ -160,14 +151,10 @@ void ia64_ia32_probe_access(CPUIA64State *env, uint32_t address,
     }
 }
 
-static G_NORETURN void ia32_leave_for_exception(CPUX86State *xenv,
-                                                 IA64Exception exception,
-                                                 uint32_t vector,
-                                                 uint32_t code,
-                                                 bool trap,
-                                                 uint32_t fault_ip,
-                                                 uint32_t next_ip,
-                                                 uintptr_t retaddr)
+static G_NORETURN void
+ia32_leave_for_exception(CPUX86State *xenv, IA64Exception exception,
+                         uint32_t vector, uint32_t code, bool trap,
+                         uint32_t fault_ip, uint32_t next_ip, uintptr_t retaddr)
 {
     CPUIA64State *env = (CPUIA64State *)xenv;
     CPUState *cs = env_cpu(env);
@@ -178,12 +165,10 @@ static G_NORETURN void ia32_leave_for_exception(CPUX86State *xenv,
 
     xenv->error_code = code;
     xenv->exception_is_int = trap;
-    xenv->exception_next_eip =
-        (uint32_t)(next_ip - xenv->segs[R_CS].base);
+    xenv->exception_next_eip = (uint32_t)(next_ip - xenv->segs[R_CS].base);
     env->cr_isr = ((uint64_t)vector << IA64_ISR_VECTOR_SHIFT) |
                   (code & IA64_ISR_CODE_MASK);
-    if (exception == IA64_EXCP_IA32_EXCEPTION && vector == EXCP01_DB &&
-        !trap) {
+    if (exception == IA64_EXCP_IA32_EXCEPTION && vector == EXCP01_DB && !trap) {
         env->cr_isr |= IA64_ISR_X;
     }
     env->exception_state.fault_ip = fault_ip;
@@ -196,10 +181,8 @@ static G_NORETURN void ia32_leave_for_exception(CPUX86State *xenv,
     cpu_loop_exit(cs);
 }
 
-G_NORETURN void ia64_ia32_raise_intercept(CPUX86State *xenv,
-                                          uint32_t intercept,
-                                          uint32_t code,
-                                          uintptr_t retaddr)
+G_NORETURN void ia64_ia32_raise_intercept(CPUX86State *xenv, uint32_t intercept,
+                                          uint32_t code, uintptr_t retaddr)
 {
     uint32_t ip;
 
@@ -210,31 +193,27 @@ G_NORETURN void ia64_ia32_raise_intercept(CPUX86State *xenv,
         retaddr = 0;
     }
     ip = ia64_ia32_virtual_ip((CPUIA64State *)xenv);
-    ia32_leave_for_exception(xenv, IA64_EXCP_IA32_INTERCEPT,
-                             intercept, code, false, ip, ip, retaddr);
+    ia32_leave_for_exception(xenv, IA64_EXCP_IA32_INTERCEPT, intercept, code,
+                             false, ip, ip, retaddr);
 }
 
-G_NORETURN void ia64_ia32_gate_intercept(CPUX86State *xenv,
-                                         uint16_t selector,
-                                         uint32_t desc_low,
-                                         uint32_t desc_high,
-                                         uint32_t ident,
-                                         target_ulong next_eip,
+G_NORETURN void ia64_ia32_gate_intercept(CPUX86State *xenv, uint16_t selector,
+                                         uint32_t desc_low, uint32_t desc_high,
+                                         uint32_t ident, target_ulong next_eip,
                                          uintptr_t retaddr)
 {
     CPUIA64State *env = (CPUIA64State *)xenv;
     uint32_t old_ip;
     uint32_t next_ip;
     uint32_t eflags;
-    uint32_t code = ((ident & 3) << 14) |
-                    ((env->ia32_data_breakpoints & 0xf) << 4);
+    uint32_t code =
+        ((ident & 3) << 14) | ((env->ia32_data_breakpoints & 0xf) << 4);
 
     if (retaddr) {
         cpu_restore_state(env_cpu(env), retaddr);
     }
     old_ip = ia64_ia32_virtual_ip(env);
-    next_ip =
-        (uint32_t)(xenv->segs[R_CS].base + (uint32_t)next_eip);
+    next_ip = (uint32_t)(xenv->segs[R_CS].base + (uint32_t)next_eip);
     eflags = cpu_compute_eflags(xenv);
     if (env->psr & IA64_PSR_TB) {
         code |= 1 << 2;
@@ -248,8 +227,8 @@ G_NORETURN void ia64_ia32_gate_intercept(CPUX86State *xenv,
     env->cr_ifa = selector;
     env->cr_iim = desc_low | (uint64_t)desc_high << 32;
     ia32_leave_for_exception(xenv, IA64_EXCP_IA32_INTERCEPT,
-                             IA64_IA32_INTERCEPT_GATE, code, true,
-                             old_ip, next_ip, 0);
+                             IA64_IA32_INTERCEPT_GATE, code, true, old_ip,
+                             next_ip, 0);
 }
 
 static G_NORETURN void ia32_raise_fault(CPUX86State *xenv, int vector,
@@ -258,8 +237,7 @@ static G_NORETURN void ia32_raise_fault(CPUX86State *xenv, int vector,
     uint32_t ip;
 
     if (vector == EXCP06_ILLOP) {
-        ia64_ia32_raise_intercept(xenv,
-                                  IA64_IA32_INTERCEPT_INSTRUCTION, 0,
+        ia64_ia32_raise_intercept(xenv, IA64_IA32_INTERCEPT_INSTRUCTION, 0,
                                   retaddr);
     }
     if (retaddr) {
@@ -269,8 +247,8 @@ static G_NORETURN void ia32_raise_fault(CPUX86State *xenv, int vector,
         retaddr = 0;
     }
     ip = ia64_ia32_virtual_ip((CPUIA64State *)xenv);
-    ia32_leave_for_exception(xenv, IA64_EXCP_IA32_EXCEPTION,
-                             vector, error_code, false, ip, ip, retaddr);
+    ia32_leave_for_exception(xenv, IA64_EXCP_IA32_EXCEPTION, vector, error_code,
+                             false, ip, ip, retaddr);
 }
 
 static uint32_t ia32_sse_status_from_flags(uint16_t flags)
@@ -281,15 +259,16 @@ static uint32_t ia32_sse_status_from_flags(uint16_t flags)
         float_flag_invalid_sqrt | float_flag_invalid_cvti |
         float_flag_invalid_snan;
 
-    return ((flags & (float_flag_invalid | invalid_detail)) ?
-            IA32_MXCSR_IE : 0) |
+    return ((flags & (float_flag_invalid | invalid_detail)) ? IA32_MXCSR_IE
+                                                            : 0) |
            ((flags & float_flag_input_denormal_used) ? IA32_MXCSR_DE : 0) |
            ((flags & float_flag_divbyzero) ? IA32_MXCSR_ZE : 0) |
            ((flags & float_flag_overflow) ? IA32_MXCSR_OE : 0) |
            ((flags & float_flag_underflow) ? IA32_MXCSR_UE : 0) |
            ((flags & float_flag_inexact) ? IA32_MXCSR_PE : 0) |
-           ((flags & float_flag_output_denormal_flushed) ?
-            IA32_MXCSR_UE | IA32_MXCSR_PE : 0);
+           ((flags & float_flag_output_denormal_flushed)
+                ? IA32_MXCSR_UE | IA32_MXCSR_PE
+                : 0);
 }
 
 static void ia32_restore_sse_results(CPUIA64State *env)
@@ -316,8 +295,7 @@ void ia64_ia32_abort_sse_instruction(CPUIA64State *env)
     }
 
     ia32_restore_sse_results(env);
-    set_float_exception_flags(env->ia32_sse_old_flags,
-                              &env->ia32.sse_status);
+    set_float_exception_flags(env->ia32_sse_old_flags, &env->ia32.sse_status);
     env->ia32_sse_instruction_active = false;
 }
 
@@ -392,8 +370,7 @@ static void ia32_check_block_alignment(CPUX86State *xenv, vaddr addr,
             return;
         }
         eflags = cpu_compute_eflags(xenv);
-        if (!(eflags & AC_MASK) ||
-            !(xenv->cr[IA32_CR0_INDEX] & CR0_AM_MASK) ||
+        if (!(eflags & AC_MASK) || !(xenv->cr[IA32_CR0_INDEX] & CR0_AM_MASK) ||
             (xenv->hflags & HF_CPL_MASK) != 3) {
             return;
         }
@@ -432,8 +409,8 @@ void ia64_ia32_check_block_alignment(CPUX86State *xenv, vaddr addr,
     ia32_check_block_alignment(xenv, addr, size, true, retaddr);
 }
 
-void ia64_ia32_check_psr_alignment(CPUX86State *xenv, vaddr addr,
-                                   unsigned size, uintptr_t retaddr)
+void ia64_ia32_check_psr_alignment(CPUX86State *xenv, vaddr addr, unsigned size,
+                                   uintptr_t retaddr)
 {
     ia32_check_block_alignment(xenv, addr, size, false, retaddr);
 }
@@ -472,8 +449,8 @@ G_NORETURN void raise_interrupt(CPUX86State *xenv, int vector,
 
     xenv->eflags &= ~RF_MASK;
     env->psr &= ~IA64_PSR_ID;
-    ia32_leave_for_exception(xenv, IA64_EXCP_IA32_EXCEPTION,
-                             vector, code, true, fault_ip, next_ip, 0);
+    ia32_leave_for_exception(xenv, IA64_EXCP_IA32_EXCEPTION, vector, code, true,
+                             fault_ip, next_ip, 0);
 }
 
 G_NORETURN void helper_raise_interrupt(CPUX86State *xenv, int vector,
@@ -494,10 +471,9 @@ G_NORETURN void helper_raise_interrupt(CPUX86State *xenv, int vector,
     vector &= 0xff;
     xenv->eflags &= ~RF_MASK;
     env->psr &= ~IA64_PSR_ID;
-    ia32_leave_for_exception(xenv,
-                             int3 ? IA64_EXCP_IA32_EXCEPTION :
-                                    IA64_EXCP_IA32_INTERRUPT,
-                             vector, code, true, fault_ip, next_ip, 0);
+    ia32_leave_for_exception(
+        xenv, int3 ? IA64_EXCP_IA32_EXCEPTION : IA64_EXCP_IA32_INTERRUPT,
+        vector, code, true, fault_ip, next_ip, 0);
 }
 
 G_NORETURN void helper_ia32_raise_exception(CPUIA64State *env, int vector)
@@ -521,21 +497,18 @@ void helper_ia32_system_flag(CPUIA64State *env, target_ulong old_flags,
     uint32_t current = cpu_compute_eflags(xenv);
     uint32_t changed = old ^ current;
     uint32_t source_ip = env->ip;
-    uint32_t next_ip =
-        (uint32_t)(xenv->segs[R_CS].base + (uint32_t)next_eip);
+    uint32_t next_ip = (uint32_t)(xenv->segs[R_CS].base + (uint32_t)next_eip);
     uint32_t code;
     bool intercept;
 
     switch (ident) {
     case 0: /* CLI */
     case 1: /* STI */
-        intercept = (env->ar_cflg & (1ULL << 8)) &&
-                    (changed & IF_MASK);
+        intercept = (env->ar_cflg & (1ULL << 8)) && (changed & IF_MASK);
         break;
     case 2: /* POPF/POPFD */
         intercept = (changed & (TF_MASK | AC_MASK)) ||
-                    ((env->ar_cflg & (1ULL << 8)) &&
-                     (changed & IF_MASK));
+                    ((env->ar_cflg & (1ULL << 8)) && (changed & IF_MASK));
         break;
     case 3: /* MOV SS / POP SS */
         intercept = true;
@@ -573,18 +546,15 @@ bool ia64_ia32_code_fetch_valid(CPUX86State *xenv, uint32_t linear,
     unsigned cpl = xenv->hflags & HF_CPL_MASK;
     bool virtual_interrupts =
         (xenv->cr[IA32_CR4_INDEX] & CR4_PVI_MASK) ||
-        ((eflags & VM_MASK) &&
-         (xenv->cr[IA32_CR4_INDEX] & CR4_VME_MASK));
+        ((eflags & VM_MASK) && (xenv->cr[IA32_CR4_INDEX] & CR4_VME_MASK));
 
     if (!(cs->flags & DESC_S_MASK) || !(cs->flags & DESC_P_MASK) ||
-        !(cs->flags & DESC_A_MASK) || (type & 0xc) == 4 ||
-        eip > cs->limit ||
+        !(cs->flags & DESC_A_MASK) || (type & 0xc) == 4 || eip > cs->limit ||
         (last >= eip ? last > cs->limit : cs->limit != UINT32_MAX) ||
         (!(xenv->cr[IA32_CR0_INDEX] & CR0_PE_MASK) &&
          (cpl != 0 || (eflags & VM_MASK))) ||
         ((eflags & VM_MASK) &&
-         (cpl != 3 ||
-          ((cs->flags & DESC_DPL_MASK) >> DESC_DPL_SHIFT) != 3 ||
+         (cpl != 3 || ((cs->flags & DESC_DPL_MASK) >> DESC_DPL_SHIFT) != 3 ||
           (cs->flags & DESC_B_MASK))) ||
         ((eflags & (VIP_MASK | VIF_MASK)) == (VIP_MASK | VIF_MASK) &&
          (xenv->cr[IA32_CR0_INDEX] & CR0_PE_MASK) && cpl == 3 &&
@@ -595,9 +565,9 @@ bool ia64_ia32_code_fetch_valid(CPUX86State *xenv, uint32_t linear,
 }
 
 bool ia64_ia32_code_fetch_fault_probes_second_page(CPUX86State *xenv,
-                                                    uint32_t insn,
-                                                    uint32_t linear,
-                                                    unsigned size)
+                                                   uint32_t insn,
+                                                   uint32_t linear,
+                                                   unsigned size)
 {
     SegmentCache *cs = &xenv->segs[R_CS];
     uint32_t last = linear + size - 1;
@@ -618,16 +588,14 @@ bool ia64_ia32_code_fetch_fault_probes_second_page(CPUX86State *xenv,
            ia64_ia32_code_fetch_valid(xenv, linear, first_page_size);
 }
 
-void ia64_ia32_check_fetch_fault_priority(CPUIA64State *env,
-                                          uint32_t linear,
+void ia64_ia32_check_fetch_fault_priority(CPUIA64State *env, uint32_t linear,
                                           uintptr_t retaddr)
 {
     CPUX86State *xenv = &env->ia32;
     uint32_t eflags = cpu_compute_eflags(xenv);
 
     if ((env->psr & IA64_PSR_DB) && !(env->psr & IA64_PSR_ID) &&
-        !(eflags & RF_MASK) &&
-        ia32_instruction_breakpoint_match(env, linear)) {
+        !(eflags & RF_MASK) && ia32_instruction_breakpoint_match(env, linear)) {
         ia32_raise_fault(xenv, EXCP01_DB, 0, retaddr);
     }
 
@@ -656,8 +624,7 @@ void ia64_ia32_check_segment_access(CPUX86State *xenv, uint32_t linear,
     unsigned cpl = xenv->hflags & HF_CPL_MASK;
     unsigned dpl;
     bool vm86 = eflags & VM_MASK;
-    bool protected_mode =
-        (xenv->cr[IA32_CR0_INDEX] & CR0_PE_MASK) && !vm86;
+    bool protected_mode = (xenv->cr[IA32_CR0_INDEX] & CR0_PE_MASK) && !vm86;
     bool code;
     bool expand_down;
     bool readable;
@@ -683,18 +650,17 @@ void ia64_ia32_check_segment_access(CPUX86State *xenv, uint32_t linear,
     readable = !code || (cache->flags & DESC_R_MASK);
     writable = !code && (cache->flags & DESC_W_MASK);
 
-    invalid = !(cache->flags & DESC_S_MASK) ||
-              !(cache->flags & DESC_P_MASK) ||
+    invalid = !(cache->flags & DESC_S_MASK) || !(cache->flags & DESC_P_MASK) ||
               !(cache->flags & DESC_A_MASK);
 
     if (expand_down) {
         upper = (cache->flags & DESC_B_MASK) ? UINT32_MAX : UINT16_MAX;
-        invalid |= offset <= cache->limit || offset > upper ||
-                   last < offset || last > upper;
+        invalid |= offset <= cache->limit || offset > upper || last < offset ||
+                   last > upper;
     } else {
-        invalid |= offset > cache->limit ||
-                   (last >= offset ? last > cache->limit
-                                   : cache->limit != UINT32_MAX);
+        invalid |=
+            offset > cache->limit ||
+            (last >= offset ? last > cache->limit : cache->limit != UINT32_MAX);
     }
 
     if (seg == R_CS) {
@@ -718,22 +684,20 @@ void ia64_ia32_check_segment_access(CPUX86State *xenv, uint32_t linear,
     }
 
     if (invalid) {
-        ia32_raise_fault(xenv, seg == R_SS ? EXCP0C_STACK : EXCP0D_GPF,
-                         0, retaddr);
+        ia32_raise_fault(xenv, seg == R_SS ? EXCP0C_STACK : EXCP0D_GPF, 0,
+                         retaddr);
     }
 
     /* Data translation/protection faults precede AlignmentCheck. */
-    mmu_access = access & IA64_IA32_SEG_ACCESS_WRITE ?
-                 MMU_DATA_STORE : MMU_DATA_LOAD;
+    mmu_access =
+        access & IA64_IA32_SEG_ACCESS_WRITE ? MMU_DATA_STORE : MMU_DATA_LOAD;
     mmu_idx = cpu_mmu_index(env_cpu(env), false);
-    ia64_ia32_probe_access(env, linear, size, mmu_access, mmu_idx,
-                           retaddr);
+    ia64_ia32_probe_access(env, linear, size, mmu_access, mmu_idx, retaddr);
     ia64_ia32_check_block_alignment(xenv, linear, size, retaddr);
 }
 
 void helper_ia32_segment_access(CPUIA64State *env, target_ulong linear,
-                                uint32_t seg, uint32_t size,
-                                uint32_t access)
+                                uint32_t seg, uint32_t size, uint32_t access)
 {
     ia64_ia32_check_segment_access(&env->ia32, linear, seg, size, access,
                                    GETPC());
@@ -745,13 +709,11 @@ void helper_ia32_bound_access(CPUIA64State *env, target_ulong linear,
     uintptr_t retaddr = GETPC();
 
     /* BOUND reads two independently aligned words or doublewords. */
-    ia64_ia32_check_segment_access(&env->ia32, linear, seg,
-                                   element_size,
+    ia64_ia32_check_segment_access(&env->ia32, linear, seg, element_size,
                                    IA64_IA32_SEG_ACCESS_READ, retaddr);
-    ia64_ia32_check_segment_access(&env->ia32,
-                                   (uint32_t)(linear + element_size),
-                                   seg, element_size,
-                                   IA64_IA32_SEG_ACCESS_READ, retaddr);
+    ia64_ia32_check_segment_access(
+        &env->ia32, (uint32_t)(linear + element_size), seg, element_size,
+        IA64_IA32_SEG_ACCESS_READ, retaddr);
 }
 
 void helper_ia32_fxstate_access(CPUIA64State *env, target_ulong linear,
@@ -763,8 +725,8 @@ void helper_ia32_fxstate_access(CPUIA64State *env, target_ulong linear,
     if ((uint32_t)linear & 0xf) {
         ia32_raise_fault(&env->ia32, EXCP0D_GPF, 0, retaddr);
     }
-    ia64_ia32_check_segment_access(&env->ia32, linear, seg, 512,
-                                   access, retaddr);
+    ia64_ia32_check_segment_access(&env->ia32, linear, seg, 512, access,
+                                   retaddr);
 }
 
 void helper_ia32_lock_check(CPUIA64State *env, target_ulong linear,
@@ -784,8 +746,8 @@ void helper_ia32_lock_check(CPUIA64State *env, target_ulong linear,
      * precede Alignment Check and Lock Intercept.  Probe the complete RMW
      * range before deciding whether an external lock is required.
      */
-    writeback = ia64_exec_probe_writeback(env, addr, size,
-                                          MMU_DATA_STORE, GETPC());
+    writeback =
+        ia64_exec_probe_writeback(env, addr, size, MMU_DATA_STORE, GETPC());
     external_lock = !writeback || (addr & 7) + size > 8;
     if (!external_lock) {
         return;
@@ -824,8 +786,7 @@ void helper_ia32_virtual_popf(CPUIA64State *env, target_ulong value)
     }
 
     cpu_load_eflags(xenv, value, TF_MASK | NT_MASK);
-    xenv->eflags = (xenv->eflags & ~VIF_MASK) |
-                   ((value & IF_MASK) << (19 - 9));
+    xenv->eflags = (xenv->eflags & ~VIF_MASK) | ((value & IF_MASK) << (19 - 9));
 }
 
 void helper_ia32_taken_branch(CPUIA64State *env)
@@ -854,29 +815,25 @@ void helper_ia32_taken_branch(CPUIA64State *env)
     source_ip = env->ip;
     target_ip = ia64_ia32_virtual_ip(env);
 
-    ia32_leave_for_exception(xenv, IA64_EXCP_IA32_EXCEPTION,
-                             EXCP01_DB, code, true,
-                             (code & (1 << 2)) ? source_ip : target_ip,
+    ia32_leave_for_exception(xenv, IA64_EXCP_IA32_EXCEPTION, EXCP01_DB, code,
+                             true, (code & (1 << 2)) ? source_ip : target_ip,
                              target_ip, 0);
 }
 
 G_NORETURN void helper_ia32_instruction_intercept(CPUIA64State *env,
-                                                  uint64_t iim,
-                                                  uint32_t code)
+                                                  uint64_t iim, uint32_t code)
 {
     env->cr_iim = iim;
-    ia64_ia32_raise_intercept(&env->ia32,
-                              IA64_IA32_INTERCEPT_INSTRUCTION, code, 0);
+    ia64_ia32_raise_intercept(&env->ia32, IA64_IA32_INTERCEPT_INSTRUCTION, code,
+                              0);
 }
 
-void helper_ia32_complete_instruction(CPUIA64State *env,
-                                      target_ulong next_eip)
+void helper_ia32_complete_instruction(CPUIA64State *env, target_ulong next_eip)
 {
     CPUX86State *xenv = &env->ia32;
     uint32_t eflags = cpu_compute_eflags(xenv);
     uint32_t code = (env->ia32_data_breakpoints & 0xf) << 4;
-    uint32_t next_ip =
-        (uint32_t)(xenv->segs[R_CS].base + (uint32_t)next_eip);
+    uint32_t next_ip = (uint32_t)(xenv->segs[R_CS].base + (uint32_t)next_eip);
 
     ia64_ia32_sync_psr_cpl(env);
     xenv->eflags &= ~RF_MASK;
@@ -887,9 +844,8 @@ void helper_ia32_complete_instruction(CPUIA64State *env,
         code |= 1 << 3;
     }
     if (code) {
-        ia32_leave_for_exception(xenv, IA64_EXCP_IA32_EXCEPTION,
-                                 EXCP01_DB, code, true,
-                                 next_ip, next_ip, 0);
+        ia32_leave_for_exception(xenv, IA64_EXCP_IA32_EXCEPTION, EXCP01_DB,
+                                 code, true, next_ip, next_ip, 0);
     }
 }
 
@@ -908,12 +864,11 @@ void helper_ia32_rep_iteration(CPUIA64State *env)
     }
 
     ip = ia64_ia32_virtual_ip(env);
-    ia32_leave_for_exception(xenv, IA64_EXCP_IA32_EXCEPTION,
-                             EXCP01_DB, code, true, ip, ip, 0);
+    ia32_leave_for_exception(xenv, IA64_EXCP_IA32_EXCEPTION, EXCP01_DB, code,
+                             true, ip, ip, 0);
 }
 
-void helper_ia32_check_disabled_fp(CPUIA64State *env,
-                                   uint32_t fp_instruction)
+void helper_ia32_check_disabled_fp(CPUIA64State *env, uint32_t fp_instruction)
 {
     uint64_t disabled = env->psr & IA64_PSR_DFH;
 
@@ -927,8 +882,7 @@ void helper_ia32_check_disabled_fp(CPUIA64State *env,
 
 G_NORETURN void helper_icebp(CPUX86State *xenv)
 {
-    ia64_ia32_raise_intercept(xenv, IA64_IA32_INTERCEPT_INSTRUCTION,
-                              0, 0);
+    ia64_ia32_raise_intercept(xenv, IA64_IA32_INTERCEPT_INSTRUCTION, 0, 0);
 }
 
 G_NORETURN void helper_single_step(CPUX86State *xenv)
@@ -937,8 +891,7 @@ G_NORETURN void helper_single_step(CPUX86State *xenv)
     uint32_t next_ip = ia64_ia32_virtual_ip(env);
     uint32_t fault_ip = env->ip;
 
-    ia32_leave_for_exception(xenv, IA64_EXCP_IA32_EXCEPTION,
-                             EXCP01_DB,
+    ia32_leave_for_exception(xenv, IA64_EXCP_IA32_EXCEPTION, EXCP01_DB,
                              8 | ((env->ia32_data_breakpoints & 0xf) << 4),
                              true, fault_ip, next_ip, 0);
 }

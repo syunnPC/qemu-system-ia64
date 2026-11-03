@@ -32,8 +32,7 @@
 #define IA64_ISP12160_TEST_GPIO_CANCEL_MAILBOX \
     "x-cancel-mailbox"
 
-OBJECT_DECLARE_SIMPLE_TYPE(IA64ISP12160TestState,
-                           IA64_ISP12160_MAILBOX_QTEST)
+OBJECT_DECLARE_SIMPLE_TYPE(IA64ISP12160TestState, IA64_ISP12160_MAILBOX_QTEST)
 
 /* Fixed topology and resource values shared by all three devices. */
 #define IA64_ISP12160_TEST_ROOT_INDEX       1U

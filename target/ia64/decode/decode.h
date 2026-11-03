@@ -10,7 +10,7 @@
 #include "target/ia64/decode/operand.h"
 
 Ia64Instruction ia64_decode_insn(IA64SlotUnit unit, uint64_t raw,
-                                  uint64_t address, uint8_t slot);
+                                 uint64_t address, uint8_t slot);
 void ia64_apply_mlx_long_fixup(uint8_t template_code,
                                const uint64_t slots[IA64_BUNDLE_SLOTS],
                                int slot, Ia64Instruction *insn,

@@ -31,6 +31,12 @@ Firmware builds require an IA-64 ELF cross toolchain with
 ninja -C build qemu-system-ia64 roms/ia64-firmware/ia64-firmware.bin
 ```
 
+QEMU prints a warning to standard output if its build commit differs from the
+firmware's build commit, since this may cause compatibility issues. Boot continues.
+A warning is also printed when the firmware has no valid commit metadata,
+including older raw firmware. If only QEMU lacks commit metadata, the comparison
+is skipped.
+
 ### Run
 
 ```sh

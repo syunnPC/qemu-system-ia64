@@ -46,44 +46,32 @@ static void test_fixed_layout(void)
     g_assert_cmphex(layout.pib.base, ==, UINT64_C(0xfee00000));
     g_assert_cmphex(layout.pib.size, ==, UINT64_C(0x100000));
 
-    g_assert_cmphex(layout.iommu.aperture.base, ==,
-                    UINT64_C(0x40000000));
-    g_assert_cmphex(layout.iommu.aperture.size, ==,
-                    UINT64_C(0x10000000));
-    g_assert_cmphex(layout.iommu.ibase_reset, ==,
-                    UINT64_C(0x40000000));
-    g_assert_cmphex(layout.iommu.imask_reset, ==,
-                    UINT64_C(0xf0000000));
+    g_assert_cmphex(layout.iommu.aperture.base, ==, UINT64_C(0x40000000));
+    g_assert_cmphex(layout.iommu.aperture.size, ==, UINT64_C(0x10000000));
+    g_assert_cmphex(layout.iommu.ibase_reset, ==, UINT64_C(0x40000000));
+    g_assert_cmphex(layout.iommu.imask_reset, ==, UINT64_C(0xf0000000));
     g_assert_cmphex(layout.iommu.pcom_reset, ==, 0);
     g_assert_cmphex(layout.iommu.tcnfg_reset, ==, 0);
-    g_assert_cmphex(layout.iommu.pdir_base_reset, ==,
-                    UINT64_C(0x01000000));
+    g_assert_cmphex(layout.iommu.pdir_base_reset, ==, UINT64_C(0x01000000));
     g_assert_cmphex(layout.iommu.pdir.base, ==, UINT64_C(0x01000000));
     g_assert_cmphex(layout.iommu.pdir.size, ==, UINT64_C(0x00080000));
-    g_assert_cmphex(layout.iommu.test_target.base, ==,
-                    UINT64_C(0x02000000));
+    g_assert_cmphex(layout.iommu.test_target.base, ==, UINT64_C(0x02000000));
     g_assert_cmphex(layout.iommu.test_target.size, ==,
                     UINT64_C(18) * UINT64_C(0x1000));
     g_assert_cmphex(layout.iommu.pdir.size, ==,
                     layout.iommu.aperture.size / UINT64_C(0x1000) *
-                    sizeof(uint64_t));
+                        sizeof(uint64_t));
 
-    g_assert_cmphex(layout.roots[0].ioa_csr.base, ==,
-                    UINT64_C(0xfed20000));
-    g_assert_cmphex(layout.roots[1].ioa_csr.base, ==,
-                    UINT64_C(0xfed22000));
+    g_assert_cmphex(layout.roots[0].ioa_csr.base, ==, UINT64_C(0xfed20000));
+    g_assert_cmphex(layout.roots[1].ioa_csr.base, ==, UINT64_C(0xfed22000));
     g_assert_cmphex(layout.roots[0].ioa_csr.size, ==, UINT64_C(0x2000));
     g_assert_cmphex(layout.roots[1].ioa_csr.size, ==, UINT64_C(0x2000));
     g_assert_cmphex(layout.roots[0].pci_mmio.base, ==, 0);
     g_assert_cmphex(layout.roots[1].pci_mmio.base, ==, 0);
-    g_assert_cmphex(layout.roots[0].pci_mmio.size, ==,
-                    UINT64_C(0x01000000));
-    g_assert_cmphex(layout.roots[1].pci_mmio.size, ==,
-                    UINT64_C(0x01000000));
-    g_assert_cmphex(layout.roots[0].cpu_mmio.base, ==,
-                    UINT64_C(0x90000000));
-    g_assert_cmphex(layout.roots[1].cpu_mmio.base, ==,
-                    UINT64_C(0xa0000000));
+    g_assert_cmphex(layout.roots[0].pci_mmio.size, ==, UINT64_C(0x01000000));
+    g_assert_cmphex(layout.roots[1].pci_mmio.size, ==, UINT64_C(0x01000000));
+    g_assert_cmphex(layout.roots[0].cpu_mmio.base, ==, UINT64_C(0x90000000));
+    g_assert_cmphex(layout.roots[1].cpu_mmio.base, ==, UINT64_C(0xa0000000));
 
     g_assert_cmpuint(layout.roots[0].mode, ==, HP_ZX1_IOA_MODE_PCI);
     g_assert_cmpuint(layout.roots[1].mode, ==, HP_ZX1_IOA_MODE_PCIX);
@@ -98,10 +86,9 @@ static void test_fixed_layout(void)
 
     for (root = 0; root < IA64_ZX6000_ZX1_TEST_ROOT_COUNT; root++) {
         for (slot = 0; slot < IA64_ZX6000_ZX1_TEST_SLOT_COUNT; slot++) {
-            for (pin = 0; pin < IA64_ZX6000_ZX1_TEST_INTX_PIN_COUNT;
-                 pin++) {
-                g_assert_cmpuint(layout.roots[root].intx_route[slot][pin],
-                                 ==, pin);
+            for (pin = 0; pin < IA64_ZX6000_ZX1_TEST_INTX_PIN_COUNT; pin++) {
+                g_assert_cmpuint(layout.roots[root].intx_route[slot][pin], ==,
+                                 pin);
             }
         }
     }
@@ -205,8 +192,8 @@ static void test_ram_reservations(void)
     assert_invalid(&layout);
 
     layout = fixture_layout();
-    layout.iommu.test_target.size = UINT64_C(17) *
-                                    IA64_ZX6000_ZX1_TEST_PAGE_SIZE;
+    layout.iommu.test_target.size =
+        UINT64_C(17) * IA64_ZX6000_ZX1_TEST_PAGE_SIZE;
     assert_invalid(&layout);
 
     layout = fixture_layout();
@@ -242,8 +229,7 @@ static void test_bus_and_rope_partitions(void)
     assert_invalid(&layout);
 
     layout = fixture_layout();
-    layout.roots[0].bus_mode_reset &=
-        ~UINT64_C(0x20);
+    layout.roots[0].bus_mode_reset &= ~UINT64_C(0x20);
     assert_invalid(&layout);
 
     layout = fixture_layout();
@@ -278,8 +264,8 @@ static void test_modes_and_routes(void)
 
     layout = fixture_layout();
     layout.roots[0].mode = HP_ZX1_IOA_MODE_AGP;
-    layout.roots[0].bus_mode_reset = HP_ZX1_IOA_BUS_MODE_AGP |
-                                     HP_ZX1_IOA_BUS_MODE_ROPE_2X_L;
+    layout.roots[0].bus_mode_reset =
+        HP_ZX1_IOA_BUS_MODE_AGP | HP_ZX1_IOA_BUS_MODE_ROPE_2X_L;
     assert_invalid(&layout);
 }
 
@@ -345,11 +331,9 @@ int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
 
-    g_test_add_func("/ia64/zx6000-zx1-layout/fixed",
-                    test_fixed_layout);
+    g_test_add_func("/ia64/zx6000-zx1-layout/fixed", test_fixed_layout);
     g_test_add_func("/ia64/zx6000-zx1-layout/null", test_null_layout);
-    g_test_add_func("/ia64/zx6000-zx1-layout/ranges",
-                    test_range_validation);
+    g_test_add_func("/ia64/zx6000-zx1-layout/ranges", test_range_validation);
     g_test_add_func("/ia64/zx6000-zx1-layout/cpu-collisions",
                     test_cpu_resource_collisions);
     g_test_add_func("/ia64/zx6000-zx1-layout/ram-reservations",

@@ -35,8 +35,8 @@ static bool memory_range(FirmwareElfReader *r, uint64_t addr, uint64_t size)
     }
     addr -= r->out->base;
     for (i = 0; i < r->out->segments->len; i++) {
-        IA64FirmwareSegment *s = &g_array_index(r->out->segments,
-                                               IA64FirmwareSegment, i);
+        IA64FirmwareSegment *s =
+            &g_array_index(r->out->segments, IA64FirmwareSegment, i);
         if (addr >= s->offset && addr - s->offset <= s->size &&
             size <= s->size - (addr - s->offset)) {
             return true;
@@ -62,6 +62,25 @@ static Elf64_Shdr *find_section(FirmwareElfReader *r, const char *name)
     return NULL;
 }
 
+static void read_build_commit(FirmwareElfReader *r)
+{
+    Elf64_Shdr *s = find_section(r, ".fw.build_commit");
+    const uint8_t *commit;
+    unsigned i;
+
+    if (!s || s->sh_type != SHT_PROGBITS ||
+        (s->sh_size != 40 && s->sh_size != 64)) {
+        return;
+    }
+    commit = r->file + s->sh_offset;
+    for (i = 0; i < s->sh_size; i++) {
+        if (!g_ascii_isxdigit(commit[i])) {
+            return;
+        }
+    }
+    memcpy(r->out->build_commit, commit, s->sh_size);
+}
+
 static bool executable_address(FirmwareElfReader *r, uint64_t address)
 {
     unsigned i;
@@ -70,21 +89,21 @@ static bool executable_address(FirmwareElfReader *r, uint64_t address)
         Elf64_Shdr *s = &r->sections[i];
 
         if ((s->sh_flags & (SHF_ALLOC | SHF_EXECINSTR)) ==
-            (SHF_ALLOC | SHF_EXECINSTR) && address >= s->sh_addr &&
-            address - s->sh_addr < s->sh_size && !(address & 15)) {
+                (SHF_ALLOC | SHF_EXECINSTR) &&
+            address >= s->sh_addr && address - s->sh_addr < s->sh_size &&
+            !(address & 15)) {
             return true;
         }
     }
     return false;
 }
 
-static bool symbol_read(FirmwareElfReader *r, Elf64_Shdr *table,
-                         uint64_t index, Elf64_Sym *sym)
+static bool symbol_read(FirmwareElfReader *r, Elf64_Shdr *table, uint64_t index,
+                        Elf64_Sym *sym)
 {
     const uint8_t *p;
 
-    if (table->sh_type != SHT_SYMTAB ||
-        table->sh_entsize != sizeof(*sym) ||
+    if (table->sh_type != SHT_SYMTAB || table->sh_entsize != sizeof(*sym) ||
         table->sh_size % sizeof(*sym) ||
         index >= table->sh_size / sizeof(*sym)) {
         return false;
@@ -99,8 +118,7 @@ static bool symbol_read(FirmwareElfReader *r, Elf64_Shdr *table,
     return true;
 }
 
-static bool find_symbol(FirmwareElfReader *r, const char *name,
-                         uint64_t *value)
+static bool find_symbol(FirmwareElfReader *r, const char *name, uint64_t *value)
 {
     unsigned i;
 
@@ -141,8 +159,7 @@ static bool find_symbol(FirmwareElfReader *r, const char *name,
     return false;
 }
 
-static bool fix_pointer(FirmwareElfReader *r, uint64_t address,
-                         bool allow_zero)
+static bool fix_pointer(FirmwareElfReader *r, uint64_t address, bool allow_zero)
 {
     uint64_t offset = address - r->out->base;
     uint64_t value;
@@ -166,7 +183,7 @@ static bool fix_pointer(FirmwareElfReader *r, uint64_t address,
 }
 
 static bool fix_imm64(FirmwareElfReader *r, uint64_t address, uint64_t value,
-                       bool relative)
+                      bool relative)
 {
     uint64_t bundle = address & ~UINT64_C(15);
     uint64_t offset = bundle - r->out->base;
@@ -206,8 +223,7 @@ static bool fix_imm64(FirmwareElfReader *r, uint64_t address, uint64_t value,
 }
 
 static bool relative_instruction(FirmwareElfReader *r, uint64_t address,
-                                  uint64_t value, uint32_t type,
-                                  Elf64_Shdr *got)
+                                 uint64_t value, uint32_t type, Elf64_Shdr *got)
 {
     static const char units[16][4] = {
         "MII", "MII", "MLX", "---", "MMI", "MMI", "MFI", "MMF",
@@ -225,14 +241,15 @@ static bool relative_instruction(FirmwareElfReader *r, uint64_t address,
     p = r->linked + bundle - r->out->base;
     low = ldq_le_p(p);
     high = ldq_le_p(p + 8);
-    insn = (slot == 0 ? low >> 5 : slot == 1 ?
-            (low >> 46) | (high << 18) : high >> 23) & FW_SLOT_MASK;
+    insn = (slot == 0   ? low >> 5
+            : slot == 1 ? (low >> 46) | (high << 18)
+                        : high >> 23) &
+           FW_SLOT_MASK;
     unit = units[(low & 31) >> 1][slot];
     if (type == R_IA64_PCREL21B) {
         actual = ((insn >> 13) & 0xfffff) | ((insn >> 36) & 1) << 20;
         actual = (uint64_t)((int64_t)(actual << 43) >> 43) << 4;
-        return unit == 'B' &&
-               ((insn >> 37) == 4 || (insn >> 37) == 5) &&
+        return unit == 'B' && ((insn >> 37) == 4 || (insn >> 37) == 5) &&
                executable_address(r, value) && actual == value - bundle;
     }
     if ((unit != 'M' && unit != 'I') || (insn >> 37) != 9 ||
@@ -277,8 +294,7 @@ static bool relocate(FirmwareElfReader *r, Error **errp)
         }
     }
     for (i = 0; i < got->sh_size; i += 8) {
-        uint64_t value = ldq_le_p(r->linked + got->sh_addr -
-                                  r->out->base + i);
+        uint64_t value = ldq_le_p(r->linked + got->sh_addr - r->out->base + i);
 
         if (value < opd->sh_addr || value - opd->sh_addr >= opd->sh_size ||
             ((value - opd->sh_addr) & 15)) {
@@ -296,8 +312,7 @@ static bool relocate(FirmwareElfReader *r, Error **errp)
             }
             continue;
         }
-        if (s->sh_info >= r->section_count ||
-            s->sh_link >= r->section_count ||
+        if (s->sh_info >= r->section_count || s->sh_link >= r->section_count ||
             s->sh_entsize != sizeof(Elf64_Rela) ||
             s->sh_size % sizeof(Elf64_Rela)) {
             goto invalid;
@@ -350,14 +365,14 @@ static bool relocate(FirmwareElfReader *r, Error **errp)
                     goto invalid;
                 }
                 {
-                    uint64_t descriptor = ldq_le_p(
-                        r->linked + address - r->out->base);
+                    uint64_t descriptor =
+                        ldq_le_p(r->linked + address - r->out->base);
 
                     if (descriptor < opd->sh_addr ||
                         descriptor - opd->sh_addr >= opd->sh_size ||
                         ((descriptor - opd->sh_addr) & 15) ||
                         ldq_le_p(r->linked + descriptor - r->out->base) !=
-                        value) {
+                            value) {
                         goto invalid;
                     }
                 }
@@ -369,8 +384,8 @@ static bool relocate(FirmwareElfReader *r, Error **errp)
                 ok = relative_instruction(r, address, value, type, got);
                 break;
             case R_IA64_GPREL64I:
-                ok = fix_imm64(r, address, value - r->out->global_pointer,
-                               true);
+                ok =
+                    fix_imm64(r, address, value - r->out->global_pointer, true);
                 break;
             case R_IA64_PCREL64LSB:
             case R_IA64_SEGREL64LSB:
@@ -393,8 +408,8 @@ static bool relocate(FirmwareElfReader *r, Error **errp)
                         }
                     }
                 }
-                ok = ok && ldq_le_p(r->linked + address - r->out->base) ==
-                           value;
+                ok =
+                    ok && ldq_le_p(r->linked + address - r->out->base) == value;
                 break;
             default:
                 error_setg(errp, "unsupported IA-64 firmware relocation 0x%x",
@@ -456,11 +471,10 @@ bool ia64_firmware_elf_load(const void *image, size_t image_size,
     bool success = false;
 
     memset(out, 0, sizeof(*out));
-    if (!file_range(&r, 0, sizeof(Elf64_Ehdr)) ||
-        memcmp(h, ELFMAG, SELFMAG) || h[EI_CLASS] != ELFCLASS64 ||
-        h[EI_DATA] != ELFDATA2LSB || h[EI_VERSION] != EV_CURRENT ||
-        lduw_le_p(h + 16) != ET_EXEC || lduw_le_p(h + 18) != EM_IA_64 ||
-        ldl_le_p(h + 20) != EV_CURRENT ||
+    if (!file_range(&r, 0, sizeof(Elf64_Ehdr)) || memcmp(h, ELFMAG, SELFMAG) ||
+        h[EI_CLASS] != ELFCLASS64 || h[EI_DATA] != ELFDATA2LSB ||
+        h[EI_VERSION] != EV_CURRENT || lduw_le_p(h + 16) != ET_EXEC ||
+        lduw_le_p(h + 18) != EM_IA_64 || ldl_le_p(h + 20) != EV_CURRENT ||
         lduw_le_p(h + 52) != sizeof(Elf64_Ehdr) ||
         lduw_le_p(h + 54) != sizeof(Elf64_Phdr) ||
         lduw_le_p(h + 58) != sizeof(Elf64_Shdr)) {
@@ -527,8 +541,8 @@ bool ia64_firmware_elf_load(const void *image, size_t image_size,
         s.offset = ldq_le_p(p + 16) - out->base;
         s.size = ldq_le_p(p + 40);
         for (j = 0; j < out->segments->len; j++) {
-            IA64FirmwareSegment *other = &g_array_index(out->segments,
-                                                       IA64FirmwareSegment, j);
+            IA64FirmwareSegment *other =
+                &g_array_index(out->segments, IA64FirmwareSegment, j);
             if (s.offset < other->offset + other->size &&
                 other->offset < s.offset + s.size) {
                 goto invalid;
@@ -572,6 +586,7 @@ bool ia64_firmware_elf_load(const void *image, size_t image_size,
             goto invalid;
         }
     }
+    read_build_commit(&r);
     out->entry = ldq_le_p(h + 24);
     if (!executable_address(&r, out->entry) ||
         !find_symbol(&r, "__gp", &out->global_pointer) ||

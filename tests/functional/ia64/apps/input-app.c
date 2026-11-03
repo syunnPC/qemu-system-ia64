@@ -6,8 +6,7 @@
 
 static UINT8 text_input_ex_guid[16] = IA64_GUID_TEXT_INPUT_EX;
 
-static EFI_STATUS wait_for_key(EFI_BOOT_SERVICES *BootServices,
-                               EFI_EVENT Event)
+static EFI_STATUS wait_for_key(EFI_BOOT_SERVICES *BootServices, EFI_EVENT Event)
 {
     UINTN index = ~(UINTN)0;
 
@@ -40,8 +39,8 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
     (void)ImageHandle;
     status = bs->LocateProtocol(text_input_ex_guid, NULL, (VOID **)&input_ex);
     ia64_test_check(&context, "text-input-ex",
-                    status == EFI_SUCCESS && input_ex != NULL,
-                    status, "locate-input-ex");
+                    status == EFI_SUCCESS && input_ex != NULL, status,
+                    "locate-input-ex");
     if (input == NULL || input_ex == NULL) {
         ia64_test_done(&context);
         return EFI_DEVICE_ERROR;

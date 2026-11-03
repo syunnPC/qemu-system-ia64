@@ -56,10 +56,10 @@ typedef struct {
 #define PS2_MOUSE_X_OVERFLOW      0x40U
 #define PS2_MOUSE_Y_OVERFLOW      0x80U
 
-static const UINT8 mSimplePointerProtocolGuid[16] = {
-    0x87, 0x8c, 0x87, 0x31, 0x75, 0x0b, 0xd5, 0x11,
-    0x9a, 0x4f, 0x00, 0x90, 0x27, 0x3f, 0xc1, 0x4d
-};
+static const UINT8 mSimplePointerProtocolGuid[16] = { 0x87, 0x8c, 0x87, 0x31,
+                                                      0x75, 0x0b, 0xd5, 0x11,
+                                                      0x9a, 0x4f, 0x00, 0x90,
+                                                      0x27, 0x3f, 0xc1, 0x4d };
 
 static EFI_SIMPLE_POINTER_PROTOCOL mSimplePointerProtocol;
 static EFI_SIMPLE_POINTER_MODE mSimplePointerMode = {
@@ -111,8 +111,7 @@ VOID fw_pointer_consume_byte(UINT8 Byte)
     BOOLEAN left;
     BOOLEAN right;
 
-    if (mSimplePointerPacketBytes == 0 &&
-        (Byte & PS2_MOUSE_PACKET_SYNC) == 0) {
+    if (mSimplePointerPacketBytes == 0 && (Byte & PS2_MOUSE_PACKET_SYNC) == 0) {
         return;
     }
     mSimplePointerPacket[mSimplePointerPacketBytes++] = Byte;
@@ -131,15 +130,14 @@ VOID fw_pointer_consume_byte(UINT8 Byte)
     }
     left = (flags & 1U) != 0;
     right = (flags & 2U) != 0;
-    if (x != 0 || y != 0 ||
-        left != mSimplePointerState.LeftButton ||
+    if (x != 0 || y != 0 || left != mSimplePointerState.LeftButton ||
         right != mSimplePointerState.RightButton) {
         mSimplePointerChanged = 1;
     }
-    mSimplePointerState.RelativeMovementX = pointer_saturating_add(
-        mSimplePointerState.RelativeMovementX, x);
-    mSimplePointerState.RelativeMovementY = pointer_saturating_add(
-        mSimplePointerState.RelativeMovementY, y);
+    mSimplePointerState.RelativeMovementX =
+        pointer_saturating_add(mSimplePointerState.RelativeMovementX, x);
+    mSimplePointerState.RelativeMovementY =
+        pointer_saturating_add(mSimplePointerState.RelativeMovementY, y);
     mSimplePointerState.LeftButton = left;
     mSimplePointerState.RightButton = right;
 }
@@ -185,8 +183,7 @@ static BOOLEAN ps2_mouse_wait_byte(UINT8 Expected)
 
 static BOOLEAN ps2_mouse_send(UINT8 Command)
 {
-    return ps2_write_command(PS2_CMD_WRITE_MOUSE) &&
-           ps2_write_data(Command) &&
+    return ps2_write_command(PS2_CMD_WRITE_MOUSE) && ps2_write_data(Command) &&
            ps2_mouse_wait_byte(PS2_MOUSE_ACK);
 }
 
@@ -211,8 +208,7 @@ static BOOLEAN ps2_mouse_configure(BOOLEAN ExtendedVerification)
         return 0;
     }
     if (!ps2_mouse_send(PS2_MOUSE_CMD_DEFAULTS) ||
-        !ps2_mouse_send(PS2_MOUSE_CMD_RESOLUTION) ||
-        !ps2_mouse_send(2U) ||
+        !ps2_mouse_send(PS2_MOUSE_CMD_RESOLUTION) || !ps2_mouse_send(2U) ||
         !ps2_mouse_send(PS2_MOUSE_CMD_ENABLE)) {
         return 0;
     }
@@ -226,8 +222,8 @@ static EFI_STATUS simple_pointer_reset(EFI_SIMPLE_POINTER_PROTOCOL *This,
     if (This != &mSimplePointerProtocol) {
         return EFI_INVALID_PARAMETER;
     }
-    return ps2_mouse_configure(ExtendedVerification) ?
-        EFI_SUCCESS : EFI_DEVICE_ERROR;
+    return ps2_mouse_configure(ExtendedVerification) ? EFI_SUCCESS
+                                                     : EFI_DEVICE_ERROR;
 }
 
 static EFI_STATUS simple_pointer_get_state(EFI_SIMPLE_POINTER_PROTOCOL *This,
