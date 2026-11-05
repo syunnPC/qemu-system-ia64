@@ -4,7 +4,8 @@ Full-system QEMU emulation for IA-64 guests.
 
 > [!IMPORTANT]
 > This fork is independent of upstream QEMU. Report issues for this fork here,
-> not upstream.
+> not upstream.  
+> This codebase is written using LLMs.
 
 ## Quick start
 
@@ -191,6 +192,11 @@ and device support remain experimental.
     </td>
   </tr>
 </table>
+
+## Related projects
+- [Open-source XPDM driver for ATI graphics on IA-64 Windows](https://github.com/syunnPC/qemu-system-ia64-ati-xpdm) (deprecated)
+- [Open-source XPDM driver for NVIDIA Quadro2 graphics on IA-64 Windows](https://github.com/syunnPC/qemu-system-ia64-nv-xpdm) (deprecated)
+- [An experimental IA-64 hypervisor for AMD64 hosts](https://github.com/syunnPC/ia64-vmm)
 
 ## Legal disclaimer
 
