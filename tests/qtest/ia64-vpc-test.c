@@ -1124,7 +1124,7 @@ static void test_int10_legacy_for_device(const char *extra_args)
     regs.ax = 0x0f00;
     length = int10_call(qts, &regs, response, sizeof(response));
     g_assert_cmpuint(length, ==, 0);
-    g_assert_cmphex(regs.ax, ==, 0x5012);
+    g_assert_cmphex(regs.ax, ==, 0x5092);
 
     memset(&regs, 0, sizeof(regs));
     regs.ax = 0x4f02;
@@ -1156,6 +1156,102 @@ static void test_int10_legacy(void)
 static void test_int10_legacy_std(void)
 {
     test_int10_legacy_for_device("-vga std");
+}
+
+static void test_int10_text_for_device(const char *extra_args)
+{
+    QTestState *qts = ia64_vpc_start(extra_args);
+    TestInt10Registers regs;
+    uint8_t response[2];
+    g_autoptr(GError) error = NULL;
+    g_autofree char *tmpdir = g_dir_make_tmp("ia64-int10-text-XXXXXX", &error);
+    g_autofree char *ppm = NULL;
+
+    g_assert_no_error(error);
+    ppm = g_build_filename(tmpdir, "text.ppm", NULL);
+    for (unsigned int source = 0; source < 2; source++) {
+        regs = (TestInt10Registers) {
+            .ax = source ? 0x4f02 : 0x0012,
+            .bx = source ? 0x4143 : 0,
+        };
+        int10_call(qts, &regs, response, sizeof(response));
+        regs = (TestInt10Registers) { .ax = 0x0003 };
+        int10_call(qts, &regs, response, sizeof(response));
+
+        /* BIOS mode 03h restores 80x25 text and the B8000h aperture. */
+        g_assert_cmphex(test_vbe_read(qts, VBE_DISPI_INDEX_ENABLE), ==, 0);
+        g_assert_cmphex(
+            test_vga_indexed_read(qts, VGA_CRT_IC, VGA_CRT_DC, VGA_CRTC_MODE) &
+                VGA_CR17_WORD_BYTE,
+            ==, 0);
+        g_assert_cmphex(
+            test_vga_indexed_read(qts, VGA_GFX_I, VGA_GFX_D, VGA_GFX_MISC), ==,
+            0x0e);
+        g_assert_cmphex(qtest_readb(qts, IA64_BDA_VIDEO_MODE), ==, 3);
+        g_assert_cmpuint(qtest_readw(qts, IA64_BDA_VIDEO_COLUMNS), ==, 80);
+        g_assert_cmpuint(qtest_readb(qts, IA64_BDA_VIDEO_ROWS), ==, 24);
+        g_assert_cmpuint(qtest_readw(qts, IA64_BDA_CHARACTER_HEIGHT), ==, 16);
+        g_assert_cmphex(qtest_readw(qts, IA64_BDA_VIDEO_PAGE_SIZE), ==, 0x1000);
+        g_assert_cmphex(qtest_readb(qts, IA64_BDA_VIDEO_CONTROL), ==, 0x60);
+        g_assert_cmphex(qtest_readw(qts, 0xb8000), ==, 0x0720);
+        g_assert_cmphex(qtest_readw(qts, 0xb8000 + 3998), ==, 0x0720);
+        regs = (TestInt10Registers) { .ax = 0x0f00 };
+        int10_call(qts, &regs, response, sizeof(response));
+        g_assert_cmphex(regs.ax, ==, 0x5003);
+
+        qtest_writew(qts, 0xb8000, 0x1fdb);
+        qtest_writew(qts, 0xb8002, 0x1fdb);
+        qtest_writew(qts, 0xb8004, 0x1f20);
+        qtest_writew(qts, 0xb8000 + 160, 0x4f20);
+        regs = (TestInt10Registers) { .ax = 0x0083 };
+        int10_call(qts, &regs, response, sizeof(response));
+        g_assert_cmphex(qtest_readw(qts, 0xb8000), ==, 0x1fdb);
+        g_assert_cmphex(qtest_readw(qts, 0xb8002), ==, 0x1fdb);
+        g_assert_cmphex(qtest_readb(qts, IA64_BDA_VIDEO_MODE), ==, 3);
+        g_assert_cmphex(qtest_readb(qts, IA64_BDA_VIDEO_CONTROL), ==, 0xe0);
+        qtest_writew(qts, IA64_LEGACY_IO_PORT_PA(VGA_CRT_IC),
+                     0x2000 | VGA_CRTC_CURSOR_START);
+        qtest_writeb(qts, IA64_LEGACY_IO_PORT_PA(VGA_PEL_IW), 1);
+        qtest_writeb(qts, IA64_LEGACY_IO_PORT_PA(VGA_PEL_D), 0);
+        qtest_writeb(qts, IA64_LEGACY_IO_PORT_PA(VGA_PEL_D), 0);
+        qtest_writeb(qts, IA64_LEGACY_IO_PORT_PA(VGA_PEL_D), 0x3f);
+        qtest_writeb(qts, IA64_LEGACY_IO_PORT_PA(VGA_PEL_IW), 4);
+        qtest_writeb(qts, IA64_LEGACY_IO_PORT_PA(VGA_PEL_D), 0x3f);
+        qtest_writeb(qts, IA64_LEGACY_IO_PORT_PA(VGA_PEL_D), 0);
+        qtest_writeb(qts, IA64_LEGACY_IO_PORT_PA(VGA_PEL_D), 0);
+        qtest_qmp_assert_success(qts,
+                                 "{'execute':'screendump','arguments':"
+                                 "{'filename':%s}}",
+                                 ppm);
+        test_assert_ppm_pixel(ppm, 720, 400, 0, 8, 0xff, 0xff, 0xff);
+        test_assert_ppm_pixel(ppm, 720, 400, 9, 8, 0xff, 0xff, 0xff);
+        test_assert_ppm_pixel(ppm, 720, 400, 18, 8, 0, 0, 0xff);
+        test_assert_ppm_pixel(ppm, 720, 400, 0, 24, 0xff, 0, 0);
+        regs = (TestInt10Registers) { .ax = 0x0f00 };
+        int10_call(qts, &regs, response, sizeof(response));
+        g_assert_cmphex(regs.ax, ==, 0x5083);
+
+        regs = (TestInt10Registers) { .ax = 0x0003 };
+        int10_call(qts, &regs, response, sizeof(response));
+        g_assert_cmphex(qtest_readb(qts, IA64_BDA_VIDEO_CONTROL), ==, 0x60);
+        g_assert_cmphex(qtest_readw(qts, 0xb8000), ==, 0x0720);
+        regs = (TestInt10Registers) { .ax = 0x0f00 };
+        int10_call(qts, &regs, response, sizeof(response));
+        g_assert_cmphex(regs.ax, ==, 0x5003);
+    }
+    qtest_quit(qts);
+    g_assert_cmpint(g_unlink(ppm), ==, 0);
+    g_assert_cmpint(g_rmdir(tmpdir), ==, 0);
+}
+
+static void test_int10_text(void)
+{
+    test_int10_text_for_device(NULL);
+}
+
+static void test_int10_text_std(void)
+{
+    test_int10_text_for_device("-vga std");
 }
 
 static void test_acpi_reset_register(void)
@@ -4008,6 +4104,8 @@ int main(int argc, char **argv)
                        test_int10_vbe_invalid_properties);
         qtest_add_func("/ia64-vpc/vga/int10-legacy", test_int10_legacy);
         qtest_add_func("/ia64-vpc/vga/int10-legacy-std", test_int10_legacy_std);
+        qtest_add_func("/ia64-vpc/vga/int10-text", test_int10_text);
+        qtest_add_func("/ia64-vpc/vga/int10-text-std", test_int10_text_std);
     }
     qtest_add_func("/ia64-vpc/firmware-handoff/defaults",
                    test_firmware_handoff_defaults);
