@@ -48,27 +48,28 @@ jobs:
         run: |
           set -euo pipefail
 
+          cross=ia64-linux-gnu-
           firmware_dir="roms/ia64-firmware"
           binary="$firmware_dir/ia64-firmware.bin"
           elf="$firmware_dir/ia64-firmware.elf"
           map="$firmware_dir/ia64-firmware.map"
           sections="$firmware_dir/ia64-firmware.sections"
 
-          test -f "$(ia64-linux-gnu-gcc -print-libgcc-file-name)"
+          test -f "$("${cross}gcc" -print-libgcc-file-name)"
 
           make -C "$firmware_dir" clean
-          make -C "$firmware_dir" -j"$(nproc)"
+          make -C "$firmware_dir" -j"$(nproc)" CROSS="$cross"
 
           test -s "$binary"
           test -s "$elf"
           test -s "$map"
           test -s "$sections"
 
-          python3 tests/unit/test-ia64-firmware-layout.py \
+          CROSS="$cross" python3 tests/unit/test-ia64-firmware-layout.py \
             "$binary" \
             "$elf"
 
-          ia64-linux-gnu-readelf -h "$elf" > firmware-elf-header.txt
+          "${cross}readelf" -h "$elf" > firmware-elf-header.txt
           grep -Eiq 'Machine:.*IA-64' firmware-elf-header.txt
 
       - name: Package the firmware
@@ -108,6 +109,11 @@ jobs:
           path: qemu-system-ia64-firmware.tar.gz
           if-no-files-found: error
           archive: false
+
+  firmware_toolchains:
+    name: IA-64 firmware toolchains
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/toolchain'
+    uses: ./.github/workflows/firmware-toolchains.yml
 
   linux:
     name: ${{ matrix.job_name }}

@@ -1,0 +1,95 @@
+name: IA-64 firmware toolchains
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/firmware-toolchains.yml
+      - roms/ia64-firmware/**
+      - tests/unit/test-ia64-firmware-layout.py
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  firmware:
+    name: ${{ matrix.prefix }} (Make and Ninja)
+    runs-on: ubuntu-24.04
+    container:
+      image: fedora:44
+
+    strategy:
+      fail-fast: false
+      matrix:
+        prefix: [ia64-linux-gnu-, ia64-linux-]
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Install build dependencies
+        run: |
+          set -euo pipefail
+
+          dnf --assumeyes --setopt=install_weak_deps=False install \
+            coreutils curl diffutils findutils gcc gcc-c++ git glib2-devel \
+            make ninja-build pixman-devel pkgconf-pkg-config python3 \
+            python3-pip python3-setuptools python3-wheel tar xz zlib-ng-compat-devel
+
+      - name: Install Fedora IA-64 cross tools
+        if: matrix.prefix == 'ia64-linux-gnu-'
+        run: |
+          dnf --assumeyes --setopt=install_weak_deps=False install \
+            binutils-ia64-linux-gnu gcc-ia64-linux-gnu
+
+      - name: Install kernel.org IA-64 cross tools
+        if: matrix.prefix == 'ia64-linux-'
+        run: |
+          set -euo pipefail
+
+          cd "$RUNNER_TEMP"
+          archive=x86_64-gcc-13.2.0-nolibc-ia64-linux.tar.xz
+          base_url=https://www.kernel.org/pub/tools/crosstool/files/bin/x86_64/13.2.0
+          curl --fail --location --silent --show-error --retry 3 \
+            --output "$archive" "$base_url/$archive"
+          printf '%s  %s\n' \
+            7611004606e79185247babeb7b1fbb9387068ca67457e109533298d26d1b8d12 \
+            "$archive" | sha256sum --check
+          tar -xJf "$archive"
+          printf '%s\n' "$PWD/gcc-13.2.0-nolibc/ia64-linux/bin" >> "$GITHUB_PATH"
+
+      - uses: actions/checkout@v6
+
+      - name: Build with Make and Ninja
+        run: |
+          set -euo pipefail
+          unset CROSS AS CC LD OBJCOPY SIZE
+
+          make -C roms/ia64-firmware -j"$(nproc)"
+
+          mkdir build-firmware
+          (
+            cd build-firmware
+            ../configure --target-list=ia64-softmmu --without-default-features \
+              --enable-system --enable-tcg --enable-pixman --disable-fdt
+          )
+          ninja -C build-firmware roms/ia64-firmware/ia64-firmware.bin
+
+      - name: Validate both firmware builds
+        env:
+          FIRMWARE_PREFIX: ${{ matrix.prefix }}
+        run: |
+          set -euo pipefail
+
+          for directory in roms/ia64-firmware build-firmware/roms/ia64-firmware; do
+            firmware="$directory/ia64-firmware"
+            for output in bin elf map sections; do
+              test -s "$firmware.$output"
+            done
+            "${FIRMWARE_PREFIX}readelf" -h "$firmware.elf" | grep -Ei 'Machine:.*IA-64'
+            python3 tests/unit/test-ia64-firmware-layout.py "$firmware.bin" "$firmware.elf"
+          done

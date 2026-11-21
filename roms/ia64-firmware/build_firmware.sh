@@ -17,13 +17,46 @@ OUT_DIR="$(dirname "$OUT_BIN")"
 INCLUDE_DIR="${SRC_DIR}/../../include"
 MANIFEST="${SRC_DIR}/firmware.sources"
 
-AS="${AS:-ia64-linux-gnu-as}"
-CC="${CC:-ia64-linux-gnu-gcc}"
-LD="${LD:-ia64-linux-gnu-ld}"
-OBJCOPY="${OBJCOPY:-ia64-linux-gnu-objcopy}"
-SIZE="${SIZE:-ia64-linux-gnu-size}"
+check_toolchain()
+{
+    candidate_cc="${CC:-${1}gcc}"
+    for tool in "$candidate_cc" "${AS:-${1}as}" "${LD:-${1}ld}" \
+        "${OBJCOPY:-${1}objcopy}" "${SIZE:-${1}size}"; do
+        if ! command -v "$tool" >/dev/null 2>&1; then
+            toolchain_error="cannot find $tool"
+            return 1
+        fi
+    done
+
+    if ! LIBGCC="$("$candidate_cc" -print-libgcc-file-name 2>/dev/null)" ||
+        [ ! -f "$LIBGCC" ]; then
+        toolchain_error="cannot find libgcc.a using $candidate_cc"
+        return 1
+    fi
+}
+
+prefix="${CROSS-ia64-linux-gnu-}"
+if ! check_toolchain "$prefix"; then
+    first_error="$toolchain_error"
+    if [ "${CROSS+x}" ]; then
+        printf 'IA-64 firmware toolchain: %s\n' "$first_error" >&2
+        exit 1
+    fi
+
+    prefix=ia64-linux-
+    if ! check_toolchain "$prefix"; then
+        printf 'No usable IA-64 firmware toolchain: %s; %s\n' \
+            "$first_error" "$toolchain_error" >&2
+        exit 1
+    fi
+fi
+
+AS="${AS:-${prefix}as}"
+CC="${CC:-${prefix}gcc}"
+LD="${LD:-${prefix}ld}"
+OBJCOPY="${OBJCOPY:-${prefix}objcopy}"
+SIZE="${SIZE:-${prefix}size}"
 PYTHON="${PYTHON:-python3}"
-LIBGCC="$("$CC" -print-libgcc-file-name)"
 # ui/vgafont.h uses the compiler-provided freestanding <stdint.h>.
 CC_INCLUDE_DIR="$("$CC" -print-file-name=include)"
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import subprocess
 import sys
 
@@ -23,8 +24,17 @@ def command(argv: list[str]) -> str:
     return result.stdout
 
 
-def symbols(elf: str) -> dict[str, int]:
-    output = command(["ia64-linux-gnu-nm", "-n", elf])
+def tool_prefix() -> str:
+    if "CROSS" in os.environ:
+        return os.environ["CROSS"]
+    for prefix in ("ia64-linux-gnu-", "ia64-linux-"):
+        if all(shutil.which(prefix + tool) for tool in ("nm", "objdump", "readelf")):
+            return prefix
+    raise RuntimeError("IA-64 nm, objdump and readelf are required")
+
+
+def symbols(elf: str, nm: str) -> dict[str, int]:
+    output = command([nm, "-n", elf])
     result = {}
     for line in output.splitlines():
         match = re.match(r"^([0-9a-fA-F]+)\s+\S\s+(\S+)$", line)
@@ -33,8 +43,8 @@ def symbols(elf: str) -> dict[str, int]:
     return result
 
 
-def allocated_sections(elf: str):
-    output = command(["ia64-linux-gnu-objdump", "-h", elf])
+def allocated_sections(elf: str, objdump: str):
+    output = command([objdump, "-h", elf])
     lines = output.splitlines()
     result = []
     header = re.compile(
@@ -54,12 +64,15 @@ def run_checks(binary: str, elf: str):
         raise RuntimeError("firmware .bin and .elf must both exist")
     yield "firmware artifacts exist"
 
-    undefined = command(["ia64-linux-gnu-nm", "-u", elf]).strip()
+    prefix = tool_prefix()
+    nm = prefix + "nm"
+    objdump = prefix + "objdump"
+    undefined = command([nm, "-u", elf]).strip()
     if undefined:
         raise RuntimeError("firmware has unresolved symbols:\n" + undefined)
     yield "firmware has no unresolved symbols"
 
-    sym = symbols(elf)
+    sym = symbols(elf, nm)
     required = ("_start", "_end", "_bss_end", "__firmware_payload_end",
                 "__gp", "pal_proc_entry",
                 "sal_proc_gp_anchor", "sal_proc_entry", "sal_proc_dispatch",
@@ -82,11 +95,11 @@ def run_checks(binary: str, elf: str):
             raise RuntimeError("firmware .bin must contain the relocatable ELF")
     yield "firmware fixed span is less than 2 MiB"
 
-    elf_header = command(["ia64-linux-gnu-readelf", "-h", elf])
+    elf_header = command([prefix + "readelf", "-h", elf])
     entry = re.search(r"Entry point address:\s+0x([0-9a-fA-F]+)", elf_header)
     if entry is None or int(entry.group(1), 16) != sym["_start"]:
         raise RuntimeError("ELF entry does not identify the firmware entry")
-    disassembly = command(["ia64-linux-gnu-objdump", "-d", elf])
+    disassembly = command([objdump, "-d", elf])
     start = re.search(
         r"<start_after_pal>:(.*?)(?=\n[0-9a-fA-F]{16} <|\Z)",
         disassembly, re.DOTALL)
@@ -147,7 +160,7 @@ def run_checks(binary: str, elf: str):
             "SAL entry does not isolate and restore the caller's RSE state")
     yield "SAL entry isolates and restores caller RSE state"
 
-    sections = sorted(allocated_sections(elf), key=lambda item: item[1])
+    sections = sorted(allocated_sections(elf, objdump), key=lambda item: item[1])
     if not sections:
         raise RuntimeError("firmware ELF has no allocated sections")
     previous_end = 0

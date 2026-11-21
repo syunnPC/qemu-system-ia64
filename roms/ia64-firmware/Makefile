@@ -1,13 +1,17 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Thin wrapper around the canonical firmware build script.
 
-CROSS   ?= ia64-linux-gnu-
-AS      = $(CROSS)as
-CC      = $(CROSS)gcc
-LD      = $(CROSS)ld
-OBJCOPY = $(CROSS)objcopy
-SIZE    = $(CROSS)size
+# Pass tool overrides without supplying Make's built-in host tool names.
+AS      =
+CC      =
+LD      =
+OBJCOPY =
+SIZE    =
 PYTHON  ?= python3
+
+ifneq ($(origin CROSS),undefined)
+export CROSS
+endif
 
 BUILD_SCRIPT := build_firmware.sh
 MANIFEST := firmware.sources

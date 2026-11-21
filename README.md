@@ -24,13 +24,17 @@ may be older than the latest Actions builds.
 
 ### Build from source
 
-Firmware builds require an IA-64 ELF cross toolchain with
-`ia64-linux-gnu-` tools on `PATH`.
+Firmware builds require IA-64 GCC, binutils, and `libgcc.a`. The build looks
+for `ia64-linux-gnu-` tools on `PATH` first, then `ia64-linux-` tools.
 
 ```sh
 ./configure --target-list=ia64-softmmu --enable-gtk
 ninja -C build qemu-system-ia64 roms/ia64-firmware/ia64-firmware.bin
 ```
+
+Set `CROSS` to select a tool prefix explicitly. For example, build just the
+firmware with `make -C roms/ia64-firmware CROSS=ia64-linux-`, or set
+`CROSS=ia64-linux-` in the environment when running Ninja.
 
 QEMU prints a warning to standard output if its build commit differs from the
 firmware's build commit, since this may cause compatibility issues. Boot continues.
