@@ -734,6 +734,43 @@ void ia64_cpu_do_interrupt(CPUState *cs)
     cs->exception_index = IA64_EXCP_NONE;
 }
 
+bool ia64_cpu_do_interrupt_unlocked(CPUState *cs)
+{
+    CPUIA64State *env = cpu_env(cs);
+
+    if (ia64_firmware_owns_iva(env->cr_iva) || (env->psr & IA64_PSR_IS) ||
+        env->exception_state.ia32_transition_trap) {
+        return false;
+    }
+
+    /*
+     * These native vectors update the issuing vCPU's registers and TLB.
+     * An OS-owned IVA excludes SAL assists and firmware debug capture.
+     * SAPIC delivery to another processor is queued on the target vCPU.
+     */
+    switch (cs->exception_index) {
+    case IA64_EXCP_VHPT_FAULT:
+    case IA64_EXCP_ITLB_FAULT:
+    case IA64_EXCP_DTLB_FAULT:
+    case IA64_EXCP_ALT_ITLB:
+    case IA64_EXCP_ALT_DTLB:
+    case IA64_EXCP_DATA_NESTED_TLB:
+    case IA64_EXCP_DATA_ACCESS:
+    case IA64_EXCP_INST_ACCESS:
+    case IA64_EXCP_DATA_ACCESS_BIT:
+    case IA64_EXCP_INST_ACCESS_BIT:
+    case IA64_EXCP_DATA_DIRTY:
+    case IA64_EXCP_PAGE_NOT_PRESENT:
+    case IA64_EXCP_BREAK:
+    case IA64_EXCP_DEBUG:
+    case IA64_EXCP_NAT_CONSUMPTION:
+        ia64_cpu_do_interrupt(cs);
+        return true;
+    default:
+        return false;
+    }
+}
+
 static bool ia64_external_interrupt_enabled(CPUIA64State *env)
 {
     bool nmi_pending = env->interrupt.sapic_irr[0] & (1ULL << 2);

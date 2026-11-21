@@ -10,9 +10,9 @@
 
 typedef struct TCGTBCPUState {
     vaddr pc;
+    uint64_t cs_base;
     uint32_t flags;
     uint32_t cflags;
-    uint64_t cs_base;
 } TCGTBCPUState;
 
 #endif

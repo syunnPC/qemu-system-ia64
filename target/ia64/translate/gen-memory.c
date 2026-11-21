@@ -8,6 +8,7 @@
 
 #include "exec/helper-proto.h"
 #include "exec/helper-gen.h"
+#include "exec/memopidx.h"
 #include "tcg/tcg-op.h"
 
 #include "target/ia64/arch/arch.h"
@@ -349,6 +350,30 @@ static void ia64_gen_ld_fill_nat(const Ia64Instruction *insn, uint8_t reg,
     ia64_gen_gr_nat_assign(insn, reg, natbit);
 }
 
+/* Reuse the qualified soft-TLB entry for the load on a plain RAM hit. */
+static TCGv_i64 ia64_gen_speculative_int_load(DisasContext *ctx, TCGv_i64 dst,
+                                              TCGv_i64 addr, MemOp mop,
+                                              bool record_alat, TCGLabel *fail)
+{
+    TCGv_i128 result = tcg_temp_new_i128();
+    TCGv_i64 value = tcg_temp_new_i64();
+    TCGv_i64 pa = tcg_temp_new_i64();
+    TCGLabel *loaded = gen_new_label();
+    MemOpIdx oi = make_memop_idx(mop, ctx->memory.mmu_idx);
+
+    gen_helper_speculative_int_load(result, tcg_env, addr,
+                                    tcg_constant_i32(oi),
+                                    tcg_constant_i32(record_alat));
+    tcg_gen_extr_i128_i64(value, pa, result);
+    tcg_gen_brcondi_i64(TCG_COND_EQ, pa, IA64_SPEC_LD_DEFERRED, fail);
+    tcg_gen_brcondi_i64(TCG_COND_NE, pa, IA64_SPEC_LD_SLOW, loaded);
+    tcg_gen_mov_i64(pa, value);
+    ia64_gen_qemu_ld_i64(ctx, value, addr, ctx->memory.mmu_idx, mop);
+    gen_set_label(loaded);
+    tcg_gen_mov_i64(dst, value);
+    return pa;
+}
+
 static void ia64_gen_speculative_load(DisasContext *ctx,
                                       const Ia64Instruction *insn,
                                       bool advanced)
@@ -362,7 +387,7 @@ static void ia64_gen_speculative_load(DisasContext *ctx,
     TCGv_i64 base_nat = NULL;
     TCGv_i64 increment_nat = NULL;
     TCGv_i64 alat_generation = NULL;
-    TCGv_i64 ok;
+    bool record_alat = advanced && ctx->memory.full_alat;
     TCGLabel *l_fail;
     TCGLabel *l_done;
 
@@ -377,27 +402,38 @@ static void ia64_gen_speculative_load(DisasContext *ctx,
     addr = tcg_temp_new_i64();
     ia64_gen_load_reg_base_update_inputs(insn, &increment, &base_nat,
                                          &increment_nat);
-    ok = tcg_temp_new_i64();
     l_fail = base_nat_set ? NULL : gen_new_label();
     l_done = base_nat_set ? NULL : gen_new_label();
 
     tcg_gen_mov_i64(addr, ia64_gr_src(op->base));
     if (!base_nat_set) {
+        TCGv_i64 pa;
+
         if (!base_nat_clear) {
             TCGv_i64 addr_nat = ia64_gen_gr_nat_read(op->base);
 
             tcg_gen_brcondi_i64(TCG_COND_NE, addr_nat, 0, l_fail);
         }
         ia64_gen_sync_ip_for_helper(insn);
-        TCGv_i64 pa = ia64_gen_speculative_load_probe(
-            ok, addr, ia64_memop_size(mop), 0, 0, true,
-            advanced && ctx->memory.full_alat, &alat_generation);
-        tcg_gen_brcondi_i64(TCG_COND_EQ, ok, 0, l_fail);
+        if (ctx->memory.mmu_idx != MMU_PHYS_IDX && !ctx->base.plugin_enabled &&
+            ia64_env_cpu_class(ctx->env)->model != IA64_CPU_MODEL_MERCED) {
+            if (record_alat) {
+                alat_generation = ia64_gen_alat_load_begin();
+            }
+            pa = ia64_gen_speculative_int_load(ctx, cpu_gr[op->destination],
+                                               addr, mop, record_alat, l_fail);
+        } else {
+            TCGv_i64 ok = tcg_temp_new_i64();
 
-        ia64_gen_qemu_ld_i64(ctx, cpu_gr[op->destination], addr,
-                             ctx->memory.mmu_idx, mop);
+            pa = ia64_gen_speculative_load_probe(
+                ok, addr, ia64_memop_size(mop), 0, 0, true, record_alat,
+                &alat_generation);
+            tcg_gen_brcondi_i64(TCG_COND_EQ, ok, 0, l_fail);
+            ia64_gen_qemu_ld_i64(ctx, cpu_gr[op->destination], addr,
+                                 ctx->memory.mmu_idx, mop);
+        }
         ia64_gen_gr_nat_clear(insn, op->destination);
-        if (advanced && ctx->memory.full_alat) {
+        if (record_alat) {
             gen_helper_set_alat_pa(tcg_env, tcg_constant_i32(op->destination),
                                    addr, tcg_constant_i32(ia64_memop_size(mop)),
                                    alat_generation, pa);
@@ -405,7 +441,7 @@ static void ia64_gen_speculative_load(DisasContext *ctx,
         tcg_gen_br(l_done);
         gen_set_label(l_fail);
     }
-    if (advanced && ctx->memory.full_alat) {
+    if (record_alat) {
         gen_helper_invalidate_alat_reg(tcg_env,
                                        tcg_constant_i32(op->destination));
     }

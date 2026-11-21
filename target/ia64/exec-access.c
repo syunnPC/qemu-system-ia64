@@ -392,14 +392,15 @@ bool ia64_exec_advanced_load_allowed(CPUIA64State *env, uint64_t addr,
 }
 
 bool ia64_exec_cached_load_translation(CPUIA64State *env, uint64_t addr,
-                                       int mmu_idx,
-                                       IA64CachedLoadTranslation *translation)
+                                       int mmu_idx, bool need_ram,
+                                       IA64CachedLoadTranslation *translation,
+                                       void **load_host)
 {
     CPUTLBEntryFull *full;
     bool from_victim;
 
     if (!tlb_lookup_full_no_fill(env, addr, MMU_DATA_LOAD, mmu_idx, &full,
-                                 &from_victim)) {
+                                 &from_victim, load_host)) {
         return false;
     }
 
@@ -409,7 +410,8 @@ bool ia64_exec_cached_load_translation(CPUIA64State *env, uint64_t addr,
         .memory_attribute = full->extra.ia64.memory_attribute,
         .prot = full->prot,
         .from_victim = from_victim,
-        .is_ram = memory_region_is_ram(full->section->mr),
+        .is_ram = need_ram && ((load_host && *load_host) ||
+                               memory_region_is_ram(full->section->mr)),
     };
     return true;
 }

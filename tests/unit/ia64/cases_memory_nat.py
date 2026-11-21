@@ -857,6 +857,31 @@ test_memory_order_completers_decode = require_registers(
         "exception": IA64_EXCP_NONE,
     }, entry=0x10)
 
+# Execute all four aligned ld.s widths on a warm write-back translation.
+# The BE switch keeps both the soft TLB entry and modeled page reusable.
+test_speculative_warm_ram_endianness = require_registers(
+    "speculative_warm_ram_endianness", [
+        *dtr_setup_bundles(0x10, HIGH_TR_BASE, 0x400000),
+        (0x70, *movl_mlx(2, HIGH_TR_BASE + 0x8210)),
+        (0x80, *movl_mlx(19, IA64_PSR_IC | IA64_PSR_DT)),
+        (0x90, 0x08, mov_gr_psr_full(19), srlz_d(), nop_i()),
+        (0xa0, 0x00, ld8(3, 2), nop_i(), nop_i()),
+        *[(0xb0 + 16 * i, 0x00, load_mem(0x04 + i, 20 + i, 2),
+           nop_i(), nop_i()) for i in range(4)],
+        (0xf0, 0x00, sum_um(IA64_PSR_BE), nop_i(), nop_i()),
+        *[(0x100 + 16 * i, 0x00, load_mem(0x04 + i, 24 + i, 2),
+           nop_i(), nop_i()) for i in range(4)],
+        (0x140, 0x10, nop_m(), nop_i(), br_cond(0x140, 0x140)),
+        raw_bundle(0x408210, 0x1837567594b3d2f1, 0),
+    ], {
+        "ip": 0x140, "exception": IA64_EXCP_NONE,
+        "r20": 0xf1, "r21": 0xd2f1, "r22": 0x94b3d2f1,
+        "r23": 0x1837567594b3d2f1,
+        "r24": 0xf1, "r25": 0xf1d2, "r26": 0xf1d2b394,
+        "r27": 0xf1d2b39475563718,
+    }, entry=0x10, cpu="madison")
+
+
 test_data_big_endian_load_store = require_registers(
     "data_big_endian_load_store", [
         (0x10, 0x00, addl(3, 0x200, 0), addl(4, 0x201, 0),
@@ -3851,6 +3876,7 @@ CASE_NAMES = (
     'speculative_stacked_nat_survives_interrupt_flush_return',
     'speculative_stacked_nat_survives_call_return',
     'speculative_unimplemented_physical_unaligned_defers',
+    'speculative_warm_ram_endianness',
     'speculative_unaligned_defers',
     'speculative_unaligned_no_recovery_faults',
     'st16_madison_illegal_operation',

@@ -51,6 +51,26 @@ typedef struct IA64KeyCacheEntry {
     bool valid;
 } IA64KeyCacheEntry;
 
+/* A modeled, accessed data page that previously passed ld.s qualification. */
+typedef struct IA64SpeculativePage {
+    uint64_t page_cpl;
+    uint64_t phys_page;
+    uint32_t rid;
+    uint32_t generation;
+    uint8_t memory_attribute;
+} IA64SpeculativePage;
+
+#define IA64_TLB_BUCKET_SHIFT 16
+#define IA64_TLB_BUCKETS 64
+#define IA64_TLB_SLOT_WORDS DIV_ROUND_UP(IA64_TLB_MAX, 64)
+
+typedef struct IA64TlbIndex {
+    /* The extra bucket holds large pages that span multiple hash keys. */
+    uint64_t slots[IA64_TLB_BUCKETS + 1][IA64_TLB_SLOT_WORDS];
+    uint64_t occupied[IA64_TLB_SLOT_WORDS];
+    uint8_t slot_bucket[IA64_TLB_MAX];
+} IA64TlbIndex;
+
 typedef struct IA64MMUState {
     /* Derived translation caches; all entries are reconstructible. */
     IA64TlbEntry tlb_data[IA64_TLB_MAX];
@@ -87,6 +107,11 @@ typedef struct IA64MMUState {
     uint8_t tlb_inst_victim_next;
     IA64CodeTlbEdCache code_tlb_ed;
     IA64KeyCacheEntry key_cache[4];
+    /* Host-only, rebuilt on demand after reset and migration. */
+    IA64TlbIndex tlb_data_index;
+    IA64TlbIndex tlb_inst_index;
+    uint32_t speculative_generation;
+    IA64SpeculativePage speculative_pages[32];
 
     /* Transient bookkeeping for architected purge operations. */
     uint16_t pending_purge_data_count;

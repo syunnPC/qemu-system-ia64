@@ -123,6 +123,8 @@ DEF_HELPER_FLAGS_5(check_alignment, TCG_CALL_NO_WG, void, env, i64, i32, i64,
 DEF_HELPER_FLAGS_6(speculative_probe, TCG_CALL_NO_WG, i64, env, i64, i32, i32,
                    i32, i32)
 DEF_HELPER_FLAGS_3(speculative_int_probe, TCG_CALL_NO_WG, i64, env, i64, i32)
+DEF_HELPER_FLAGS_4(speculative_int_load, TCG_CALL_NO_WG, i128, env, i64, i32,
+                   i32)
 DEF_HELPER_FLAGS_3(speculative_int_probe_pa, TCG_CALL_NO_WG, i128, env, i64,
                    i32)
 DEF_HELPER_FLAGS_6(speculative_probe_pa, TCG_CALL_NO_WG, i128, env, i64, i32,

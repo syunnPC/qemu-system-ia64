@@ -3,6 +3,8 @@
 #include "qemu/osdep.h"
 #include "cpu.h"
 #include "exec/helper-proto.h"
+#include "exec/memopidx.h"
+#include "accel/tcg/probe.h"
 #include "arch/arch.h"
 #include "trace.h"
 
@@ -160,13 +162,39 @@ Int128 helper_speculative_int_probe_pa(CPUIA64State *env, uint64_t va,
                                        uint32_t size)
 {
     uint64_t pa;
-    uint64_t result = ia64_mmu_speculative_int_probe_pa(env, va, size, &pa);
+    uint64_t result = ia64_mmu_speculative_int_probe_pa(env, va, size, &pa,
+                                                        NULL);
 
     if (!result) {
         trace_ia64_speculative_probe_defer(env_cpu(env)->cpu_index, env->ip, va,
                                            size);
     }
     return int128_make128(result, pa);
+}
+
+/*
+ * On a clean RAM hit, return the actual value and its qualified PA.  On a
+ * slow hit, pass the qualified PA on to the normal generated load instead.
+ * Neither exceptional result can alias an implemented physical address.
+ */
+Int128 helper_speculative_int_load(CPUIA64State *env, uint64_t va, uint32_t oi,
+                                   uint32_t record_alat)
+{
+    MemOp op = get_memop(oi);
+    unsigned size = memop_size(op);
+    uint64_t pa = UINT64_MAX;
+    void *host;
+
+    if (!ia64_mmu_speculative_int_probe_pa(env, va, size,
+                                           record_alat ? &pa : NULL, &host)) {
+        trace_ia64_speculative_probe_defer(env_cpu(env)->cpu_index, env->ip, va,
+                                           size);
+        return int128_make128(0, IA64_SPEC_LD_DEFERRED);
+    }
+    if (!host || get_mmuidx(oi) != MMU_IDX_VIRT_CPL(ia64_psr_cpl(env->psr))) {
+        return int128_make128(pa, IA64_SPEC_LD_SLOW);
+    }
+    return int128_make128(cpu_ld_cached_ram(env, host, op), pa);
 }
 
 Int128 helper_speculative_probe_pa(CPUIA64State *env, uint64_t va,

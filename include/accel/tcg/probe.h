@@ -8,6 +8,7 @@
 #define ACCEL_TCG_PROBE_H
 
 #include "exec/mmu-access-type.h"
+#include "exec/memop.h"
 #include "exec/vaddr.h"
 
 /**
@@ -110,6 +111,8 @@ int probe_access_full_mmu(CPUArchState *env, vaddr addr, int size,
  * @pfull: return value for the matching full TLB entry
  * @from_victim: return whether the matching entry was promoted from the
  *               victim TLB
+ * @load_host: optional host address for a plain RAM read; NULL on miss or
+ *             when the memory access requires slow-path handling
  *
  * Look up the soft-TLB entry that the next memory access would reuse without
  * invoking the target TLB fill.  A clean matching victim entry is promoted
@@ -120,12 +123,16 @@ int probe_access_full_mmu(CPUArchState *env, vaddr addr, int size,
  *
  * The CPUTLBEntryFull structure returned via @pfull is transient and must be
  * consumed or copied immediately, before any further access or changes to TLB
- * @mmu_idx.  It describes the translation but does not authorize directly
- * accessing guest memory.
+ * @mmu_idx. The same lifetime applies to the optional RAM pointer. Its
+ * caller must check alignment, access size, and target-specific permissions.
  */
 bool tlb_lookup_full_no_fill(CPUArchState *env, vaddr addr,
                              MMUAccessType access_type, int mmu_idx,
-                             CPUTLBEntryFull **pfull, bool *from_victim);
+                             CPUTLBEntryFull **pfull, bool *from_victim,
+                             void **load_host);
+
+/* Naturally aligned, single-page unsigned read through a clean RAM pointer. */
+uint64_t cpu_ld_cached_ram(CPUArchState *env, void *host, MemOp op);
 
 #endif /* !CONFIG_USER_ONLY */
 

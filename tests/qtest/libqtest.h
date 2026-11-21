@@ -666,6 +666,8 @@ uint64_t qtest_csr_call(QTestState *s, const char *name,
  * @va: Page-aligned IA-64 virtual load address.
  * @old_pa: Page-aligned physical page for the stale victim entry.
  * @new_pa: Page-aligned physical page for the modeled translation.
+ * @mode: Optional "remap" or "wrap" to replace the modeled translation after
+ * warming the qualifier, optionally reusing its generation number.
  * @probe_succeeded: Return whether the speculative probe accepted the load.
  *
  * Construct a stale IA-64 soft-TLB victim entry and perform the speculative
@@ -676,7 +678,7 @@ uint64_t qtest_csr_call(QTestState *s, const char *name,
  */
 uint64_t qtest_ia64_stale_victim_load(QTestState *s, uint64_t va,
                                       uint64_t old_pa, uint64_t new_pa,
-                                      bool *probe_succeeded);
+                                      const char *mode, bool *probe_succeeded);
 
 /**
  * qtest_ia64_alat_active_writer:

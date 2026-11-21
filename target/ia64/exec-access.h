@@ -69,8 +69,9 @@ typedef struct IA64CachedLoadTranslation {
 } IA64CachedLoadTranslation;
 
 bool ia64_exec_cached_load_translation(CPUIA64State *env, uint64_t addr,
-                                       int mmu_idx,
-                                       IA64CachedLoadTranslation *translation);
+                                       int mmu_idx, bool need_ram,
+                                       IA64CachedLoadTranslation *translation,
+                                       void **load_host);
 bool ia64_exec_debug_read(CPUState *cs, uint64_t addr, void *buffer,
                           size_t size);
 bool ia64_exec_physical_rw(uint64_t addr, void *buffer, size_t size,

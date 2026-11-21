@@ -1506,16 +1506,21 @@ static bool victim_tlb_hit(CPUState *cpu, size_t mmu_idx, size_t index,
     return false;
 }
 
-static bool victim_tlb_pingpong_clean_ram(const CPUTLBEntry *entry,
-                                          const CPUTLBEntryFull *full,
-                                          MMUAccessType access_type,
-                                          vaddr page)
+static bool tlb_full_is_plain_ram(const CPUTLBEntryFull *full,
+                                  MMUAccessType access_type)
+{
+    return full->slow_flags[access_type] == 0 &&
+           full->section != NULL && full->section->mr != NULL &&
+           memory_region_is_ram(full->section->mr);
+}
+
+static bool tlb_is_clean_ram(const CPUTLBEntry *entry,
+                             const CPUTLBEntryFull *full,
+                             MMUAccessType access_type, vaddr page)
 {
     /* Exact equality rejects INVALID, NOTDIRTY, and FORCE_SLOW entries. */
     return tlb_read_idx(entry, access_type) == page &&
-           full->slow_flags[access_type] == 0 &&
-           full->section != NULL && full->section->mr != NULL &&
-           memory_region_is_ram(full->section->mr);
+           tlb_full_is_plain_ram(full, access_type);
 }
 
 /*
@@ -1546,10 +1551,10 @@ static bool victim_tlb_pingpong_direct(CPUState *cpu, size_t mmu_idx,
     }
 
     main_access = desc->victim_tlb_pingpong_last_access;
-    if (!victim_tlb_pingpong_clean_ram(
+    if (!tlb_is_clean_ram(
             main, main_full, main_access,
             desc->victim_tlb_pingpong_last_page) ||
-        !victim_tlb_pingpong_clean_ram(
+        !tlb_is_clean_ram(
             &desc->vtable[vindex], &desc->vfulltlb[vindex],
             access_type, page)) {
         goto fail;
@@ -1606,14 +1611,13 @@ static void victim_tlb_pingpong_record(CPUState *cpu, size_t mmu_idx,
         return;
     }
 
-    if (!victim_tlb_pingpong_clean_ram(main, main_full,
-                                        access_type, page)) {
+    if (!tlb_is_clean_ram(main, main_full, access_type, page)) {
         goto fail;
     }
 
     /* The preceding promotion placed the old main page in a victim slot. */
     for (vindex = 0; vindex < CPU_VTLB_SIZE; vindex++) {
-        if (victim_tlb_pingpong_clean_ram(
+        if (tlb_is_clean_ram(
                 &desc->vtable[vindex], &desc->vfulltlb[vindex],
                 previous_access, previous_page)) {
             desc->victim_tlb_pingpong_vindex = vindex;
@@ -1829,17 +1833,22 @@ void *tlb_vaddr_to_host(CPUArchState *env, vaddr addr,
 
 bool tlb_lookup_full_no_fill(CPUArchState *env, vaddr addr,
                              MMUAccessType access_type, int mmu_idx,
-                             CPUTLBEntryFull **pfull, bool *from_victim)
+                             CPUTLBEntryFull **pfull, bool *from_victim,
+                             void **load_host)
 {
     CPUState *cpu = env_cpu(env);
+    vaddr page = addr & TARGET_PAGE_MASK;
     uintptr_t index = tlb_index(cpu, mmu_idx, addr);
-    CPUTLBEntry *entry = tlb_entry(cpu, mmu_idx, addr);
+    CPUTLBEntry *entry = &cpu_tlb_fast(cpu, mmu_idx)->table[index];
     uint64_t tlb_addr;
 
     assert_cpu_is_self(cpu);
     *from_victim = false;
+    if (load_host) {
+        *load_host = NULL;
+    }
     tlb_addr = tlb_read_idx(entry, access_type);
-    if (unlikely(!tlb_hit(tlb_addr, addr))) {
+    if (unlikely(!tlb_hit_page(tlb_addr, page))) {
         /*
          * Match the next slow-path memory access: a clean entry for this
          * page in the victim TLB would be promoted and reused before a
@@ -1847,15 +1856,21 @@ bool tlb_lookup_full_no_fill(CPUArchState *env, vaddr addr,
          * translation that the subsequent access will actually consume.
          */
         victim_tlb_pingpong_reset(&cpu->neg.tlb.d[mmu_idx]);
-        if (!victim_tlb_hit(cpu, mmu_idx, index, access_type,
-                            addr & TARGET_PAGE_MASK)) {
+        if (!victim_tlb_hit(cpu, mmu_idx, index, access_type, page)) {
             *pfull = NULL;
             return false;
         }
+        /* victim_tlb_hit only promotes an exact comparator match. */
+        tlb_addr = page;
         *from_victim = true;
     }
 
     *pfull = &cpu->neg.tlb.d[mmu_idx].fulltlb[index];
+    if (load_host && access_type == MMU_DATA_LOAD && tlb_addr == page &&
+        !cpu_plugin_mem_cbs_enabled(cpu) &&
+        tlb_full_is_plain_ram(*pfull, access_type)) {
+        *load_host = (void *)((uintptr_t)addr + entry->addend);
+    }
     return true;
 }
 
@@ -2743,6 +2758,30 @@ static uint64_t do_ld_8(CPUState *cpu, MMULookupPageData *p, int mmu_idx,
         }
     }
     return ret;
+}
+
+uint64_t cpu_ld_cached_ram(CPUArchState *env, void *host, MemOp op)
+{
+    tcg_debug_assert(QEMU_PTR_IS_ALIGNED(host, memop_size(op)));
+    cpu_req_mo(env_cpu(env), TCG_MO_LD_LD | TCG_MO_ST_LD);
+    switch (op & MO_SIZE) {
+    case MO_8:
+        return *(uint8_t *)host;
+    case MO_16: {
+        uint16_t value = load_atomic2(host);
+        return op & MO_BSWAP ? bswap16(value) : value;
+    }
+    case MO_32: {
+        uint32_t value = load_atomic4(host);
+        return op & MO_BSWAP ? bswap32(value) : value;
+    }
+    case MO_64: {
+        uint64_t value = load_atomic8(host);
+        return op & MO_BSWAP ? bswap64(value) : value;
+    }
+    default:
+        g_assert_not_reached();
+    }
 }
 
 static uint8_t do_ld1_mmu(CPUState *cpu, vaddr addr, MemOpIdx oi,

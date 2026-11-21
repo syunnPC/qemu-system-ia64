@@ -65,10 +65,12 @@ static uint64_t ia64_alat_cpu_generation(CPUIA64State *env, bool *active)
         IA64CPU *cpu = ia64_cpu_from_cpu_state(cs);
         uint64_t sequence = qatomic_load_acquire(&cpu->alat_write_sequence);
 
-        generation += sequence;
-        if (active) {
-            *active |= sequence & 1;
+        if (active && (sequence & 1)) {
+            /* An open store invalidates the window regardless of the sum. */
+            *active = true;
+            return 0;
         }
+        generation += sequence;
     }
     return generation;
 }
@@ -114,8 +116,7 @@ static bool ia64_alat_memory_window_changed(CPUIA64State *env,
         return false;
     }
 
-    ia64_alat_clear(env);
-    env->alat_state.memory_write_generation = ia64_alat_memory_generation(env);
+    ia64_alat_invala(env);
     return true;
 }
 
@@ -220,8 +221,8 @@ uint64_t ia64_alat_chk_a(CPUIA64State *env, uint64_t va, uint32_t reg)
 
 void ia64_alat_invala(CPUIA64State *env)
 {
+    /* The next advanced load samples a new generation before registration. */
     ia64_alat_clear(env);
-    env->alat_state.memory_write_generation = ia64_alat_memory_generation(env);
 }
 
 uint64_t ia64_alat_load_begin(CPUIA64State *env)
