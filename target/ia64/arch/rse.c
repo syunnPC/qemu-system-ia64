@@ -895,8 +895,8 @@ static void ia64_rse_copy_dirty(uint64_t *dst, const uint64_t *src,
 }
 
 /* Each dirty word spans at most one end of the physical register file. */
-static void ia64_rse_copy_dirty_word(CPUIA64State *env, uint32_t p,
-                                     uint32_t v, uint64_t dirty)
+static void ia64_rse_copy_dirty_word(CPUIA64State *env, uint32_t p, uint32_t v,
+                                     uint64_t dirty)
 {
     const uint64_t *src = &env->gr[IA64_STACKED_GR_BASE + v];
     uint32_t tail = IA64_STACKED_GR_COUNT - p;
@@ -925,8 +925,8 @@ ia64_rse_sync_frame_out_direct(CPUIA64State *env, uint64_t dirty0,
 
     ia64_rse_copy_dirty_word(env, bol, 0, dirty0);
     if (dirty1) {
-        ia64_rse_copy_dirty_word(env, (bol + 64) % IA64_STACKED_GR_COUNT,
-                                 64, dirty1);
+        ia64_rse_copy_dirty_word(env, (bol + 64) % IA64_STACKED_GR_COUNT, 64,
+                                 dirty1);
     }
 }
 

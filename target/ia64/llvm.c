@@ -10,6 +10,8 @@
 #include "accel/tcg/probe.h"
 #include "llvm.h"
 #include "arch/fp.h"
+#include "arch/arch.h"
+#include "decoder.h"
 #if defined(CONFIG_MODULES) || defined(CONFIG_PLUGIN)
 #include <gmodule.h>
 #endif
@@ -18,11 +20,12 @@ struct IA64LLVMRegion {
     unsigned state;
     uint16_t bundles;
     bool stop;
+    bool full_alat;
     uint64_t pc;
     unsigned barrier;
     uint32_t samples;
     IA64LLVMCode code;
-    uint64_t words[];
+    const uint64_t *words;
 };
 
 enum { COLD, QUEUED, READY, UNSUPPORTED };
@@ -37,10 +40,26 @@ static const char *stats_file;
 /* Each vCPU writes its own cache line. Statistics are optional. */
 uint64_t ia64_llvm_stats[256][8] QEMU_ALIGNED(64);
 
+static const IA64LLVMLayout layout = {
+    .gr = offsetof(CPUIA64State, gr),
+    .pr = offsetof(CPUIA64State, pr),
+    .fr = offsetof(CPUIA64State, fp.fr),
+    .fr_sig = offsetof(CPUIA64State, fp.fr_sig),
+    .tlb_mask = offsetof(CPUTLBDescFast, mask),
+    .tlb_table = offsetof(CPUTLBDescFast, table),
+    .read_tag = offsetof(CPUTLBEntry, addr_read),
+    .write_tag = offsetof(CPUTLBEntry, addr_write),
+    .dirty = offsetof(CPUIA64State, rse.rse_gr_dirty),
+    .addend = offsetof(CPUTLBEntry, addend),
+    .page_bits = TARGET_PAGE_BITS,
+    .entry_bits = CPU_TLB_ENTRY_BITS,
+};
+
 static void compile_task(gpointer data, gpointer unused)
 {
     IA64LLVMRegion *r = data;
-    bool ok = compile_region(IA64_LLVM_ABI, r->words, r->bundles, &r->code);
+    bool ok = compile_region(IA64_LLVM_ABI, r->words, r->bundles, &r->code,
+                             &layout, r->full_alat);
     qatomic_store_release(&r->state, ok ? READY : UNSUPPORTED);
 }
 static void finish(void)
@@ -83,8 +102,8 @@ void ia64_llvm_init(void)
     }
 #if defined(CONFIG_MODULES) || defined(CONFIG_PLUGIN)
     GModule *m = g_module_open(name, G_MODULE_BIND_LOCAL);
-    if (!m ||
-        !g_module_symbol(m, "ia64_llvm_compile", (gpointer *)&compile_region)) {
+    if (!m || !g_module_symbol(m, IA64_LLVM_COMPILE_SYMBOL,
+                               (gpointer *)&compile_region)) {
         error_report("IA-64 LLVM initialization failed: %s", g_module_error());
         exit(EXIT_FAILURE);
     }
@@ -103,19 +122,27 @@ void ia64_llvm_init(void)
 }
 
 IA64LLVMRegion *ia64_llvm_register(const uint64_t *words, unsigned bundles,
-                                   bool stop, uint64_t pc, unsigned barrier)
+                                   bool stop, uint64_t pc, unsigned barrier,
+                                   bool full_alat)
 {
-    size_t len = bundles * 16;
-    GBytes *key = g_bytes_new(words, len);
+    size_t len = (size_t)bundles * 16;
+    uint8_t *bytes = g_malloc(len + 1);
+    IA64LLVMRegion *r;
+    GBytes *key;
+
+    memcpy(bytes, words, len);
+    bytes[len] = full_alat;
+    key = g_bytes_new_take(bytes, len + 1);
     g_mutex_lock(&region_lock);
-    IA64LLVMRegion *r = g_hash_table_lookup(regions, key);
+    r = g_hash_table_lookup(regions, key);
     if (!r && g_hash_table_size(regions) < MAX_KEYS) {
-        r = g_malloc0(sizeof(*r) + len);
+        r = g_new0(IA64LLVMRegion, 1);
         r->bundles = bundles;
         r->stop = stop;
+        r->full_alat = full_alat;
         r->pc = pc;
         r->barrier = barrier;
-        memcpy(r->words, words, len);
+        r->words = (const uint64_t *)bytes; /* Owned by the table key. */
         g_hash_table_insert(regions, g_bytes_ref(key), r);
     }
     g_mutex_unlock(&region_lock);
@@ -153,7 +180,7 @@ static void *read_page(void *opaque, uint64_t addr, uint32_t mmu)
     CPUTLBEntryFull *full;
     bool victim;
     void *host;
-    if (!tlb_lookup_full_no_fill(opaque, addr, MMU_DATA_LOAD, mmu, &full,
+    if (!tlb_lookup_full_no_fill(opaque, addr, MMU_DATA_LOAD, (int)mmu, &full,
                                  &victim, &host) ||
         !host || full->lg_page_size < TARGET_PAGE_BITS) {
         return NULL;
@@ -163,24 +190,49 @@ static void *read_page(void *opaque, uint64_t addr, uint32_t mmu)
 
 static uint64_t read_sig(void *opaque, uint32_t reg)
 {
-    CPUIA64State *env = opaque;
-    if (env->fp.fr_sig[reg / 64] & (UINT64_C(1) << (reg % 64))) {
-        return env->fp.fr[reg];
-    }
-    return ia64_fp_getf(env, reg, 2);
+    return ia64_fp_getf(opaque, reg, 2);
 }
 
-static bool fp_inputs_ready(CPUIA64State *env, const uint64_t fr[2])
+static bool fp_inputs_ready(CPUIA64State *env, const uint64_t fr_inputs[2])
 {
-    bool low = fr[0] & UINT32_MAX;
-    bool high = (fr[0] >> 32) || fr[1];
-    return !(fr[0] & env->fp.fr_nat[0]) && !(fr[1] & env->fp.fr_nat[1]) &&
+    bool low = fr_inputs[0] & UINT32_MAX;
+    bool high = (fr_inputs[0] >> 32) || fr_inputs[1];
+    return !(fr_inputs[0] & env->fp.fr_nat[0]) &&
+           !(fr_inputs[1] & env->fp.fr_nat[1]) &&
            !(low && (env->psr & IA64_PSR_DFL)) &&
            !(high && ((env->psr & IA64_PSR_DFH) || env->cfm_rrb_fr ||
                       env->fp.rotating_fr_materialized_rrb));
 }
 
-static const IA64LLVMAccess accessors = { read_page, read_sig };
+static void observed_store(void *opaque, void *host, uint64_t addr,
+                           uint64_t value, unsigned size)
+{
+    CPUIA64State *env = opaque;
+    ia64_alat_write_begin(env);
+    switch (size) {
+    case 1:
+        qatomic_store_release((uint8_t *)host, (uint8_t)value);
+        break;
+    case 2:
+        qatomic_store_release((uint16_t *)host, (uint16_t)value);
+        break;
+    case 4:
+        qatomic_store_release((uint32_t *)host, (uint32_t)value);
+        break;
+    case 8:
+        qatomic_store_release((uint64_t *)host, value);
+        break;
+    default:
+        g_assert_not_reached();
+    }
+    ia64_alat_write_end(env, addr, size);
+}
+
+static const IA64LLVMAccess accessors = {
+    .read_page = read_page,
+    .read_sig = read_sig,
+    .observed_store = observed_store,
+};
 
 uint32_t helper_llvm_region(CPUIA64State *env, void *opaque, uint64_t pc,
                             uint32_t mmu)
@@ -208,27 +260,50 @@ uint32_t helper_llvm_region(CPUIA64State *env, void *opaque, uint64_t pc,
                    IA64_PSR_TB | IA64_PSR_IS | IA64_PSR_FAULT_SUPPRESS_MASK;
     if (env->cfm_sof < r->code.sof || env->cfm_rrb_gr || env->cfm_rrb_pr ||
         (env->psr & psr) != IA64_PSR_IC || env->nat[0] || env->nat[1] ||
+        r->full_alat != env->alat_state.alat_full ||
         cpu_loop_exit_requested(cpu)) {
         if (s) {
             s[5]++;
         }
         return 0;
     }
-    if ((r->code.fr[0] || r->code.fr[1]) && !fp_inputs_ready(env, r->code.fr)) {
+    if ((r->code.fr_inputs[0] || r->code.fr_inputs[1]) &&
+        !fp_inputs_ready(env, r->code.fr_inputs)) {
         if (s) {
             s[5]++;
         }
         return 0;
     }
-    if (!r->code.run(env->gr, env->pr, env, mmu, &accessors)) {
+    unsigned result =
+        r->code.run(env, mmu, &accessors, cpu_tlb_fast(cpu, (int)mmu));
+    if (result != IA64_LLVM_COMPLETE) {
         if (s) {
             s[4]++;
+        }
+        if (result >= IA64_LLVM_RESUME) {
+            /* Earlier stores retired. Restart at the precise memory slot. */
+            uint64_t index = result - IA64_LLVM_RESUME;
+            unsigned slot = index % 3;
+            uint64_t prev = index - 1;
+            uint8_t tmpl;
+
+            g_assert(index > 0 &&
+                     index < (uint64_t)IA64_BUNDLE_SLOTS * r->bundles);
+            tmpl = ia64_bundle_template_code(r->words[2 * (prev / 3)]);
+            env->ip = pc + (index / 3) * 16;
+            env->psr = (env->psr & ~IA64_PSR_RI_MASK) |
+                       ((uint64_t)slot << IA64_PSR_RI_SHIFT);
+            env->instruction_group_start =
+                ia64_template_info(tmpl)->stop_after[prev % 3];
+            env->last_successful_bundle = pc + (prev / 3) * 16;
+            env->exception_state.fault_slot = slot;
+            cpu_loop_exit(cpu);
         }
         return 0;
     }
     env->rse.rse_gr_dirty[0] |= r->code.dirty[0];
     env->rse.rse_gr_dirty[1] |= r->code.dirty[1];
-    env->ip = pc + 16 * r->bundles;
+    env->ip = pc + UINT64_C(16) * r->bundles;
     env->last_successful_bundle = env->ip - 16;
     env->psr &= ~IA64_PSR_RI_MASK;
     env->instruction_group_start = r->stop;

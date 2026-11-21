@@ -362,7 +362,7 @@ static TCGv_i64 ia64_gen_speculative_int_load(DisasContext *ctx, TCGv_i64 dst,
     MemOpIdx oi = make_memop_idx(mop, ctx->memory.mmu_idx);
 
     gen_helper_speculative_int_load(result, tcg_env, addr,
-                                    tcg_constant_i32(oi),
+                                    tcg_constant_i32((int32_t)oi),
                                     tcg_constant_i32(record_alat));
     tcg_gen_extr_i128_i64(value, pa, result);
     tcg_gen_brcondi_i64(TCG_COND_EQ, pa, IA64_SPEC_LD_DEFERRED, fail);
@@ -425,9 +425,9 @@ static void ia64_gen_speculative_load(DisasContext *ctx,
         } else {
             TCGv_i64 ok = tcg_temp_new_i64();
 
-            pa = ia64_gen_speculative_load_probe(
-                ok, addr, ia64_memop_size(mop), 0, 0, true, record_alat,
-                &alat_generation);
+            pa = ia64_gen_speculative_load_probe(ok, addr, ia64_memop_size(mop),
+                                                 0, 0, true, record_alat,
+                                                 &alat_generation);
             tcg_gen_brcondi_i64(TCG_COND_EQ, ok, 0, l_fail);
             ia64_gen_qemu_ld_i64(ctx, cpu_gr[op->destination], addr,
                                  ctx->memory.mmu_idx, mop);

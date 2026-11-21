@@ -4510,8 +4510,8 @@ static int llvm_bundle_weight(DisasContext *ctx, uint64_t pc, uint64_t lo,
             ia64_insn_must_start_group(&i) || ia64_insn_must_end_group(&i) ||
             ia64_insn_requires_slot2(&i) ||
             ia64_insn_has_illegal_register(&i) ||
-            ia64_insn_has_reserved_mask_field(&i) || i.reg_base_update ||
-            i.imm_base_update || i.mem_acquire || i.mem_release) {
+            ia64_insn_has_reserved_mask_field(&i) || i.mem_acquire ||
+            i.mem_release) {
             return -1;
         }
         switch (i.opcode) {
@@ -4534,7 +4534,7 @@ static void ia64_try_llvm(DisasContext *ctx, uint64_t pc, uint64_t lo,
 {
     DisasContextBase *db = &ctx->base;
     uint32_t flags = db->tb->flags;
-    if (pc > UINT64_MAX - IA64_LLVM_MAX_BUNDLES * 16 ||
+    if (pc > UINT64_MAX - IA64_LLVM_MAX_BUNDLES * UINT64_C(16) ||
         pc < ctx->llvm_scan_until || ctx->restart.start_slot ||
         !(flags & IA64_TB_FLAG_PSR_IC) || !(flags & IA64_TB_FLAG_NAT_CLEAR) ||
         (flags & (IA64_TB_FLAG_BE | IA64_TB_FLAG_PSR_DB | IA64_TB_FLAG_PSR_TB |
@@ -4551,7 +4551,8 @@ static void ia64_try_llvm(DisasContext *ctx, uint64_t pc, uint64_t lo,
         max = MIN(max, db->max_insns - db->num_insns + 1);
     }
     uint64_t words[2 * IA64_LLVM_MAX_BUNDLES];
-    unsigned n = 0, weight = 0;
+    size_t n = 0;
+    unsigned weight = 0;
     Ia64Opcode barrier = IA64_OP_NOP;
     bool stop = false;
     for (; n < max; n++) {
@@ -4576,13 +4577,14 @@ static void ia64_try_llvm(DisasContext *ctx, uint64_t pc, uint64_t lo,
     }
     ctx->llvm_scan_until = pc + 16 * n;
     if (n >= 5 && weight >= 20) {
-        IA64LLVMRegion *r = ia64_llvm_register(words, n, stop, pc, barrier);
+        IA64LLVMRegion *r = ia64_llvm_register(words, n, stop, pc, barrier,
+                                               ctx->memory.full_alat);
         if (r) {
             ctx->llvm_resume = gen_new_label();
             TCGv_i32 executed = tcg_temp_new_i32();
             ctx->llvm_end = MAX(ctx->llvm_end, ctx->llvm_scan_until);
             gen_helper_llvm_region(executed, tcg_env, tcg_constant_ptr(r),
-                                   tcg_constant_i64(pc),
+                                   tcg_constant_i64((int64_t)pc),
                                    tcg_constant_i32(ctx->memory.mmu_idx));
             tcg_gen_brcondi_i32(TCG_COND_NE, executed, 0, ctx->llvm_resume);
         }
@@ -4831,9 +4833,17 @@ static void ia64_tr_tb_stop(DisasContextBase *db, CPUState *cs)
         g_assert_not_reached();
     }
     if (ctx->llvm_resume) {
-        /* The TCG op buffer may have ended the ordinary TB in mid-region. */
+        unsigned slot = ctx->branch.goto_tb_slots;
+
+        /* The native helper already committed the successor's PC and TB key. */
         gen_set_label(ctx->llvm_resume);
-        ia64_gen_lookup_or_exit(ctx);
+        if (slot <= TB_EXIT_IDXMAX && ctx->reg.cpl_known &&
+            translator_use_goto_tb(db, ctx->llvm_end)) {
+            tcg_gen_goto_tb(slot);
+            tcg_gen_exit_tb(db->tb, slot);
+        } else {
+            ia64_gen_lookup_or_exit(ctx);
+        }
     }
     /* Invalidate the entire range a native exit can execute. */
     db->pc_next = MAX(db->pc_next, ctx->llvm_end);

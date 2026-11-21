@@ -162,8 +162,8 @@ Int128 helper_speculative_int_probe_pa(CPUIA64State *env, uint64_t va,
                                        uint32_t size)
 {
     uint64_t pa;
-    uint64_t result = ia64_mmu_speculative_int_probe_pa(env, va, size, &pa,
-                                                        NULL);
+    uint64_t result =
+        ia64_mmu_speculative_int_probe_pa(env, va, size, &pa, NULL);
 
     if (!result) {
         trace_ia64_speculative_probe_defer(env_cpu(env)->cpu_index, env->ip, va,

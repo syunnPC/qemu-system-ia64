@@ -42,7 +42,7 @@ _start:
 }
 { .mii
     mov r37=0
-    nop.i 0
+    mov r38=0
     nop.i 0 ;;
 }
 region:
@@ -59,13 +59,19 @@ changed:
     add r36=2,r36
     add r37=3,r37 ;;
 }
-.rept 6
+.rept 42
 { .mii
     add r35=1,r35
     add r36=2,r36
     add r37=3,r37 ;;
 }
 .endr
+successor:
+{ .mii
+    mf
+    add r38=1,r38
+    nop.i 0 ;;
+}
 { .mii
     add r20=-1,r20
     nop.i 0
@@ -106,6 +112,34 @@ changed:
     nop.i 0
     nop.i 0 ;;
 }
+{ .mlx
+    nop.m 0
+    movl r21=next_replacement ;;
+}
+{ .mlx
+    nop.m 0
+    movl r22=successor ;;
+}
+{ .mii
+    add r23=8,r21
+    add r24=8,r22
+    nop.i 0 ;;
+}
+{ .mmi
+    ld8 r26=[r21]
+    ld8 r27=[r23]
+    nop.i 0 ;;
+}
+{ .mmi
+    st8 [r22]=r26
+    st8 [r24]=r27
+    nop.i 0 ;;
+}
+{ .mii
+    fc.i r22
+    nop.i 0
+    nop.i 0 ;;
+}
 { .mii
     sync.i
     nop.i 0
@@ -136,4 +170,10 @@ replacement:
     add r34=2,r34
     add r36=2,r36
     add r37=3,r37 ;;
+}
+next_replacement:
+{ .mii
+    mf
+    add r38=2,r38
+    nop.i 0 ;;
 }

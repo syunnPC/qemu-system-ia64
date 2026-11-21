@@ -1,25 +1,26 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include <inttypes.h>
 #include <stdio.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <llvm-c/Analysis.h>
-#include <llvm-c/Core.h>
 #include <llvm-c/LLJIT.h>
 #include <llvm-c/Target.h>
 #include <llvm-c/Transforms/PassBuilder.h>
-#include "engine/tier1/ir.h"
-#include "engine/tier1/form.h"
+#include "region.h"
 #include "lower.h"
 
 typedef struct Lower {
-    const struct t1_ir *ir;
+    IA64LLVMCode *code;
+    const IA64LLVMLayout *layout;
     LLVMContextRef ctx;
     LLVMModuleRef mod;
     LLVMBuilderRef b;
-    LLVMTypeRef i1, i32, i64, ptr, probe_type, sig_type;
-    LLVMValueRef fn, page, host, probe, read_sig;
+    LLVMTypeRef i1, i32, i64, ptr, probe_type, sig_type, store_type;
+    LLVMValueRef fn, page, host, probe, read_sig, observed_store;
+    bool stored;
     LLVMBasicBlockRef retry;
-    LLVMValueRef *values;
+    LLVMValueRef gr[128], pr[64], fr[128];
+    bool gr_written[128];
 } Lower;
 
 static LLVMOrcLLJITRef jit;
@@ -29,39 +30,92 @@ static LLVMValueRef constant(Lower *l, uint64_t val)
 {
     return LLVMConstInt(l->i64, val, 0);
 }
-static LLVMValueRef arg(Lower *l, const struct t1_op *o, unsigned k)
+
+static LLVMValueRef bytes_at(Lower *l, LLVMValueRef base, LLVMValueRef offset)
 {
-    if (k >= o->nuse) {
-        return NULL;
-    }
-    t1_value v = l->ir->use[o->use_first + k].value;
-    return v == T1_VALUE_NONE ? NULL : l->values[t1_ir_resolve(l->ir, v)];
-}
-static LLVMValueRef home(Lower *l, unsigned el)
-{
-    unsigned pr = el > 256 && el < 320;
-    if (!pr && (el == 0 || el >= 128)) {
-        return NULL;
-    }
-    LLVMValueRef k = constant(l, pr ? el - 256 : el);
-    return LLVMBuildGEP2(l->b, l->i64, LLVMGetParam(l->fn, pr), &k, 1, "");
-}
-static LLVMValueRef narrow(Lower *l, LLVMValueRef a, unsigned bits, bool sign)
-{
-    if (bits == 64) {
-        return a;
-    }
-    LLVMTypeRef t = LLVMIntTypeInContext(l->ctx, bits);
-    LLVMValueRef v = LLVMBuildTrunc(l->b, a, t, "");
-    return sign ? LLVMBuildSExt(l->b, v, l->i64, "")
-                : LLVMBuildZExt(l->b, v, l->i64, "");
+    return LLVMBuildGEP2(l->b, LLVMInt8TypeInContext(l->ctx), base, &offset, 1,
+                         "");
 }
 
-static LLVMValueRef read_ram(Lower *l, LLVMValueRef addr, unsigned size)
+static LLVMValueRef field_at(Lower *l, LLVMValueRef base, unsigned offset)
+{
+    return bytes_at(l, base, constant(l, offset));
+}
+
+static LLVMValueRef env_at(Lower *l, unsigned offset)
+{
+    return field_at(l, LLVMGetParam(l->fn, 0), offset);
+}
+
+static void require_gr(Lower *l, unsigned reg)
+{
+    if (reg >= 32 && reg - 31 > l->code->sof) {
+        l->code->sof = reg - 31;
+    }
+}
+
+static LLVMValueRef read_gr(Lower *l, unsigned reg)
+{
+    if (!reg) {
+        return constant(l, 0);
+    }
+    if (!l->gr[reg]) {
+        require_gr(l, reg);
+        l->gr[reg] = LLVMBuildLoad2(l->b, l->i64,
+                                    env_at(l, l->layout->gr + reg * 8), "");
+    }
+    return l->gr[reg];
+}
+
+static void write_gr(Lower *l, unsigned reg, LLVMValueRef value)
+{
+    require_gr(l, reg);
+    l->gr[reg] = value;
+    l->gr_written[reg] = true;
+    if (reg >= 32) {
+        unsigned bit = reg - 32;
+        l->code->dirty[bit / 64] |= UINT64_C(1) << (bit % 64);
+    }
+}
+
+static LLVMValueRef tlb_entry(Lower *l, LLVMValueRef addr)
+{
+    const IA64LLVMLayout *layout = l->layout;
+    LLVMValueRef tlb = LLVMGetParam(l->fn, 3);
+    LLVMBuilderRef b = l->b;
+    LLVMValueRef index = LLVMBuildLShr(
+        b, addr, constant(l, layout->page_bits - layout->entry_bits), "");
+    LLVMValueRef tlb_mask =
+        LLVMBuildLoad2(b, l->i64, field_at(l, tlb, layout->tlb_mask), "");
+    LLVMValueRef table =
+        LLVMBuildLoad2(b, l->ptr, field_at(l, tlb, layout->tlb_table), "");
+    return bytes_at(l, table, LLVMBuildAnd(b, index, tlb_mask, ""));
+}
+
+static LLVMValueRef tlb_hit(Lower *l, LLVMValueRef entry, LLVMValueRef page,
+                            unsigned tag_offset)
+{
+    LLVMValueRef tag =
+        LLVMBuildLoad2(l->b, l->i64, field_at(l, entry, tag_offset), "");
+    LLVMSetOrdering(tag, LLVMAtomicOrderingAcquire);
+    return LLVMBuildICmp(l->b, LLVMIntEQ, tag, page, "");
+}
+
+static LLVMValueRef tlb_host(Lower *l, LLVMValueRef entry, LLVMValueRef addr)
+{
+    LLVMValueRef addend =
+        LLVMBuildLoad2(l->b, l->i64, field_at(l, entry, l->layout->addend), "");
+    return LLVMBuildIntToPtr(l->b, LLVMBuildAdd(l->b, addr, addend, ""), l->ptr,
+                             "");
+}
+
+static LLVMValueRef read_ram(Lower *l, LLVMValueRef addr, unsigned size,
+                             LLVMBasicBlockRef retry)
 {
     LLVMBuilderRef b = l->b;
-    LLVMValueRef off = LLVMBuildAnd(b, addr, constant(l, 4095), "");
-    LLVMValueRef page = LLVMBuildAnd(b, addr, constant(l, ~UINT64_C(4095)), "");
+    uint64_t mask = (UINT64_C(1) << l->layout->page_bits) - 1;
+    LLVMValueRef off = LLVMBuildAnd(b, addr, constant(l, mask), "");
+    LLVMValueRef page = LLVMBuildAnd(b, addr, constant(l, ~mask), "");
     LLVMBasicBlockRef test =
         LLVMAppendBasicBlockInContext(l->ctx, l->fn, "page");
     LLVMBasicBlockRef fill =
@@ -71,17 +125,37 @@ static LLVMValueRef read_ram(Lower *l, LLVMValueRef addr, unsigned size)
     LLVMValueRef misaligned = LLVMBuildAnd(b, addr, constant(l, size - 1), "");
     LLVMBuildCondBr(b,
                     LLVMBuildICmp(b, LLVMIntEQ, misaligned, constant(l, 0), ""),
-                    test, l->retry);
+                    test, retry);
     LLVMPositionBuilderAtEnd(b, test);
     LLVMValueRef old = LLVMBuildLoad2(b, l->i64, l->page, "");
     LLVMBuildCondBr(b, LLVMBuildICmp(b, LLVMIntEQ, old, page, ""), hit, fill);
     LLVMPositionBuilderAtEnd(b, fill);
-    LLVMValueRef args[] = { LLVMGetParam(l->fn, 2), addr,
-                            LLVMGetParam(l->fn, 3) };
-    LLVMValueRef ptr = LLVMBuildCall2(b, l->probe_type, l->probe, args, 3, "");
+    LLVMValueRef entry = tlb_entry(l, addr);
+    LLVMBasicBlockRef fast =
+        LLVMAppendBasicBlockInContext(l->ctx, l->fn, "direct");
+    LLVMBasicBlockRef slow =
+        LLVMAppendBasicBlockInContext(l->ctx, l->fn, "probe");
+    LLVMBasicBlockRef join =
+        LLVMAppendBasicBlockInContext(l->ctx, l->fn, "mapped");
+    LLVMBuildCondBr(b, tlb_hit(l, entry, page, l->layout->read_tag), fast,
+                    slow);
+    LLVMPositionBuilderAtEnd(b, fast);
+    LLVMValueRef direct = tlb_host(l, entry, page);
+    LLVMBuildBr(b, join);
+    LLVMPositionBuilderAtEnd(b, slow);
+    LLVMValueRef args[] = { LLVMGetParam(l->fn, 0), addr,
+                            LLVMGetParam(l->fn, 1) };
+    LLVMValueRef probed =
+        LLVMBuildCall2(b, l->probe_type, l->probe, args, 3, "");
+    LLVMBuildCondBr(b, LLVMBuildIsNull(b, probed, ""), retry, join);
+    LLVMPositionBuilderAtEnd(b, join);
+    LLVMValueRef ptr = LLVMBuildPhi(b, l->ptr, "");
+    LLVMValueRef values[] = { direct, probed };
+    LLVMBasicBlockRef blocks[] = { fast, slow };
+    LLVMAddIncoming(ptr, values, blocks, 2);
     LLVMBuildStore(b, ptr, l->host);
     LLVMBuildStore(b, page, l->page);
-    LLVMBuildCondBr(b, LLVMBuildIsNull(b, ptr, ""), l->retry, hit);
+    LLVMBuildBr(b, hit);
     LLVMPositionBuilderAtEnd(b, hit);
     LLVMValueRef base = LLVMBuildLoad2(b, l->ptr, l->host, "");
     LLVMTypeRef byte = LLVMInt8TypeInContext(l->ctx);
@@ -89,247 +163,221 @@ static LLVMValueRef read_ram(Lower *l, LLVMValueRef addr, unsigned size)
     LLVMTypeRef t = LLVMIntTypeInContext(l->ctx, size * 8);
     LLVMValueRef v = LLVMBuildLoad2(b, t, h, "");
     LLVMSetAlignment(v, size);
-    LLVMSetOrdering(v, LLVMAtomicOrderingMonotonic);
+    LLVMSetOrdering(v, LLVMAtomicOrderingAcquire);
     return size == 8 ? v : LLVMBuildZExt(b, v, l->i64, "");
 }
 
-static LLVMValueRef helper_input(Lower *l, const struct t1_op *o, unsigned reg)
+static LLVMValueRef read_significand(Lower *l, unsigned f)
 {
-    if (reg == 0) {
-        return constant(l, 0);
-    }
-    for (unsigned k = 1; k < o->nuse; k++) {
-        if (l->ir->use[o->use_first + k].element == reg) {
-            return arg(l, o, k);
-        }
-    }
-    return NULL;
-}
-static LLVMValueRef mix(Lower *l, const struct t1_op *o)
-{
-    const struct t1_insn *ti = &l->ir->form->insn[o->imm];
-    LLVMValueRef a = helper_input(l, o, ti->src1),
-                 b = helper_input(l, o, ti->src2);
-    if (!a || !b) {
-        return NULL;
-    }
-    if (ti->insn.opcode == IA64_OP_MIX4_R) {
-        a = LLVMBuildShl(l->b, a, constant(l, 32), "");
-        b = LLVMBuildAnd(l->b, b, constant(l, UINT32_MAX), "");
-    } else if (ti->insn.opcode == IA64_OP_MIX4_L) {
-        a = LLVMBuildAnd(l->b, a, constant(l, ~UINT64_C(0xffffffff)), "");
-        b = LLVMBuildLShr(l->b, b, constant(l, 32), "");
-    } else {
-        return NULL;
-    }
-    return LLVMBuildOr(l->b, a, b, "");
+    LLVMBuilderRef b = l->b;
+    LLVMValueRef tags = LLVMBuildLoad2(
+        b, l->i64, env_at(l, l->layout->fr_sig + (f / 64) * 8), "");
+    LLVMValueRef bit =
+        LLVMBuildAnd(b, tags, constant(l, UINT64_C(1) << (f % 64)), "");
+    LLVMBasicBlockRef fast =
+        LLVMAppendBasicBlockInContext(l->ctx, l->fn, "sig");
+    LLVMBasicBlockRef slow =
+        LLVMAppendBasicBlockInContext(l->ctx, l->fn, "convert");
+    LLVMBasicBlockRef join = LLVMAppendBasicBlockInContext(l->ctx, l->fn, "fr");
+    LLVMBuildCondBr(b, LLVMBuildICmp(b, LLVMIntNE, bit, constant(l, 0), ""),
+                    fast, slow);
+    LLVMPositionBuilderAtEnd(b, fast);
+    LLVMValueRef raw =
+        LLVMBuildLoad2(b, l->i64, env_at(l, l->layout->fr + f * 8), "");
+    LLVMBuildBr(b, join);
+    LLVMPositionBuilderAtEnd(b, slow);
+    LLVMValueRef args[] = { LLVMGetParam(l->fn, 0),
+                            LLVMConstInt(l->i32, f, 0) };
+    LLVMValueRef sig = LLVMBuildCall2(b, l->sig_type, l->read_sig, args, 2, "");
+    LLVMBuildBr(b, join);
+    LLVMPositionBuilderAtEnd(b, join);
+    LLVMValueRef value = LLVMBuildPhi(b, l->i64, "");
+    LLVMValueRef values[] = { raw, sig };
+    LLVMBasicBlockRef blocks[] = { fast, slow };
+    LLVMAddIncoming(value, values, blocks, 2);
+    return value;
 }
 
-static bool commit(Lower *l, const struct t1_ir_point *p)
+static void write_frame(Lower *l)
 {
-    const struct t1_form *f = l->ir->form;
-    if (p->slot || p->ip != f->c.ip + f->ninsns / 3 * 16) {
+    for (unsigned i = 1; i < 128; i++) {
+        if (l->gr_written[i]) {
+            LLVMBuildStore(l->b, l->gr[i], env_at(l, l->layout->gr + i * 8));
+        }
+    }
+    for (unsigned i = 1; i < 64; i++) {
+        if (l->pr[i]) {
+            LLVMValueRef v = LLVMBuildZExt(l->b, l->pr[i], l->i64, "");
+            LLVMBuildStore(l->b, v, env_at(l, l->layout->pr + i * 8));
+        }
+    }
+}
+
+static LLVMBasicBlockRef memory_retry(Lower *l, unsigned index)
+{
+    if (!l->stored) {
+        return l->retry;
+    }
+    /* A completed store cannot be replayed. Publish the preceding slots. */
+    LLVMBasicBlockRef block = LLVMGetInsertBlock(l->b);
+    LLVMBasicBlockRef exit =
+        LLVMAppendBasicBlockInContext(l->ctx, l->fn, "resume");
+    LLVMPositionBuilderAtEnd(l->b, exit);
+    write_frame(l);
+    for (unsigned i = 0; i < 2; i++) {
+        uint64_t mask = l->code->dirty[i];
+        if (mask) {
+            LLVMValueRef ptr = env_at(l, l->layout->dirty + i * 8);
+            LLVMValueRef old = LLVMBuildLoad2(l->b, l->i64, ptr, "");
+            LLVMBuildStore(l->b, LLVMBuildOr(l->b, old, constant(l, mask), ""),
+                           ptr);
+        }
+    }
+    LLVMBuildRet(l->b, LLVMConstInt(l->i32, IA64_LLVM_RESUME + index, 0));
+    LLVMPositionBuilderAtEnd(l->b, block);
+    return exit;
+}
+
+static void write_ram(Lower *l, LLVMValueRef addr, LLVMValueRef value,
+                      unsigned size, LLVMBasicBlockRef retry)
+{
+    LLVMBuilderRef b = l->b;
+    uint64_t mask = (UINT64_C(1) << l->layout->page_bits) - 1;
+    /* Recheck the write comparator at every store to honor dirty logging. */
+    LLVMValueRef page = LLVMBuildAnd(b, addr, constant(l, ~mask), "");
+    LLVMValueRef entry = tlb_entry(l, addr);
+    LLVMValueRef match = tlb_hit(l, entry, page, l->layout->write_tag);
+    LLVMValueRef off = LLVMBuildAnd(b, addr, constant(l, size - 1), "");
+    LLVMValueRef aligned = LLVMBuildICmp(b, LLVMIntEQ, off, constant(l, 0), "");
+    LLVMBasicBlockRef write =
+        LLVMAppendBasicBlockInContext(l->ctx, l->fn, "write");
+    LLVMBuildCondBr(b, LLVMBuildAnd(b, aligned, match, ""), write, retry);
+    LLVMPositionBuilderAtEnd(b, write);
+    LLVMValueRef host = tlb_host(l, entry, addr);
+    if (l->observed_store) {
+        LLVMValueRef args[] = { LLVMGetParam(l->fn, 0), host, addr, value,
+                                LLVMConstInt(l->i32, size, 0) };
+        LLVMBuildCall2(b, l->store_type, l->observed_store, args, 5, "");
+    } else {
+        LLVMTypeRef type = LLVMIntTypeInContext(l->ctx, size * 8);
+        LLVMValueRef v = LLVMBuildTruncOrBitCast(b, value, type, "");
+        LLVMValueRef st = LLVMBuildStore(b, v, host);
+        LLVMSetAlignment(st, size);
+        LLVMSetOrdering(st, LLVMAtomicOrderingRelease);
+    }
+    l->stored = true;
+}
+
+static bool lift_memory(Lower *l, const Ia64Instruction *in, unsigned index,
+                        bool store, unsigned size)
+{
+    const IA64MemoryOperands *m = &in->operands.memory;
+    bool update = in->imm_base_update || in->reg_base_update;
+    if ((!store && !m->destination) || (store && in->reg_base_update) ||
+        (update && (!m->base || (!store && m->base == m->destination)))) {
         return false;
     }
-    for (unsigned i = 0; i < p->frame_count; i++) {
-        const struct t1_use *u = &l->ir->use[p->frame_first + i];
-        if ((u->flags & T1_USE_HOME) || u->element == T1_ELEMENT_LSB ||
-            (u->element > 128 && u->element < 256)) {
-            continue;
-        }
-        if (u->value == T1_VALUE_NONE) {
-            return false;
-        }
-        LLVMValueRef v = l->values[t1_ir_resolve(l->ir, u->value)];
-        LLVMValueRef addr = home(l, u->element);
-        if (!addr || !v) {
-            return false;
-        }
-        if (LLVMTypeOf(v) == l->i1) {
-            v = LLVMBuildZExt(l->b, v, l->i64, "");
-        }
-        LLVMBuildStore(l->b, v, addr);
+    LLVMValueRef addr = read_gr(l, m->base);
+    LLVMValueRef increment = NULL;
+    if (update) {
+        increment = in->reg_base_update ? read_gr(l, m->source)
+                                        : constant(l, m->immediate);
     }
-    LLVMBuildRet(l->b, LLVMConstInt(l->i32, 1, 0));
+    LLVMBasicBlockRef retry = memory_retry(l, index);
+    if (store) {
+        write_ram(l, addr, read_gr(l, m->source), size, retry);
+    } else {
+        write_gr(l, m->destination, read_ram(l, addr, size, retry));
+    }
+    if (update) {
+        write_gr(l, m->base, LLVMBuildAdd(l->b, addr, increment, ""));
+    }
     return true;
 }
 
-static bool lower_op(Lower *l, const struct t1_op *o, LLVMValueRef *result)
+static bool lift_slot(Lower *l, const Ia64Instruction *in, unsigned index)
 {
-    LLVMBuilderRef b = l->b;
-    LLVMValueRef a = arg(l, o, 0), c = arg(l, o, 1), v = NULL;
-    unsigned imm = o->imm;
-    unsigned width = T1_FIELD_LEN(imm), pos = T1_FIELD_POS(imm);
-    switch (o->code) {
-    case T1_IR_CONST:
-        v = LLVMConstInt(o->type == T1_I1 ? l->i1 : l->i64, o->imm, 0);
-        break;
-    case T1_IR_LIVEIN:
-        if (imm == T1_ELEMENT_MEM || imm == T1_ELEMENT_LSB) {
-            return true;
-        }
-        if (imm >= T1_ELEMENT_FR(2) && imm <= T1_ELEMENT_FR(127)) {
-            LLVMValueRef args[] = { LLVMGetParam(l->fn, 2),
-                                    LLVMConstInt(l->i32, imm - T1_ELEMENT_FR(0),
-                                                 0) };
-            v = LLVMBuildCall2(b, l->sig_type, l->read_sig, args, 2, "");
-        } else if (imm >= T1_ELEMENT_FR_META(2) &&
-                   imm <= T1_ELEMENT_FR_META(127)) {
-            /* getf.sig consumes only the NaT bit, checked on entry. */
-            v = constant(l, 0);
-        } else if (imm > 128 && imm < 256) {
-            v = LLVMConstInt(l->i1, 0, 0);
-        } else {
-            LLVMValueRef ptr = home(l, imm);
-            if (!ptr) {
-                return false;
-            }
-            v = LLVMBuildLoad2(b, l->i64, ptr, "");
-            if (imm > 256) {
-                v = LLVMBuildTrunc(b, v, l->i1, "");
-            }
-        }
-        break;
-    case T1_IR_ADD:
-        v = LLVMBuildAdd(b, a, c, "");
-        break;
-    case T1_IR_SUB:
-        v = LLVMBuildSub(b, a, c, "");
-        break;
-    case T1_IR_AND:
-    case T1_IR_AND1:
-        v = LLVMBuildAnd(b, a, c, "");
-        break;
-    case T1_IR_OR:
-    case T1_IR_OR1:
-        v = LLVMBuildOr(b, a, c, "");
-        break;
-    case T1_IR_XOR:
-        v = LLVMBuildXor(b, a, c, "");
-        break;
-    case T1_IR_ANDCM:
-        v = LLVMBuildAnd(b, a, LLVMBuildNot(b, c, ""), "");
-        break;
-    case T1_IR_NOT1:
-        v = LLVMBuildNot(b, a, "");
-        break;
-    case T1_IR_SELECT:
-        v = LLVMBuildSelect(b, a, c, arg(l, o, 2), "");
-        break;
-    case T1_IR_SHL:
-    case T1_IR_SHRU:
-    case T1_IR_SHR: {
-        LLVMValueRef large =
-            LLVMBuildICmp(b, LLVMIntUGT, c, constant(l, 63), "");
-        LLVMValueRef n = LLVMBuildSelect(b, large, constant(l, 63), c, "");
-        if (o->code == T1_IR_SHR) {
-            v = LLVMBuildAShr(b, a, n, "");
-        } else {
-            v = o->code == T1_IR_SHL ? LLVMBuildShl(b, a, n, "")
-                                     : LLVMBuildLShr(b, a, n, "");
-            v = LLVMBuildSelect(b, large, constant(l, 0), v, "");
-        }
-        break;
-    }
-    case T1_IR_SHL_IMM:
-        v = LLVMBuildShl(b, a, constant(l, imm & 63), "");
-        break;
-    case T1_IR_EXTR:
-    case T1_IR_EXTRU:
-    case T1_IR_DEPZ:
-        if (pos >= 64 || !width || width > 64) {
-            return false;
-        }
-        if (o->code == T1_IR_DEPZ) {
-            v = LLVMBuildShl(b, narrow(l, a, width, false), constant(l, pos),
-                             "");
-        } else {
-            v = narrow(l, LLVMBuildLShr(b, a, constant(l, pos), ""), width,
-                       o->code == T1_IR_EXTR);
-        }
-        break;
-    case T1_IR_SXT:
-    case T1_IR_ZXT:
-        if (!imm || imm > 64) {
-            return false;
-        }
-        v = narrow(l, a, imm, o->code == T1_IR_SXT);
-        break;
-    case T1_IR_CMP: {
-        static const LLVMIntPredicate pred[] = { LLVMIntEQ, LLVMIntSLT,
-                                                 LLVMIntULT };
-        if (T1_CMP_REL(imm) >= 3) {
-            return false;
-        }
-        if (T1_CMP_WIDTH(imm) == 32) {
-            a = LLVMBuildTrunc(b, a, l->i32, "");
-            c = LLVMBuildTrunc(b, c, l->i32, "");
-        } else if (T1_CMP_WIDTH(imm) != 64) {
-            return false;
-        }
-        v = LLVMBuildICmp(b, pred[T1_CMP_REL(imm)], a, c, "");
-        break;
-    }
-    case T1_IR_GETF_SIG:
-        v = a;
-        break;
-    case T1_IR_FRNATTEST:
-        v = LLVMConstInt(l->i1, 0, 0);
-        break;
-    case T1_IR_NATCHK:
-        return true; /* Entry requires all GR NaTs clear. */
-    case T1_IR_LOAD: {
-        unsigned n = T1_ACCESS_BYTES(imm);
-        if ((n != 1 && n != 2 && n != 4 && n != 8) || T1_ACCESS_ORDERED(imm)) {
-            return false;
-        }
-        v = read_ram(l, a, n);
-        break;
-    }
-    case T1_IR_GHELPER:
-        v = mix(l, o);
-        break;
-    case T1_IR_HREAD:
-        if (imm > 128 && imm < 256) {
-            v = LLVMConstInt(l->i1, 0, 0);
-        } else if (imm > 0 && imm < 128) {
-            v = a;
-        }
-        break;
-    case T1_IR_HGUARD:
-        return true; /* Both selected MIX operations complete in registers. */
-    default:
+    if (!in->valid || in->encoding_class != IA64_ENCODING_DEFINED ||
+        in->placement_illegal || in->reserved_field || in->qp ||
+        in->mem_acquire || in->mem_release) {
         return false;
     }
-    *result = v;
-    return v != NULL;
+    Ia64Opcode op = in->opcode;
+    if (op == IA64_OP_NOP) {
+        return true;
+    }
+    if (op >= IA64_OP_LD1 && op <= IA64_OP_LD8) {
+        return lift_memory(l, in, index, false, 1u << (op - IA64_OP_LD1));
+    }
+    if (op >= IA64_OP_ST1 && op <= IA64_OP_ST8) {
+        return lift_memory(l, in, index, true, 1u << (op - IA64_OP_ST1));
+    }
+    if (op == IA64_OP_GETF_SIG) {
+        unsigned f = in->operands.floating.source1;
+        unsigned dst = in->operands.floating.destination;
+        if (!dst) {
+            return false;
+        }
+        l->code->fr_inputs[f / 64] |= UINT64_C(1) << (f % 64);
+        if (!l->fr[f]) {
+            /* f0 is +0.0 and f1 is +1.0 in IA-64 register format. */
+            l->fr[f] =
+                f < 2 ? constant(l, (uint64_t)f << 63) : read_significand(l, f);
+        }
+        write_gr(l, dst, l->fr[f]);
+        return true;
+    }
+
+    const IA64IntegerOperands *r = &in->operands.integer;
+    LLVMValueRef lhs = read_gr(l, r->source1);
+    LLVMValueRef rhs = read_gr(l, r->source2);
+    LLVMValueRef value = ia64_llvm_lift_integer(l->b, in, lhs, rhs);
+    if (!value) {
+        return false;
+    }
+    if (LLVMTypeOf(value) == l->i1) {
+        if (r->predicate1 == r->predicate2) {
+            return false;
+        }
+        if (r->predicate1) {
+            l->pr[r->predicate1] = value;
+        }
+        if (r->predicate2) {
+            l->pr[r->predicate2] = LLVMBuildNot(l->b, value, "");
+        }
+    } else {
+        if (!r->destination) {
+            return false;
+        }
+        write_gr(l, r->destination, value);
+    }
+    l->code->mixes += op == IA64_OP_MIX4_L || op == IA64_OP_MIX4_R;
+    return true;
 }
 
-static bool build_body(Lower *l)
+static bool build_body(Lower *l, const uint64_t *words, unsigned bundles)
 {
-    const struct t1_ir *ir = l->ir;
-    unsigned b = 0;
-    for (unsigned steps = 0; steps < ir->nblocks; steps++) {
-        const struct t1_block *blk = &ir->block[b];
-        for (uint32_t i = blk->first; i != T1_NO_OP; i = ir->op[i].next) {
-            const struct t1_op *o = &ir->op[i];
-            if (o->code == T1_IR_EXIT) {
-                return commit(l, &ir->point[o->point]);
-            }
-            if (o->code == T1_IR_JUMP) {
-                if (blk->nsucc != 1 || blk->succ[0].nargs) {
-                    return false;
-                }
-                b = blk->succ[0].target;
-                break;
-            }
-            if (!lower_op(l, o, &l->values[T1_VALUE(i, 0)])) {
+    for (unsigned i = 0; i < bundles; i++, words += 2) {
+        uint64_t lo = words[0], hi = words[1];
+        const IA64TemplateInfo *t =
+            ia64_template_info(ia64_bundle_template_code(lo));
+        if (!t->defined || t->units[1] == IA64_UNIT_L) {
+            return false;
+        }
+        for (unsigned j = 0; j < IA64_BUNDLE_SLOTS; j++) {
+            uint64_t raw = ia64_bundle_slot(lo, hi, j);
+            Ia64Instruction in =
+                ia64_decode_insn(t->units[j], raw, i * UINT64_C(16), j);
+            if (!lift_slot(l, &in, i * IA64_BUNDLE_SLOTS + j)) {
                 return false;
             }
         }
     }
-    return false;
+    write_frame(l);
+    LLVMBuildRet(l->b, LLVMConstInt(l->i32, IA64_LLVM_COMPLETE, 0));
+    return true;
 }
+
 static bool succeeded(LLVMErrorRef err)
 {
     if (!err) {
@@ -341,8 +389,18 @@ static bool succeeded(LLVMErrorRef err)
     return false;
 }
 
-bool ia64_llvm_lower(const struct t1_ir *ir, IA64LLVMCode *out)
+__attribute__((visibility("default"))) bool
+ia64_llvm_compile_v4(unsigned abi, const uint64_t *words, unsigned bundles,
+                     IA64LLVMCode *out, const IA64LLVMLayout *layout,
+                     bool full_alat)
 {
+    const uint16_t byte_order = 1;
+    if (abi != IA64_LLVM_ABI || !words || !out || !layout || !bundles ||
+        bundles > IA64_LLVM_MAX_BUNDLES || sizeof(uintptr_t) != 8 ||
+        *(const uint8_t *)&byte_order != 1) {
+        return false;
+    }
+    *out = (IA64LLVMCode) { 0 };
     if (!jit &&
         (LLVMInitializeNativeTarget() || LLVMInitializeNativeAsmPrinter() ||
          !succeeded(LLVMOrcCreateLLJIT(&jit, NULL)))) {
@@ -353,7 +411,8 @@ bool ia64_llvm_lower(const struct t1_ir *ir, IA64LLVMCode *out)
     LLVMContextRef ctx = LLVMContextCreate();
     LLVMOrcThreadSafeContextRef ts =
         LLVMOrcCreateNewThreadSafeContextFromLLVMContext(ctx);
-    Lower l = { .ir = ir,
+    Lower l = { .code = out,
+                .layout = layout,
                 .ctx = ctx,
                 .b = LLVMCreateBuilderInContext(ctx),
                 .mod = LLVMModuleCreateWithNameInContext(name, ctx),
@@ -361,33 +420,39 @@ bool ia64_llvm_lower(const struct t1_ir *ir, IA64LLVMCode *out)
                 .i32 = LLVMInt32TypeInContext(ctx),
                 .i64 = LLVMInt64TypeInContext(ctx),
                 .ptr = LLVMPointerTypeInContext(ctx, 0) };
-    l.values = calloc(ir->nops * 4, sizeof(*l.values));
-    LLVMTypeRef args[] = { l.ptr, l.ptr, l.ptr, l.i32, l.ptr };
+    LLVMTypeRef args[] = { l.ptr, l.i32, l.ptr, l.ptr };
     LLVMTypeRef probe_args[] = { l.ptr, l.i64, l.i32 };
     l.probe_type = LLVMFunctionType(l.ptr, probe_args, 3, 0);
     LLVMTypeRef sig_args[] = { l.ptr, l.i32 };
     l.sig_type = LLVMFunctionType(l.i64, sig_args, 2, 0);
-    l.fn = LLVMAddFunction(l.mod, name, LLVMFunctionType(l.i32, args, 5, 0));
+    LLVMTypeRef store_args[] = { l.ptr, l.ptr, l.i64, l.i64, l.i32 };
+    l.store_type =
+        LLVMFunctionType(LLVMVoidTypeInContext(ctx), store_args, 5, 0);
+    l.fn = LLVMAddFunction(l.mod, name, LLVMFunctionType(l.i32, args, 4, 0));
     LLVMBasicBlockRef start = LLVMAppendBasicBlockInContext(ctx, l.fn, "start");
     l.retry = LLVMAppendBasicBlockInContext(ctx, l.fn, "retry");
     LLVMPositionBuilderAtEnd(l.b, l.retry);
-    LLVMBuildRet(l.b, LLVMConstInt(l.i32, 0, 0));
+    LLVMBuildRet(l.b, LLVMConstInt(l.i32, IA64_LLVM_RETRY, 0));
     LLVMPositionBuilderAtEnd(l.b, start);
-    LLVMValueRef access = LLVMGetParam(l.fn, 4);
-    LLVMValueRef one = constant(&l, 1);
+    LLVMValueRef access = LLVMGetParam(l.fn, 2);
     l.probe = LLVMBuildLoad2(l.b, l.ptr, access, "");
     l.read_sig = LLVMBuildLoad2(
-        l.b, l.ptr, LLVMBuildGEP2(l.b, l.ptr, access, &one, 1, ""), "");
+        l.b, l.ptr, field_at(&l, access, offsetof(IA64LLVMAccess, read_sig)),
+        "");
+    if (full_alat) {
+        l.observed_store = LLVMBuildLoad2(
+            l.b, l.ptr,
+            field_at(&l, access, offsetof(IA64LLVMAccess, observed_store)), "");
+    }
     l.page = LLVMBuildAlloca(l.b, l.i64, "page_tag");
     l.host = LLVMBuildAlloca(l.b, l.ptr, "host_page");
     LLVMBuildStore(l.b, constant(&l, UINT64_MAX), l.page);
     LLVMBuildStore(l.b, LLVMConstNull(l.ptr), l.host);
     LLVMSetTarget(l.mod, LLVMOrcLLJITGetTripleString(jit));
     LLVMSetDataLayout(l.mod, LLVMOrcLLJITGetDataLayoutStr(jit));
-    bool ok = l.values && build_body(&l) &&
+    bool ok = build_body(&l, words, bundles) &&
               !LLVMVerifyModule(l.mod, LLVMReturnStatusAction, &error);
     LLVMDisposeMessage(error);
-    free(l.values);
     LLVMDisposeBuilder(l.b);
     if (ok) {
         LLVMPassBuilderOptionsRef opts = LLVMCreatePassBuilderOptions();

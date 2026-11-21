@@ -2,12 +2,11 @@
 """Compare hot IA-64 regions with TCG across code updates and data faults."""
 
 import os
-from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import time
-
+from pathlib import Path
 
 SOURCE = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(SOURCE / "tests/unit"))
@@ -52,7 +51,10 @@ def check(qemu, build, case, region, terminal, fault, alat, library):
         if fault is not None:
             vector = build / "region-vector.bin"
             command.extend(
-                ["-device", f"loader,addr=0x5a00,file={vector},force-raw=on"]
+                [
+                    "-device",
+                    f"loader,addr=0x5a00,file={vector},force-raw=on",
+                ]
             )
 
         with subprocess.Popen(
@@ -82,7 +84,16 @@ def check(qemu, build, case, region, terminal, fault, alat, library):
                         )
                 if fault is not None:
                     # The final pass completes six increments before the fault.
-                    expected = (38000006, 22000006, fault, 1, 0x3000009, 1)
+                    expected = (
+                        38000006,
+                        22000006,
+                        fault,
+                        1,
+                        0x3000009,
+                        1,
+                        2000001,
+                        fault,
+                    )
                     actual = (
                         state.gr[34],
                         state.gr[35],
@@ -90,14 +101,30 @@ def check(qemu, build, case, region, terminal, fault, alat, library):
                         (state.gr[26] >> 41) & 3,
                         state.gr[29],
                         (state.gr[28] >> 34) & 1,
+                        state.gr[30],
+                        state.gr[31],
                     )
                     assert actual == expected, (actual, expected)
-                else:
-                    # Rewriting the bundle doubles its increment in phase two.
-                    expected = (6000000, 40000000, 88000000, 132000000)
-                    assert (
-                        tuple(state.gr[i] for i in range(34, 38)) == expected
+                elif case == "alat":
+                    expected = (
+                        1000000 if alat == "zero" else 0,
+                        1000000,
+                        1000000,
+                        10000000,
+                        10000000,
                     )
+                    actual = tuple(state.gr[i] for i in (4, 14, 15, 16, 17))
+                    assert actual == expected, (actual, expected)
+                else:
+                    # Rewrite both the region and its linked successor.
+                    expected = (
+                        6000000,
+                        184000000,
+                        376000000,
+                        564000000,
+                        6000000,
+                    )
+                    assert tuple(state.gr[i] for i in range(34, 39)) == expected
                 qmp.execute("quit")
             finally:
                 if proc.poll() is None:
@@ -110,10 +137,10 @@ def check(qemu, build, case, region, terminal, fault, alat, library):
             lines = stats.read_text().splitlines()
             runs = int(lines[1].split()[1])
             samples = [line.split() for line in lines[2:]]
-            if fault is None:
-                assert (
-                    sum(int(row[4], 16) == region for row in samples) >= 2
-                ), samples
+            if case == "smc":
+                assert sum(int(row[4], 16) == region for row in samples) >= 2, samples
+            elif case == "alat":
+                assert any(int(row[4], 16) == region for row in samples), samples
             else:
                 assert int(lines[1].split()[4]) >= 1, lines
             assert runs > 0, (runs, samples)
@@ -134,7 +161,8 @@ def symbols(elf):
 
 if __name__ == "__main__":
     qemu, build = map(Path, sys.argv[1:])
-    for case in ("smc", "fault"):
+    vector_end = 0x5A00 + symbols(build / "region-vector.elf")["spin"] - 0x2000000
+    for case in ("smc", "fault", "alat"):
         names = symbols(build / f"region-{case}.elf")
         for alat in ("zero", "full"):
             for library in (None, build / "ia64-llvm.so"):
@@ -143,7 +171,7 @@ if __name__ == "__main__":
                     build,
                     case,
                     names["region"],
-                    names.get("done", 0x5A20),
+                    names.get("done", vector_end),
                     names.get("fault"),
                     alat,
                     library,

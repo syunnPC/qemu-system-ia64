@@ -2,9 +2,11 @@
 #ifndef IA64_LLVM_LOWER_H
 #define IA64_LLVM_LOWER_H
 
-#include "region.h"
+#include <llvm-c/Core.h>
+#include "target/ia64/decode/decode.h"
 
-struct t1_ir;
-bool ia64_llvm_lower(const struct t1_ir *ir, IA64LLVMCode *out);
+/* Returns i64 for a GR result, i1 for a predicate pair, or NULL. */
+LLVMValueRef ia64_llvm_lift_integer(LLVMBuilderRef b, const Ia64Instruction *in,
+                                    LLVMValueRef lhs, LLVMValueRef rhs);
 
 #endif

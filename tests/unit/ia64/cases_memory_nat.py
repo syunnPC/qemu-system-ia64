@@ -11,15 +11,14 @@ from .encoding import (
     DTR_PTE_NATPAGE,
     DTR_PTE_UC,
     DTR_PTE_UCE,
-    ExpectedFP,
     HIGH_TR_BASE,
     IA64_ALT_DTLB_VECTOR,
     IA64_ALT_ITLB_VECTOR,
     IA64_BREAK_VECTOR,
-    IA64_EXCP_SINGLE_STEP,
     IA64_EXCP_ILLEGAL,
     IA64_EXCP_NAT_CONSUMPTION,
     IA64_EXCP_NONE,
+    IA64_EXCP_SINGLE_STEP,
     IA64_EXCP_UNALIGNED,
     IA64_EXCP_UNSUPPORTED_DATA_REFERENCE,
     IA64_FIRMWARE_IVT_BASE,
@@ -50,12 +49,13 @@ from .encoding import (
     LOW_VECTOR_ITIR,
     LOW_VECTOR_TR_PTE,
     PTE_ED,
+    ExpectedFP,
     addl,
     adds,
     alloc,
     alloc_m,
-    br_call,
     bitfield,
+    br_call,
     br_cloop,
     br_cond,
     br_ctop_many,
@@ -91,8 +91,6 @@ from .encoding import (
     itr_d,
     itr_i,
     ld1,
-    ld16,
-    ld16_acq,
     ld1_acq,
     ld1_postinc,
     ld1_reg_postinc,
@@ -117,6 +115,8 @@ from .encoding import (
     ld8_s_hint,
     ld8_s_postinc,
     ld8_sa,
+    ld16,
+    ld16_acq,
     ldf8_a,
     ldf8_s,
     ldf_fill_postinc,
@@ -127,13 +127,14 @@ from .encoding import (
     lfetch_count,
     lfetch_postinc,
     lfetch_reg_postinc,
-    loadrs_enc,
     load_mem,
     load_mem_postinc,
     load_mem_reg_postinc,
+    loadrs_enc,
     mov_ar_lc,
     mov_b_gr,
     mov_cpuid,
+    mov_gr_pr,
     mov_gr_psr_full,
     mov_grpmc_indexed,
     mov_i_imm_ar,
@@ -145,7 +146,6 @@ from .encoding import (
     mov_m_gr_psr_um,
     mov_m_gr_psrl,
     mov_m_imm_ar,
-    mov_gr_pr,
     mov_m_psr_gr,
     mov_pkr_indexed,
     mov_pr_rot_imm,
@@ -176,7 +176,6 @@ from .encoding import (
     srlz_d,
     srlz_i,
     ssm,
-    st16,
     st1_postinc,
     st2,
     st4,
@@ -186,8 +185,9 @@ from .encoding import (
     st8_postinc,
     st8_rel,
     st8_spill_postinc,
-    stfd,
+    st16,
     stf_spill_postinc,
+    stfd,
     store_mem,
     store_mem_postinc,
     sum_um,
@@ -200,7 +200,6 @@ from .encoding import (
     xchg,
     xchg4,
 )
-
 
 test_alloc_clears_destination_nat = require_registers(
     "alloc_clears_destination_nat", [
@@ -860,26 +859,40 @@ test_memory_order_completers_decode = require_registers(
 # Execute all four aligned ld.s widths on a warm write-back translation.
 # The BE switch keeps both the soft TLB entry and modeled page reusable.
 test_speculative_warm_ram_endianness = require_registers(
-    "speculative_warm_ram_endianness", [
+    "speculative_warm_ram_endianness",
+    [
         *dtr_setup_bundles(0x10, HIGH_TR_BASE, 0x400000),
         (0x70, *movl_mlx(2, HIGH_TR_BASE + 0x8210)),
         (0x80, *movl_mlx(19, IA64_PSR_IC | IA64_PSR_DT)),
         (0x90, 0x08, mov_gr_psr_full(19), srlz_d(), nop_i()),
-        (0xa0, 0x00, ld8(3, 2), nop_i(), nop_i()),
-        *[(0xb0 + 16 * i, 0x00, load_mem(0x04 + i, 20 + i, 2),
-           nop_i(), nop_i()) for i in range(4)],
-        (0xf0, 0x00, sum_um(IA64_PSR_BE), nop_i(), nop_i()),
-        *[(0x100 + 16 * i, 0x00, load_mem(0x04 + i, 24 + i, 2),
-           nop_i(), nop_i()) for i in range(4)],
+        (0xA0, 0x00, ld8(3, 2), nop_i(), nop_i()),
+        *[
+            (0xB0 + 16 * i, 0x00, load_mem(0x04 + i, 20 + i, 2), nop_i(), nop_i())
+            for i in range(4)
+        ],
+        (0xF0, 0x00, sum_um(IA64_PSR_BE), nop_i(), nop_i()),
+        *[
+            (0x100 + 16 * i, 0x00, load_mem(0x04 + i, 24 + i, 2), nop_i(), nop_i())
+            for i in range(4)
+        ],
         (0x140, 0x10, nop_m(), nop_i(), br_cond(0x140, 0x140)),
-        raw_bundle(0x408210, 0x1837567594b3d2f1, 0),
-    ], {
-        "ip": 0x140, "exception": IA64_EXCP_NONE,
-        "r20": 0xf1, "r21": 0xd2f1, "r22": 0x94b3d2f1,
-        "r23": 0x1837567594b3d2f1,
-        "r24": 0xf1, "r25": 0xf1d2, "r26": 0xf1d2b394,
-        "r27": 0xf1d2b39475563718,
-    }, entry=0x10, cpu="madison")
+        raw_bundle(0x408210, 0x1837567594B3D2F1, 0),
+    ],
+    {
+        "ip": 0x140,
+        "exception": IA64_EXCP_NONE,
+        "r20": 0xF1,
+        "r21": 0xD2F1,
+        "r22": 0x94B3D2F1,
+        "r23": 0x1837567594B3D2F1,
+        "r24": 0xF1,
+        "r25": 0xF1D2,
+        "r26": 0xF1D2B394,
+        "r27": 0xF1D2B39475563718,
+    },
+    entry=0x10,
+    cpu="madison",
+)
 
 
 test_data_big_endian_load_store = require_registers(

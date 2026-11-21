@@ -97,9 +97,9 @@ IA64GenResult ia64_gen_branch(DisasContext *ctx, const Ia64Instruction *insn,
          * TB key changes still require a lookup.
          */
         ia64_update_nat_known(ctx, insn);
-        ctx->memory.direct_chain_nat_safe =
-            ctx->reg.cpl_known && !ctx->restart.exit_after_bundle &&
-            !track_psr_suppression;
+        ctx->memory.direct_chain_nat_safe = ctx->reg.cpl_known &&
+                                            !ctx->restart.exit_after_bundle &&
+                                            !track_psr_suppression;
         return ia64_gen_complete_branch(
             ctx, skip,
             &(IA64BranchCompletion) {

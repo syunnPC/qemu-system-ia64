@@ -235,8 +235,8 @@ const IA64TlbEntry *ia64_tlb_find_slow(CPUIA64State *env, uint64_t va,
 
     /* Ascending slot order also resolves overlapping TR/TC candidates. */
     for (unsigned word = 0; word < IA64_TLB_SLOT_WORDS; word++) {
-        uint64_t candidates = index->slots[bucket][word] |
-                              index->slots[IA64_TLB_BUCKETS][word];
+        uint64_t candidates =
+            index->slots[bucket][word] | index->slots[IA64_TLB_BUCKETS][word];
         while (candidates) {
             i = word * 64 + ctz64(candidates);
             candidates &= candidates - 1;
@@ -1936,8 +1936,8 @@ static bool ia64_qtest_command(CharFrontend *chr, gchar **words)
         return false;
     }
     if (!words[1] || !words[2] || !words[3] ||
-        (words[4] && (words[5] || (strcmp(words[4], "remap") &&
-                                   strcmp(words[4], "wrap"))))) {
+        (words[4] && (words[5] || (strcmp(words[4], "remap") != 0 &&
+                                   strcmp(words[4], "wrap") != 0)))) {
         qtest_sendf(chr, "FAIL expected VA OLD_PA NEW_PA [remap|wrap]\n");
         return true;
     }

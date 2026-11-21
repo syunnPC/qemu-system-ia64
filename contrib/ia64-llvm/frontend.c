@@ -1,158 +1,186 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
-#include <stdlib.h>
-#include <string.h>
-#include "engine/tier1/form.h"
-#include "engine/tier1/ir.h"
-#include "engine/cache/validity.h"
-#include "ia64vmm/cpu_model.h"
 #include "lower.h"
-#include "engine/tier1/memory.h"
 
-#define CAPTURE_BASE UINT64_C(0x1000)
-static _Thread_local const uint64_t *captured;
-static _Thread_local unsigned captured_bundles;
+typedef struct Compare {
+    LLVMIntPredicate relation;
+    bool word;
+    bool immediate;
+} Compare;
 
-struct ia64_result code_source_read_physical(gpa_t pa, uint64_t *lo,
-                                             uint64_t *hi, uint64_t *generation)
+static const Compare compares[IA64_OP_COUNT] = {
+    [IA64_OP_CMP_EQ] = { LLVMIntEQ },
+    [IA64_OP_CMP_LT] = { LLVMIntSLT },
+    [IA64_OP_CMP_LTU] = { LLVMIntULT },
+    [IA64_OP_CMP_EQ_IMM] = { LLVMIntEQ, .immediate = true },
+    [IA64_OP_CMP_LT_IMM] = { LLVMIntSLT, .immediate = true },
+    [IA64_OP_CMP_LTU_IMM] = { LLVMIntULT, .immediate = true },
+    [IA64_OP_CMP4_EQ] = { LLVMIntEQ, .word = true },
+    [IA64_OP_CMP4_LT] = { LLVMIntSLT, .word = true },
+    [IA64_OP_CMP4_LTU] = { LLVMIntULT, .word = true },
+    [IA64_OP_CMP4_EQ_IMM] = { LLVMIntEQ, .word = true, .immediate = true },
+    [IA64_OP_CMP4_LT_IMM] = { LLVMIntSLT, .word = true, .immediate = true },
+    [IA64_OP_CMP4_LTU_IMM] = { LLVMIntULT, .word = true, .immediate = true },
+};
+
+static LLVMValueRef extend_field(LLVMBuilderRef b, LLVMValueRef v,
+                                 unsigned width, bool sign)
 {
-    uint64_t offset = pa - CAPTURE_BASE;
-    if (!captured || (offset & 15) || offset / 16 >= captured_bundles) {
-        return (struct ia64_result) { .kind = IA64_STEP_EXIT };
+    LLVMTypeRef i64 = LLVMTypeOf(v);
+    if (width == 64) {
+        return v;
     }
-    *lo = captured[offset / 8];
-    *hi = captured[offset / 8 + 1];
-    *generation = 1;
-    return (struct ia64_result) { .kind = IA64_STEP_COMPLETE };
-}
-
-/* The byte copy is immutable for the entire synchronous compile request. */
-bool code_page_has_snapshot(gpa_t pa)
-{
-    return captured && pa == CAPTURE_BASE;
-}
-bool code_page_tracked_fast(gpa_t pa)
-{
-    return code_page_has_snapshot(pa);
-}
-uint64_t code_source_generation(gpa_t pa)
-{
-    return code_page_has_snapshot(pa);
-}
-
-/* Donor workspace and code-snapshot services for a private compiler thread. */
-static _Thread_local unsigned lock_depth;
-void code_lock(void)
-{
-    ++lock_depth;
-}
-void code_unlock(void)
-{
-    --lock_depth;
-}
-bool code_lock_held(void)
-{
-    return lock_depth != 0;
-}
-void *t1_ws_alloc(struct t1_workspace *ws, size_t pages, unsigned flags)
-{
-    return calloc(pages, 4096);
-}
-void t1_ws_free(struct t1_workspace *ws, void *ptr, size_t pages)
-{
-    free(ptr);
+    LLVMTypeRef field = LLVMIntTypeInContext(LLVMGetTypeContext(i64), width);
+    v = LLVMBuildTrunc(b, v, field, "");
+    return sign ? LLVMBuildSExt(b, v, i64, "") : LLVMBuildZExt(b, v, i64, "");
 }
 
-static bool supported(const struct t1_insn *ti)
+static LLVMValueRef register_shift(LLVMBuilderRef b, Ia64Opcode op,
+                                   LLVMValueRef count, LLVMValueRef value)
 {
-    const Ia64Instruction *insn = &ti->insn;
-    if (insn->qp || !insn->valid || insn->reserved_field ||
-        insn->placement_illegal || insn->reg_base_update ||
-        insn->imm_base_update || insn->mem_acquire || insn->mem_release) {
-        return false;
+    LLVMTypeRef i64 = LLVMTypeOf(value);
+    LLVMValueRef max = LLVMConstInt(i64, 63, 0);
+    LLVMValueRef large = LLVMBuildICmp(b, LLVMIntUGT, count, max, "");
+    /* IA-64 consumes the full count. LLVM shifts require a count below 64. */
+    count = LLVMBuildSelect(b, large, max, count, "");
+    if (op == IA64_OP_SHR) {
+        return LLVMBuildAShr(b, value, count, "");
     }
-    switch (insn->opcode) {
-    case IA64_OP_NOP:
-#define OP(name) case IA64_OP_##name:
-#include "ops.inc"
-#undef OP
-        return true;
-    default:
-        return false;
-    }
+    value = op == IA64_OP_SHL ? LLVMBuildShl(b, value, count, "")
+                              : LLVMBuildLShr(b, value, count, "");
+    return LLVMBuildSelect(b, large, LLVMConstNull(i64), value, "");
 }
 
-__attribute__((visibility("default"))) bool
-ia64_llvm_compile(unsigned abi, const uint64_t *words, unsigned bundles,
-                  IA64LLVMCode *out)
+LLVMValueRef ia64_llvm_lift_integer(LLVMBuilderRef b, const Ia64Instruction *in,
+                                    LLVMValueRef lhs, LLVMValueRef rhs)
 {
-    struct t1_compile_request rq = {
-        .ip = CAPTURE_BASE,
-        .entry_pa = CAPTURE_BASE,
-        .psr = IA64_PSR_IC,
-        .cfm = 96 | (96 << 7),
-        .cpu_model = IA64_CPU_MADISON,
-        .npages = 1,
-        .page = { { .va = CAPTURE_BASE, .pa = CAPTURE_BASE } },
-    };
-    const char *why = NULL;
-    char error[192];
-    unsigned failed = 0, max_reg = 0;
-    bool ok = false;
-    const uint16_t byte_order = 1;
-    if (sizeof(uintptr_t) != 8 || *(const uint8_t *)&byte_order != 1 ||
-        !words || !out) {
-        return false;
-    }
-    if (abi != IA64_LLVM_ABI || !bundles || bundles > IA64_LLVM_MAX_BUNDLES) {
-        return false;
-    }
-    struct t1_ir *ir = calloc(1, sizeof(*ir));
-    struct t1_form *form = calloc(1, sizeof(*form));
-    struct ia64_state *names = calloc(1, sizeof(*names));
-    *out = (IA64LLVMCode) { 0 };
-    if (!ir || !form || !names) {
-        goto done;
-    }
-    captured = words;
-    captured_bundles = bundles;
-    if (t1_form_request(&rq, names, 3 * bundles, form, &why) != T1_COMPILED ||
-        form->ninsns != 3 * bundles || form->loop || form->nfs != 1) {
-        goto done;
-    }
-    for (unsigned i = 0; i < form->ninsns; i++) {
-        const struct t1_insn *ti = &form->insn[i];
-        if (!supported(ti) || ti->insn.address != CAPTURE_BASE + 16 * (i / 3) ||
-            ti->insn.slot != i % 3) {
-            goto done;
+    Ia64Opcode op = in->opcode;
+    LLVMTypeRef i64 = LLVMTypeOf(rhs);
+    uint64_t imm = in->operands.integer.immediate;
+    unsigned pos = imm & 63;
+    unsigned len = ia64_bitfield_effective_len(pos, (imm >> 6) & 127);
+    LLVMValueRef immediate = LLVMConstInt(i64, imm, 0);
+    LLVMValueRef shift = LLVMConstInt(i64, pos, 0);
+    LLVMValueRef one = LLVMConstInt(i64, 1, 0);
+
+    switch (op) {
+    case IA64_OP_ADDP4:
+    case IA64_OP_ADDP4_IMM:
+    case IA64_OP_SHLADDP4: {
+        /* The region comes from rhs[31:30], independent of the carry. */
+        if (op == IA64_OP_ADDP4_IMM) {
+            lhs = immediate;
+        } else if (op == IA64_OP_SHLADDP4) {
+            lhs = LLVMBuildShl(b, lhs, shift, "");
         }
-        bool fp = ti->insn.opcode == IA64_OP_GETF_SIG;
-        const unsigned regs[] = { ti->dst, fp ? 0 : ti->src1, fp ? 0 : ti->src2,
-                                  fp ? 0 : ti->base };
-        for (unsigned j = 0; j < sizeof(regs) / sizeof(regs[0]); j++) {
-            if (regs[j] > max_reg) {
-                max_reg = regs[j];
-            }
-        }
-        if (ti->dst >= 32 && ia64_opcode_info(ti->insn.opcode)->writes_gr) {
-            unsigned bit = ti->dst - 32;
-            out->dirty[bit / 64] |= UINT64_C(1) << (bit % 64);
-        }
-        if (ti->insn.opcode == IA64_OP_GETF_SIG) {
-            unsigned f = ti->fr[1];
-            out->fr[f / 64] |= UINT64_C(1) << (f % 64);
-        }
-        out->mixes += ti->insn.opcode == IA64_OP_MIX4_L ||
-                      ti->insn.opcode == IA64_OP_MIX4_R;
+        LLVMValueRef sum =
+            extend_field(b, LLVMBuildAdd(b, lhs, rhs, ""), 32, false);
+        LLVMValueRef region =
+            LLVMBuildLShr(b, rhs, LLVMConstInt(i64, 30, 0), "");
+        region = LLVMBuildAnd(b, region, LLVMConstInt(i64, 3, 0), "");
+        region = LLVMBuildShl(b, region, LLVMConstInt(i64, 61, 0), "");
+        return LLVMBuildOr(b, sum, region, "");
     }
-    out->sof = max_reg >= 32 ? max_reg - 31 : 0;
-    if (t1_lift(form, ir, &failed) &&
-        t1_ir_verify(ir, 0, error, sizeof(error))) {
-        ok = ia64_llvm_lower(ir, out);
+    case IA64_OP_ADD:
+        return LLVMBuildAdd(b, lhs, rhs, "");
+    case IA64_OP_ADD_ONE:
+        return LLVMBuildAdd(b, LLVMBuildAdd(b, lhs, rhs, ""), one, "");
+    case IA64_OP_SUB:
+        return LLVMBuildSub(b, lhs, rhs, "");
+    case IA64_OP_SUB_ONE:
+        return LLVMBuildSub(b, LLVMBuildSub(b, lhs, rhs, ""), one, "");
+    case IA64_OP_SUB_IMM:
+        return LLVMBuildSub(b, immediate, rhs, "");
+    case IA64_OP_ADDS:
+    case IA64_OP_ADDL:
+        return LLVMBuildAdd(b, rhs, immediate, "");
+    case IA64_OP_AND:
+    case IA64_OP_AND_IMM:
+        return LLVMBuildAnd(b, op == IA64_OP_AND ? lhs : immediate, rhs, "");
+    case IA64_OP_ANDCM:
+    case IA64_OP_ANDCM_IMM:
+        return LLVMBuildAnd(b, op == IA64_OP_ANDCM ? lhs : immediate,
+                            LLVMBuildNot(b, rhs, ""), "");
+    case IA64_OP_OR:
+    case IA64_OP_OR_IMM:
+        return LLVMBuildOr(b, op == IA64_OP_OR ? lhs : immediate, rhs, "");
+    case IA64_OP_XOR:
+    case IA64_OP_XOR_IMM:
+        return LLVMBuildXor(b, op == IA64_OP_XOR ? lhs : immediate, rhs, "");
+    case IA64_OP_SHLADD:
+        return LLVMBuildAdd(b, LLVMBuildShl(b, lhs, shift, ""), rhs, "");
+    case IA64_OP_SHL:
+    case IA64_OP_SHR:
+    case IA64_OP_SHRU:
+        return register_shift(b, op, lhs, rhs);
+    case IA64_OP_SHL_IMM:
+        return LLVMBuildShl(b, rhs, shift, "");
+    case IA64_OP_SHR_IMM:
+        return LLVMBuildAShr(b, rhs, shift, "");
+    case IA64_OP_SHRU_IMM:
+        return LLVMBuildLShr(b, rhs, shift, "");
+    case IA64_OP_EXTR:
+    case IA64_OP_EXTRU:
+        return len ? extend_field(b, LLVMBuildLShr(b, rhs, shift, ""), len,
+                                  op == IA64_OP_EXTR)
+                   : NULL;
+    case IA64_OP_DEPZ:
+    case IA64_OP_DEPZ_IMM:
+    case IA64_OP_DEP:
+    case IA64_OP_DEP_IMM: {
+        if (!len) {
+            return NULL;
+        }
+        if (op == IA64_OP_DEPZ_IMM) {
+            lhs = LLVMConstInt(i64, ia64_sign_extend(imm >> 13, 8), 0);
+        } else if (op == IA64_OP_DEP_IMM) {
+            lhs = LLVMConstInt(i64, UINT64_C(0) - ((imm >> 13) & 1), 0);
+        }
+        uint64_t mask = ia64_deposit_mask(pos, len);
+        LLVMValueRef insert = LLVMBuildAnd(b, LLVMBuildShl(b, lhs, shift, ""),
+                                           LLVMConstInt(i64, mask, 0), "");
+        if (op == IA64_OP_DEPZ || op == IA64_OP_DEPZ_IMM) {
+            return insert;
+        }
+        LLVMValueRef keep =
+            LLVMBuildAnd(b, rhs, LLVMConstInt(i64, ~mask, 0), "");
+        return LLVMBuildOr(b, keep, insert, "");
     }
-done:
-    captured = NULL;
-    free(names);
-    free(form);
-    free(ir);
-    return ok;
+    case IA64_OP_SHRP_IMM:
+        if (!pos) {
+            return rhs;
+        }
+        return LLVMBuildOr(
+            b, LLVMBuildShl(b, lhs, LLVMConstInt(i64, 64 - pos, 0), ""),
+            LLVMBuildLShr(b, rhs, shift, ""), "");
+    case IA64_OP_SXT1:
+    case IA64_OP_SXT2:
+    case IA64_OP_SXT4:
+        return extend_field(b, rhs, 8u << (op - IA64_OP_SXT1), true);
+    case IA64_OP_ZXT1:
+    case IA64_OP_ZXT2:
+    case IA64_OP_ZXT4:
+        return extend_field(b, rhs, 8u << (op - IA64_OP_ZXT1), false);
+    case IA64_OP_MIX4_R:
+        lhs = LLVMBuildShl(b, lhs, LLVMConstInt(i64, 32, 0), "");
+        return LLVMBuildOr(b, lhs, extend_field(b, rhs, 32, false), "");
+    case IA64_OP_MIX4_L:
+        lhs = LLVMBuildAnd(b, lhs, LLVMConstInt(i64, UINT64_MAX << 32, 0), "");
+        rhs = LLVMBuildLShr(b, rhs, LLVMConstInt(i64, 32, 0), "");
+        return LLVMBuildOr(b, lhs, rhs, "");
+    default: {
+        const Compare *cmp = &compares[op];
+        if (!cmp->relation || in->pred_update != IA64_PRED_UPDATE_NORMAL) {
+            return NULL;
+        }
+        if (cmp->immediate) {
+            lhs = immediate;
+        }
+        if (cmp->word) {
+            LLVMTypeRef i32 = LLVMInt32TypeInContext(LLVMGetTypeContext(i64));
+            lhs = LLVMBuildTrunc(b, lhs, i32, "");
+            rhs = LLVMBuildTrunc(b, rhs, i32, "");
+        }
+        return LLVMBuildICmp(b, cmp->relation, lhs, rhs, "");
+    }
+    }
 }

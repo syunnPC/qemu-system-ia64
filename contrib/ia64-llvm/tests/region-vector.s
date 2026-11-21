@@ -11,6 +11,16 @@
     mov r29=cr.ifa
     nop.i 0 ;;
 }
+{ .mii
+    ld8 r30=[r7]
+    nop.i 0
+    nop.i 0 ;;
+}
+{ .mii
+    mov r31=cr.iipa
+    nop.i 0
+    nop.i 0 ;;
+}
 spin:
 { .mib
     nop.m 0

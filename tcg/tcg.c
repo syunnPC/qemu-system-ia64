@@ -3837,7 +3837,7 @@ static void la_global_sync(TCGTemp **active, int ng)
     int i;
 
     for (i = 0; i < ng; ++i) {
-        int state = active[i]->state;
+        uintptr_t state = active[i]->state;
         active[i]->state = state | TS_MEM;
         if (state == TS_DEAD) {
             /* If the global was previously dead, reset prefs.  */
@@ -3914,8 +3914,8 @@ static void la_cross_call(TCGTemp **active, int nt)
  * Liveness analysis: Verify the lifetime of TEMP_TB, and reduce
  * to TEMP_EBB, if possible.
  */
-static void __attribute__((noinline))
-liveness_pass_0(TCGContext *s, bool *referenced)
+static void __attribute__((noinline)) liveness_pass_0(TCGContext *s,
+                                                      bool *referenced)
 {
     void * const multiple_ebb = (void *)(uintptr_t)-1;
     int nb_temps = s->nb_temps;
@@ -3995,8 +3995,8 @@ static void assert_carry_dead(TCGContext *s)
 /* Liveness analysis : update the opc_arg_life array to tell if a
    given input arguments is dead. Instructions updating dead
    temporaries are removed. */
-static void __attribute__((noinline))
-liveness_pass_1(TCGContext *s, const bool *referenced)
+static void __attribute__((noinline)) liveness_pass_1(TCGContext *s,
+                                                      const bool *referenced)
 {
     TCGTemp *active[TCG_MAX_TEMPS];
     int nactive = 0, nglobals;
@@ -4017,7 +4017,7 @@ liveness_pass_1(TCGContext *s, const bool *referenced)
     for (int i = s->nb_globals; i < s->nb_temps; i++) {
         active[nactive++] = &s->temps[i];
     }
-    prefs = tcg_malloc(sizeof(*prefs) * nactive);
+    prefs = tcg_malloc((int)sizeof(*prefs) * nactive);
     for (int i = 0; i < nactive; i++) {
         active[i]->state_ptr = prefs + i;
     }

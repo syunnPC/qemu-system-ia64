@@ -1509,9 +1509,8 @@ static bool victim_tlb_hit(CPUState *cpu, size_t mmu_idx, size_t index,
 static bool tlb_full_is_plain_ram(const CPUTLBEntryFull *full,
                                   MMUAccessType access_type)
 {
-    return full->slow_flags[access_type] == 0 &&
-           full->section != NULL && full->section->mr != NULL &&
-           memory_region_is_ram(full->section->mr);
+    return full->slow_flags[access_type] == 0 && full->section != NULL &&
+           full->section->mr != NULL && memory_region_is_ram(full->section->mr);
 }
 
 static bool tlb_is_clean_ram(const CPUTLBEntry *entry,
@@ -1551,12 +1550,10 @@ static bool victim_tlb_pingpong_direct(CPUState *cpu, size_t mmu_idx,
     }
 
     main_access = desc->victim_tlb_pingpong_last_access;
-    if (!tlb_is_clean_ram(
-            main, main_full, main_access,
-            desc->victim_tlb_pingpong_last_page) ||
-        !tlb_is_clean_ram(
-            &desc->vtable[vindex], &desc->vfulltlb[vindex],
-            access_type, page)) {
+    if (!tlb_is_clean_ram(main, main_full, main_access,
+                          desc->victim_tlb_pingpong_last_page) ||
+        !tlb_is_clean_ram(&desc->vtable[vindex], &desc->vfulltlb[vindex],
+                          access_type, page)) {
         goto fail;
     }
 
@@ -1617,9 +1614,8 @@ static void victim_tlb_pingpong_record(CPUState *cpu, size_t mmu_idx,
 
     /* The preceding promotion placed the old main page in a victim slot. */
     for (vindex = 0; vindex < CPU_VTLB_SIZE; vindex++) {
-        if (tlb_is_clean_ram(
-                &desc->vtable[vindex], &desc->vfulltlb[vindex],
-                previous_access, previous_page)) {
+        if (tlb_is_clean_ram(&desc->vtable[vindex], &desc->vfulltlb[vindex],
+                             previous_access, previous_page)) {
             desc->victim_tlb_pingpong_vindex = vindex;
             desc->victim_tlb_pingpong_pinned = true;
             return;

@@ -658,7 +658,7 @@ static bool ia64_purge_tc_entries(CPUIA64State *env, IA64TlbEntry *tlb,
         if (insert_slot && empty < 0 && ~index->occupied[word]) {
             unsigned first = word * 64 + ctz64(~index->occupied[word]);
             if (first < capacity) {
-                empty = first;
+                empty = (int)first;
             }
         }
     }
@@ -1623,9 +1623,8 @@ static bool ia64_alignment_fault(CPUIA64State *env, uint64_t va,
     uint32_t size = alignment_info & IA64_ALIGNMENT_DATUM_MASK;
     uint32_t natural = (alignment_info & IA64_ALIGNMENT_NATURAL_MASK) >>
                        IA64_ALIGNMENT_NATURAL_SHIFT;
-    IA64AlignmentClass alignment_class =
-        (alignment_info & IA64_ALIGNMENT_CLASS_MASK) >>
-        IA64_ALIGNMENT_CLASS_SHIFT;
+    uint32_t alignment_class = (alignment_info & IA64_ALIGNMENT_CLASS_MASK) >>
+                               IA64_ALIGNMENT_CLASS_SHIFT;
     bool naturally_aligned;
 
     if (size <= 1 || natural <= 1) {
@@ -2052,9 +2051,8 @@ void ia64_mmu_check_alignment(CPUIA64State *env, uint64_t va,
     uint32_t size = alignment_info & IA64_ALIGNMENT_DATUM_MASK;
     uint32_t natural = (alignment_info & IA64_ALIGNMENT_NATURAL_MASK) >>
                        IA64_ALIGNMENT_NATURAL_SHIFT;
-    IA64AlignmentClass alignment_class =
-        (alignment_info & IA64_ALIGNMENT_CLASS_MASK) >>
-        IA64_ALIGNMENT_CLASS_SHIFT;
+    uint32_t alignment_class = (alignment_info & IA64_ALIGNMENT_CLASS_MASK) >>
+                               IA64_ALIGNMENT_CLASS_SHIFT;
     bool attribute_may_fault;
 
     if (size <= 1 || natural <= 1) {

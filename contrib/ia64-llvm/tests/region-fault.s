@@ -31,6 +31,11 @@ _start:
     add r24=8,r23
     mov r35=0 ;;
 }
+{ .mii
+    st8 [r23]=r0
+    mov r7=r23
+    nop.i 0 ;;
+}
 region:
 .rept 5
 { .mii
@@ -43,6 +48,16 @@ region:
     ld8 r18=[r23]
     add r35=1,r35
     add r34=1,r34 ;;
+}
+{ .mii
+    nop.m 0
+    add r18=1,r18
+    nop.i 0 ;;
+}
+{ .mii
+    st8 [r23]=r18
+    nop.i 0
+    nop.i 0 ;;
 }
 fault:
 { .mmi
