@@ -1,12 +1,17 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "qemu/osdep.h"
 #include "qemu/atomic.h"
+#include "qemu/accel.h"
+#include "qapi/error.h"
 #include "qemu/error-report.h"
+#include "qemu/qemu-print.h"
 #include "hw/core/cpu.h"
 #include "cpu.h"
 #include "exec/cpu-common.h"
 #include "exec/target_page.h"
 #include "exec/helper-proto.h"
+#include "accel/accel-cpu-ops.h"
+#include "accel/accel-ops.h"
 #include "accel/tcg/probe.h"
 #include "llvm.h"
 #include "arch/fp.h"
@@ -15,6 +20,8 @@
 #if defined(CONFIG_MODULES) || defined(CONFIG_PLUGIN)
 #include <gmodule.h>
 #endif
+
+#define TYPE_TCG_LLVM_ACCEL ACCEL_CLASS_NAME("tcg-llvm")
 
 struct IA64LLVMRegion {
     unsigned state;
@@ -29,14 +36,16 @@ struct IA64LLVMRegion {
 };
 
 enum { COLD, QUEUED, READY, UNSUPPORTED };
-enum { HOT_THRESHOLD = 1024, MAX_KEYS = 32768, MAX_COMPILES = 2048 };
+enum { HOT_THRESHOLD = 1024, MAX_KEYS = 32768 };
 bool ia64_llvm_enabled;
 static IA64LLVMCompile compile_region;
 static GHashTable *regions;
 static GThreadPool *pool;
 static GMutex region_lock;
 static unsigned submissions;
-static const char *stats_file;
+static IA64LLVMCache cache;
+static bool cache_full;
+static FILE *stats_file;
 /* Each vCPU writes its own cache line. Statistics are optional. */
 uint64_t ia64_llvm_stats[256][8] QEMU_ALIGNED(64);
 
@@ -58,68 +67,139 @@ static const IA64LLVMLayout layout = {
 static void compile_task(gpointer data, gpointer unused)
 {
     IA64LLVMRegion *r = data;
-    bool ok = compile_region(IA64_LLVM_ABI, r->words, r->bundles, &r->code,
-                             &layout, r->full_alat);
+    bool ok = !qatomic_read(&cache_full) &&
+              compile_region(IA64_LLVM_ABI, r->words, r->bundles, &r->code,
+                             &layout, r->full_alat, &cache);
+    if (cache.limit - cache.used < qemu_real_host_page_size()) {
+        qatomic_set(&cache_full, true);
+    }
     qatomic_store_release(&r->state, ok ? READY : UNSUPPORTED);
 }
 static void finish(void)
 {
-    g_thread_pool_free(pool, true, true);
-    if (stats_file) {
-        FILE *f = fopen(stats_file, "w");
-        if (f) {
-            uint64_t total[8] = { 0 };
-            for (unsigned c = 0; c < 256; c++) {
-                for (unsigned i = 0; i < G_N_ELEMENTS(total); i++) {
-                    total[i] += ia64_llvm_stats[c][i];
-                }
-            }
-            fprintf(f, "keys %u submitted %u\n", g_hash_table_size(regions),
-                    submissions);
-            for (unsigned i = 0; i < G_N_ELEMENTS(total); i++) {
-                fprintf(f, "%" PRIu64 "%c", total[i], i == 7 ? '\n' : ' ');
-            }
-            GHashTableIter iter;
-            gpointer item;
-            g_hash_table_iter_init(&iter, regions);
-            while (g_hash_table_iter_next(&iter, NULL, &item)) {
-                IA64LLVMRegion *r = item;
-                if (r->samples) {
-                    fprintf(f, "sample %u %u %u 0x%" PRIx64 " %u\n", r->samples,
-                            r->bundles, r->code.mixes, r->pc, r->barrier);
-                }
-            }
-            fclose(f);
-        }
-    }
-}
+    uint64_t total[8] = { 0 };
+    GHashTableIter iter;
+    gpointer item;
 
-void ia64_llvm_init(void)
-{
-    const char *name = getenv("IA64_LLVM_LIBRARY");
-    if (!name || ia64_llvm_enabled) {
+    g_thread_pool_free(pool, true, true);
+    if (!stats_file) {
         return;
     }
-#if defined(CONFIG_MODULES) || defined(CONFIG_PLUGIN)
-    GModule *m = g_module_open(name, G_MODULE_BIND_LOCAL);
-    if (!m || !g_module_symbol(m, IA64_LLVM_COMPILE_SYMBOL,
-                               (gpointer *)&compile_region)) {
-        error_report("IA-64 LLVM initialization failed: %s", g_module_error());
-        exit(EXIT_FAILURE);
+    for (unsigned c = 0; c < G_N_ELEMENTS(ia64_llvm_stats); c++) {
+        for (unsigned i = 0; i < G_N_ELEMENTS(total); i++) {
+            total[i] += ia64_llvm_stats[c][i];
+        }
     }
-    g_module_make_resident(m);
-    g_module_close(m);
-#else
-    error_report("IA-64 LLVM requires a QEMU build with GModule support");
-    exit(EXIT_FAILURE);
+    qemu_fprintf(stats_file,
+                 "keys %u submitted %u cache-used %" PRIu64
+                 " cache-limit %" PRIu64 "\n",
+                 g_hash_table_size(regions), qatomic_read(&submissions),
+                 cache.used, cache.limit);
+    for (unsigned i = 0; i < G_N_ELEMENTS(total); i++) {
+        qemu_fprintf(stats_file, "%" PRIu64 "%c", total[i],
+                     i == 7 ? '\n' : ' ');
+    }
+    g_hash_table_iter_init(&iter, regions);
+    while (g_hash_table_iter_next(&iter, NULL, &item)) {
+        IA64LLVMRegion *r = item;
+        if (r->samples) {
+            qemu_fprintf(stats_file, "sample %u %u %u 0x%" PRIx64 " %u\n",
+                         r->samples, r->bundles, r->code.mixes, r->pc,
+                         r->barrier);
+        }
+    }
+    fclose(stats_file);
+}
+
+static int tcg_llvm_init_machine(AccelState *accel, MachineState *ms)
+{
+    Object *tcg = OBJECT(accel);
+    g_autofree char *library =
+        object_property_get_str(tcg, "llvm-library", &error_abort);
+    g_autofree char *stats =
+        object_property_get_str(tcg, "llvm-stats", &error_abort);
+    IA64LLVMCompile compiler;
+#if defined(CONFIG_MODULES) || defined(CONFIG_PLUGIN)
+    GModule *module = NULL;
 #endif
+
+    if (*library) {
+#if defined(CONFIG_MODULES) || defined(CONFIG_PLUGIN)
+        g_autofree char *path = g_canonicalize_filename(library, NULL);
+        module = g_module_open(path, G_MODULE_BIND_LOCAL);
+        if (!module) {
+            error_report("IA-64 LLVM initialization failed: %s",
+                         g_module_error());
+            return -ENOENT;
+        }
+        if (!g_module_symbol(module, IA64_LLVM_COMPILE_SYMBOL,
+                             (gpointer *)&compiler)) {
+            error_report("IA-64 LLVM initialization failed: %s",
+                         g_module_error());
+            g_module_close(module);
+            return -EINVAL;
+        }
+#else
+        error_report(
+            "Loading an external IA-64 LLVM backend requires GModule support");
+        return -ENOSYS;
+#endif
+    } else {
+#ifdef CONFIG_IA64_LLVM_BUILTIN
+        compiler = ia64_llvm_compile_v5;
+#else
+        error_report("This QEMU build has no built-in IA-64 LLVM backend");
+        return -ENOSYS;
+#endif
+    }
+    if (*stats && !(stats_file = fopen(stats, "w"))) {
+        int err = errno;
+        error_report("Cannot open LLVM statistics file '%s': %s", stats,
+                     strerror(err));
+#if defined(CONFIG_MODULES) || defined(CONFIG_PLUGIN)
+        if (module) {
+            g_module_close(module);
+        }
+#endif
+        return -err;
+    }
+#if defined(CONFIG_MODULES) || defined(CONFIG_PLUGIN)
+    if (module) {
+        g_module_make_resident(module);
+        g_module_close(module);
+    }
+#endif
+    compile_region = compiler;
+    cache.limit = object_property_get_uint(tcg, "cachesize", &error_abort);
+    cache_full = cache.limit < qemu_real_host_page_size();
     regions = g_hash_table_new_full(g_bytes_hash, g_bytes_equal,
                                     (GDestroyNotify)g_bytes_unref, g_free);
     pool = g_thread_pool_new(compile_task, NULL, 1, false, NULL);
-    stats_file = getenv("IA64_LLVM_STATS");
     atexit(finish);
     ia64_llvm_enabled = true;
+    return accel_find("tcg")->init_machine(accel, ms);
 }
+
+static void tcg_llvm_class_init(ObjectClass *oc, const void *data)
+{
+    AccelClass *ac = ACCEL_CLASS(oc);
+    ac->name = "tcg-llvm";
+    ac->init_machine = tcg_llvm_init_machine;
+}
+
+static const TypeInfo tcg_llvm_types[] = {
+    {
+        .name = TYPE_TCG_LLVM_ACCEL,
+        .parent = ACCEL_CLASS_NAME("tcg"),
+        .class_init = tcg_llvm_class_init,
+    },
+    {
+        .name = ACCEL_OPS_NAME("tcg-llvm"),
+        .parent = ACCEL_OPS_NAME("tcg"),
+        .abstract = true,
+    },
+};
+DEFINE_TYPES(tcg_llvm_types)
 
 IA64LLVMRegion *ia64_llvm_register(const uint64_t *words, unsigned bundles,
                                    bool stop, uint64_t pc, unsigned barrier,
@@ -135,13 +215,16 @@ IA64LLVMRegion *ia64_llvm_register(const uint64_t *words, unsigned bundles,
     key = g_bytes_new_take(bytes, len + 1);
     g_mutex_lock(&region_lock);
     r = g_hash_table_lookup(regions, key);
-    if (!r && g_hash_table_size(regions) < MAX_KEYS) {
+    if (!r && !qatomic_read(&cache_full) &&
+        g_hash_table_size(regions) < MAX_KEYS) {
         r = g_new0(IA64LLVMRegion, 1);
         r->bundles = bundles;
         r->stop = stop;
         r->full_alat = full_alat;
-        r->pc = pc;
-        r->barrier = barrier;
+        if (stats_file) {
+            r->pc = pc;
+            r->barrier = barrier;
+        }
         r->words = (const uint64_t *)bytes; /* Owned by the table key. */
         g_hash_table_insert(regions, g_bytes_ref(key), r);
     }
@@ -164,14 +247,14 @@ static void count_hit(IA64LLVMRegion *r)
     }
     if (++p->n == HOT_THRESHOLD &&
         qatomic_cmpxchg(&r->state, COLD, QUEUED) == COLD) {
-        g_mutex_lock(&region_lock);
-        if (submissions < MAX_COMPILES) {
-            submissions++;
-            g_thread_pool_push(pool, r, NULL);
-        } else {
+        if (qatomic_read(&cache_full)) {
             qatomic_set(&r->state, UNSUPPORTED);
+        } else {
+            if (stats_file) {
+                qatomic_inc(&submissions);
+            }
+            g_thread_pool_push(pool, r, NULL);
         }
-        g_mutex_unlock(&region_lock);
     }
 }
 

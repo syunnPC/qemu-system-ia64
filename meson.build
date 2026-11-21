@@ -81,7 +81,8 @@ python = import('python').find_installation()
 
 cc = meson.get_compiler('c')
 all_languages = ['c']
-enable_cpp = host_os == 'windows' or get_option('plugins')
+check_ia64_llvm = 'ia64-softmmu' in target_dirs and not get_option('auto_features').disabled()
+enable_cpp = host_os == 'windows' or get_option('plugins') or check_ia64_llvm
 if enable_cpp and add_languages('cpp', required: false, native: false)
   all_languages += ['cpp']
   cxx = meson.get_compiler('cpp')
@@ -4903,6 +4904,9 @@ if have_system
   summary_info += {'Xen emulation':     config_all_devices.has_key('CONFIG_XEN_EMU')}
 endif
 summary_info += {'TCG support':       config_all_accel.has_key('CONFIG_TCG')}
+if 'ia64-softmmu' in target_dirs
+  summary_info += {'IA-64 built-in LLVM JIT': ia64_llvm_builtin}
+endif
 if config_all_accel.has_key('CONFIG_TCG')
   if get_option('tcg_interpreter')
     summary_info += {'TCG backend':   'TCI (TCG with bytecode interpreter, slow)'}

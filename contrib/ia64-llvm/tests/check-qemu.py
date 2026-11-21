@@ -2,6 +2,7 @@
 """Compare hot IA-64 regions with TCG across code updates and data faults."""
 
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -27,20 +28,36 @@ VECTORS = {
 PHYS_LIMIT = 1 << IA64_IMPL_PA_BITS
 
 
-def check(qemu, build, case, region, terminal, fault, alat, library):
-    env = dict(os.environ)
-    if library is None:
-        env.pop("IA64_LLVM_LIBRARY", None)
-    else:
-        env["IA64_LLVM_LIBRARY"] = str(library)
+def check(
+    qemu,
+    build,
+    case,
+    region,
+    terminal,
+    fault,
+    alat,
+    accel="tcg",
+    library=None,
+    cache_limit=1 << 30,
+    expect_jit=None,
+    fallback=None,
+    record_stats=True,
+):
+    if expect_jit is None:
+        expect_jit = accel.partition(",")[0] == "tcg-llvm"
     with tempfile.TemporaryDirectory() as temp:
         stats = Path(temp) / "stats"
-        env["IA64_LLVM_STATS"] = str(stats)
+        if record_stats:
+            accel += ",llvm-stats=" + str(stats).replace(",", ",,")
+        if library is not None:
+            accel += ",llvm-library=" + str(library).replace(",", ",,")
         binary = build / f"region-{case}.bin"
         command = [
             qemu,
             "-L",
             str(SOURCE / "pc-bios"),
+            "-accel",
+            accel,
             "-machine",
             f"itanium2-vpc,firmware=none,nvram=none,alat={alat}",
             "-m",
@@ -61,6 +78,8 @@ def check(qemu, build, case, region, terminal, fault, alat, library):
             "-device",
             "loader,addr=0x2000000,cpu-num=0",
         ]
+        if fallback:
+            command.extend(["-accel", fallback])
         if case == "boundary":
             command.extend(
                 [
@@ -85,7 +104,7 @@ def check(qemu, build, case, region, terminal, fault, alat, library):
             command,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            env=env,
+            cwd=temp,
             text=True,
         ) as proc:
             try:
@@ -166,9 +185,25 @@ def check(qemu, build, case, region, terminal, fault, alat, library):
                     except subprocess.TimeoutExpired:
                         proc.kill()
                         proc.wait()
-        if library is not None:
+        if not record_stats:
+            assert not list(Path(temp).iterdir())
+            print(alat, case, "LLVM statistics disabled", expected)
+        elif not expect_jit:
+            assert not stats.exists()
+            print(alat, case, "TCG", expected)
+        else:
             lines = stats.read_text().splitlines()
+            fields = lines[0].split()
+            limit = int(fields[fields.index("cache-limit") + 1])
+            used = int(fields[fields.index("cache-used") + 1])
+            assert limit == cache_limit
+            assert 0 <= used <= limit
             runs = int(lines[1].split()[1])
+            if cache_limit == 1:
+                assert used == runs == 0
+                print(alat, case, "TCG with one-byte LLVM cache", expected)
+                return
+            assert used > 0
             samples = [line.split() for line in lines[2:]]
             if case == "smc":
                 assert sum(int(row[4], 16) == region for row in samples) >= 2, samples
@@ -178,8 +213,6 @@ def check(qemu, build, case, region, terminal, fault, alat, library):
                 assert int(lines[1].split()[4]) >= 1, lines
             assert runs > 0, (runs, samples)
             print(alat, case, runs, "native region executions")
-        else:
-            print(alat, case, "TCG", expected)
 
 
 def symbols(elf):
@@ -192,8 +225,47 @@ def symbols(elf):
     }
 
 
+def start_paused(qemu, accel):
+    return subprocess.run(
+        [
+            qemu,
+            "-accel",
+            accel,
+            "-machine",
+            "none",
+            "-display",
+            "none",
+            "-nodefaults",
+            "-S",
+            "-qmp",
+            "stdio",
+        ],
+        input='{"execute":"qmp_capabilities"}\n{"execute":"quit"}\n',
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=10,
+    )
+
+
+def has_builtin(qemu):
+    result = start_paused(qemu, "tcg-llvm")
+    if result.returncode and "no built-in IA-64 LLVM backend" in result.stderr:
+        return False
+    result.check_returncode()
+    return True
+
+
 if __name__ == "__main__":
-    qemu, build = map(Path, sys.argv[1:])
+    qemu, build = (Path(arg).resolve() for arg in sys.argv[1:])
+    accelerators = subprocess.check_output([qemu, "-accel", "help"], text=True)
+    assert {"tcg", "tcg-llvm"} <= set(accelerators.splitlines()), accelerators
+    assert "llvm-jit=" not in subprocess.check_output([qemu, "-help"], text=True)
+    for name in ("tcg", "tcg-llvm"):
+        removed = start_paused(qemu, name + ",llvm-jit=off")
+        assert removed.returncode and "llvm-jit' not found" in removed.stderr, removed
+    builtin = has_builtin(qemu)
+    default_library = None if builtin else build / "ia64-llvm.so"
     vector_offset = symbols(build / "region-vector.elf")["spin"] - 0x2000000
     cases = ["smc", "fault", "alat"]
     devices = subprocess.check_output([qemu, "-device", "help"], text=True)
@@ -205,7 +277,7 @@ if __name__ == "__main__":
         names = symbols(build / f"region-{case}.elf")
         terminal = VECTORS[case] + vector_offset if case in VECTORS else names["done"]
         for alat in ("zero", "full"):
-            for library in (None, build / "ia64-llvm.so"):
+            for accel, library in (("tcg", None), ("tcg-llvm", default_library)):
                 check(
                     qemu,
                     build,
@@ -214,5 +286,41 @@ if __name__ == "__main__":
                     terminal,
                     names.get("fault"),
                     alat,
+                    accel,
                     library,
                 )
+    names = symbols(build / "region-alat.elf")
+    args = (qemu, build, "alat", names["region"], names["done"], None, "zero")
+    check(*args, "tcg", build / "absent.so")
+    check(
+        *args,
+        "tcg-llvm",
+        build / "absent.so",
+        fallback="tcg",
+        expect_jit=False,
+    )
+    check(
+        *args,
+        "tcg-llvm,cachesize=1",
+        build / "ia64-llvm.so",
+        cache_limit=1,
+    )
+    check(
+        *args,
+        "tcg-llvm,thread=single,cachesize=4M",
+        build / "ia64-llvm.so",
+        cache_limit=4 << 20,
+    )
+    check(*args, "tcg-llvm", build / "ia64-llvm.so", record_stats=False)
+    with tempfile.TemporaryDirectory() as temp:
+        executable = Path(temp) / qemu.name
+        shutil.copy(qemu, executable)
+        plugin_dir = executable.parent / "ia64-llvm"
+        plugin_dir.mkdir()
+        if builtin:
+            check(executable, *args[1:], "tcg-llvm,cachesize=1G")
+            (plugin_dir / "ia64-llvm.so").write_bytes(b"invalid shared library")
+            check(executable, *args[1:], "tcg-llvm,cachesize=1G")
+        else:
+            (plugin_dir / "ia64-llvm.so").symlink_to(build / "ia64-llvm.so")
+            assert not has_builtin(executable)

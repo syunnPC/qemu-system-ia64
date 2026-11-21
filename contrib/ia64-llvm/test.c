@@ -7,6 +7,8 @@
 #include "insn.h"
 #include "region.h"
 
+static IA64LLVMCache cache = { .limit = UINT64_C(1) << 30 };
+
 typedef struct TestEntry {
     uintptr_t read, write, unused, addend;
 } TestEntry;
@@ -106,7 +108,7 @@ static void test_late_store_fault(IA64LLVMCompile compile,
     TestTLB tlb = { 0, &entry };
     static const IA64LLVMAccess access = { .read_page = map, .read_sig = sig };
     assert(compile(IA64_LLVM_ABI, words, IA64_LLVM_MAX_BUNDLES, &code, &layout,
-                   false));
+                   false, &cache));
     assert(code.run(&p, 3, &access, &tlb) == IA64_LLVM_RESUME + 3 * (tail + 1));
     assert(p.ram[0] == 7 && p.gr[32] == 12 && p.gr[33] == 14);
     assert(p.dirty[0] == 3);
@@ -122,7 +124,8 @@ static void test_memory(IA64LLVMCompile compile, const char *image,
     fclose(f);
     for (unsigned test = 0; test < 16; test++) {
         if (test % 8 == 0) {
-            assert(compile(IA64_LLVM_ABI, words, 5, &code, &layout, test >= 8));
+            assert(compile(IA64_LLVM_ABI, words, 5, &code, &layout, test >= 8,
+                           &cache));
             assert(code.sof == 5 && code.dirty[0] == 27 && !code.dirty[1]);
         }
         Probe p = { 0 };
@@ -205,7 +208,7 @@ static void test_integer(IA64LLVMCompile compile, const char *image)
     /* A BBB bundle of ignored B-unit opcodes must preserve every register. */
     words[10] = 0x17 | (ignored_b << 5) | (ignored_b << 46);
     words[11] = (ignored_b >> 18) | (ignored_b << 23);
-    assert(compile(IA64_LLVM_ABI, words, 6, &code, &layout, false));
+    assert(compile(IA64_LLVM_ABI, words, 6, &code, &layout, false, &cache));
     for (unsigned i = 0; i < 128; i++) {
         uint64_t x = random_word(&seed), y = random_word(&seed);
         uint64_t region = ((y >> 30) & 3) << 61;
@@ -224,6 +227,38 @@ static void test_integer(IA64LLVMCompile compile, const char *image)
         assert(p.pr[0] == 1 && p.pr[62] == 1 && p.pr[60] == (-17 < (int64_t)y));
         assert(p.gr[8] == x);
     }
+}
+
+static void test_cache_limit(IA64LLVMCompile compile, const uint64_t *words)
+{
+    const IA64LLVMAccess access = { .read_page = map, .read_sig = sig };
+    IA64LLVMCode first, other;
+    Probe p = { .gr = { [8] = 1, [9] = 2 } };
+
+    cache.limit = 0;
+    assert(!compile(IA64_LLVM_ABI, words, 1, &first, &layout, false, &cache));
+    assert(!first.run && cache.used == 0);
+    cache.limit = 1;
+    assert(!compile(IA64_LLVM_ABI, words, 1, &first, &layout, false, &cache));
+    assert(!first.run && cache.used == 0);
+
+    cache.limit = UINT64_C(1) << 30;
+    assert(compile(IA64_LLVM_ABI, words, 1, &first, &layout, false, &cache));
+    uint64_t size = cache.used;
+    assert(size && size < cache.limit / 2);
+
+    cache.limit = 2 * size - 1;
+    assert(!compile(IA64_LLVM_ABI, words, 1, &other, &layout, false, &cache));
+    assert(!other.run && cache.used == size);
+    cache.limit++;
+    assert(compile(IA64_LLVM_ABI, words, 1, &other, &layout, false, &cache));
+    assert(cache.used == cache.limit);
+    assert(!compile(IA64_LLVM_ABI, words, 1, &other, &layout, false, &cache));
+    assert(!other.run && cache.used == cache.limit);
+    assert(first.run(&p, 0, &access, NULL) == IA64_LLVM_COMPLETE);
+    assert(p.gr[16] == (UINT64_C(1) << 32 | 2));
+
+    cache.limit = UINT64_C(1) << 30;
 }
 
 int main(int argc, char **argv)
@@ -246,9 +281,10 @@ int main(int argc, char **argv)
     }
     IA64LLVMCompile compile =
         (IA64LLVMCompile)dlsym(lib, IA64_LLVM_COMPILE_SYMBOL);
-    assert(compile && !compile(0, words, n, &code, &layout, false) &&
-           !compile(IA64_LLVM_ABI, words, 0, &code, &layout, false));
-    assert(compile(IA64_LLVM_ABI, words, n, &code, &layout, false));
+    assert(compile && !compile(0, words, n, &code, &layout, false, &cache) &&
+           !compile(IA64_LLVM_ABI, words, 0, &code, &layout, false, &cache));
+    test_cache_limit(compile, words);
+    assert(compile(IA64_LLVM_ABI, words, n, &code, &layout, false, &cache));
     assert(code.dirty[0] == 3 && code.dirty[1] == 0 && code.sof >= 2);
     assert(code.fr_inputs[0] == (UINT64_C(1) << 38) && code.fr_inputs[1] == 0 &&
            code.mixes == 2);
@@ -316,6 +352,6 @@ int main(int argc, char **argv)
     }
     test_memory(compile, argv[3], &words[8]);
     test_integer(compile, argv[4]);
-    puts("657 region executions passed");
+    puts("658 region executions and cache limit checks passed");
     return 0;
 }

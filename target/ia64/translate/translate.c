@@ -4932,7 +4932,6 @@ static bool ia64_tr_disas_log(const DisasContextBase *db, CPUState *cs,
 
 void ia64_translate_init(void)
 {
-    ia64_llvm_init();
     static const char *const gr_names[IA64_GR_COUNT] = {
         "r0",   "r1",   "r2",   "r3",   "r4",   "r5",   "r6",   "r7",   "r8",
         "r9",   "r10",  "r11",  "r12",  "r13",  "r14",  "r15",  "r16",  "r17",

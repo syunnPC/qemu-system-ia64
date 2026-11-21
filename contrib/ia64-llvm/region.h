@@ -7,10 +7,10 @@
 
 /* A region contains whole bundles from a single QEMU code page. */
 #define IA64_LLVM_MAX_BUNDLES 64
-#define IA64_LLVM_ABI 4
+#define IA64_LLVM_ABI 5
 /* A partial exit encodes the instruction index relative to the entry. */
 enum { IA64_LLVM_RETRY, IA64_LLVM_COMPLETE, IA64_LLVM_RESUME };
-#define IA64_LLVM_COMPILE_SYMBOL "ia64_llvm_compile_v4"
+#define IA64_LLVM_COMPILE_SYMBOL "ia64_llvm_compile_v5"
 
 typedef void *(*IA64LLVMReadPage)(void *env, uint64_t addr, uint32_t mmu);
 typedef uint64_t (*IA64LLVMReadSig)(void *env, uint32_t reg);
@@ -39,8 +39,22 @@ typedef struct IA64LLVMCode {
     uint8_t mixes;
 } IA64LLVMCode;
 
+typedef struct IA64LLVMCache {
+    uint64_t limit;
+    uint64_t used; /* Host bytes reserved by the JIT. */
+} IA64LLVMCache;
+
 /* QEMU submits immutable bundle copies from a single compiler thread. */
-typedef bool (*IA64LLVMCompile)(unsigned abi, const uint64_t *words,
-                                unsigned bundles, IA64LLVMCode *out,
-                                const IA64LLVMLayout *layout, bool full_alat);
+typedef bool IA64LLVMCompileFunc(unsigned abi, const uint64_t *words,
+                                 unsigned bundles, IA64LLVMCode *out,
+                                 const IA64LLVMLayout *layout, bool full_alat,
+                                 IA64LLVMCache *cache);
+typedef IA64LLVMCompileFunc *IA64LLVMCompile;
+#ifdef __cplusplus
+extern "C" {
+#endif
+IA64LLVMCompileFunc ia64_llvm_compile_v5;
+#ifdef __cplusplus
+}
+#endif
 #endif

@@ -3,11 +3,8 @@
 #include <stdio.h>
 #include <stddef.h>
 #include <llvm-c/Analysis.h>
-#include <llvm-c/LLJIT.h>
-#include <llvm-c/Target.h>
-#include <llvm-c/Transforms/PassBuilder.h>
 #include "insn.h"
-#include "region.h"
+#include "jit.h"
 #include "lower.h"
 
 typedef struct Lower {
@@ -24,7 +21,6 @@ typedef struct Lower {
     bool gr_written[128];
 } Lower;
 
-static LLVMOrcLLJITRef jit;
 static uint64_t sequence;
 
 static LLVMValueRef constant(Lower *l, uint64_t val)
@@ -98,6 +94,7 @@ static LLVMValueRef tlb_hit(Lower *l, LLVMValueRef entry, LLVMValueRef page,
 {
     LLVMValueRef tag =
         LLVMBuildLoad2(l->b, l->i64, field_at(l, entry, tag_offset), "");
+    LLVMSetAlignment(tag, sizeof(uint64_t));
     LLVMSetOrdering(tag, LLVMAtomicOrderingAcquire);
     return LLVMBuildICmp(l->b, LLVMIntEQ, tag, page, "");
 }
@@ -365,39 +362,26 @@ static bool build_body(Lower *l, const uint64_t *words, unsigned bundles)
     return true;
 }
 
-static bool succeeded(LLVMErrorRef err)
-{
-    if (!err) {
-        return true;
-    }
-    char *s = LLVMGetErrorMessage(err);
-    fprintf(stderr, "IA-64 LLVM: %s\n", s);
-    LLVMDisposeErrorMessage(s);
-    return false;
-}
-
-__attribute__((visibility("default"))) bool
-ia64_llvm_compile_v4(unsigned abi, const uint64_t *words, unsigned bundles,
-                     IA64LLVMCode *out, const IA64LLVMLayout *layout,
-                     bool full_alat)
+#ifndef CONFIG_IA64_LLVM_BUILTIN
+__attribute__((visibility("default")))
+#endif
+bool ia64_llvm_compile_v5(unsigned abi, const uint64_t *words, unsigned bundles,
+                          IA64LLVMCode *out, const IA64LLVMLayout *layout,
+                          bool full_alat, IA64LLVMCache *cache)
 {
     const uint16_t byte_order = 1;
-    if (abi != IA64_LLVM_ABI || !words || !out || !layout || !bundles ||
-        bundles > IA64_LLVM_MAX_BUNDLES || sizeof(uintptr_t) != 8 ||
+    if (abi != IA64_LLVM_ABI || !words || !out || !layout || !cache ||
+        !bundles || bundles > IA64_LLVM_MAX_BUNDLES || sizeof(uintptr_t) != 8 ||
         *(const uint8_t *)&byte_order != 1) {
         return false;
     }
     *out = (IA64LLVMCode) { 0 };
-    if (!jit &&
-        (LLVMInitializeNativeTarget() || LLVMInitializeNativeAsmPrinter() ||
-         !succeeded(LLVMOrcCreateLLJIT(&jit, NULL)))) {
+    if (cache->used >= cache->limit) {
         return false;
     }
     char name[64], *error = NULL;
     snprintf(name, sizeof(name), "ia64_region_%" PRIu64, ++sequence);
     LLVMContextRef ctx = LLVMContextCreate();
-    LLVMOrcThreadSafeContextRef ts =
-        LLVMOrcCreateNewThreadSafeContextFromLLVMContext(ctx);
     Lower l = { .code = out,
                 .layout = layout,
                 .ctx = ctx,
@@ -435,30 +419,14 @@ ia64_llvm_compile_v4(unsigned abi, const uint64_t *words, unsigned bundles,
     l.host = LLVMBuildAlloca(l.b, l.ptr, "host_page");
     LLVMBuildStore(l.b, constant(&l, UINT64_MAX), l.page);
     LLVMBuildStore(l.b, LLVMConstNull(l.ptr), l.host);
-    LLVMSetTarget(l.mod, LLVMOrcLLJITGetTripleString(jit));
-    LLVMSetDataLayout(l.mod, LLVMOrcLLJITGetDataLayoutStr(jit));
     bool ok = build_body(&l, words, bundles) &&
               !LLVMVerifyModule(l.mod, LLVMReturnStatusAction, &error);
     LLVMDisposeMessage(error);
     LLVMDisposeBuilder(l.b);
-    if (ok) {
-        LLVMPassBuilderOptionsRef opts = LLVMCreatePassBuilderOptions();
-        ok = succeeded(LLVMRunPasses(l.mod, "default<O2>,verify", NULL, opts));
-        LLVMDisposePassBuilderOptions(opts);
-    }
-    if (ok) {
-        LLVMOrcThreadSafeModuleRef m =
-            LLVMOrcCreateNewThreadSafeModule(l.mod, ts);
-        LLVMOrcExecutorAddress addr;
-        ok = succeeded(LLVMOrcLLJITAddLLVMIRModule(
-                 jit, LLVMOrcLLJITGetMainJITDylib(jit), m)) &&
-             succeeded(LLVMOrcLLJITLookup(jit, &addr, name));
-        if (ok) {
-            out->run = (IA64LLVMRun)(uintptr_t)addr;
-        }
-    } else {
+    if (!ok) {
         LLVMDisposeModule(l.mod);
+        LLVMContextDispose(ctx);
+        return false;
     }
-    LLVMOrcDisposeThreadSafeContext(ts);
-    return ok;
+    return ia64_llvm_compile_module(l.mod, name, out, cache);
 }

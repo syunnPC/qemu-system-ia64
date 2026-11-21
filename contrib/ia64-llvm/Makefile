@@ -3,16 +3,21 @@ CC ?= cc
 LLVM_CONFIG ?= llvm-config
 BUILD ?= build
 CFLAGS ?= -O2
+CXXFLAGS ?= -O2
 LLVM_CFLAGS := $(shell $(LLVM_CONFIG) --cflags)
-OBJ = $(addprefix $(BUILD)/,frontend.o lower.o decoder.o decode.o)
+OBJ = $(addprefix $(BUILD)/,frontend.o lower.o jit.o decoder.o decode.o)
 $(BUILD)/ia64-llvm.so: $(OBJ)
-	$(CC) $(LDFLAGS) -shared -Wl,--gc-sections,-Bsymbolic,-z,defs $^ -o $@.tmp \
+	$(CXX) $(LDFLAGS) -shared -Wl,--gc-sections,-Bsymbolic,-z,defs $^ -o $@.tmp \
 	    $(shell $(LLVM_CONFIG) --ldflags --libs core orcjit native passes --system-libs)
 	mv $@.tmp $@
 $(BUILD)/%.o: %.c
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) -I../.. $(LLVM_CFLAGS) $(CFLAGS) -std=gnu11 -fPIC \
 	    -fvisibility=hidden -ffunction-sections -fdata-sections -MMD -MP -c $< -o $@
+$(BUILD)/jit.o: jit.cpp
+	@mkdir -p $(@D)
+	$(CXX) $(CPPFLAGS) $(shell $(LLVM_CONFIG) --cxxflags) $(CXXFLAGS) -fPIC \
+	    -fvisibility=hidden -fvisibility-inlines-hidden -MMD -MP -c $< -o $@
 vpath %.c ../../target/ia64 ../../target/ia64/decode
 -include $(OBJ:.o=.d) $(BUILD)/test.d
 

@@ -235,6 +235,9 @@ DEF("accel", HAS_ARG, QEMU_OPTION_accel,
     "                one-insn-per-tb=on|off (one guest instruction per TCG translation block)\n"
     "                split-wx=on|off (enable TCG split w^x mapping)\n"
     "                tb-size=n (TCG translation block cache size)\n"
+    "                tcg-llvm,cachesize=size (IA-64 TCG with LLVM JIT, default cache limit=1G)\n"
+    "                llvm-library=path (use an external IA-64 LLVM JIT backend)\n"
+    "                llvm-stats=path (write IA-64 LLVM JIT statistics at exit, default=off)\n"
     "                dirty-ring-size=n (KVM dirty ring GFN count, default 0)\n"
     "                eager-split-size=n (KVM Eager Page Split chunk size, default 0, disabled. ARM only)\n"
     "                notify-vmexit=run|internal-error|disable,notify-window=n (enable notify VM exit and set notify window, x86 only)\n"
@@ -247,6 +250,11 @@ SRST
     By default, tcg is used. If there is more than one accelerator
     specified, the next one is used if the previous one fails to
     initialize.
+
+    On IA-64, ``-accel tcg`` runs entirely through TCG.
+    Use ``-accel tcg-llvm`` to enable the LLVM JIT alongside TCG.
+    For example, ``-accel tcg-llvm,cachesize=256M`` limits its code cache
+    to 256 MiB. This accelerator also accepts the usual TCG options.
 
     ``igd-passthru=on|off``
         When Xen is in use, this option controls whether Intel
@@ -277,6 +285,21 @@ SRST
 
     ``tb-size=n``
         Controls the size (in MiB) of the TCG translation block cache.
+
+    ``cachesize=size`` (IA-64 only)
+        Sets the maximum combined size of LLVM code and data mappings across
+        all vCPUs. The default is 1 GiB. Sizes are in bytes and accept binary
+        suffixes such as ``256M`` or ``1G``. TCG executes regions that do not
+        fit. Previously compiled regions stay available.
+
+    ``llvm-library=path`` (IA-64 only)
+        Selects an external LLVM JIT backend by file path. By default
+        ``tcg-llvm`` uses the backend built into QEMU when compatible LLVM
+        development libraries were detected at build time.
+
+    ``llvm-stats=path`` (IA-64 only)
+        Enables JIT statistics and writes them to the specified file at exit.
+        Statistics are disabled by default.
 
     ``thread=single|multi``
         Controls number of TCG threads. When the TCG is multi-threaded
