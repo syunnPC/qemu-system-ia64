@@ -625,7 +625,9 @@ static bool ia64_purge_tc_entries(CPUIA64State *env, IA64TlbEntry *tlb,
 {
     int empty = -1;
     uint64_t start = ia64_va_page_base(va, ps);
-    uint16_t i;
+    IA64TlbIndex *index =
+        is_data ? &env->mmu.tlb_data_index : &env->mmu.tlb_inst_index;
+    unsigned bucket = ia64_tlb_bucket(start, rid);
     bool purged = false;
 
     if (insert_slot) {
@@ -634,25 +636,30 @@ static bool ia64_purge_tc_entries(CPUIA64State *env, IA64TlbEntry *tlb,
     if (is_data) {
         purged |= ia64_merced_dtlb1_purge_range(env, start, ps, rid, true);
     }
-    for (i = 0; i < *count; i++) {
-        if (!tlb[i].valid) {
-            if (insert_slot && empty < 0) {
-                empty = i;
+    for (unsigned word = 0; word < IA64_TLB_SLOT_WORDS; word++) {
+        uint64_t candidates = ps > (UINT64_C(1) << IA64_TLB_BUCKET_SHIFT)
+                                  ? index->occupied[word]
+                                  : index->slots[bucket][word] |
+                                        index->slots[IA64_TLB_BUCKETS][word];
+
+        while (candidates) {
+            unsigned i = word * 64 + ctz64(candidates);
+            candidates &= candidates - 1;
+            if (tlb[i].is_tr ||
+                !ia64_tlb_entry_overlaps(&tlb[i], start, ps, rid)) {
+                continue;
             }
-            continue;
-        }
-        if (tlb[i].rid != rid || tlb[i].is_tr) {
-            continue;
-        }
-        if (ia64_tlb_entry_overlaps(&tlb[i], start, ps, rid)) {
             ia64_qemu_tlb_flush_entry(env, &tlb[i], is_data);
             ia64_discard_pending_purge(&tlb[i], pending_count);
             tlb[i].valid = 0;
             ia64_tlb_bump_slot_generation(env, !is_data, i);
-            if (insert_slot && empty < 0) {
-                empty = i;
-            }
             purged = true;
+        }
+        if (insert_slot && empty < 0 && ~index->occupied[word]) {
+            unsigned first = word * 64 + ctz64(~index->occupied[word]);
+            if (first < capacity) {
+                empty = first;
+            }
         }
     }
 
@@ -661,9 +668,6 @@ static bool ia64_purge_tc_entries(CPUIA64State *env, IA64TlbEntry *tlb,
     }
 
     if (insert_slot) {
-        if (empty < 0 && *count < capacity) {
-            empty = *count;
-        }
         *insert_slot = empty >= 0 ? empty
                                   : ia64_tlb_circular_tc_victim(tlb, capacity,
                                                                 *next_replace);
@@ -2088,90 +2092,117 @@ void ia64_mmu_check_alignment(CPUIA64State *env, uint64_t va,
     }
 }
 
-static bool ia64_cached_speculative_data_load_qualifies(
-    CPUIA64State *env, uint64_t va, uint32_t datum_size,
-    IA64MemorySpeculation *speculation, uint8_t *memory_attribute,
-    uint64_t *qualified_pa)
+/*
+ * Validate the soft-TLB comparator against the modeled translation, including
+ * fault-suppressed access-bit handling. A conflicting direct or victim entry
+ * must be evicted before qemu_ld can consume it.
+ */
+static G_GNUC_NO_INLINE bool ia64_validate_speculative_page(
+    CPUIA64State *env, uint64_t va, uint32_t rid, unsigned cpl,
+    const IA64CachedLoadTranslation *cached, IA64SpeculativePage *page)
 {
-    IA64CachedLoadTranslation cached;
-    const IA64TlbEntry *entry;
-    uint64_t page_offset = va & ~TARGET_PAGE_MASK;
-    uint64_t pa = UINT64_MAX;
+    const IA64TlbEntry *entry = ia64_tlb_find_cached(env, va, rid, false);
     uint64_t modeled_phys_page = UINT64_MAX;
     uint64_t modeled_pte = 0;
-    uint8_t perm;
-    uint32_t rid;
-    int modeled_exception = -1;
-    int mmu_idx;
+    int mmu_idx = MMU_IDX_VIRT_CPL(cpl);
 
-    /*
-     * A load comparator does not currently certify all PKR read-disable
-     * state, so protection-key accesses must retain full qualification.
-     */
-    if (!(env->psr & IA64_PSR_DT) || (env->psr & (IA64_PSR_IS | IA64_PSR_PK))) {
-        return false;
-    }
-    if (datum_size == 0 || datum_size > TARGET_PAGE_SIZE - page_offset) {
-        return false;
-    }
-    if (!ia64_va_is_implemented(env, va)) {
-        return false;
-    }
-
-    /* Firmware identity mappings additionally depend on the current IP. */
-    if (ia64_firmware_contains(env, va)) {
-        return false;
-    }
-
-    mmu_idx = ia64_exec_mmu_index(env, false);
-    if (!ia64_exec_cached_load_translation(env, va, mmu_idx, &cached)) {
-        return false;
-    }
-
-    rid = ia64_region_rid(env, va);
-    entry = ia64_tlb_find_cached(env, va, rid, false);
     if (entry && ia64_tlb_match(entry, va, rid)) {
+        uint8_t perm;
+        uint64_t pa;
+
         modeled_pte = entry->pte;
-        ia64_tlb_entry_translate(entry, va, ia64_psr_cpl(env->psr), &pa, &perm);
+        ia64_tlb_entry_translate(entry, va, cpl, &pa, &perm);
         modeled_phys_page = pa & TARGET_PAGE_MASK;
-        modeled_exception = ia64_tlb_exception_for_access(
-            env, entry, perm, IA64_TLB_R, false, false, false);
-        if (modeled_exception == IA64_EXCP_NONE &&
-            (pa & TARGET_PAGE_MASK) == cached.phys_page &&
-            ia64_pte_memory_speculation(entry->pte) == cached.speculation &&
-            ((entry->pte >> 2) & 7) == cached.memory_attribute &&
-            (cached.prot & PAGE_READ)) {
-            *speculation = cached.speculation;
-            *memory_attribute = cached.memory_attribute;
-            goto attributes_current;
+        if (modeled_phys_page == cached->phys_page &&
+            ia64_pte_memory_speculation(modeled_pte) == cached->speculation &&
+            ia64_pte_ma(modeled_pte) == cached->memory_attribute &&
+            (cached->prot & PAGE_READ) &&
+            ia64_tlb_exception_for_access(env, entry, perm, IA64_TLB_R, false,
+                                          false, false) == IA64_EXCP_NONE) {
+            /*
+             * An accessed PTE remains readable at this CPL regardless of
+             * PSR.da. PK-enabled accesses always take the cold qualifier.
+             * Merced can retain an independent DTLB1 copy of a replaced TC.
+             */
+            if ((modeled_pte & IA64_PTE_ACCESSED) &&
+                ia64_env_cpu_class(env)->model != IA64_CPU_MODEL_MERCED &&
+                cached->speculation == IA64_MEM_SPECULATIVE) {
+                *page = (IA64SpeculativePage) {
+                    .page_cpl = (va & TARGET_PAGE_MASK) | cpl,
+                    .phys_page = modeled_phys_page,
+                    .rid = rid,
+                    .generation = env->mmu.speculative_generation,
+                    .memory_attribute = cached->memory_attribute,
+                };
+            }
+            return true;
         }
     }
 
-    /*
-     * A reusable soft-TLB comparator matched, but the modeled IA-64
-     * translation no longer describes the same readable physical page.
-     * Returning to the cold qualifier alone is insufficient: a successful
-     * cold probe would otherwise let the following qemu_ld reuse this stale
-     * comparator.  Evict only this contradictory data entry, retaining the
-     * instruction jump cache and unrelated address spaces.
-     */
     trace_ia64_stale_soft_tlb_repair(
-        env_cpu(env)->cpu_index, env->ip, va, mmu_idx, rid, cached.from_victim,
-        cached.phys_page, modeled_phys_page, modeled_pte);
+        env_cpu(env)->cpu_index, env->ip, va, mmu_idx, rid, cached->from_victim,
+        cached->phys_page, modeled_phys_page, modeled_pte);
     tlb_flush_range_by_mmuidx_no_jmp_cache(
         env_cpu(env), va & TARGET_PAGE_MASK, TARGET_PAGE_SIZE,
         (MMUIdxMap)1U << mmu_idx, TARGET_LONG_BITS);
     return false;
+}
 
-attributes_current:
-    if (!ia64_memory_allows_control_speculation(*speculation) ||
-        (*memory_attribute != IA64_PTE_MA_WB &&
-         *memory_attribute != IA64_PTE_MA_WC)) {
+static bool ia64_cached_speculative_data_load_qualifies(
+    CPUIA64State *env, uint64_t va, uint32_t datum_size,
+    IA64MemorySpeculation *speculation, uint8_t *memory_attribute,
+    uint64_t *qualified_pa, void **load_host)
+{
+    IA64CachedLoadTranslation cached;
+    uint64_t page_offset = va & ~TARGET_PAGE_MASK;
+    unsigned cpl = ia64_psr_cpl(env->psr);
+    uint32_t rid;
+    IA64SpeculativePage *page;
+    bool current;
+
+    if (!(env->psr & IA64_PSR_DT) || (env->psr & (IA64_PSR_IS | IA64_PSR_PK))) {
+        return false;
+    }
+    if (datum_size == 0 || datum_size > TARGET_PAGE_SIZE - page_offset ||
+        !ia64_va_is_implemented(env, va) || ia64_firmware_contains(env, va)) {
         return false;
     }
 
+    if (!ia64_exec_cached_load_translation(env, va, MMU_IDX_VIRT_CPL(cpl),
+                                           qualified_pa != NULL, &cached,
+                                           load_host)) {
+        return false;
+    }
+
+    rid = ia64_region_rid(env, va);
+    page = &env->mmu.speculative_pages[ia64_micro_tlb_index(va, rid) %
+                                       ARRAY_SIZE(env->mmu.speculative_pages)];
+    /*
+     * The generation covers the modeled DTLB. QEMU can replace or promote
+     * a soft-TLB entry independently; compare the entry that qemu_ld will
+     * actually use, even when the modeled page is known to be readable.
+     */
+    current = page->generation &&
+              page->generation == env->mmu.speculative_generation &&
+              page->page_cpl == ((va & TARGET_PAGE_MASK) | cpl) &&
+              page->rid == rid && page->phys_page == cached.phys_page &&
+              page->memory_attribute == cached.memory_attribute &&
+              cached.speculation == IA64_MEM_SPECULATIVE &&
+              (cached.prot & PAGE_READ);
+    if (!current &&
+        !ia64_validate_speculative_page(env, va, rid, cpl, &cached, page)) {
+        return false;
+    }
+    if (!ia64_memory_allows_control_speculation(cached.speculation) ||
+        (cached.memory_attribute != IA64_PTE_MA_WB &&
+         cached.memory_attribute != IA64_PTE_MA_WC)) {
+        return false;
+    }
+
+    *speculation = cached.speculation;
+    *memory_attribute = cached.memory_attribute;
     if (qualified_pa && cached.is_ram) {
-        *qualified_pa = pa;
+        *qualified_pa = cached.phys_page | page_offset;
     }
     return true;
 }
@@ -2187,7 +2218,7 @@ static bool ia64_cached_speculative_load_succeeds(
 
     if (is_write || is_ifetch ||
         !ia64_cached_speculative_data_load_qualifies(
-            env, va, datum_size, &speculation, &memory_attribute, pa)) {
+            env, va, datum_size, &speculation, &memory_attribute, pa, NULL)) {
         return false;
     }
 
@@ -2348,11 +2379,16 @@ static G_GNUC_NO_INLINE uint64_t ia64_mmu_speculative_int_probe_cold(
 }
 
 uint64_t ia64_mmu_speculative_int_probe_pa(CPUIA64State *env, uint64_t va,
-                                           uint32_t size, uint64_t *pa)
+                                           uint32_t size, uint64_t *pa,
+                                           void **load_host)
 {
     IA64MemorySpeculation speculation;
     uint8_t memory_attribute;
+    void *host;
 
+    if (load_host) {
+        *load_host = NULL;
+    }
     if (pa) {
         *pa = UINT64_MAX;
     }
@@ -2372,7 +2408,8 @@ uint64_t ia64_mmu_speculative_int_probe_pa(CPUIA64State *env, uint64_t va,
     }
 
     if (!ia64_cached_speculative_data_load_qualifies(
-            env, va, size, &speculation, &memory_attribute, pa)) {
+            env, va, size, &speculation, &memory_attribute, pa,
+            load_host ? &host : NULL)) {
         if (pa) {
             *pa = UINT64_MAX;
         }
@@ -2387,13 +2424,16 @@ uint64_t ia64_mmu_speculative_int_probe_pa(CPUIA64State *env, uint64_t va,
         return ia64_mmu_speculative_int_probe_cold(env, va, size);
     }
 
+    if (load_host && ((uintptr_t)host & (size - 1U)) == 0) {
+        *load_host = host;
+    }
     return 1;
 }
 
 uint64_t ia64_mmu_speculative_int_probe(CPUIA64State *env, uint64_t va,
                                         uint32_t size)
 {
-    return ia64_mmu_speculative_int_probe_pa(env, va, size, NULL);
+    return ia64_mmu_speculative_int_probe_pa(env, va, size, NULL, NULL);
 }
 
 uint64_t ia64_mmu_advanced_load_allowed(CPUIA64State *env, uint64_t va)

@@ -109,6 +109,16 @@ static TCGTBCPUState ia64_get_tb_cpu_state(CPUState *cs)
     };
 }
 
+/* Any data slot can supersede a mapping with an overlapping page size. */
+static void ia64_invalidate_speculative_pages(CPUIA64State *env)
+{
+    if (unlikely(++env->mmu.speculative_generation == 0)) {
+        memset(env->mmu.speculative_pages, 0,
+               sizeof(env->mmu.speculative_pages));
+        env->mmu.speculative_generation = 1;
+    }
+}
+
 void ia64_tlb_bump_generation(CPUIA64State *env, bool is_ifetch)
 {
     IA64MicroTlbEntry *micro =
@@ -116,6 +126,9 @@ void ia64_tlb_bump_generation(CPUIA64State *env, bool is_ifetch)
     uint32_t *generation = is_ifetch ? &env->mmu.tlb_inst_generation
                                      : &env->mmu.tlb_data_generation;
 
+    if (!is_ifetch) {
+        ia64_invalidate_speculative_pages(env);
+    }
     (*generation)++;
     if (*generation == 0) {
         IA64MicroTlbEntry *victims =
@@ -127,12 +140,53 @@ void ia64_tlb_bump_generation(CPUIA64State *env, bool is_ifetch)
     }
 }
 
+static void ia64_tlb_index_slot(IA64TlbIndex *index, unsigned slot,
+                                const IA64TlbEntry *entry)
+{
+    unsigned word = slot / 64;
+    uint64_t bit = UINT64_C(1) << (slot % 64);
+    unsigned bucket = index->slot_bucket[slot];
+
+    index->slots[bucket][word] &= ~bit;
+    if (entry->valid) {
+        /* Keep noncanonical migrated masks in the all-addresses bucket. */
+        bucket = IA64_TLB_BUCKETS;
+        if (entry->ps <= (UINT64_C(1) << IA64_TLB_BUCKET_SHIFT) &&
+            entry->page_mask == ia64_va_vpn_mask(entry->ps)) {
+            bucket = ia64_tlb_bucket(entry->va, entry->rid);
+        }
+        index->slot_bucket[slot] = bucket;
+        index->slots[bucket][word] |= bit;
+        index->occupied[word] |= bit;
+    } else {
+        index->occupied[word] &= ~bit;
+    }
+}
+
+void ia64_tlb_rebuild_indexes(CPUIA64State *env)
+{
+    memset(&env->mmu.tlb_data_index, 0, sizeof(env->mmu.tlb_data_index));
+    memset(&env->mmu.tlb_inst_index, 0, sizeof(env->mmu.tlb_inst_index));
+    for (unsigned i = 0; i < env->mmu.tlb_data_count; i++) {
+        ia64_tlb_index_slot(&env->mmu.tlb_data_index, i, &env->mmu.tlb_data[i]);
+    }
+    for (unsigned i = 0; i < env->mmu.tlb_inst_count; i++) {
+        ia64_tlb_index_slot(&env->mmu.tlb_inst_index, i, &env->mmu.tlb_inst[i]);
+    }
+}
+
 void ia64_tlb_bump_slot_generation(CPUIA64State *env, bool is_ifetch,
                                    uint16_t slot)
 {
     IA64TlbEntry *tlb = is_ifetch ? env->mmu.tlb_inst : env->mmu.tlb_data;
 
     g_assert(slot < IA64_TLB_MAX);
+    ia64_tlb_index_slot(is_ifetch ? &env->mmu.tlb_inst_index
+                                  : &env->mmu.tlb_data_index,
+                        slot, &tlb[slot]);
+    if (!is_ifetch) {
+        ia64_invalidate_speculative_pages(env);
+    }
     if (++tlb[slot].micro_generation == 0) {
         /*
          * A wrapped slot version could validate a very old hint.  Make the
@@ -150,8 +204,9 @@ const IA64TlbEntry *ia64_tlb_find_slow(CPUIA64State *env, uint64_t va,
     IA64TlbEntry *tlb = is_ifetch ? env->mmu.tlb_inst : env->mmu.tlb_data;
     IA64MicroTlbEntry *micro =
         is_ifetch ? env->mmu.tlb_inst_micro : env->mmu.tlb_data_micro;
-    uint16_t tlb_count =
-        is_ifetch ? env->mmu.tlb_inst_count : env->mmu.tlb_data_count;
+    const IA64TlbIndex *index =
+        is_ifetch ? &env->mmu.tlb_inst_index : &env->mmu.tlb_data_index;
+    unsigned bucket = ia64_tlb_bucket(va, rid);
     uint32_t generation =
         is_ifetch ? env->mmu.tlb_inst_generation : env->mmu.tlb_data_generation;
     uint16_t i;
@@ -178,17 +233,18 @@ const IA64TlbEntry *ia64_tlb_find_slow(CPUIA64State *env, uint64_t va,
         }
     }
 
-    for (i = 0; i < tlb_count; i++) {
-        IA64TlbEntry *entry = &tlb[i];
+    /* Ascending slot order also resolves overlapping TR/TC candidates. */
+    for (unsigned word = 0; word < IA64_TLB_SLOT_WORDS; word++) {
+        uint64_t candidates = index->slots[bucket][word] |
+                              index->slots[IA64_TLB_BUCKETS][word];
+        while (candidates) {
+            i = word * 64 + ctz64(candidates);
+            candidates &= candidates - 1;
+            IA64TlbEntry *entry = &tlb[i];
 
-        /*
-         * Main TLB entries are validated when inserted or loaded, so a
-         * valid entry always has a nonzero page size.  Check the more
-         * selective RID before valid: active operating-system TLBs are
-         * dense, while a substantial fraction belongs to another RID.
-         */
-        if (entry->rid == rid && entry->valid &&
-            ((va ^ entry->va) & entry->page_mask) == 0) {
+            if (!ia64_tlb_match(entry, va, rid)) {
+                continue;
+            }
             IA64MicroTlbEntry *cached = &micro[ia64_micro_tlb_index(va, rid)];
 
             if (cached->valid && cached->generation == generation) {
@@ -1001,6 +1057,8 @@ typedef struct IA64QTestStaleVictimWork {
     uint64_t va;
     uint64_t old_pa;
     uint64_t new_pa;
+    bool remap;
+    bool wrap;
     uint64_t value;
     uint64_t probe_result;
     bool model_ready;
@@ -1326,10 +1384,31 @@ static void ia64_qtest_stale_victim_load_work(CPUState *cs,
                   IA64_PSR_DA | IA64_PSR_DD | IA64_PSR_ED | IA64_PSR_VM);
     env->psr |= IA64_PSR_DT;
     tlb_flush(cs);
-    work->model_ready = ia64_mmu_insert_firmware_tc(env, work->va, work->new_pa,
-                                                    true, TARGET_PAGE_BITS);
+    work->model_ready = ia64_mmu_insert_firmware_tc(
+        env, work->va, work->remap ? work->old_pa : work->new_pa, true,
+        TARGET_PAGE_BITS);
     if (!work->model_ready) {
         return;
+    }
+
+    /* Warm the real direct load comparator and the speculative qualifier. */
+    if (work->wrap) {
+        env->mmu.speculative_generation = 1;
+    }
+    ia64_exec_load_mmuidx(env, work->va, 8, false, mmu_idx, 0);
+    if (!ia64_mmu_speculative_int_probe(env, work->va, 8)) {
+        return;
+    }
+    if (work->remap) {
+        work->model_ready = ia64_mmu_insert_firmware_tc(
+            env, work->va, work->new_pa, true, TARGET_PAGE_BITS);
+        if (!work->model_ready) {
+            return;
+        }
+    }
+    if (work->wrap) {
+        env->mmu.speculative_generation = UINT32_MAX;
+        ia64_tlb_bump_generation(env, false);
     }
 
     /*
@@ -1387,8 +1466,9 @@ static void ia64_qtest_alat_writer_active_work(CPUState *cs,
     IA64AlatEntry *entry = &env->alat_state.alat[0];
     uint64_t generation;
 
-    /* Seed while the external writer is active. */
+    /* Seed against the current generation while the writer is active. */
     ia64_alat_invala(env);
+    ia64_alat_load_begin(env);
     *entry = (IA64AlatEntry) {
         .phys_addr = IA64_QTEST_ALAT_PA,
         .size = 8,
@@ -1855,11 +1935,15 @@ static bool ia64_qtest_command(CharFrontend *chr, gchar **words)
     if (strcmp(words[0], "ia64-stale-victim-load") != 0) {
         return false;
     }
-    if (!words[1] || !words[2] || !words[3] || words[4]) {
-        qtest_sendf(chr, "FAIL expected VA OLD_PA NEW_PA\n");
+    if (!words[1] || !words[2] || !words[3] ||
+        (words[4] && (words[5] || (strcmp(words[4], "remap") &&
+                                   strcmp(words[4], "wrap"))))) {
+        qtest_sendf(chr, "FAIL expected VA OLD_PA NEW_PA [remap|wrap]\n");
         return true;
     }
 
+    work.remap = words[4] != NULL;
+    work.wrap = words[4] && strcmp(words[4], "wrap") == 0;
     ret = qemu_strtou64(words[1], NULL, 0, &work.va);
     ret |= qemu_strtou64(words[2], NULL, 0, &work.old_pa);
     ret |= qemu_strtou64(words[3], NULL, 0, &work.new_pa);
@@ -2003,6 +2087,7 @@ static const TCGCPUOps ia64_tcg_ops = {
     .cpu_exec_halt = ia64_cpu_has_work,
     .cpu_exec_reset = cpu_reset,
     .do_interrupt = ia64_cpu_do_interrupt,
+    .do_interrupt_unlocked = ia64_cpu_do_interrupt_unlocked,
 };
 
 #define IA64_ITANIUM2_MEMORY_ATTRIBUTE_MASK \

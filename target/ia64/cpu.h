@@ -1016,6 +1016,15 @@ typedef struct CPUArchState {
 
 static inline uint64_t ia64_pkr_key_mask(const CPUIA64State *env);
 
+static inline unsigned ia64_tlb_bucket(uint64_t va, uint32_t rid)
+{
+    /* VPN matches ignore region bits; the RID identifies the address space. */
+    uint64_t page = (va & IA64_REGION7_PHYS_MASK) >> IA64_TLB_BUCKET_SHIFT;
+
+    return (page ^ (page >> 10) ^ rid ^ (rid >> 8)) % IA64_TLB_BUCKETS;
+}
+
+void ia64_tlb_rebuild_indexes(CPUIA64State *env);
 void ia64_tlb_bump_generation(CPUIA64State *env, bool is_ifetch);
 void ia64_tlb_bump_slot_generation(CPUIA64State *env, bool is_ifetch,
                                    uint16_t slot);

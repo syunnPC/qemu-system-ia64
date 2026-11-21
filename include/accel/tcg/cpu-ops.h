@@ -176,6 +176,12 @@ struct TCGCPUOps {
 #else
     /** @do_interrupt: Callback for interrupt handling.  */
     void (*do_interrupt)(CPUState *cpu);
+    /**
+     * @do_interrupt_unlocked: Try to deliver a synchronous exception on the
+     * owning vCPU without the BQL. Return false without side effects to use
+     * @do_interrupt with the BQL held. Optional; disabled during replay.
+     */
+    bool (*do_interrupt_unlocked)(CPUState *cpu);
     /** @cpu_exec_interrupt: Callback for processing interrupts in cpu_exec */
     bool (*cpu_exec_interrupt)(CPUState *cpu, int interrupt_request);
     /** @cpu_exec_reset: Callback for reset in cpu_exec.  */

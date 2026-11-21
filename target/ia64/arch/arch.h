@@ -55,7 +55,11 @@ uint64_t ia64_mmu_speculative_int_probe(CPUIA64State *env, uint64_t va,
                                         uint32_t size);
 /* PA is UINT64_MAX unless the complete datum has a qualified RAM mapping. */
 uint64_t ia64_mmu_speculative_int_probe_pa(CPUIA64State *env, uint64_t va,
-                                           uint32_t size, uint64_t *pa);
+                                           uint32_t size, uint64_t *pa,
+                                           void **load_host);
+/* Reserved PA values in the result of the integer speculative RAM load. */
+#define IA64_SPEC_LD_DEFERRED (UINT64_MAX - 1)
+#define IA64_SPEC_LD_SLOW     (UINT64_MAX - 2)
 uint64_t ia64_mmu_speculative_probe_pa(CPUIA64State *env, uint64_t va,
                                        uint32_t is_write, uint32_t is_ifetch,
                                        uint32_t debug_size,
@@ -105,6 +109,7 @@ void ia64_raise_pre_unaligned_data_fault(CPUIA64State *env, uint64_t va,
                                          uint32_t is_write, uint32_t is_rw,
                                          uint64_t fault_ip, uint8_t fault_slot);
 void ia64_cpu_do_interrupt(CPUState *cs);
+bool ia64_cpu_do_interrupt_unlocked(CPUState *cs);
 bool ia64_cpu_exec_interrupt(CPUState *cs, int interrupt_request);
 void ia64_rse_interrupt_window(CPUIA64State *env);
 bool ia64_try_emulate_firmware_unaligned(CPUState *cs, uint64_t fault_addr,

@@ -3966,7 +3966,7 @@ static void test_cpu_profile_migration(const void *opaque)
     g_assert_cmpint(g_unlink(path), ==, 0);
 }
 
-static void test_stale_victim_speculative_load(void)
+static void test_stale_victim_speculative_load(gconstpointer data)
 {
     const uint64_t target_va = 0x00008000;
     const uint64_t old_pa = 8 * MiB;
@@ -3977,8 +3977,12 @@ static void test_stale_victim_speculative_load(void)
     uint64_t value;
     bool probe_succeeded;
 
-    qts = qtest_init("-machine itanium-vpc,nvram=none -m 256M -S "
-                     "-accel tcg,thread=single");
+    const char *mode = data;
+    const char *machine = mode ? "itanium2-vpc" : "itanium-vpc";
+
+    qts = qtest_initf("-machine %s,nvram=none -m 256M -S "
+                      "-accel tcg,thread=single",
+                      machine);
     qtest_writeq(qts, old_pa, old_value);
     qtest_writeq(qts, new_pa, new_value);
 
@@ -3989,6 +3993,7 @@ static void test_stale_victim_speculative_load(void)
      * before the load and therefore returns the modeled page's sentinel.
      */
     value = qtest_ia64_stale_victim_load(qts, target_va, old_pa, new_pa,
+                                         mode && *mode ? mode : NULL,
                                          &probe_succeeded);
     g_assert_true(probe_succeeded);
     g_assert_cmphex(value, ==, new_value);
@@ -4244,8 +4249,14 @@ int main(int argc, char **argv)
                             "itanium2-vpc",
                             test_savevm_restores_platform_state);
     }
-    qtest_add_func("/ia64-vpc/mmu/stale-victim-speculative-load",
-                   test_stale_victim_speculative_load);
+    qtest_add_data_func("/ia64-vpc/mmu/stale-victim-speculative-load", NULL,
+                        test_stale_victim_speculative_load);
+    qtest_add_data_func("/ia64-vpc/mmu/speculative-warm-victim", "",
+                        test_stale_victim_speculative_load);
+    qtest_add_data_func("/ia64-vpc/mmu/speculative-warm-remap", "remap",
+                        test_stale_victim_speculative_load);
+    qtest_add_data_func("/ia64-vpc/mmu/speculative-generation-wrap", "wrap",
+                        test_stale_victim_speculative_load);
 
     if (has_storage) {
         qtest_add_data_func("/ia64-vpc/lsi/task-ordering", GUINT_TO_POINTER(0),

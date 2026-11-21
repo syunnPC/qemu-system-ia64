@@ -2465,6 +2465,47 @@ def test_itc_d_merced_dtlb1_cmpxchg_hit_updates_lru(qemu):
         qemu, "itc_d_merced_dtlb1_cmpxchg_hit_updates_lru", cmpxchg_zero)
 
 
+def test_itc_d_mixed_page_size_replacement(qemu):
+    va = HIGH_TR_BASE
+    offset = 0x34000
+    small_pa = 0x2000000
+    large_pa = 0x4000000
+
+    def insert(ip, address, backing, shift):
+        return [
+            (ip, *movl_mlx(18, backing | DTR_PTE_WB)),
+            (ip + 0x10, *movl_mlx(19, address)),
+            (ip + 0x20, 0x00, mov_m_gr_cr(19, 20), adds(7, shift << 2, 0),
+             nop_i()),
+            (ip + 0x30, 0x00, mov_m_gr_cr(7, 21), nop_i(), nop_i()),
+            (ip + 0x40, 0x00, itc_d(18), nop_i(), nop_i()),
+            (ip + 0x50, 0x00, srlz_d(), nop_i(), nop_i()),
+        ]
+
+    run_program(qemu, [
+        *insert(0x10, va + offset, small_pa, 12),
+        (0x70, *movl_mlx(2, va + offset)),
+        (0x80, *movl_mlx(3, va + 0xc8000)),
+        (0x90, 0x00, ssm(IA64_PSR_DT), nop_i(), nop_i()),
+        (0xa0, 0x00, ld8(28, 2), nop_i(), nop_i()),
+        # The larger TC overlaps a small page in a different 64 KiB window.
+        *insert(0xb0, va, large_pa, 20),
+        (0x110, 0x00, ld8(29, 2), nop_i(), nop_i()),
+        (0x120, 0x00, ld8(30, 3), nop_i(), nop_i()),
+        # A small insertion must invalidate the whole previous large mapping.
+        *insert(0x130, va + offset, small_pa, 12),
+        (0x190, 0x00, ld8(31, 2), nop_i(), nop_i()),
+        (0x1a0, 0x00, ld8_s(27, 3), nop_i(), nop_i()),
+        (0x1b0, 0x10, nop_m(), nop_i(), br_cond(0x1b0, 0x1b0)),
+        raw_bundle(small_pa, 0x1111, 0),
+        raw_bundle(large_pa + offset, 0x2222, 0),
+        raw_bundle(large_pa + 0xc8000, 0x3333, 0),
+    ], entry=0x10, cpu="madison", name="itc_d_mixed_page_size_replacement",
+        expected={"ip": 0x1b0, "exception": IA64_EXCP_NONE,
+                  "r28": 0x1111, "r29": 0x2222, "r30": 0x3333,
+                  "r31": 0x1111, "r27_nat": 1})
+
+
 def test_itc_d_full_tc_replacement_rotates(qemu):
     tc_fill_count = IA64_TLB_MAX
     fill_base = 0x100000
@@ -8265,6 +8306,7 @@ CASE_NAMES = (
     'itc_d_clear_dirty_raises_dirty_bit',
     'itc_d_data_key_miss_raises_key_vector',
     'itc_d_full_tc_replacement_rotates',
+    'itc_d_mixed_page_size_replacement',
     'itc_d_evicted_refill_flushes_host_tlb',
     'itc_d_key_permission_store_raises_permission_vector',
     'itc_d_matching_pkr_allows_keyed_load',

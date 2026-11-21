@@ -39,6 +39,7 @@ from .encoding import (
     IA64_ISR_R,
     IA64_ISR_RS,
     IA64_ISR_W,
+    IA64_PSR_BE,
     IA64_PSR_CPL3,
     IA64_PSR_DB,
     IA64_PSR_DD,
@@ -110,6 +111,7 @@ from .encoding import (
     mov_m_cr_gr,
     mov_m_gr_ar,
     mov_m_gr_cr,
+    mov_m_gr_psr_um,
     mov_m_imm_ar,
     mov_m_psr_gr,
     mov_pkr_indexed,
@@ -381,6 +383,45 @@ test_rse_call_moves_output_nat_across_word_boundary = require_registers(
         "r96_nat": 1,
         "r97_nat": 0,
     }, entry=0x10)
+
+test_rse_call_after_user_mask_write = require_registers(
+    "rse_call_after_user_mask_write", [
+        (0x10, 0x00, nop_m(), addl(6, 0x400, 0), nop_i()),
+        (0x20, 0x10, nop_m(), nop_i(), br_cond(0x20, 0x80)),
+        (0x30, 0x10, nop_m(), adds(17, IA64_PSR_BE, 0), br_cond(0x30, 0x80)),
+        # The same call TB enters in little-endian mode both times.  Slot 0
+        # changes the callee's data endianness only on the second visit.
+        (0x80, 0x10, mov_m_gr_psr_um(17), nop_i(), br_call(6, 0x80, 0x100)),
+        (0x90, 0x00, nop_m(), cmp4_eq_imm(1, 0, 1, 9), nop_i()),
+        (0xa0, 0x10, nop_m(), nop_i(), br_cond(0xa0, 0x30, qp=1)),
+        (0xb0, 0x10, nop_m(), nop_i(), br_cond(0xb0, 0xb0)),
+        (0x100, 0x00, ld2(8, 6), adds(9, 1, 9), nop_i()),
+        (0x110, 0x10, nop_m(), nop_i(), br_ret(6)),
+        raw_bundle(0x400, 0x1234, 0),
+    ], {"ip": 0xb0, "exception": IA64_EXCP_NONE, "r9": 2, "r8": 0x3412},
+    entry=0x10)
+
+test_rse_call_rechecks_callee_nat_key = require_registers(
+    "rse_call_rechecks_callee_nat_key", [
+        (0x10, 0x00, alloc_m(20, 2, 1, 0, 0), nop_i(), nop_i()),
+        (0x20, 0x00, mov_m_imm_ar(36, 1), addl(6, 0x400, 0), nop_i()),
+        # Both invocations enter the same call TB with a NaT present.
+        # On the first, the clear r33 output replaces the caller's NaT r32.
+        (0x30, 0x08, ld8_fill_postinc(32, 6, 0), adds(33, 0, 0), nop_i()),
+        (0x40, 0x10, nop_m(), nop_i(), br_cond(0x40, 0xa0)),
+        # On the second, the output itself is NaT.  The callee must not
+        # reuse the first invocation's all-clear translation.
+        (0x50, 0x08, ld8_fill_postinc(33, 6, 0), adds(32, 0, 0), nop_i()),
+        (0x60, 0x10, nop_m(), nop_i(), br_cond(0x60, 0xa0)),
+        (0xa0, 0x10, nop_m(), nop_i(), br_call(6, 0xa0, 0x120)),
+        (0xb0, 0x00, nop_m(), cmp4_eq_imm(1, 0, 1, 8), nop_i()),
+        (0xc0, 0x10, nop_m(), nop_i(), br_cond(0xc0, 0x50, qp=1)),
+        (0xd0, 0x10, nop_m(), nop_i(), br_cond(0xd0, 0xd0)),
+        (0x120, 0x00, nop_m(), adds(9, 0, 32), adds(8, 1, 8)),
+        (0x130, 0x10, nop_m(), nop_i(), br_ret(6)),
+        raw_bundle(0x400, 0, 0),
+    ], {"ip": 0xd0, "exception": IA64_EXCP_NONE, "r8": 2, "r9_nat": 1},
+    entry=0x10)
 
 test_rse_callee_alloc_stores_input_arg = require_registers(
     "rse_callee_alloc_stores_input_arg", [
@@ -6162,8 +6203,10 @@ CASE_NAMES = (
     'rse_seventy_output_handoff_preserves_kernel_locals',
     'rse_small_kernel_frame_preserves_counter_across_spill_calls',
     'rse_call_maps_all_high_output_args',
+    'rse_call_after_user_mask_write',
     'rse_call_moves_output_nat_across_word_boundary',
     'rse_call_preserves_same_bundle_local_write',
+    'rse_call_rechecks_callee_nat_key',
     'rse_call_ret_preserves_caller_local',
     'rse_call_ret_preserves_region7_bsp',
     'rse_call_ret_updates_bsp_base',
