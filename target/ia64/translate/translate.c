@@ -7,6 +7,7 @@
 #include "qemu/osdep.h"
 #include "qemu/atomic.h"
 #include "qemu/log.h"
+#include "contrib/ia64-llvm/insn.h"
 #include "target/ia64/llvm.h"
 
 #include "arch/arch.h"
@@ -4492,8 +4493,8 @@ static void ia64_gen_check_sequential_native_traps(const Ia64Instruction *insn,
         mlx_long && insn->slot == 1 ? 2 : insn->slot, 0, 0);
 }
 
-static int llvm_bundle_weight(DisasContext *ctx, uint64_t pc, uint64_t lo,
-                              uint64_t hi, Ia64Opcode *barrier)
+static int llvm_bundle_weight(uint64_t pc, uint64_t lo, uint64_t hi,
+                              Ia64Opcode *barrier)
 {
     const IA64TemplateInfo *t =
         ia64_template_info(ia64_bundle_template_code(lo));
@@ -4501,30 +4502,15 @@ static int llvm_bundle_weight(DisasContext *ctx, uint64_t pc, uint64_t lo,
     if (!t->defined || t->units[1] == IA64_UNIT_L) {
         return -1;
     }
-    for (int slot = 0; slot < 3; slot++) {
+    for (int slot = 0; slot < IA64_BUNDLE_SLOTS; slot++) {
         uint64_t bits = ia64_bundle_slot(lo, hi, slot);
-        Ia64Instruction i = ia64_decode_insn_for_model(ctx->env, t->units[slot],
-                                                       bits, pc, slot);
-        *barrier = i.opcode;
-        if (!i.valid || i.qp || i.placement_illegal || i.reserved_field ||
-            ia64_insn_must_start_group(&i) || ia64_insn_must_end_group(&i) ||
-            ia64_insn_requires_slot2(&i) ||
-            ia64_insn_has_illegal_register(&i) ||
-            ia64_insn_has_reserved_mask_field(&i) || i.mem_acquire ||
-            i.mem_release) {
+        Ia64Instruction insn = ia64_decode_insn(t->units[slot], bits, pc, slot);
+
+        *barrier = insn.opcode;
+        if (!ia64_llvm_insn_supported(&insn)) {
             return -1;
         }
-        switch (i.opcode) {
-        case IA64_OP_NOP:
-            break;
-#define OP(name) case IA64_OP_##name:
-#include "contrib/ia64-llvm/ops.inc"
-#undef OP
-            weight++;
-            break;
-        default:
-            return -1;
-        }
+        weight += insn.opcode != IA64_OP_NOP;
     }
     return weight;
 }
@@ -4564,7 +4550,7 @@ static void ia64_try_llvm(DisasContext *ctx, uint64_t pc, uint64_t lo,
             lo = translator_ldq_end(ctx->env, db, address, MO_LE);
             hi = translator_ldq_end(ctx->env, db, address + 8, MO_LE);
         }
-        int w = llvm_bundle_weight(ctx, address, lo, hi, &barrier);
+        int w = llvm_bundle_weight(address, lo, hi, &barrier);
         if (w < 0) {
             break;
         }
@@ -4576,7 +4562,8 @@ static void ia64_try_llvm(DisasContext *ctx, uint64_t pc, uint64_t lo,
         weight += w;
     }
     ctx->llvm_scan_until = pc + 16 * n;
-    if (n >= 5 && weight >= 20) {
+    if (n >= 5 && weight >= 20 &&
+        !ia64_static_native_trap_needed(ctx, ctx->llvm_scan_until, 0, 0)) {
         IA64LLVMRegion *r = ia64_llvm_register(words, n, stop, pc, barrier,
                                                ctx->memory.full_alat);
         if (r) {

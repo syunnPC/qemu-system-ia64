@@ -120,16 +120,12 @@ LLVMValueRef ia64_llvm_lift_integer(LLVMBuilderRef b, const Ia64Instruction *in,
         return LLVMBuildLShr(b, rhs, shift, "");
     case IA64_OP_EXTR:
     case IA64_OP_EXTRU:
-        return len ? extend_field(b, LLVMBuildLShr(b, rhs, shift, ""), len,
-                                  op == IA64_OP_EXTR)
-                   : NULL;
+        return extend_field(b, LLVMBuildLShr(b, rhs, shift, ""), len,
+                            op == IA64_OP_EXTR);
     case IA64_OP_DEPZ:
     case IA64_OP_DEPZ_IMM:
     case IA64_OP_DEP:
     case IA64_OP_DEP_IMM: {
-        if (!len) {
-            return NULL;
-        }
         if (op == IA64_OP_DEPZ_IMM) {
             lhs = LLVMConstInt(i64, ia64_sign_extend(imm >> 13, 8), 0);
         } else if (op == IA64_OP_DEP_IMM) {
@@ -169,7 +165,7 @@ LLVMValueRef ia64_llvm_lift_integer(LLVMBuilderRef b, const Ia64Instruction *in,
         return LLVMBuildOr(b, lhs, rhs, "");
     default: {
         const Compare *cmp = &compares[op];
-        if (!cmp->relation || in->pred_update != IA64_PRED_UPDATE_NORMAL) {
+        if (!cmp->relation) {
             return NULL;
         }
         if (cmp->immediate) {

@@ -214,3 +214,6 @@ QEMU is licensed under the GNU General Public License, version 2; see the
 license files in this repository. Microsoft and Windows are trademarks of the
 Microsoft group of companies. All other product and company names and
 trademarks are the property of their respective owners.
+
+The QEMU code in `contrib/ia64-llvm` is licensed under `GPL-2.0-or-later`.
+Its LLVM dependency is covered by the [LLVM license](contrib/ia64-llvm/LICENSE).

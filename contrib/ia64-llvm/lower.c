@@ -6,6 +6,7 @@
 #include <llvm-c/LLJIT.h>
 #include <llvm-c/Target.h>
 #include <llvm-c/Transforms/PassBuilder.h>
+#include "insn.h"
 #include "region.h"
 #include "lower.h"
 
@@ -268,15 +269,11 @@ static void write_ram(Lower *l, LLVMValueRef addr, LLVMValueRef value,
     l->stored = true;
 }
 
-static bool lift_memory(Lower *l, const Ia64Instruction *in, unsigned index,
+static void lift_memory(Lower *l, const Ia64Instruction *in, unsigned index,
                         bool store, unsigned size)
 {
     const IA64MemoryOperands *m = &in->operands.memory;
     bool update = in->imm_base_update || in->reg_base_update;
-    if ((!store && !m->destination) || (store && in->reg_base_update) ||
-        (update && (!m->base || (!store && m->base == m->destination)))) {
-        return false;
-    }
     LLVMValueRef addr = read_gr(l, m->base);
     LLVMValueRef increment = NULL;
     if (update) {
@@ -292,14 +289,11 @@ static bool lift_memory(Lower *l, const Ia64Instruction *in, unsigned index,
     if (update) {
         write_gr(l, m->base, LLVMBuildAdd(l->b, addr, increment, ""));
     }
-    return true;
 }
 
 static bool lift_slot(Lower *l, const Ia64Instruction *in, unsigned index)
 {
-    if (!in->valid || in->encoding_class != IA64_ENCODING_DEFINED ||
-        in->placement_illegal || in->reserved_field || in->qp ||
-        in->mem_acquire || in->mem_release) {
+    if (!ia64_llvm_insn_supported(in)) {
         return false;
     }
     Ia64Opcode op = in->opcode;
@@ -307,17 +301,16 @@ static bool lift_slot(Lower *l, const Ia64Instruction *in, unsigned index)
         return true;
     }
     if (op >= IA64_OP_LD1 && op <= IA64_OP_LD8) {
-        return lift_memory(l, in, index, false, 1u << (op - IA64_OP_LD1));
+        lift_memory(l, in, index, false, 1u << (op - IA64_OP_LD1));
+        return true;
     }
     if (op >= IA64_OP_ST1 && op <= IA64_OP_ST8) {
-        return lift_memory(l, in, index, true, 1u << (op - IA64_OP_ST1));
+        lift_memory(l, in, index, true, 1u << (op - IA64_OP_ST1));
+        return true;
     }
     if (op == IA64_OP_GETF_SIG) {
         unsigned f = in->operands.floating.source1;
         unsigned dst = in->operands.floating.destination;
-        if (!dst) {
-            return false;
-        }
         l->code->fr_inputs[f / 64] |= UINT64_C(1) << (f % 64);
         if (!l->fr[f]) {
             /* f0 is +0.0 and f1 is +1.0 in IA-64 register format. */
@@ -336,9 +329,6 @@ static bool lift_slot(Lower *l, const Ia64Instruction *in, unsigned index)
         return false;
     }
     if (LLVMTypeOf(value) == l->i1) {
-        if (r->predicate1 == r->predicate2) {
-            return false;
-        }
         if (r->predicate1) {
             l->pr[r->predicate1] = value;
         }
@@ -346,9 +336,6 @@ static bool lift_slot(Lower *l, const Ia64Instruction *in, unsigned index)
             l->pr[r->predicate2] = LLVMBuildNot(l->b, value, "");
         }
     } else {
-        if (!r->destination) {
-            return false;
-        }
         write_gr(l, r->destination, value);
     }
     l->code->mixes += op == IA64_OP_MIX4_L || op == IA64_OP_MIX4_R;

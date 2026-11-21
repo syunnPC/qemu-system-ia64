@@ -280,7 +280,6 @@ IA-64 TCG CPUs
 S: Orphan
 F: target/ia64/
 F: configs/targets/ia64-softmmu.mak
-F: contrib/ia64-llvm/
 F: docs/devel/ia64-*.rst
 F: docs/devel/testing/ia64.rst
 F: tests/unit/ia64/

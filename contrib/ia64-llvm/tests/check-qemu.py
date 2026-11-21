@@ -10,8 +10,21 @@ from pathlib import Path
 
 SOURCE = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(SOURCE / "tests/unit"))
+from ia64.encoding_constants import (
+    IA64_IMPL_PA_BITS,
+    IA64_ISR_CODE_UI,
+    IA64_ISR_EI_SHIFT,
+    IA64_LOWER_PRIV_TRANSFER_VECTOR,
+    IA64_UNALIGNED_VECTOR,
+)
 from ia64.qmp import QmpClient
 from ia64.state import parse_state
+
+VECTORS = {
+    "fault": IA64_UNALIGNED_VECTOR,
+    "boundary": IA64_LOWER_PRIV_TRANSFER_VECTOR,
+}
+PHYS_LIMIT = 1 << IA64_IMPL_PA_BITS
 
 
 def check(qemu, build, case, region, terminal, fault, alat, library):
@@ -48,12 +61,23 @@ def check(qemu, build, case, region, terminal, fault, alat, library):
             "-device",
             "loader,addr=0x2000000,cpu-num=0",
         ]
-        if fault is not None:
+        if case == "boundary":
+            command.extend(
+                [
+                    "-global",
+                    f"ia64-pcihost.mmio-cpu-base={PHYS_LIMIT - 4096:#x}",
+                    "-global",
+                    "ia64-pcihost.mmio-size=4096",
+                    "-device",
+                    "pci-testdev,bus=pci,addr=1d.0,membar=4096,membar-backed=on",
+                ]
+            )
+        if case in VECTORS:
             vector = build / "region-vector.bin"
             command.extend(
                 [
                     "-device",
-                    f"loader,addr=0x5a00,file={vector},force-raw=on",
+                    f"loader,addr={VECTORS[case]:#x},file={vector},force-raw=on",
                 ]
             )
 
@@ -105,6 +129,15 @@ def check(qemu, build, case, region, terminal, fault, alat, library):
                         state.gr[31],
                     )
                     assert actual == expected, (actual, expected)
+                elif case == "boundary":
+                    expected = (
+                        PHYS_LIMIT,
+                        PHYS_LIMIT - 16,
+                        IA64_ISR_CODE_UI | (2 << IA64_ISR_EI_SHIFT),
+                        8 * 2_000_002,
+                    )
+                    actual = tuple(state.gr[i] for i in (27, 31, 28, 23))
+                    assert actual == expected, (actual, expected)
                 elif case == "alat":
                     expected = (
                         1000000 if alat == "zero" else 0,
@@ -139,9 +172,9 @@ def check(qemu, build, case, region, terminal, fault, alat, library):
             samples = [line.split() for line in lines[2:]]
             if case == "smc":
                 assert sum(int(row[4], 16) == region for row in samples) >= 2, samples
-            elif case == "alat":
+            elif case in ("alat", "boundary"):
                 assert any(int(row[4], 16) == region for row in samples), samples
-            else:
+            elif case == "fault":
                 assert int(lines[1].split()[4]) >= 1, lines
             assert runs > 0, (runs, samples)
             print(alat, case, runs, "native region executions")
@@ -161,9 +194,16 @@ def symbols(elf):
 
 if __name__ == "__main__":
     qemu, build = map(Path, sys.argv[1:])
-    vector_end = 0x5A00 + symbols(build / "region-vector.elf")["spin"] - 0x2000000
-    for case in ("smc", "fault", "alat"):
+    vector_offset = symbols(build / "region-vector.elf")["spin"] - 0x2000000
+    cases = ["smc", "fault", "alat"]
+    devices = subprocess.check_output([qemu, "-device", "help"], text=True)
+    if 'name "pci-testdev"' in devices:
+        cases.append("boundary")
+    else:
+        print("Physical address boundary test requires pci-testdev and was skipped")
+    for case in cases:
         names = symbols(build / f"region-{case}.elf")
+        terminal = VECTORS[case] + vector_offset if case in VECTORS else names["done"]
         for alat in ("zero", "full"):
             for library in (None, build / "ia64-llvm.so"):
                 check(
@@ -171,7 +211,7 @@ if __name__ == "__main__":
                     build,
                     case,
                     names["region"],
-                    names.get("done", vector_end),
+                    terminal,
                     names.get("fault"),
                     alat,
                     library,

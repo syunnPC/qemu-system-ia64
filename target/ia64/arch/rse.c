@@ -1116,39 +1116,6 @@ static G_GNUC_NO_INLINE void ia64_rse_sync_frame_in_direct(CPUIA64State *env)
 /* Load the virtual view of the current frame from the physical file. */
 static G_GNUC_NO_INLINE void ia64_rse_sync_frame_in_slow(CPUIA64State *env)
 {
-    if (env->cfm_sor == 0 || env->cfm_rrb_gr == 0) {
-        uint32_t first = MIN((uint32_t)env->cfm_sof,
-                             IA64_STACKED_GR_COUNT - env->rse.rse_bol);
-        uint32_t second = env->cfm_sof - first;
-
-        memcpy(&env->gr[IA64_STACKED_GR_BASE],
-               &env->rse.rse_pgr[env->rse.rse_bol],
-               first * sizeof(env->rse.rse_pgr[0]));
-        if (second != 0) {
-            memcpy(&env->gr[IA64_STACKED_GR_BASE + first], env->rse.rse_pgr,
-                   second * sizeof(env->rse.rse_pgr[0]));
-        }
-        if (likely((env->rse.rse_pgr_nat[0] | env->rse.rse_pgr_nat[1]) == 0)) {
-            /*
-             * With no physical stacked-register NaTs, every bit in the
-             * virtual stacked view is known clear, including registers
-             * outside the current frame.  Preserve only static GR NaTs.
-             */
-            env->nat[0] &= UINT32_MAX;
-            env->nat[1] = 0;
-        } else {
-            ia64_copy_bit_range(env->nat, IA64_STACKED_GR_BASE,
-                                env->rse.rse_pgr_nat, env->rse.rse_bol, first);
-            if (second != 0) {
-                ia64_copy_bit_range(env->nat, IA64_STACKED_GR_BASE + first,
-                                    env->rse.rse_pgr_nat, 0, second);
-            }
-        }
-        env->rse.rse_gr_dirty[0] = 0;
-        env->rse.rse_gr_dirty[1] = 0;
-        return;
-    }
-
     ia64_rse_sync_frame_in_range(env, 0, env->cfm_sof);
     env->rse.rse_gr_dirty[0] = 0;
     env->rse.rse_gr_dirty[1] = 0;

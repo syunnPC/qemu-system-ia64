@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stddef.h>
 #include <string.h>
+#include "insn.h"
 #include "region.h"
 
 typedef struct TestEntry {
@@ -59,6 +60,23 @@ static uint64_t random_word(uint64_t *s)
     *s ^= *s >> 7;
     *s ^= *s << 17;
     return *s;
+}
+
+static void test_application_register_moves(void)
+{
+    enum { AR_RUC = 45 };
+    Ia64Instruction insn = {
+        .valid = true, .unit = IA64_UNIT_M,
+        .operands.common = { .destination = 8, .source1 = AR_RUC },
+    };
+    const Ia64Opcode moves[] = {
+        IA64_OP_MOV_ARGR, IA64_OP_MOV_GRAR, IA64_OP_MOV_IMMAR,
+    };
+
+    for (size_t i = 0; i < sizeof(moves) / sizeof(moves[0]); i++) {
+        insn.opcode = moves[i];
+        assert(!ia64_llvm_insn_supported(&insn));
+    }
 }
 
 static void observed_store(void *opaque, void *host, uint64_t addr,
@@ -177,13 +195,17 @@ static void test_memory(IA64LLVMCompile compile, const char *image,
 
 static void test_integer(IA64LLVMCompile compile, const char *image)
 {
-    uint64_t words[10], seed = 0xd7b3b689;
+    uint64_t words[12], seed = 0xd7b3b689;
+    const uint64_t ignored_b = UINT64_C(3) << 37;
     IA64LLVMCode code;
     static const IA64LLVMAccess access = { .read_page = map, .read_sig = sig };
     FILE *f = fopen(image, "rb");
     assert(f && fread(words, 16, 5, f) == 5);
     fclose(f);
-    assert(compile(IA64_LLVM_ABI, words, 5, &code, &layout, false));
+    /* A BBB bundle of ignored B-unit opcodes must preserve every register. */
+    words[10] = 0x17 | (ignored_b << 5) | (ignored_b << 46);
+    words[11] = (ignored_b >> 18) | (ignored_b << 23);
+    assert(compile(IA64_LLVM_ABI, words, 6, &code, &layout, false));
     for (unsigned i = 0; i < 128; i++) {
         uint64_t x = random_word(&seed), y = random_word(&seed);
         uint64_t region = ((y >> 30) & 3) << 61;
@@ -211,6 +233,7 @@ int main(int argc, char **argv)
     static const IA64LLVMAccess access = { .read_page = map, .read_sig = sig };
     static const uint64_t shifts[] = { 0, 1, 31, 63, 64, 65, UINT64_MAX };
     assert(argc == 5);
+    test_application_register_moves();
     FILE *f = fopen(argv[2], "rb");
     assert(f != NULL);
     size_t n = fread(words, 16, IA64_LLVM_MAX_BUNDLES, f);

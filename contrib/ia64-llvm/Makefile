@@ -14,7 +14,7 @@ $(BUILD)/%.o: %.c
 	$(CC) $(CPPFLAGS) -I../.. $(LLVM_CFLAGS) $(CFLAGS) -std=gnu11 -fPIC \
 	    -fvisibility=hidden -ffunction-sections -fdata-sections -MMD -MP -c $< -o $@
 vpath %.c ../../target/ia64 ../../target/ia64/decode
--include $(OBJ:.o=.d)
+-include $(OBJ:.o=.d) $(BUILD)/test.d
 
 CROSS_IA64 ?= ia64-linux-gnu-
 .PHONY: check
@@ -25,7 +25,7 @@ check: $(BUILD)/ia64-llvm.so $(BUILD)/test $(BUILD)/region-test.bin \
 	    $(BUILD)/region-integer.bin
 $(BUILD)/test: test.c region.h
 	@mkdir -p $(@D)
-	$(CC) -O2 -Wall -Wextra $< -ldl -o $@
+	$(CC) -I../.. -O2 -Wall -Wextra -MMD -MP $< -ldl -o $@
 $(BUILD)/region-test.bin: region-test.s
 	@mkdir -p $(@D)
 	$(CROSS_IA64)as -o $(BUILD)/region-test.o $<
@@ -36,7 +36,7 @@ PYTHON ?= python3
 .PHONY: check-qemu
 check-qemu: $(BUILD)/ia64-llvm.so $(BUILD)/region-smc.bin \
             $(BUILD)/region-fault.bin $(BUILD)/region-vector.bin \
-            $(BUILD)/region-alat.bin
+            $(BUILD)/region-alat.bin $(BUILD)/region-boundary.bin
 	CROSS_IA64="$(CROSS_IA64)" $(PYTHON) tests/check-qemu.py \
 	    "$(abspath $(QEMU))" "$(abspath $(BUILD))"
 $(BUILD)/region-%.bin: $(BUILD)/region-%.elf
