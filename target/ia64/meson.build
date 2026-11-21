@@ -4,6 +4,7 @@ ia64_ss.add(files(
   'dump.c',
   'exec-access.c',
   'gdbstub.c',
+  'llvm.c',
   'arch/alat.c',
   'arch/exception.c',
   'arch/firmware.c',
