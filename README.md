@@ -122,8 +122,7 @@ from the other values. Use `-accel tcg,thread=multi` for more than one vCPU.
 | Serial console | `-serial stdio` |
 | AHCI HDD | `-drive ...,if=none,id=<id> -device ide-hd,drive=<id>,bus=ide.<number>` |
 | AHCI CD | `-drive ...,media=cdrom,readonly=on,if=none,id=<id> -device ide-cd,drive=<id>,bus=ide.<number>` |
-| Use TCG & LLVM-backend second-level JIT on Itanium and Itanium 2 | `-accel tcg-llvm,cachesize=<memory-size>,thread=<multi\|single>` |
-| Set the number of background LLVM compiler threads (default 1) | `-accel tcg-llvm,llvm-thread=<count>` |
+| Use TCG & LLVM-backend second-level JIT | `-accel tcg-llvm,cachesize=<memory-size>,thread=<multi\|single>,llvm-thread=<count>` |
 | Use TCG only | `-accel tcg,thread=<multi\|single>` |
 
 ## Status
