@@ -290,7 +290,7 @@ jobs:
         if: matrix.optimized == false
         run: |
           set -euo pipefail
-          sudo apt-get install -y --no-install-recommends clang-21 lld-21
+          sudo apt-get install -y --no-install-recommends clang-21 libclang-rt-21-dev lld-21
           mkdir -p build-linux-cfi
           cd build-linux-cfi
           export PATH="/usr/lib/llvm-21/bin:$PATH"
