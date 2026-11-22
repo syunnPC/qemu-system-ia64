@@ -236,6 +236,7 @@ DEF("accel", HAS_ARG, QEMU_OPTION_accel,
     "                split-wx=on|off (enable TCG split w^x mapping)\n"
     "                tb-size=n (TCG translation block cache size)\n"
     "                tcg-llvm,cachesize=size (IA-64 TCG with LLVM JIT, default cache limit=1G)\n"
+    "                llvm-thread=n (maximum IA-64 LLVM compiler threads, default=1)\n"
     "                llvm-library=path (use an external IA-64 LLVM JIT backend)\n"
     "                llvm-stats=path (write IA-64 LLVM JIT statistics at exit, default=off)\n"
     "                dirty-ring-size=n (KVM dirty ring GFN count, default 0)\n"
@@ -291,6 +292,10 @@ SRST
         all vCPUs. The default is 1 GiB. Sizes are in bytes and accept binary
         suffixes such as ``256M`` or ``1G``. TCG executes regions that do not
         fit. Previously compiled regions stay available.
+
+    ``llvm-thread=n`` (IA-64 only)
+        Sets the maximum number of background compiler threads used by
+        ``tcg-llvm``. The default is one.
 
     ``llvm-library=path`` (IA-64 only)
         Selects an external LLVM JIT backend by file path. By default

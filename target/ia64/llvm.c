@@ -27,25 +27,30 @@ struct IA64LLVMRegion {
     unsigned state;
     uint16_t bundles;
     bool stop;
-    bool full_alat;
+    uint8_t flags;
     uint64_t pc;
     unsigned barrier;
     uint32_t samples;
     IA64LLVMCode code;
     const uint64_t *words;
+    IA64LLVMRegion *next_queued;
 };
 
 enum { COLD, QUEUED, READY, UNSUPPORTED };
 enum { HOT_THRESHOLD = 1024, MAX_KEYS = 32768 };
 bool ia64_llvm_enabled;
 static IA64LLVMCompile compile_region;
+static IA64LLVMCompileBatch compile_batch;
+static IA64LLVMRegion *pending_head, *pending_tail;
+static unsigned pending_count, scheduled_batches, compiler_threads;
 static GHashTable *regions;
 static GThreadPool *pool;
 static GMutex region_lock;
 static unsigned submissions;
 static IA64LLVMCache cache;
-static bool cache_full;
 static FILE *stats_file;
+static unsigned compiling, peak_compiling, compiled;
+static int64_t first_compile_us, last_compile_us;
 /* Each vCPU writes its own cache line. Statistics are optional. */
 uint64_t ia64_llvm_stats[256][8] QEMU_ALIGNED(64);
 
@@ -64,18 +69,59 @@ static const IA64LLVMLayout layout = {
     .entry_bits = CPU_TLB_ENTRY_BITS,
 };
 
+static bool cache_has_space(void)
+{
+    return cache.limit - qatomic_read(&cache.used) >=
+           qemu_real_host_page_size();
+}
+
 static void compile_task(gpointer data, gpointer unused)
 {
-    IA64LLVMRegion *r = data;
-    bool ok = !qatomic_read(&cache_full) &&
-              compile_region(IA64_LLVM_ABI, r->words, r->bundles, &r->code,
-                             &layout, r->full_alat, &cache);
-    if (cache.limit - cache.used < qemu_real_host_page_size()) {
-        qatomic_set(&cache_full, true);
+    IA64LLVMRegion *head = data;
+    IA64LLVMInput inputs[IA64_LLVM_MAX_BATCH];
+    unsigned count = 0, successes = 0;
+
+    g_mutex_lock(&region_lock);
+    if (head == pending_head) {
+        pending_head = NULL;
     }
-    qatomic_store_release(&r->state, ok ? READY : UNSUPPORTED);
+    if (stats_file) {
+        if (!first_compile_us) {
+            first_compile_us = g_get_monotonic_time();
+        }
+        compiling++;
+        peak_compiling = MAX(peak_compiling, compiling);
+    }
+    g_mutex_unlock(&region_lock);
+
+    for (IA64LLVMRegion *r = head; r; r = r->next_queued) {
+        inputs[count++] =
+            (IA64LLVMInput) { r->words, r->bundles, r->flags, &r->code };
+    }
+    bool packed = count > 1 && cache_has_space() &&
+                  compile_batch(IA64_LLVM_ABI, inputs, count, &layout, &cache);
+    for (IA64LLVMRegion *r = head; r; r = r->next_queued) {
+        /* Individual regions may fit when the batch exceeds the cap. */
+        bool ok = packed
+                      ? r->code.run != NULL
+                      : cache_has_space() &&
+                            compile_region(IA64_LLVM_ABI, r->words, r->bundles,
+                                           &r->code, &layout, r->flags, &cache);
+        qatomic_store_release(&r->state, ok ? READY : UNSUPPORTED);
+        successes += ok;
+    }
+
+    g_mutex_lock(&region_lock);
+    scheduled_batches--;
+    if (stats_file) {
+        compiling--;
+        compiled += successes;
+        last_compile_us = g_get_monotonic_time();
+    }
+    g_mutex_unlock(&region_lock);
 }
-static void finish(void)
+
+static void tcg_llvm_shutdown(AccelState *accel)
 {
     uint64_t total[8] = { 0 };
     GHashTableIter iter;
@@ -92,9 +138,11 @@ static void finish(void)
     }
     qemu_fprintf(stats_file,
                  "keys %u submitted %u cache-used %" PRIu64
-                 " cache-limit %" PRIu64 "\n",
+                 " cache-limit %" PRIu64 " compiled %u peak-compiling %u"
+                 " compile-span-us %" PRId64 "\n",
                  g_hash_table_size(regions), qatomic_read(&submissions),
-                 cache.used, cache.limit);
+                 cache.used, cache.limit, compiled, peak_compiling,
+                 last_compile_us - first_compile_us);
     for (unsigned i = 0; i < G_N_ELEMENTS(total); i++) {
         qemu_fprintf(stats_file, "%" PRIu64 "%c", total[i],
                      i == 7 ? '\n' : ' ');
@@ -111,6 +159,24 @@ static void finish(void)
     fclose(stats_file);
 }
 
+#if defined(CONFIG_MODULES) || defined(CONFIG_PLUGIN)
+static typeof(ia64_llvm_compile_v5) *legacy_compile;
+
+static bool compile_legacy(unsigned abi, const uint64_t *words,
+                           unsigned bundles, IA64LLVMCode *out,
+                           const IA64LLVMLayout *layout, unsigned flags,
+                           IA64LLVMCache *shared)
+{
+    static IA64LLVMCache legacy_cache;
+    legacy_cache.limit = shared->limit;
+    bool ok = !(flags & IA64_LLVM_MERCED_DTLB1) &&
+              legacy_compile(5, words, bundles, out, layout,
+                             flags & IA64_LLVM_FULL_ALAT, &legacy_cache);
+    qatomic_set(&shared->used, legacy_cache.used);
+    return ok;
+}
+#endif
+
 static int tcg_llvm_init_machine(AccelState *accel, MachineState *ms)
 {
     Object *tcg = OBJECT(accel);
@@ -118,7 +184,10 @@ static int tcg_llvm_init_machine(AccelState *accel, MachineState *ms)
         object_property_get_str(tcg, "llvm-library", &error_abort);
     g_autofree char *stats =
         object_property_get_str(tcg, "llvm-stats", &error_abort);
+    unsigned threads =
+        object_property_get_uint(tcg, "llvm-thread", &error_abort);
     IA64LLVMCompile compiler;
+    IA64LLVMCompileBatch batch = NULL;
 #if defined(CONFIG_MODULES) || defined(CONFIG_PLUGIN)
     GModule *module = NULL;
 #endif
@@ -134,10 +203,22 @@ static int tcg_llvm_init_machine(AccelState *accel, MachineState *ms)
         }
         if (!g_module_symbol(module, IA64_LLVM_COMPILE_SYMBOL,
                              (gpointer *)&compiler)) {
-            error_report("IA-64 LLVM initialization failed: %s",
-                         g_module_error());
-            g_module_close(module);
-            return -EINVAL;
+            if (!g_module_symbol(module, "ia64_llvm_compile_v5",
+                                 (gpointer *)&legacy_compile)) {
+                error_report(
+                    "IA-64 LLVM backend provides no compatible compiler");
+                g_module_close(module);
+                return -EINVAL;
+            }
+            if (threads != 1) {
+                error_report("IA-64 LLVM backend ABI 5 requires llvm-thread=1");
+                g_module_close(module);
+                return -EINVAL;
+            }
+            compiler = compile_legacy;
+        } else {
+            g_module_symbol(module, IA64_LLVM_COMPILE_BATCH_SYMBOL,
+                            (gpointer *)&batch);
         }
 #else
         error_report(
@@ -146,7 +227,8 @@ static int tcg_llvm_init_machine(AccelState *accel, MachineState *ms)
 #endif
     } else {
 #ifdef CONFIG_IA64_LLVM_BUILTIN
-        compiler = ia64_llvm_compile_v5;
+        compiler = ia64_llvm_compile_v6;
+        batch = ia64_llvm_compile_batch_v6;
 #else
         error_report("This QEMU build has no built-in IA-64 LLVM backend");
         return -ENOSYS;
@@ -170,12 +252,12 @@ static int tcg_llvm_init_machine(AccelState *accel, MachineState *ms)
     }
 #endif
     compile_region = compiler;
+    compile_batch = batch;
+    compiler_threads = threads;
     cache.limit = object_property_get_uint(tcg, "cachesize", &error_abort);
-    cache_full = cache.limit < qemu_real_host_page_size();
     regions = g_hash_table_new_full(g_bytes_hash, g_bytes_equal,
                                     (GDestroyNotify)g_bytes_unref, g_free);
-    pool = g_thread_pool_new(compile_task, NULL, 1, false, NULL);
-    atexit(finish);
+    pool = g_thread_pool_new(compile_task, NULL, (int)threads, false, NULL);
     ia64_llvm_enabled = true;
     return accel_find("tcg")->init_machine(accel, ms);
 }
@@ -185,6 +267,7 @@ static void tcg_llvm_class_init(ObjectClass *oc, const void *data)
     AccelClass *ac = ACCEL_CLASS(oc);
     ac->name = "tcg-llvm";
     ac->init_machine = tcg_llvm_init_machine;
+    ac->shutdown = tcg_llvm_shutdown;
 }
 
 static const TypeInfo tcg_llvm_types[] = {
@@ -203,7 +286,7 @@ DEFINE_TYPES(tcg_llvm_types)
 
 IA64LLVMRegion *ia64_llvm_register(const uint64_t *words, unsigned bundles,
                                    bool stop, uint64_t pc, unsigned barrier,
-                                   bool full_alat)
+                                   uint8_t flags)
 {
     size_t len = (size_t)bundles * 16;
     uint8_t *bytes = g_malloc(len + 1);
@@ -211,16 +294,15 @@ IA64LLVMRegion *ia64_llvm_register(const uint64_t *words, unsigned bundles,
     GBytes *key;
 
     memcpy(bytes, words, len);
-    bytes[len] = full_alat;
+    bytes[len] = flags;
     key = g_bytes_new_take(bytes, len + 1);
     g_mutex_lock(&region_lock);
     r = g_hash_table_lookup(regions, key);
-    if (!r && !qatomic_read(&cache_full) &&
-        g_hash_table_size(regions) < MAX_KEYS) {
+    if (!r && cache_has_space() && g_hash_table_size(regions) < MAX_KEYS) {
         r = g_new0(IA64LLVMRegion, 1);
         r->bundles = bundles;
         r->stop = stop;
-        r->full_alat = full_alat;
+        r->flags = flags;
         if (stats_file) {
             r->pc = pc;
             r->barrier = barrier;
@@ -247,13 +329,26 @@ static void count_hit(IA64LLVMRegion *r)
     }
     if (++p->n == HOT_THRESHOLD &&
         qatomic_cmpxchg(&r->state, COLD, QUEUED) == COLD) {
-        if (qatomic_read(&cache_full)) {
+        if (!cache_has_space()) {
             qatomic_set(&r->state, UNSUPPORTED);
         } else {
             if (stats_file) {
                 qatomic_inc(&submissions);
             }
-            g_thread_pool_push(pool, r, NULL);
+            g_mutex_lock(&region_lock);
+            if (compile_batch && pending_head &&
+                scheduled_batches >= compiler_threads &&
+                pending_count < IA64_LLVM_MAX_BATCH) {
+                pending_tail->next_queued = r;
+                pending_tail = r;
+                pending_count++;
+            } else {
+                pending_head = pending_tail = r;
+                pending_count = 1;
+                scheduled_batches++;
+                g_thread_pool_push(pool, r, NULL);
+            }
+            g_mutex_unlock(&region_lock);
         }
     }
 }
@@ -274,6 +369,11 @@ static void *read_page(void *opaque, uint64_t addr, uint32_t mmu)
 static uint64_t read_sig(void *opaque, uint32_t reg)
 {
     return ia64_fp_getf(opaque, reg, 2);
+}
+
+static void dtlb1_touch(void *opaque, uint64_t addr, uint32_t size)
+{
+    helper_merced_dtlb1_touch(opaque, addr, size);
 }
 
 static bool fp_inputs_ready(CPUIA64State *env, const uint64_t fr_inputs[2])
@@ -315,12 +415,31 @@ static const IA64LLVMAccess accessors = {
     .read_page = read_page,
     .read_sig = read_sig,
     .observed_store = observed_store,
+    .dtlb1_touch = dtlb1_touch,
 };
 
-uint32_t helper_llvm_region(CPUIA64State *env, void *opaque, uint64_t pc,
-                            uint32_t mmu)
+static bool region_inputs_ready(CPUIA64State *env, IA64LLVMRegion *r,
+                                bool tb_entry)
 {
-    IA64LLVMRegion *r = opaque;
+    const uint64_t psr = IA64_PSR_IC | IA64_PSR_BE | IA64_PSR_DB | IA64_PSR_SS |
+                         IA64_PSR_TB | IA64_PSR_IS |
+                         IA64_PSR_FAULT_SUPPRESS_MASK;
+    if (!tb_entry &&
+        ((env->psr & psr) != IA64_PSR_IC || env->nat[0] || env->nat[1])) {
+        return false;
+    }
+    return env->cfm_sof >= r->code.sof && !env->cfm_rrb_gr &&
+           !env->cfm_rrb_pr &&
+           !!(r->flags & IA64_LLVM_FULL_ALAT) == env->alat_state.alat_full &&
+           (!(r->code.fr_inputs[0] | r->code.fr_inputs[1]) ||
+            fp_inputs_ready(env, r->code.fr_inputs));
+}
+
+static inline QEMU_ALWAYS_INLINE uint32_t run_region(CPUIA64State *env,
+                                                     IA64LLVMRegion *r,
+                                                     uint64_t pc, uint32_t mmu,
+                                                     bool fixed, bool tb_entry)
+{
     CPUState *cpu = env_cpu(env);
     unsigned state = qatomic_load_acquire(&r->state);
     uint64_t *s =
@@ -339,19 +458,8 @@ uint32_t helper_llvm_region(CPUIA64State *env, void *opaque, uint64_t pc,
     if (s) {
         s[0]++;
     }
-    uint64_t psr = IA64_PSR_IC | IA64_PSR_BE | IA64_PSR_DB | IA64_PSR_SS |
-                   IA64_PSR_TB | IA64_PSR_IS | IA64_PSR_FAULT_SUPPRESS_MASK;
-    if (env->cfm_sof < r->code.sof || env->cfm_rrb_gr || env->cfm_rrb_pr ||
-        (env->psr & psr) != IA64_PSR_IC || env->nat[0] || env->nat[1] ||
-        r->full_alat != env->alat_state.alat_full ||
-        cpu_loop_exit_requested(cpu)) {
-        if (s) {
-            s[5]++;
-        }
-        return 0;
-    }
-    if ((r->code.fr_inputs[0] || r->code.fr_inputs[1]) &&
-        !fp_inputs_ready(env, r->code.fr_inputs)) {
+    if (cpu_loop_exit_requested(cpu) ||
+        (!fixed && !region_inputs_ready(env, r, tb_entry))) {
         if (s) {
             s[5]++;
         }
@@ -364,7 +472,7 @@ uint32_t helper_llvm_region(CPUIA64State *env, void *opaque, uint64_t pc,
             s[4]++;
         }
         if (result >= IA64_LLVM_RESUME) {
-            /* Earlier stores retired. Restart at the precise memory slot. */
+            /* Earlier memory accesses retired. Restart at the precise slot. */
             uint64_t index = result - IA64_LLVM_RESUME;
             unsigned slot = index % 3;
             uint64_t prev = index - 1;
@@ -384,11 +492,16 @@ uint32_t helper_llvm_region(CPUIA64State *env, void *opaque, uint64_t pc,
         }
         return 0;
     }
-    env->rse.rse_gr_dirty[0] |= r->code.dirty[0];
-    env->rse.rse_gr_dirty[1] |= r->code.dirty[1];
+    if (!fixed) {
+        env->rse.rse_gr_dirty[0] |= r->code.dirty[0];
+        env->rse.rse_gr_dirty[1] |= r->code.dirty[1];
+    }
     env->ip = pc + UINT64_C(16) * r->bundles;
     env->last_successful_bundle = env->ip - 16;
-    env->psr &= ~IA64_PSR_RI_MASK;
+    /* A complete region preserves an established RI of zero. */
+    if (!tb_entry) {
+        env->psr &= ~IA64_PSR_RI_MASK;
+    }
     env->instruction_group_start = r->stop;
     env->exception_state.fault_slot = 0;
     if (s) {
@@ -400,4 +513,16 @@ uint32_t helper_llvm_region(CPUIA64State *env, void *opaque, uint64_t pc,
         s[3] += r->code.mixes;
     }
     return 1;
+}
+
+uint32_t helper_llvm_region(CPUIA64State *env, void *opaque, uint64_t pc,
+                            uint32_t mmu, uint32_t tb_entry)
+{
+    return run_region(env, opaque, pc, mmu, false, tb_entry);
+}
+
+uint32_t helper_llvm_region_fixed(CPUIA64State *env, void *opaque, uint64_t pc,
+                                  uint32_t mmu)
+{
+    return run_region(env, opaque, pc, mmu, true, true);
 }

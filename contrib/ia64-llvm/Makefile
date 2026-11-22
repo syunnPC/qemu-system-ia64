@@ -30,7 +30,7 @@ check: $(BUILD)/ia64-llvm.so $(BUILD)/test $(BUILD)/region-test.bin \
 	    $(BUILD)/region-integer.bin
 $(BUILD)/test: test.c region.h
 	@mkdir -p $(@D)
-	$(CC) -I../.. -O2 -Wall -Wextra -MMD -MP $< -ldl -o $@
+	$(CC) -I../.. -O2 -Wall -Wextra -MMD -MP $< -pthread -ldl -o $@
 $(BUILD)/region-test.bin: region-test.s
 	@mkdir -p $(@D)
 	$(CROSS_IA64)as -o $(BUILD)/region-test.o $<
@@ -41,7 +41,9 @@ PYTHON ?= python3
 .PHONY: check-qemu
 check-qemu: $(BUILD)/ia64-llvm.so $(BUILD)/region-smc.bin \
             $(BUILD)/region-fault.bin $(BUILD)/region-vector.bin \
-            $(BUILD)/region-alat.bin $(BUILD)/region-boundary.bin
+            $(BUILD)/region-alat.bin $(BUILD)/region-boundary.bin \
+            $(BUILD)/region-merced.bin $(BUILD)/region-parallel.bin \
+            $(BUILD)/region-guard.bin $(BUILD)/region-interrupt.bin
 	CROSS_IA64="$(CROSS_IA64)" $(PYTHON) tests/check-qemu.py \
 	    "$(abspath $(QEMU))" "$(abspath $(BUILD))"
 $(BUILD)/region-%.bin: $(BUILD)/region-%.elf

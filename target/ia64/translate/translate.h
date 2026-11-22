@@ -116,6 +116,7 @@ typedef struct DisasContext {
     DisasContextBase base;
     CPUIA64State *env;
     vaddr llvm_scan_until;
+    vaddr llvm_tb_state_until;
     vaddr llvm_end;
     TCGLabel *llvm_resume;
     IA64TranslationMemoryState memory;

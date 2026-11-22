@@ -1,6 +1,4 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
-#include <inttypes.h>
-#include <stdio.h>
 #include <stddef.h>
 #include <llvm-c/Analysis.h>
 #include "insn.h"
@@ -15,13 +13,13 @@ typedef struct Lower {
     LLVMBuilderRef b;
     LLVMTypeRef i1, i32, i64, ptr, probe_type, sig_type, store_type;
     LLVMValueRef fn, page, host, probe, read_sig, observed_store;
-    bool stored;
+    LLVMTypeRef touch_type;
+    LLVMValueRef dtlb1_touch;
+    bool memory_committed;
     LLVMBasicBlockRef retry;
     LLVMValueRef gr[128], pr[64], fr[128];
     bool gr_written[128];
 } Lower;
-
-static uint64_t sequence;
 
 static LLVMValueRef constant(Lower *l, uint64_t val)
 {
@@ -114,17 +112,10 @@ static LLVMValueRef read_ram(Lower *l, LLVMValueRef addr, unsigned size,
     uint64_t mask = (UINT64_C(1) << l->layout->page_bits) - 1;
     LLVMValueRef off = LLVMBuildAnd(b, addr, constant(l, mask), "");
     LLVMValueRef page = LLVMBuildAnd(b, addr, constant(l, ~mask), "");
-    LLVMBasicBlockRef test =
-        LLVMAppendBasicBlockInContext(l->ctx, l->fn, "page");
     LLVMBasicBlockRef fill =
         LLVMAppendBasicBlockInContext(l->ctx, l->fn, "fill");
     LLVMBasicBlockRef hit =
         LLVMAppendBasicBlockInContext(l->ctx, l->fn, "read");
-    LLVMValueRef misaligned = LLVMBuildAnd(b, addr, constant(l, size - 1), "");
-    LLVMBuildCondBr(b,
-                    LLVMBuildICmp(b, LLVMIntEQ, misaligned, constant(l, 0), ""),
-                    test, retry);
-    LLVMPositionBuilderAtEnd(b, test);
     LLVMValueRef old = LLVMBuildLoad2(b, l->i64, l->page, "");
     LLVMBuildCondBr(b, LLVMBuildICmp(b, LLVMIntEQ, old, page, ""), hit, fill);
     LLVMPositionBuilderAtEnd(b, fill);
@@ -213,10 +204,10 @@ static void write_frame(Lower *l)
 
 static LLVMBasicBlockRef memory_retry(Lower *l, unsigned index)
 {
-    if (!l->stored) {
+    if (!l->memory_committed) {
         return l->retry;
     }
-    /* A completed store cannot be replayed. Publish the preceding slots. */
+    /* Preserve completed stores and the order of Merced DTLB1 accesses. */
     LLVMBasicBlockRef block = LLVMGetInsertBlock(l->b);
     LLVMBasicBlockRef exit =
         LLVMAppendBasicBlockInContext(l->ctx, l->fn, "resume");
@@ -245,11 +236,9 @@ static void write_ram(Lower *l, LLVMValueRef addr, LLVMValueRef value,
     LLVMValueRef page = LLVMBuildAnd(b, addr, constant(l, ~mask), "");
     LLVMValueRef entry = tlb_entry(l, addr);
     LLVMValueRef match = tlb_hit(l, entry, page, l->layout->write_tag);
-    LLVMValueRef off = LLVMBuildAnd(b, addr, constant(l, size - 1), "");
-    LLVMValueRef aligned = LLVMBuildICmp(b, LLVMIntEQ, off, constant(l, 0), "");
     LLVMBasicBlockRef write =
         LLVMAppendBasicBlockInContext(l->ctx, l->fn, "write");
-    LLVMBuildCondBr(b, LLVMBuildAnd(b, aligned, match, ""), write, retry);
+    LLVMBuildCondBr(b, match, write, retry);
     LLVMPositionBuilderAtEnd(b, write);
     LLVMValueRef host = tlb_host(l, entry, addr);
     if (l->observed_store) {
@@ -263,7 +252,6 @@ static void write_ram(Lower *l, LLVMValueRef addr, LLVMValueRef value,
         LLVMSetAlignment(st, size);
         LLVMSetOrdering(st, LLVMAtomicOrderingRelease);
     }
-    l->stored = true;
 }
 
 static void lift_memory(Lower *l, const Ia64Instruction *in, unsigned index,
@@ -278,6 +266,22 @@ static void lift_memory(Lower *l, const Ia64Instruction *in, unsigned index,
                                         : constant(l, m->immediate);
     }
     LLVMBasicBlockRef retry = memory_retry(l, index);
+    if (size > 1) {
+        LLVMValueRef off = LLVMBuildAnd(l->b, addr, constant(l, size - 1), "");
+        LLVMBasicBlockRef aligned =
+            LLVMAppendBasicBlockInContext(l->ctx, l->fn, "aligned");
+        LLVMBuildCondBr(l->b,
+                        LLVMBuildICmp(l->b, LLVMIntEQ, off, constant(l, 0), ""),
+                        aligned, retry);
+        LLVMPositionBuilderAtEnd(l->b, aligned);
+    }
+    if (l->dtlb1_touch) {
+        LLVMValueRef args[] = { LLVMGetParam(l->fn, 0), addr,
+                                LLVMConstInt(l->i32, size, 0) };
+        LLVMBuildCall2(l->b, l->touch_type, l->dtlb1_touch, args, 3, "");
+        /* A DTLB1 eviction can invalidate the cached host mapping. */
+        LLVMBuildStore(l->b, constant(l, UINT64_MAX), l->page);
+    }
     if (store) {
         write_ram(l, addr, read_gr(l, m->source), size, retry);
     } else {
@@ -286,6 +290,7 @@ static void lift_memory(Lower *l, const Ia64Instruction *in, unsigned index,
     if (update) {
         write_gr(l, m->base, LLVMBuildAdd(l->b, addr, increment, ""));
     }
+    l->memory_committed |= store || l->dtlb1_touch;
 }
 
 static bool lift_slot(Lower *l, const Ia64Instruction *in, unsigned index)
@@ -362,31 +367,16 @@ static bool build_body(Lower *l, const uint64_t *words, unsigned bundles)
     return true;
 }
 
-#ifndef CONFIG_IA64_LLVM_BUILTIN
-__attribute__((visibility("default")))
-#endif
-bool ia64_llvm_compile_v5(unsigned abi, const uint64_t *words, unsigned bundles,
-                          IA64LLVMCode *out, const IA64LLVMLayout *layout,
-                          bool full_alat, IA64LLVMCache *cache)
+static LLVMValueRef lower_region(LLVMContextRef ctx, LLVMModuleRef mod,
+                                 const IA64LLVMInput *input,
+                                 const IA64LLVMLayout *layout)
 {
-    const uint16_t byte_order = 1;
-    if (abi != IA64_LLVM_ABI || !words || !out || !layout || !cache ||
-        !bundles || bundles > IA64_LLVM_MAX_BUNDLES || sizeof(uintptr_t) != 8 ||
-        *(const uint8_t *)&byte_order != 1) {
-        return false;
-    }
-    *out = (IA64LLVMCode) { 0 };
-    if (cache->used >= cache->limit) {
-        return false;
-    }
-    char name[64], *error = NULL;
-    snprintf(name, sizeof(name), "ia64_region_%" PRIu64, ++sequence);
-    LLVMContextRef ctx = LLVMContextCreate();
-    Lower l = { .code = out,
+    unsigned flags = input->flags;
+    Lower l = { .code = input->out,
                 .layout = layout,
                 .ctx = ctx,
                 .b = LLVMCreateBuilderInContext(ctx),
-                .mod = LLVMModuleCreateWithNameInContext(name, ctx),
+                .mod = mod,
                 .i1 = LLVMInt1TypeInContext(ctx),
                 .i32 = LLVMInt32TypeInContext(ctx),
                 .i64 = LLVMInt64TypeInContext(ctx),
@@ -399,7 +389,8 @@ bool ia64_llvm_compile_v5(unsigned abi, const uint64_t *words, unsigned bundles,
     LLVMTypeRef store_args[] = { l.ptr, l.ptr, l.i64, l.i64, l.i32 };
     l.store_type =
         LLVMFunctionType(LLVMVoidTypeInContext(ctx), store_args, 5, 0);
-    l.fn = LLVMAddFunction(l.mod, name, LLVMFunctionType(l.i32, args, 4, 0));
+    l.fn =
+        LLVMAddFunction(l.mod, "region", LLVMFunctionType(l.i32, args, 4, 0));
     LLVMBasicBlockRef start = LLVMAppendBasicBlockInContext(ctx, l.fn, "start");
     l.retry = LLVMAppendBasicBlockInContext(ctx, l.fn, "retry");
     LLVMPositionBuilderAtEnd(l.b, l.retry);
@@ -410,7 +401,14 @@ bool ia64_llvm_compile_v5(unsigned abi, const uint64_t *words, unsigned bundles,
     l.read_sig = LLVMBuildLoad2(
         l.b, l.ptr, field_at(&l, access, offsetof(IA64LLVMAccess, read_sig)),
         "");
-    if (full_alat) {
+    if (flags & IA64_LLVM_MERCED_DTLB1) {
+        l.touch_type =
+            LLVMFunctionType(LLVMVoidTypeInContext(ctx), probe_args, 3, 0);
+        l.dtlb1_touch = LLVMBuildLoad2(
+            l.b, l.ptr,
+            field_at(&l, access, offsetof(IA64LLVMAccess, dtlb1_touch)), "");
+    }
+    if (flags & IA64_LLVM_FULL_ALAT) {
         l.observed_store = LLVMBuildLoad2(
             l.b, l.ptr,
             field_at(&l, access, offsetof(IA64LLVMAccess, observed_store)), "");
@@ -419,14 +417,82 @@ bool ia64_llvm_compile_v5(unsigned abi, const uint64_t *words, unsigned bundles,
     l.host = LLVMBuildAlloca(l.b, l.ptr, "host_page");
     LLVMBuildStore(l.b, constant(&l, UINT64_MAX), l.page);
     LLVMBuildStore(l.b, LLVMConstNull(l.ptr), l.host);
-    bool ok = build_body(&l, words, bundles) &&
-              !LLVMVerifyModule(l.mod, LLVMReturnStatusAction, &error);
-    LLVMDisposeMessage(error);
+    bool ok = build_body(&l, input->words, input->bundles);
     LLVMDisposeBuilder(l.b);
     if (!ok) {
-        LLVMDisposeModule(l.mod);
+        LLVMDeleteFunction(l.fn);
+        return NULL;
+    }
+    return l.fn;
+}
+
+#ifndef CONFIG_IA64_LLVM_BUILTIN
+__attribute__((visibility("default")))
+#endif
+bool ia64_llvm_compile_batch_v6(unsigned abi, const IA64LLVMInput *inputs,
+                                unsigned count, const IA64LLVMLayout *layout,
+                                IA64LLVMCache *cache)
+{
+    const uint16_t byte_order = 1;
+    IA64LLVMSymbol symbols[IA64_LLVM_MAX_BATCH];
+    unsigned n = 0;
+
+    if (abi != IA64_LLVM_ABI || !inputs || !count ||
+        count > IA64_LLVM_MAX_BATCH || !layout || !cache ||
+        sizeof(uintptr_t) != 8 || *(const uint8_t *)&byte_order != 1) {
+        return false;
+    }
+    for (unsigned i = 0; i < count; i++) {
+        if (inputs[i].out) {
+            *inputs[i].out = (IA64LLVMCode) { 0 };
+        }
+    }
+    if (__atomic_load_n(&cache->used, __ATOMIC_RELAXED) >= cache->limit) {
+        return false;
+    }
+    LLVMContextRef ctx = LLVMContextCreate();
+    LLVMModuleRef mod = LLVMModuleCreateWithNameInContext("ia64", ctx);
+    for (unsigned i = 0; i < count; i++) {
+        const IA64LLVMInput *in = &inputs[i];
+        if (!in->out || !in->words || !in->bundles ||
+            in->bundles > IA64_LLVM_MAX_BUNDLES) {
+            continue;
+        }
+        LLVMValueRef fn = lower_region(ctx, mod, in, layout);
+        if (fn) {
+            symbols[n++] = (IA64LLVMSymbol) { fn, in->out };
+        }
+    }
+    char *error = NULL;
+    bool valid = n && !LLVMVerifyModule(mod, LLVMReturnStatusAction, &error);
+    LLVMDisposeMessage(error);
+    if (!valid) {
+        LLVMDisposeModule(mod);
         LLVMContextDispose(ctx);
         return false;
     }
-    return ia64_llvm_compile_module(l.mod, name, out, cache);
+    return ia64_llvm_compile_module(mod, symbols, n, cache);
 }
+
+#ifndef CONFIG_IA64_LLVM_BUILTIN
+__attribute__((visibility("default")))
+#endif
+bool ia64_llvm_compile_v6(unsigned abi, const uint64_t *words, unsigned bundles,
+                          IA64LLVMCode *out, const IA64LLVMLayout *layout,
+                          unsigned flags, IA64LLVMCache *cache)
+{
+    IA64LLVMInput in = { words, bundles, flags, out };
+    return ia64_llvm_compile_batch_v6(abi, &in, 1, layout, cache);
+}
+
+#ifndef CONFIG_IA64_LLVM_BUILTIN
+__attribute__((visibility("default"))) bool
+ia64_llvm_compile_v5(unsigned abi, const uint64_t *words, unsigned bundles,
+                     IA64LLVMCode *out, const IA64LLVMLayout *layout,
+                     bool full_alat, IA64LLVMCache *cache)
+{
+    return abi == 5 &&
+           ia64_llvm_compile_v6(IA64_LLVM_ABI, words, bundles, out, layout,
+                                full_alat ? IA64_LLVM_FULL_ALAT : 0, cache);
+}
+#endif

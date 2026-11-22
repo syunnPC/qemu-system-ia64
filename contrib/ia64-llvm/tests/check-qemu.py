@@ -42,6 +42,8 @@ def check(
     expect_jit=None,
     fallback=None,
     record_stats=True,
+    machine="itanium2-vpc",
+    compiler_threads=1,
 ):
     if expect_jit is None:
         expect_jit = accel.partition(",")[0] == "tcg-llvm"
@@ -59,7 +61,7 @@ def check(
             "-accel",
             accel,
             "-machine",
-            f"itanium2-vpc,firmware=none,nvram=none,alat={alat}",
+            f"{machine},firmware=none,nvram=none,alat={alat}",
             "-m",
             "128M",
             "-S",
@@ -112,6 +114,23 @@ def check(
                 end = time.monotonic() + 15
                 while True:
                     qmp.execute("cont")
+                    if case == "parallel":
+                        while time.monotonic() < end:
+                            remaining = int(
+                                qmp.hmp("xp /1gx 0x3000000").split()[-1], 16
+                            )
+                            if 0 < remaining <= 128_800:
+                                break
+                            if not remaining and int(
+                                qmp.hmp("xp /1gx 0x3000008").split()[-1], 16
+                            ):
+                                break
+                            time.sleep(0.001)
+                        else:
+                            raise RuntimeError(
+                                "parallel compilation workload timed out"
+                            )
+                        break
                     time.sleep(0.1)
                     qmp.execute("stop")
                     state = parse_state(qmp.hmp("info registers"))
@@ -125,7 +144,9 @@ def check(
                                 state.gr.get(20),
                             )
                         )
-                if fault is not None:
+                if case == "parallel":
+                    expected = "shutdown with compiler jobs submitted"
+                elif fault is not None:
                     # The final pass completes six increments before the fault.
                     expected = (
                         38000006,
@@ -157,6 +178,19 @@ def check(
                     )
                     actual = tuple(state.gr[i] for i in (27, 31, 28, 23))
                     assert actual == expected, (actual, expected)
+                elif case == "interrupt":
+                    trips = state.gr[9]
+                    assert trips > 2_000_000
+                    expected = (1, 0xEF, 8 * trips, 16 * trips, 24 * trips)
+                    actual = tuple(state.gr[i] for i in (5, 6, 10, 11, 12))
+                    assert actual == expected, (actual, expected)
+                elif case == "guard":
+                    expected = (2_000_000, 32_000_000, 32_000_000)
+                    assert tuple(state.gr[i] for i in (4, 16, 17)) == expected
+                elif case == "merced":
+                    expected = (90, 20_000_030, 20_000_030)
+                    actual = tuple(state.gr[i] for i in (31, 16, 17))
+                    assert actual == expected, (actual, expected)
                 elif case == "alat":
                     expected = (
                         1000000 if alat == "zero" else 0,
@@ -185,6 +219,7 @@ def check(
                     except subprocess.TimeoutExpired:
                         proc.kill()
                         proc.wait()
+        assert proc.returncode == 0, proc.returncode
         if not record_stats:
             assert not list(Path(temp).iterdir())
             print(alat, case, "LLVM statistics disabled", expected)
@@ -199,6 +234,12 @@ def check(
             assert limit == cache_limit
             assert 0 <= used <= limit
             runs = int(lines[1].split()[1])
+            if case == "parallel":
+                assert int(fields[fields.index("submitted") + 1]) > 1, fields
+                peak = int(fields[fields.index("peak-compiling") + 1])
+                assert 0 < peak <= compiler_threads, fields
+                print(case, expected, peak)
+                return
             if cache_limit == 1:
                 assert used == runs == 0
                 print(alat, case, "TCG with one-byte LLVM cache", expected)
@@ -207,8 +248,13 @@ def check(
             samples = [line.split() for line in lines[2:]]
             if case == "smc":
                 assert sum(int(row[4], 16) == region for row in samples) >= 2, samples
-            elif case in ("alat", "boundary"):
+            elif case in ("alat", "boundary", "merced", "guard", "interrupt"):
                 assert any(int(row[4], 16) == region for row in samples), samples
+                if case == "guard":
+                    assert int(lines[1].split()[5]) > 0, lines
+                elif case == "merced":
+                    # The arithmetic tail shares a key across both PSR.dt modes.
+                    assert int(fields[fields.index("keys") + 1]) == 2, fields
             elif case == "fault":
                 assert int(lines[1].split()[4]) >= 1, lines
             assert runs > 0, (runs, samples)
@@ -267,7 +313,7 @@ if __name__ == "__main__":
     builtin = has_builtin(qemu)
     default_library = None if builtin else build / "ia64-llvm.so"
     vector_offset = symbols(build / "region-vector.elf")["spin"] - 0x2000000
-    cases = ["smc", "fault", "alat"]
+    cases = ["smc", "fault", "alat", "guard", "interrupt"]
     devices = subprocess.check_output([qemu, "-device", "help"], text=True)
     if 'name "pci-testdev"' in devices:
         cases.append("boundary")
@@ -291,6 +337,45 @@ if __name__ == "__main__":
                 )
     names = symbols(build / "region-alat.elf")
     args = (qemu, build, "alat", names["region"], names["done"], None, "zero")
+    merced = symbols(build / "region-merced.elf")
+    parallel = symbols(build / "region-parallel.elf")
+    for accel, count in (("tcg-llvm", 1), ("tcg-llvm,llvm-thread=4", 4)):
+        check(
+            qemu,
+            build,
+            "parallel",
+            parallel["region"],
+            parallel["done"],
+            None,
+            "zero",
+            accel,
+            default_library,
+            machine="itanium-vpc",
+            compiler_threads=count,
+        )
+    for accel in ("tcg", "tcg-llvm,llvm-thread=4"):
+        check(
+            qemu,
+            build,
+            "merced",
+            merced["region"],
+            merced["done"],
+            None,
+            "full",
+            accel,
+            default_library,
+            machine="itanium-vpc",
+        )
+    check(*args, "tcg-llvm", default_library, machine="itanium-vpc")
+    check(
+        *args,
+        "tcg-llvm,thread=single,llvm-thread=4",
+        default_library,
+        machine="itanium-vpc",
+    )
+    for count in ("0", "2147483648"):
+        invalid = start_paused(qemu, "tcg-llvm,llvm-thread=" + count)
+        assert invalid.returncode and "llvm-thread" in invalid.stderr, invalid
     check(*args, "tcg", build / "absent.so")
     check(
         *args,

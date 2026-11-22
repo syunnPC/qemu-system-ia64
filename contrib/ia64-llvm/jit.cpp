@@ -1,6 +1,10 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "jit.h"
+#include <atomic>
+#include <mutex>
+#include <string>
 #include <llvm-c/Transforms/PassBuilder.h>
+#include <llvm/ExecutionEngine/Orc/CompileUtils.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/ExecutionEngine/Orc/MapperJITLinkMemoryManager.h>
 #include <llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h>
@@ -16,29 +20,34 @@ using namespace llvm::orc;
 namespace
 {
 
-/* LLJIT materializes synchronously on QEMU's single compiler thread. */
 class CacheMapper final : public InProcessMemoryMapper
 {
-  public:
-    using InProcessMemoryMapper::InProcessMemoryMapper;
+    IA64LLVMCache &cache;
 
-    uint64_t limit = 0;
-    uint64_t used = 0;
-    bool refused = false;
+  public:
+    CacheMapper(unsigned granularity, IA64LLVMCache &cache)
+        : InProcessMemoryMapper(granularity), cache(cache)
+    {
+    }
 
     void reserve(size_t bytes, OnReservedFunction done) override
     {
-        if (used > limit || bytes > limit - used) {
-            refused = true;
-            done(errorCodeToError(
-                std::make_error_code(std::errc::no_buffer_space)));
-            return;
-        }
+        const uint64_t charge = alignTo(bytes, getPageSize());
+        uint64_t used = __atomic_load_n(&cache.used, __ATOMIC_RELAXED);
+        do {
+            if (used > cache.limit || charge > cache.limit - used) {
+                done(errorCodeToError(
+                    std::make_error_code(std::errc::no_buffer_space)));
+                return;
+            }
+        } while (!__atomic_compare_exchange_n(&cache.used, &used, used + charge,
+                                              true, __ATOMIC_RELAXED,
+                                              __ATOMIC_RELAXED));
         InProcessMemoryMapper::reserve(
-            bytes, [this, done = std::move(done)](
-                       Expected<ExecutorAddrRange> range) mutable {
-                if (range) {
-                    used += range->size();
+            charge, [this, charge, done = std::move(done)](
+                        Expected<ExecutorAddrRange> range) mutable {
+                if (!range) {
+                    __atomic_fetch_sub(&cache.used, charge, __ATOMIC_RELAXED);
                 }
                 done(std::move(range));
             });
@@ -46,7 +55,8 @@ class CacheMapper final : public InProcessMemoryMapper
 };
 
 std::unique_ptr<LLJIT> jit;
-CacheMapper *mapper;
+std::once_flag init_once;
+std::atomic<uint64_t> next_symbol { 0 };
 
 void report_error(Error err)
 {
@@ -54,7 +64,7 @@ void report_error(Error err)
 }
 
 Expected<std::unique_ptr<ObjectLayer>> create_layer(ExecutionSession &session,
-                                                    uint64_t limit)
+                                                    IA64LLVMCache &cache)
 {
     auto page = sys::Process::getPageSize();
     if (!page) {
@@ -66,9 +76,7 @@ Expected<std::unique_ptr<ObjectLayer>> create_layer(ExecutionSession &session,
     GetSystemInfo(&info);
     granularity = info.dwAllocationGranularity;
 #endif
-    auto storage = std::make_unique<CacheMapper>(granularity);
-    storage->limit = limit;
-    mapper = storage.get();
+    auto storage = std::make_unique<CacheMapper>(granularity, cache);
     auto manager = std::make_unique<MapperJITLinkMemoryManager>(
         granularity, std::move(storage));
     return std::make_unique<ObjectLinkingLayer>(session, std::move(manager));
@@ -76,45 +84,51 @@ Expected<std::unique_ptr<ObjectLayer>> create_layer(ExecutionSession &session,
 
 } // namespace
 
-bool ia64_llvm_compile_module(LLVMModuleRef ref, const char *name,
-                              IA64LLVMCode *out, IA64LLVMCache *cache)
+bool ia64_llvm_compile_module(LLVMModuleRef ref, const IA64LLVMSymbol *symbols,
+                              unsigned count, IA64LLVMCache *cache)
 {
     Module *module = unwrap(ref);
     ThreadSafeModule tsm { std::unique_ptr<Module>(module),
                            std::unique_ptr<LLVMContext>(
                                &module->getContext()) };
-    if (!jit) {
+    std::call_once(init_once, [cache]() {
         if (InitializeNativeTarget() || InitializeNativeTargetAsmPrinter()) {
-            return false;
+            return;
         }
-        auto created = LLJITBuilder()
-                           .setObjectLinkingLayerCreator(
-                               [limit = cache->limit](ExecutionSession &es) {
-                                   return create_layer(es, limit);
-                               })
-                           .create();
+        auto created =
+            LLJITBuilder()
+                .setCompileFunctionCreator(
+                    [](JITTargetMachineBuilder tm)
+                        -> Expected<
+                            std::unique_ptr<IRCompileLayer::IRCompiler>> {
+                        return std::make_unique<ConcurrentIRCompiler>(
+                            std::move(tm));
+                    })
+                .setObjectLinkingLayerCreator([cache](ExecutionSession &es) {
+                    return create_layer(es, *cache);
+                })
+                .create();
         if (!created) {
-            mapper = nullptr;
             report_error(created.takeError());
-            return false;
+            return;
         }
         jit = std::move(*created);
         jit->getExecutionSession().setErrorReporter([](Error error) {
             handleAllErrors(std::move(error), [](const ErrorInfoBase &info) {
-                if (!mapper->refused ||
-                    info.convertToErrorCode() != std::errc::no_buffer_space) {
+                if (info.convertToErrorCode() != std::errc::no_buffer_space) {
                     errs() << "IA-64 LLVM: " << info.message() << '\n';
                 }
             });
         });
-    }
-
-    mapper->limit = cache->limit;
-    mapper->refused = false;
-    cache->used = mapper->used;
-    if (cache->used >= cache->limit ||
-        cache->limit - cache->used < mapper->getPageSize()) {
+    });
+    if (!jit) {
         return false;
+    }
+    std::string names[IA64_LLVM_MAX_BATCH];
+    uint64_t base = next_symbol.fetch_add(count, std::memory_order_relaxed);
+    for (unsigned i = 0; i < count; i++) {
+        names[i] = "ia64_region_" + std::to_string(base + i);
+        unwrap(symbols[i].function)->setName(names[i]);
     }
     module->setTargetTriple(jit->getTargetTriple());
     module->setDataLayout(jit->getDataLayout());
@@ -127,23 +141,30 @@ bool ia64_llvm_compile_module(LLVMModuleRef ref, const char *name,
     }
     auto tracker = jit->getMainJITDylib().createResourceTracker();
     if (auto e = jit->addIRModule(tracker, std::move(tsm))) {
-        cache->used = mapper->used;
         report_error(std::move(e));
         return false;
     }
-    auto addr = jit->lookup(name);
-    cache->used = mapper->used;
-    if (!addr) {
-        if (mapper->refused) {
-            consumeError(addr.takeError());
-        } else {
-            report_error(addr.takeError());
+    IA64LLVMRun entries[IA64_LLVM_MAX_BATCH];
+    for (unsigned i = 0; i < count; i++) {
+        auto addr = jit->lookup(names[i]);
+        if (addr) {
+            entries[i] = addr->toPtr<IA64LLVMRun>();
+            continue;
         }
-        if (auto e = tracker->remove()) {
-            report_error(std::move(e));
+        /* The session reporter already handled materialization failures. */
+        handleAllErrors(
+            addr.takeError(), [](const FailedToMaterialize &) {},
+            [](const ErrorInfoBase &info) {
+                errs() << "IA-64 LLVM: " << info.message() << '\n';
+            });
+        Error removal = tracker->remove();
+        if (removal) {
+            report_error(std::move(removal));
         }
         return false;
     }
-    out->run = addr->toPtr<IA64LLVMRun>();
+    for (unsigned i = 0; i < count; i++) {
+        symbols[i].out->run = entries[i];
+    }
     return true;
 }

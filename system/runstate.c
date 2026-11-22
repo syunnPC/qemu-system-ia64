@@ -1003,6 +1003,9 @@ void qemu_init_subsystems(void)
 
 void qemu_cleanup(int status)
 {
+    AccelState *accel = current_accel();
+    AccelClass *ac = ACCEL_GET_CLASS(accel);
+
     gdb_exit(status);
 
     /*
@@ -1022,6 +1025,9 @@ void qemu_cleanup(int status)
 
     /* No more vcpu or device emulation activity beyond this point */
     vm_shutdown();
+    if (ac->shutdown) {
+        ac->shutdown(accel);
+    }
     replay_finish();
 
     /*

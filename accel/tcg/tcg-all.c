@@ -56,6 +56,7 @@ struct TCGState {
     unsigned long tb_size;
 #ifndef CONFIG_USER_ONLY
     uint64_t llvm_cache_size;
+    uint32_t llvm_threads;
     char *llvm_library;
     char *llvm_stats;
 #endif
@@ -244,6 +245,23 @@ static char *tcg_get_llvm_library(Object *obj, Error **errp)
     return g_strdup(TCG_STATE(obj)->llvm_library);
 }
 
+static void tcg_llvm_threads(Object *obj, Visitor *v, const char *name,
+                             void *opaque, Error **errp)
+{
+    TCGState *s = TCG_STATE(obj);
+    uint32_t threads = s->llvm_threads;
+    if (visit_is_input(v) && !tcg_llvm_option_writable(obj, errp)) {
+        return;
+    }
+    if (visit_type_uint32(v, name, &threads, errp) && visit_is_input(v)) {
+        if (!threads || threads > G_MAXINT) {
+            error_setg(errp, "llvm-thread must be between 1 and %d", G_MAXINT);
+            return;
+        }
+        s->llvm_threads = threads;
+    }
+}
+
 static void tcg_set_llvm_library(Object *obj, const char *value, Error **errp)
 {
     TCGState *s = TCG_STATE(obj);
@@ -346,6 +364,13 @@ static void tcg_accel_class_init(ObjectClass *oc, const void *data)
         object_class_property_set_description(
             oc, "cachesize",
             "Maximum host memory for IA-64 LLVM code mappings (default 1 GiB)");
+        p = object_class_property_add(oc, "llvm-thread", "uint32",
+                                      tcg_llvm_threads, tcg_llvm_threads, NULL,
+                                      NULL);
+        object_property_set_default_uint(p, 1);
+        object_class_property_set_description(
+            oc, "llvm-thread",
+            "Maximum number of background LLVM compiler threads (default 1)");
         object_class_property_add_str(oc, "llvm-library", tcg_get_llvm_library,
                                       tcg_set_llvm_library);
         object_class_property_set_description(oc, "llvm-library",

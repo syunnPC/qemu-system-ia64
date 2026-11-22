@@ -32,6 +32,8 @@ struct AccelClass {
 
     /* system related hooks */
     void (*setup_post)(AccelState *as);
+    /* Called after the vCPUs stop, before process-wide destructors run. */
+    void (*shutdown)(AccelState *as);
     void (*pre_resume_vm)(AccelState *as, bool step_pending);
     bool (*has_memory)(AccelState *accel, AddressSpace *as,
                        hwaddr start_addr, hwaddr size);

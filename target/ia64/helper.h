@@ -214,4 +214,5 @@ DEF_HELPER_FLAGS_2(simd_sum, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 #undef rsm
 #undef raise_exception
 
-DEF_HELPER_4(llvm_region, i32, env, ptr, i64, i32)
+DEF_HELPER_5(llvm_region, i32, env, ptr, i64, i32, i32)
+DEF_HELPER_4(llvm_region_fixed, i32, env, ptr, i64, i32)

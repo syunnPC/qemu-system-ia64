@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include <assert.h>
 #include <dlfcn.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <string.h>
@@ -23,6 +24,8 @@ typedef struct Probe {
     uint64_t ram[1024];
     unsigned pages, calls, sig_calls, observed_stores;
     uint64_t sig;
+    TestEntry *entry;
+    unsigned touches;
 } Probe;
 
 static const IA64LLVMLayout layout = {
@@ -131,7 +134,9 @@ static void test_memory(IA64LLVMCompile compile, const char *image,
         Probe p = { 0 };
         TestEntry entries[2];
         TestTLB tlb = { sizeof(TestEntry), entries };
-        IA64LLVMAccess access = { map, sig, observed_store };
+        IA64LLVMAccess access = { .read_page = map,
+                                  .read_sig = sig,
+                                  .observed_store = observed_store };
         for (size_t i = 0; i < 2; i++) {
             uintptr_t page = i * 4096;
             entries[i] = (TestEntry) { .read = page,
@@ -196,6 +201,44 @@ static void test_memory(IA64LLVMCompile compile, const char *image,
     test_late_store_fault(compile, arithmetic, &words[6]);
 }
 
+static void touch_page(void *opaque, uint64_t addr, unsigned size)
+{
+    Probe *p = opaque;
+    assert(size == 8 && addr == (uint64_t)p->touches * 8);
+    if (++p->touches == 2) {
+        p->entry->addend = (uintptr_t)&p->ram[512];
+    } else if (p->touches == 3) {
+        p->entry->read = UINTPTR_MAX;
+    }
+}
+
+static void test_merced_loads(IA64LLVMCompile compile, const char *image)
+{
+    uint64_t words[6];
+    FILE *f = fopen(image, "rb");
+    assert(f && fread(words, 16, 1, f) == 1);
+    fclose(f);
+    for (unsigned i = 2; i < 6; i++) {
+        words[i] = words[i % 2];
+    }
+    Probe p = { .gr = { [12] = 8 }, .ram = { [0] = 11, [513] = 22 } };
+    TestEntry entry = { .addend = (uintptr_t)p.ram };
+    TestTLB tlb = { 0, &entry };
+    p.entry = &entry;
+    const IA64LLVMAccess access = { .read_page = map,
+                                    .read_sig = sig,
+                                    .dtlb1_touch = touch_page };
+    IA64LLVMCode code;
+    assert(compile(IA64_LLVM_ABI, words, 3, &code, &layout,
+                   IA64_LLVM_MERCED_DTLB1, &cache));
+    assert(code.run(&p, 3, &access, &tlb) == IA64_LLVM_RESUME + 6);
+    assert(p.touches == 3 && p.calls == 1 && p.gr[32] == 22);
+    assert(p.gr[10] == 16 && p.gr[36] == 2 && p.dirty[0] == 17);
+    p.gr[10] = 1;
+    assert(code.run(&p, 3, &access, &tlb) == IA64_LLVM_RETRY);
+    assert(p.touches == 3);
+}
+
 static void test_integer(IA64LLVMCompile compile, const char *image)
 {
     uint64_t words[12], seed = 0xd7b3b689;
@@ -229,7 +272,22 @@ static void test_integer(IA64LLVMCompile compile, const char *image)
     }
 }
 
-static void test_cache_limit(IA64LLVMCompile compile, const uint64_t *words)
+typedef struct CompileJob {
+    IA64LLVMCompile compile;
+    const uint64_t *words;
+    IA64LLVMCode code;
+} CompileJob;
+
+static void *compile_one(void *opaque)
+{
+    CompileJob *job = opaque;
+    bool ok = job->compile(IA64_LLVM_ABI, job->words, 1, &job->code, &layout, 0,
+                           &cache);
+    assert(ok == (job->code.run != NULL));
+    return NULL;
+}
+
+static uint64_t test_cache_limit(IA64LLVMCompile compile, const uint64_t *words)
 {
     const IA64LLVMAccess access = { .read_page = map, .read_sig = sig };
     IA64LLVMCode first, other;
@@ -258,6 +316,60 @@ static void test_cache_limit(IA64LLVMCompile compile, const uint64_t *words)
     assert(first.run(&p, 0, &access, NULL) == IA64_LLVM_COMPLETE);
     assert(p.gr[16] == (UINT64_C(1) << 32 | 2));
 
+    pthread_t threads[12];
+    CompileJob jobs[12];
+    unsigned successes = 0;
+    cache.limit += 3 * size;
+    for (unsigned i = 0; i < 12; i++) {
+        jobs[i] = (CompileJob) { .compile = compile, .words = words };
+        assert(!pthread_create(&threads[i], NULL, compile_one, &jobs[i]));
+    }
+    for (unsigned i = 0; i < 12; i++) {
+        assert(!pthread_join(threads[i], NULL));
+        if (jobs[i].code.run) {
+            successes++;
+            assert(jobs[i].code.run(&p, 0, &access, NULL) ==
+                   IA64_LLVM_COMPLETE);
+        }
+    }
+    assert(successes == 3 && cache.used == cache.limit);
+
+    cache.limit = UINT64_C(1) << 30;
+    return size;
+}
+
+static void test_packed_regions(IA64LLVMCompileBatch compile,
+                                const uint64_t *words, uint64_t unit)
+{
+    const IA64LLVMAccess access = { .read_page = map, .read_sig = sig };
+    uint64_t bundles[8][2];
+    IA64LLVMInput inputs[8];
+    IA64LLVMCode code[8] = { 0 };
+    /* Several distinct functions must fit in one host allocation. */
+    uint64_t before = cache.used;
+    cache.limit = before + unit;
+    for (unsigned i = 0; i < 8; i++) {
+        /* Give the mix4.r in slot 1 a distinct destination (r20..r27). */
+        unsigned r1_shift = 5 + 41 + 6;
+        bundles[i][0] = words[0] ^ ((uint64_t)(16 ^ (20 + i)) << r1_shift);
+        bundles[i][1] = words[1];
+        inputs[i] = (IA64LLVMInput) { bundles[i], 1, 0, &code[i] };
+    }
+    /* Reject this predicated slot and keep its siblings. */
+    bundles[3][0] |= UINT64_C(1) << 46;
+    assert(compile(IA64_LLVM_ABI, inputs, 8, &layout, &cache));
+    assert(cache.used > before && cache.used <= cache.limit);
+    for (unsigned i = 0; i < 8; i++) {
+        Probe p = { .gr = { [8] = i, [9] = i + 1 } };
+        if (i == 3) {
+            assert(!code[i].run);
+        } else {
+            assert(code[i].run &&
+                   code[i].run(&p, 0, &access, NULL) == IA64_LLVM_COMPLETE);
+            assert(p.gr[20 + i] == (((uint64_t)i << 32) | (i + 1)));
+            assert(p.gr[16] == 0);
+        }
+    }
     cache.limit = UINT64_C(1) << 30;
 }
 
@@ -283,7 +395,11 @@ int main(int argc, char **argv)
         (IA64LLVMCompile)dlsym(lib, IA64_LLVM_COMPILE_SYMBOL);
     assert(compile && !compile(0, words, n, &code, &layout, false, &cache) &&
            !compile(IA64_LLVM_ABI, words, 0, &code, &layout, false, &cache));
-    test_cache_limit(compile, words);
+    uint64_t unit = test_cache_limit(compile, words);
+    IA64LLVMCompileBatch batch =
+        (IA64LLVMCompileBatch)dlsym(lib, IA64_LLVM_COMPILE_BATCH_SYMBOL);
+    assert(batch);
+    test_packed_regions(batch, words, unit);
     assert(compile(IA64_LLVM_ABI, words, n, &code, &layout, false, &cache));
     assert(code.dirty[0] == 3 && code.dirty[1] == 0 && code.sof >= 2);
     assert(code.fr_inputs[0] == (UINT64_C(1) << 38) && code.fr_inputs[1] == 0 &&
@@ -351,7 +467,8 @@ int main(int argc, char **argv)
                !memcmp(predicate, pr, sizeof(predicate)));
     }
     test_memory(compile, argv[3], &words[8]);
+    test_merced_loads(compile, argv[3]);
     test_integer(compile, argv[4]);
-    puts("658 region executions and cache limit checks passed");
+    puts("Region execution and parallel cache limit checks passed");
     return 0;
 }
