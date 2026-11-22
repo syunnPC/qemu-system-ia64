@@ -8,6 +8,7 @@
 #include "hw/core/cpu.h"
 #include "cpu.h"
 #include "exec/cpu-common.h"
+#include "exec/tb-flush.h"
 #include "exec/target_page.h"
 #include "exec/helper-proto.h"
 #include "accel/accel-cpu-ops.h"
@@ -25,6 +26,8 @@
 
 struct IA64LLVMRegion {
     unsigned state;
+    unsigned hits;
+    unsigned tb_generation;
     uint16_t bundles;
     bool stop;
     uint8_t flags;
@@ -37,13 +40,14 @@ struct IA64LLVMRegion {
 };
 
 enum { COLD, QUEUED, READY, UNSUPPORTED };
-enum { HOT_THRESHOLD = 1024, MAX_KEYS = 32768 };
+enum { HOT_THRESHOLD = 1024 };
 bool ia64_llvm_enabled;
 static IA64LLVMCompile compile_region;
 static IA64LLVMCompileBatch compile_batch;
 static IA64LLVMRegion *pending_head, *pending_tail;
 static unsigned pending_count, scheduled_batches, compiler_threads;
 static GHashTable *regions;
+static unsigned last_tb_flush;
 static GThreadPool *pool;
 static GMutex region_lock;
 static unsigned submissions;
@@ -75,7 +79,8 @@ static bool cache_has_space(void)
            qemu_real_host_page_size();
 }
 
-static void compile_task(gpointer data, gpointer unused)
+/* The compiler entry points can belong to an explicitly loaded backend. */
+static void QEMU_DISABLE_CFI compile_task(gpointer data, gpointer unused)
 {
     IA64LLVMRegion *head = data;
     IA64LLVMInput inputs[IA64_LLVM_MAX_BATCH];
@@ -100,7 +105,10 @@ static void compile_task(gpointer data, gpointer unused)
     }
     bool packed = count > 1 && cache_has_space() &&
                   compile_batch(IA64_LLVM_ABI, inputs, count, &layout, &cache);
-    for (IA64LLVMRegion *r = head; r; r = r->next_queued) {
+    while (head) {
+        IA64LLVMRegion *r = head;
+        /* A failed region can be reclaimed after we publish its state. */
+        head = r->next_queued;
         /* Individual regions may fit when the batch exceeds the cap. */
         bool ok = packed
                       ? r->code.run != NULL
@@ -162,10 +170,10 @@ static void tcg_llvm_shutdown(AccelState *accel)
 #if defined(CONFIG_MODULES) || defined(CONFIG_PLUGIN)
 static typeof(ia64_llvm_compile_v5) *legacy_compile;
 
-static bool compile_legacy(unsigned abi, const uint64_t *words,
-                           unsigned bundles, IA64LLVMCode *out,
-                           const IA64LLVMLayout *layout, unsigned flags,
-                           IA64LLVMCache *shared)
+static bool QEMU_DISABLE_CFI
+compile_legacy(unsigned abi, const uint64_t *words, unsigned bundles,
+               IA64LLVMCode *out, const IA64LLVMLayout *layout, unsigned flags,
+               IA64LLVMCache *shared)
 {
     static IA64LLVMCache legacy_cache;
     legacy_cache.limit = shared->limit;
@@ -284,6 +292,17 @@ static const TypeInfo tcg_llvm_types[] = {
 };
 DEFINE_TYPES(tcg_llvm_types)
 
+static gboolean remove_stale_region(gpointer key, gpointer value,
+                                    gpointer previous_generation)
+{
+    IA64LLVMRegion *r = value;
+    unsigned state = qatomic_load_acquire(&r->state);
+
+    /* Keep recent hit counts across retranslations and keep all JIT code. */
+    return r->tb_generation != GPOINTER_TO_UINT(previous_generation) &&
+           (state == COLD || state == UNSUPPORTED);
+}
+
 IA64LLVMRegion *ia64_llvm_register(const uint64_t *words, unsigned bundles,
                                    bool stop, uint64_t pc, unsigned barrier,
                                    uint8_t flags)
@@ -292,13 +311,21 @@ IA64LLVMRegion *ia64_llvm_register(const uint64_t *words, unsigned bundles,
     uint8_t *bytes = g_malloc(len + 1);
     IA64LLVMRegion *r;
     GBytes *key;
+    unsigned generation;
 
     memcpy(bytes, words, len);
     bytes[len] = flags;
     key = g_bytes_new_take(bytes, len + 1);
     g_mutex_lock(&region_lock);
+    generation = tcg_tb_flush_count();
+    if (generation != last_tb_flush) {
+        /* Only a full TB flush retires every embedded region pointer. */
+        g_hash_table_foreach_remove(regions, remove_stale_region,
+                                    GUINT_TO_POINTER(generation - 1));
+        last_tb_flush = generation;
+    }
     r = g_hash_table_lookup(regions, key);
-    if (!r && cache_has_space() && g_hash_table_size(regions) < MAX_KEYS) {
+    if (!r && cache_has_space()) {
         r = g_new0(IA64LLVMRegion, 1);
         r->bundles = bundles;
         r->stop = stop;
@@ -310,6 +337,9 @@ IA64LLVMRegion *ia64_llvm_register(const uint64_t *words, unsigned bundles,
         r->words = (const uint64_t *)bytes; /* Owned by the table key. */
         g_hash_table_insert(regions, g_bytes_ref(key), r);
     }
+    if (r) {
+        r->tb_generation = generation;
+    }
     g_mutex_unlock(&region_lock);
     g_bytes_unref(key);
     return r;
@@ -317,40 +347,31 @@ IA64LLVMRegion *ia64_llvm_register(const uint64_t *words, unsigned bundles,
 
 static void count_hit(IA64LLVMRegion *r)
 {
-    typedef struct {
-        IA64LLVMRegion *r;
-        unsigned n;
-    } Bucket;
-    static __thread Bucket counter[2048];
-    Bucket *p = &counter[((uintptr_t)r >> 5) % G_N_ELEMENTS(counter)];
-    if (p->r != r) {
-        p->r = r;
-        p->n = 0;
+    if (qatomic_fetch_inc(&r->hits) != HOT_THRESHOLD - 1 ||
+        qatomic_cmpxchg(&r->state, COLD, QUEUED) != COLD) {
+        return;
     }
-    if (++p->n == HOT_THRESHOLD &&
-        qatomic_cmpxchg(&r->state, COLD, QUEUED) == COLD) {
-        if (!cache_has_space()) {
-            qatomic_set(&r->state, UNSUPPORTED);
-        } else {
-            if (stats_file) {
-                qatomic_inc(&submissions);
-            }
-            g_mutex_lock(&region_lock);
-            if (compile_batch && pending_head &&
-                scheduled_batches >= compiler_threads &&
-                pending_count < IA64_LLVM_MAX_BATCH) {
-                pending_tail->next_queued = r;
-                pending_tail = r;
-                pending_count++;
-            } else {
-                pending_head = pending_tail = r;
-                pending_count = 1;
-                scheduled_batches++;
-                g_thread_pool_push(pool, r, NULL);
-            }
-            g_mutex_unlock(&region_lock);
-        }
+    if (!cache_has_space()) {
+        qatomic_set(&r->state, UNSUPPORTED);
+        return;
     }
+    if (stats_file) {
+        qatomic_inc(&submissions);
+    }
+    g_mutex_lock(&region_lock);
+    if (compile_batch && pending_head &&
+        scheduled_batches >= compiler_threads &&
+        pending_count < IA64_LLVM_MAX_BATCH) {
+        pending_tail->next_queued = r;
+        pending_tail = r;
+        pending_count++;
+    } else {
+        pending_head = pending_tail = r;
+        pending_count = 1;
+        scheduled_batches++;
+        g_thread_pool_push(pool, r, NULL);
+    }
+    g_mutex_unlock(&region_lock);
 }
 
 static void *read_page(void *opaque, uint64_t addr, uint32_t mmu)
@@ -435,6 +456,13 @@ static bool region_inputs_ready(CPUIA64State *env, IA64LLVMRegion *r,
             fp_inputs_ready(env, r->code.fr_inputs));
 }
 
+/* JIT entry points are created after the host binary's CFI tables are linked. */
+static uint32_t QEMU_DISABLE_CFI run_native(IA64LLVMRun run, CPUIA64State *env,
+                                            uint32_t mmu)
+{
+    return run(env, mmu, &accessors, cpu_tlb_fast(env_cpu(env), (int)mmu));
+}
+
 static inline QEMU_ALWAYS_INLINE uint32_t run_region(CPUIA64State *env,
                                                      IA64LLVMRegion *r,
                                                      uint64_t pc, uint32_t mmu,
@@ -465,8 +493,7 @@ static inline QEMU_ALWAYS_INLINE uint32_t run_region(CPUIA64State *env,
         }
         return 0;
     }
-    unsigned result =
-        r->code.run(env, mmu, &accessors, cpu_tlb_fast(cpu, (int)mmu));
+    unsigned result = run_native(r->code.run, env, mmu);
     if (result != IA64_LLVM_COMPLETE) {
         if (s) {
             s[4]++;

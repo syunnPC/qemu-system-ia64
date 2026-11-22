@@ -286,6 +286,21 @@ jobs:
           test -s "$archive"
           tar -tzf "$archive" >/dev/null
 
+      - name: Run the LLVM JIT with Clang CFI
+        if: matrix.optimized == false
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y --no-install-recommends clang-21 lld-21
+          mkdir -p build-linux-cfi
+          cd build-linux-cfi
+          export PATH="/usr/lib/llvm-21/bin:$PATH"
+          CC=clang-21 CXX=clang++-21 ../configure \
+            --target-list=ia64-softmmu --without-default-features \
+            --enable-tcg --enable-ia64-llvm --enable-cfi --enable-pixman \
+            --enable-fdt=system --extra-ldflags=-fuse-ld=lld \
+            --disable-docs --disable-debug-info --disable-werror
+          ./pyvenv/bin/meson test --print-errorlogs test-ia64-llvm-hot-regions
+
       - name: Upload the Linux artifact
         uses: actions/upload-artifact@v7
         with:
@@ -420,9 +435,7 @@ jobs:
           printf '%s\n' "$elf_header"
           grep -Eq 'Machine:[[:space:]]+AArch64' <<<"$elf_header"
           "$executable" --version
-          printf '%s\n' '{"execute":"qmp_capabilities"}' '{"execute":"quit"}' \
-            | timeout 30s "$executable" -accel tcg-llvm -machine none \
-                -display none -nodefaults -S -qmp stdio
+          python3 contrib/ia64-llvm/tests/hot_regions.py "$executable"
 
       - name: Run IA-64 TCG unit tests natively
         run: |
@@ -862,9 +875,8 @@ jobs:
             echo "Staged GUI executable failed to start" >&2
             exit 1
           fi
-          printf '%s\n' '{"execute":"qmp_capabilities"}' '{"execute":"quit"}' \
-            | timeout 30s env PATH="$runtime_path" "$dist/qemu-system-ia64.exe" \
-                -accel tcg-llvm -machine none -display none -nodefaults -S -qmp stdio
+          PATH="$runtime_path" /ucrt64/bin/python.exe \
+            contrib/ia64-llvm/tests/hot_regions.py "$dist/qemu-system-ia64.exe"
 
           if ! display_help="$(PATH="$runtime_path" \
             "$dist/qemu-system-ia64.exe" -display help 2>&1)"; then

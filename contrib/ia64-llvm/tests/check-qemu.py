@@ -11,6 +11,7 @@ from pathlib import Path
 
 SOURCE = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(SOURCE / "tests/unit"))
+from hot_regions import check_hot_regions
 from ia64.encoding_constants import (
     IA64_IMPL_PA_BITS,
     IA64_ISR_CODE_UI,
@@ -18,7 +19,7 @@ from ia64.encoding_constants import (
     IA64_LOWER_PRIV_TRANSFER_VECTOR,
     IA64_UNALIGNED_VECTOR,
 )
-from ia64.qmp import QmpClient
+from ia64.qmp import QmpClient, QmpError
 from ia64.state import parse_state
 
 VECTORS = {
@@ -211,7 +212,7 @@ def check(
                         6000000,
                     )
                     assert tuple(state.gr[i] for i in range(34, 39)) == expected
-                qmp.execute("quit")
+                qmp.quit()
             finally:
                 if proc.poll() is None:
                     try:
@@ -272,26 +273,22 @@ def symbols(elf):
 
 
 def start_paused(qemu, accel):
-    return subprocess.run(
-        [
-            qemu,
-            "-accel",
-            accel,
-            "-machine",
-            "none",
-            "-display",
-            "none",
-            "-nodefaults",
-            "-S",
-            "-qmp",
-            "stdio",
-        ],
-        input='{"execute":"qmp_capabilities"}\n{"execute":"quit"}\n',
-        capture_output=True,
-        check=False,
-        text=True,
-        timeout=10,
-    )
+    command = [qemu, "-accel", accel, "-machine", "none", "-display", "none",
+               "-nodefaults", "-S", "-qmp", "stdio"]
+    with subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE, text=True) as proc:
+        try:
+            try:
+                QmpClient(proc.stdout, proc.stdin).quit()
+            except QmpError:
+                # Invalid accelerator options terminate before the greeting.
+                if proc.wait(10) == 0:
+                    raise
+            stdout, stderr = proc.communicate(timeout=10)
+            return subprocess.CompletedProcess(command, proc.returncode, stdout, stderr)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
 
 
 def has_builtin(qemu):
@@ -312,6 +309,7 @@ if __name__ == "__main__":
         assert removed.returncode and "llvm-jit' not found" in removed.stderr, removed
     builtin = has_builtin(qemu)
     default_library = None if builtin else build / "ia64-llvm.so"
+    check_hot_regions(qemu, stress=True, library=default_library)
     vector_offset = symbols(build / "region-vector.elf")["spin"] - 0x2000000
     cases = ["smc", "fault", "alat", "guard", "interrupt"]
     devices = subprocess.check_output([qemu, "-device", "help"], text=True)

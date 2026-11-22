@@ -14,10 +14,15 @@ if ia64_llvm.allowed() and 'cpp' in all_languages
   endforeach
   if ia64_llvm_builtin
     builtin_flag = '-DCONFIG_IA64_LLVM_BUILTIN'
+    jit_cpp_args = ['-fno-rtti']
+    if get_option('cfi')
+      # ORC calls back across the boundary between QEMU and the system LLVM.
+      jit_cpp_args += '-fno-sanitize=cfi-icall'
+    endif
     backend = static_library('ia64-llvm-backend',
       files('../../contrib/ia64-llvm/frontend.c', '../../contrib/ia64-llvm/lower.c'),
       jit_source, dependencies: llvm, include_directories: include_directories('../..'),
-      c_args: builtin_flag, cpp_args: ['-fno-rtti'], gnu_symbol_visibility: 'hidden')
+      c_args: builtin_flag, cpp_args: jit_cpp_args, gnu_symbol_visibility: 'hidden')
     ia64_ss.add(declare_dependency(link_with: backend, compile_args: builtin_flag))
   endif
 endif
