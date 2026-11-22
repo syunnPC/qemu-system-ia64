@@ -122,6 +122,8 @@ from the other values. Use `-accel tcg,thread=multi` for more than one vCPU.
 | Serial console | `-serial stdio` |
 | AHCI HDD | `-drive ...,if=none,id=<id> -device ide-hd,drive=<id>,bus=ide.<number>` |
 | AHCI CD | `-drive ...,media=cdrom,readonly=on,if=none,id=<id> -device ide-cd,drive=<id>,bus=ide.<number>` |
+| Use TCG & LLVM-backend second-level JIT | `-accel tcg-llvm,cachesize=<memory-size>,thread=<multi\|single>` |
+| Use TCG only | `-accel tcg,thread=<multi\|single>` |
 
 ## Status
 
