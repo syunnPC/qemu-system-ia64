@@ -36,10 +36,10 @@ jobs:
             coreutils \
             gcc-ia64-linux-gnu \
             git \
-            gzip \
             make \
             python3 \
-            tar
+            unzip \
+            zip
 
       - name: Check out the source tree
         uses: actions/checkout@v6
@@ -79,7 +79,7 @@ jobs:
           version="$(tr -d '\r\n' < VERSION)"
           dist_root="$PWD/dist"
           dist="$dist_root/qemu-system-ia64-firmware-$version"
-          archive="$PWD/qemu-system-ia64-firmware.tar.gz"
+          archive="$PWD/qemu-system-ia64-firmware.zip"
 
           rm -rf "$dist_root" "$archive"
           mkdir -p "$dist"
@@ -95,18 +95,18 @@ jobs:
             README.md \
             "$dist/"
 
-          tar -czf "$archive" \
-            -C "$dist_root" \
-            "$(basename "$dist")"
+          (
+            cd "$dist_root"
+            zip -qr "$archive" "$(basename "$dist")"
+          )
 
           test -s "$archive"
-          tar -tzf "$archive" >/dev/null
+          unzip -tq "$archive"
 
       - name: Upload the firmware artifact
         uses: actions/upload-artifact@v7
         with:
-          name: Firmware
-          path: qemu-system-ia64-firmware.tar.gz
+          path: qemu-system-ia64-firmware.zip
           if-no-files-found: error
           archive: false
 
@@ -296,19 +296,20 @@ jobs:
       - name: Download the firmware artifact
         uses: actions/download-artifact@v8
         with:
-          name: qemu-system-ia64-firmware.tar.gz
+          name: qemu-system-ia64-firmware.zip
           path: firmware-artifact
+          skip-decompress: true
 
       - name: Extract and validate the firmware artifact
         run: |
           set -euo pipefail
 
-          archive="firmware-artifact/qemu-system-ia64-firmware.tar.gz"
+          archive="firmware-artifact/qemu-system-ia64-firmware.zip"
           firmware_dir="firmware-artifact/extracted"
 
           test -s "$archive"
           mkdir -p "$firmware_dir"
-          tar -xzf "$archive" -C "$firmware_dir" --strip-components=1
+          unzip -oqj "$archive" -d "$firmware_dir"
 
           for output in bin elf map sections; do
             test -s "$firmware_dir/ia64-firmware.$output"
