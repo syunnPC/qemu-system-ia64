@@ -4,6 +4,7 @@
 #include <mutex>
 #include <string>
 #include <llvm-c/Transforms/PassBuilder.h>
+#include <llvm/Config/llvm-config.h>
 #include <llvm/ExecutionEngine/Orc/CompileUtils.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/ExecutionEngine/Orc/MapperJITLinkMemoryManager.h>
@@ -63,8 +64,8 @@ void report_error(Error err)
     logAllUnhandledErrors(std::move(err), errs(), "IA-64 LLVM: ");
 }
 
-Expected<std::unique_ptr<ObjectLayer>> create_layer(ExecutionSession &session,
-                                                    IA64LLVMCache &cache)
+Expected<std::unique_ptr<jitlink::JITLinkMemoryManager>>
+create_memory_manager(IA64LLVMCache &cache)
 {
     auto page = sys::Process::getPageSize();
     if (!page) {
@@ -77,9 +78,8 @@ Expected<std::unique_ptr<ObjectLayer>> create_layer(ExecutionSession &session,
     granularity = info.dwAllocationGranularity;
 #endif
     auto storage = std::make_unique<CacheMapper>(granularity, cache);
-    auto manager = std::make_unique<MapperJITLinkMemoryManager>(
-        granularity, std::move(storage));
-    return std::make_unique<ObjectLinkingLayer>(session, std::move(manager));
+    return std::make_unique<MapperJITLinkMemoryManager>(granularity,
+                                                       std::move(storage));
 }
 
 } // namespace
@@ -95,19 +95,34 @@ bool ia64_llvm_compile_module(LLVMModuleRef ref, const IA64LLVMSymbol *symbols,
         if (InitializeNativeTarget() || InitializeNativeTargetAsmPrinter()) {
             return;
         }
-        auto created =
-            LLJITBuilder()
-                .setCompileFunctionCreator(
-                    [](JITTargetMachineBuilder tm)
-                        -> Expected<
-                            std::unique_ptr<IRCompileLayer::IRCompiler>> {
-                        return std::make_unique<ConcurrentIRCompiler>(
-                            std::move(tm));
-                    })
-                .setObjectLinkingLayerCreator([cache](ExecutionSession &es) {
-                    return create_layer(es, *cache);
-                })
-                .create();
+        LLJITBuilder builder;
+        builder.setCompileFunctionCreator(
+            [](JITTargetMachineBuilder tm)
+                -> Expected<std::unique_ptr<IRCompileLayer::IRCompiler>> {
+                return std::make_unique<ConcurrentIRCompiler>(std::move(tm));
+            });
+#if LLVM_VERSION_MAJOR >= 23
+        builder.setMemoryManagerCreator([cache](ExecutionSession &) {
+            return create_memory_manager(*cache);
+        });
+        builder.setObjectLinkingLayerCreator(
+            [](ExecutionSession &es, jitlink::JITLinkMemoryManager &manager)
+                -> Expected<std::unique_ptr<ObjectLayer>> {
+                return std::make_unique<ObjectLinkingLayer>(es, manager);
+            });
+#else
+        builder.setObjectLinkingLayerCreator(
+            [cache](ExecutionSession &es)
+                -> Expected<std::unique_ptr<ObjectLayer>> {
+                auto manager = create_memory_manager(*cache);
+                if (!manager) {
+                    return manager.takeError();
+                }
+                return std::make_unique<ObjectLinkingLayer>(es,
+                                                            std::move(*manager));
+            });
+#endif
+        auto created = builder.create();
         if (!created) {
             report_error(created.takeError());
             return;

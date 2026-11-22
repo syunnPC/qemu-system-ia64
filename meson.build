@@ -81,9 +81,11 @@ python = import('python').find_installation()
 
 cc = meson.get_compiler('c')
 all_languages = ['c']
-check_ia64_llvm = 'ia64-softmmu' in target_dirs and not get_option('auto_features').disabled()
-enable_cpp = host_os == 'windows' or get_option('plugins') or check_ia64_llvm
-if enable_cpp and add_languages('cpp', required: false, native: false)
+ia64_llvm = get_option('ia64_llvm').require(
+  'ia64-softmmu' in target_dirs and get_option('tcg').allowed(),
+  error_message: 'The IA-64 LLVM JIT requires the ia64-softmmu target and TCG')
+enable_cpp = host_os == 'windows' or get_option('plugins') or ia64_llvm.allowed()
+if enable_cpp and add_languages('cpp', required: ia64_llvm.enabled(), native: false)
   all_languages += ['cpp']
   cxx = meson.get_compiler('cpp')
 endif

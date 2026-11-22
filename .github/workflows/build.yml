@@ -144,8 +144,13 @@ jobs:
         run: |
           set -euo pipefail
 
+          curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key \
+            | sudo tee /usr/share/keyrings/apt.llvm.org.asc >/dev/null
+          printf '%s\n' 'deb [signed-by=/usr/share/keyrings/apt.llvm.org.asc] https://apt.llvm.org/noble/ llvm-toolchain-noble-21 main' \
+            | sudo tee /etc/apt/sources.list.d/llvm-21.list >/dev/null
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
+            binutils-ia64-linux-gnu \
             bison \
             build-essential \
             file \
@@ -157,6 +162,8 @@ jobs:
             libpixman-1-dev \
             libsdl2-dev \
             libslirp-dev \
+            libzstd-dev \
+            llvm-21-dev \
             ninja-build \
             pkg-config \
             python3 \
@@ -195,12 +202,13 @@ jobs:
 
           (
             cd "$build_dir"
-            CC=gcc CXX=g++ ../configure \
+            PATH="/usr/lib/llvm-21/bin:$PATH" CC=gcc CXX=g++ ../configure \
               "${optimization_args[@]}" \
               --python=/usr/bin/python3 \
               --target-list=ia64-softmmu \
               --enable-system \
               --enable-tcg \
+              --enable-ia64-llvm \
               --enable-pixman \
               --enable-fdt=system \
               --enable-gtk \
@@ -240,7 +248,13 @@ jobs:
             echo "Linux x86-64 artifact has unresolved shared libraries" >&2
             exit 1
           fi
+          if grep -Eiq 'libLLVM[^[:space:]/]*\.so' linux-library-dependencies.txt; then
+            echo "Linux x86-64 artifact depends on a shared LLVM library" >&2
+            exit 1
+          fi
           "$executable" --version
+          make -C contrib/ia64-llvm -j"$(nproc)" check-qemu \
+            LLVM_CONFIG=llvm-config-21 QEMU="$PWD/$executable"
 
           rm -rf "$dist_root" "$archive"
           mkdir -p "$dist/share/keymaps"
@@ -253,6 +267,9 @@ jobs:
             README.md \
             linux-library-dependencies.txt \
             "$dist/"
+          install -m 0644 contrib/ia64-llvm/LICENSE "$dist/LLVM-LICENSE"
+          install -m 0644 contrib/ia64-llvm/NOTICE "$dist/LLVM-NOTICES"
+          install -m 0644 /usr/share/doc/llvm-21-dev/copyright "$dist/LLVM-COPYRIGHT"
 
           install -m 0644 \
             pc-bios/efi-e1000.rom \
@@ -319,6 +336,10 @@ jobs:
         run: |
           set -euo pipefail
 
+          curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key \
+            | sudo tee /usr/share/keyrings/apt.llvm.org.asc >/dev/null
+          printf '%s\n' 'deb [signed-by=/usr/share/keyrings/apt.llvm.org.asc] https://apt.llvm.org/noble/ llvm-toolchain-noble-21 main' \
+            | sudo tee /etc/apt/sources.list.d/llvm-21.list >/dev/null
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             bison \
@@ -332,6 +353,8 @@ jobs:
             libpixman-1-dev \
             libsdl2-dev \
             libslirp-dev \
+            libzstd-dev \
+            llvm-21-dev \
             ninja-build \
             pkg-config \
             python3 \
@@ -349,11 +372,12 @@ jobs:
 
           (
             cd build-linux-aarch64
-            CC=gcc CXX=g++ ../configure \
+            PATH="/usr/lib/llvm-21/bin:$PATH" CC=gcc CXX=g++ ../configure \
               --python=/usr/bin/python3 \
               --target-list=ia64-softmmu \
               --enable-system \
               --enable-tcg \
+              --enable-ia64-llvm \
               --enable-pixman \
               --enable-fdt=system \
               --enable-gtk \
@@ -396,6 +420,9 @@ jobs:
           printf '%s\n' "$elf_header"
           grep -Eq 'Machine:[[:space:]]+AArch64' <<<"$elf_header"
           "$executable" --version
+          printf '%s\n' '{"execute":"qmp_capabilities"}' '{"execute":"quit"}' \
+            | timeout 30s "$executable" -accel tcg-llvm -machine none \
+                -display none -nodefaults -S -qmp stdio
 
       - name: Run IA-64 TCG unit tests natively
         run: |
@@ -435,6 +462,10 @@ jobs:
             echo "Linux AArch64 artifact has unresolved shared libraries" >&2
             exit 1
           fi
+          if grep -Eiq 'libLLVM[^[:space:]/]*\.so' linux-aarch64-library-dependencies.txt; then
+            echo "Linux AArch64 artifact depends on a shared LLVM library" >&2
+            exit 1
+          fi
 
           rm -rf "$dist_root" "$archive"
           mkdir -p "$dist/share/keymaps"
@@ -447,6 +478,9 @@ jobs:
             README.md \
             linux-aarch64-library-dependencies.txt \
             "$dist/"
+          install -m 0644 contrib/ia64-llvm/LICENSE "$dist/LLVM-LICENSE"
+          install -m 0644 contrib/ia64-llvm/NOTICE "$dist/LLVM-NOTICES"
+          install -m 0644 /usr/share/doc/llvm-21-dev/copyright "$dist/LLVM-COPYRIGHT"
 
           install -m 0644 \
             pc-bios/efi-e1000.rom \
@@ -531,6 +565,8 @@ jobs:
             mingw-w64-ucrt-x86_64-hicolor-icon-theme
             mingw-w64-ucrt-x86_64-librsvg
             mingw-w64-ucrt-x86_64-libslirp
+            mingw-w64-ucrt-x86_64-llvm
+            mingw-w64-ucrt-x86_64-llvm-tools
             mingw-w64-ucrt-x86_64-ninja
             mingw-w64-ucrt-x86_64-pixman
             mingw-w64-ucrt-x86_64-pkgconf
@@ -585,6 +621,7 @@ jobs:
               --target-list=ia64-softmmu \
               --enable-system \
               --enable-tcg \
+              --enable-ia64-llvm \
               --enable-pixman \
               --enable-fdt=system \
               --enable-gtk \
@@ -673,6 +710,8 @@ jobs:
             LICENSE \
             README.md \
             "$dist/"
+          install -m 0644 contrib/ia64-llvm/LICENSE "$dist/LLVM-LICENSE"
+          install -m 0644 contrib/ia64-llvm/NOTICE "$dist/LLVM-NOTICES"
 
           install -m 0644 \
             pc-bios/efi-e1000.rom \
@@ -741,6 +780,10 @@ jobs:
               [[ -n "$dll" ]] || continue
 
               key="${dll,,}"
+              if [[ "$key" =~ ^(lib)?llvm.*\.dll$ ]]; then
+                echo "Windows artifact depends on $dll (required by $pe_file)" >&2
+                exit 1
+              fi
               if [[ -n "${seen[$key]+x}" ]]; then
                 continue
               fi
@@ -819,6 +862,9 @@ jobs:
             echo "Staged GUI executable failed to start" >&2
             exit 1
           fi
+          printf '%s\n' '{"execute":"qmp_capabilities"}' '{"execute":"quit"}' \
+            | timeout 30s env PATH="$runtime_path" "$dist/qemu-system-ia64.exe" \
+                -accel tcg-llvm -machine none -display none -nodefaults -S -qmp stdio
 
           if ! display_help="$(PATH="$runtime_path" \
             "$dist/qemu-system-ia64.exe" -display help 2>&1)"; then
