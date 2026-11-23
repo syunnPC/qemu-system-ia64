@@ -201,6 +201,7 @@ and device support remain experimental.
 - [Open-source XPDM driver for ATI graphics on IA-64 Windows](https://github.com/syunnPC/qemu-system-ia64-ati-xpdm) (deprecated)
 - [Open-source XPDM driver for NVIDIA Quadro2 graphics on IA-64 Windows](https://github.com/syunnPC/qemu-system-ia64-nv-xpdm) (deprecated)
 - [An experimental IA-64 hypervisor for AMD64 hosts](https://github.com/syunnPC/ia64-vmm)
+- [GUI Frontend for Windows hosts](https://github.com/syunnPC/qemu-system-ia64-windows-gui)
 
 ## Legal disclaimer
 
