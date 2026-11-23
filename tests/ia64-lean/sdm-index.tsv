@@ -1,0 +1,1417 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Coverage identifiers and locations from Intel SDM revision 2.3.
+sdm-form:add:add:A1:1	v3 p.3:14
+sdm-form:add:add:A1:2	v3 p.3:14
+sdm-form:add:add:pseudo-op:3	v3 p.3:14
+sdm-form:add:addl:A5:5	v3 p.3:14
+sdm-form:add:adds:A4:4	v3 p.3:14
+sdm-form:addp4:addp4:A1:1	v3 p.3:15
+sdm-form:addp4:addp4:A4:2	v3 p.3:15
+sdm-form:alloc:alloc:M34:1	v3 p.3:16
+sdm-form:and:and:A1:1	v3 p.3:18
+sdm-form:and:and:A3:2	v3 p.3:18
+sdm-form:andcm:andcm:A1:1	v3 p.3:19
+sdm-form:andcm:andcm:A3:2	v3 p.3:19
+sdm-form:br:br.btype.bwh.ph.dh:B1:1	v3 p.3:20
+sdm-form:br:br.btype.bwh.ph.dh:B2:3	v3 p.3:20
+sdm-form:br:br.btype.bwh.ph.dh:B3:2	v3 p.3:20
+sdm-form:br:br.btype.bwh.ph.dh:B4:5	v3 p.3:20
+sdm-form:br:br.btype.bwh.ph.dh:B5:6	v3 p.3:20
+sdm-form:br:br.ph.dh:pseudo-op:4	v3 p.3:20
+sdm-form:br:br.ph.dh:pseudo-op:7	v3 p.3:20
+sdm-form:break:break.b:B9:3	v3 p.3:29
+sdm-form:break:break.f:F15:5	v3 p.3:29
+sdm-form:break:break.i:I19:2	v3 p.3:29
+sdm-form:break:break.m:M37:4	v3 p.3:29
+sdm-form:break:break.x:X1:6	v3 p.3:29
+sdm-form:break:break:pseudo-op:1	v3 p.3:29
+sdm-form:brl:brl.btype.bwh.ph.dh:X3:1	v3 p.3:30
+sdm-form:brl:brl.btype.bwh.ph.dh:X4:2	v3 p.3:30
+sdm-form:brl:brl.ph.dh:pseudo-op:3	v3 p.3:30
+sdm-form:brp:brp.indwh.ih:B7:2	v3 p.3:32
+sdm-form:brp:brp.ipwh.ih:B6:1	v3 p.3:32
+sdm-form:brp:brp.ret.indwh.ih:B7:3	v3 p.3:32
+sdm-form:bsw:bsw.0:B8:1	v3 p.3:34
+sdm-form:bsw:bsw.1:B8:2	v3 p.3:34
+sdm-form:chk:chk.a.aclr:M22:5	v3 p.3:35
+sdm-form:chk:chk.a.aclr:M23:6	v3 p.3:35
+sdm-form:chk:chk.s.i:I20:2	v3 p.3:35
+sdm-form:chk:chk.s.m:M20:3	v3 p.3:35
+sdm-form:chk:chk.s:M21:4	v3 p.3:35
+sdm-form:chk:chk.s:pseudo-op:1	v3 p.3:35
+sdm-form:clrrrb:clrrrb.pr:B8:2	v3 p.3:37
+sdm-form:clrrrb:clrrrb:B8:1	v3 p.3:37
+sdm-form:clz:clz:I9:1	v3 p.3:38
+sdm-form:cmp4:cmp4.crel.ctype:A6:1	v3 p.3:43
+sdm-form:cmp4:cmp4.crel.ctype:A7:3	v3 p.3:43
+sdm-form:cmp4:cmp4.crel.ctype:A8:2	v3 p.3:43
+sdm-form:cmp4:cmp4.crel.ctype:pseudo-op:4	v3 p.3:43
+sdm-form:cmp:cmp.crel.ctype:A6:1	v3 p.3:39
+sdm-form:cmp:cmp.crel.ctype:A7:3	v3 p.3:39
+sdm-form:cmp:cmp.crel.ctype:A8:2	v3 p.3:39
+sdm-form:cmp:cmp.crel.ctype:pseudo-op:4	v3 p.3:39
+sdm-form:cmpxchg:cmp8xchg16.sem.ldhint:M16:2	v3 p.3:46
+sdm-form:cmpxchg:cmpxchgsz.sem.ldhint:M16:1	v3 p.3:46
+sdm-form:cover:cover:B8:1	v3 p.3:48
+sdm-form:czx:czx1.l:I29:1	v3 p.3:49
+sdm-form:czx:czx1.r:I29:2	v3 p.3:49
+sdm-form:czx:czx2.l:I29:3	v3 p.3:49
+sdm-form:czx:czx2.r:I29:4	v3 p.3:49
+sdm-form:dep:dep.z:I12:3	v3 p.3:51
+sdm-form:dep:dep.z:I13:4	v3 p.3:51
+sdm-form:dep:dep:I14:2	v3 p.3:51
+sdm-form:dep:dep:I15:1	v3 p.3:51
+sdm-form:epc:epc:B8:1	v3 p.3:53
+sdm-form:extr:extr.u:I11:2	v3 p.3:54
+sdm-form:extr:extr:I11:1	v3 p.3:54
+sdm-form:fabs:fabs:pseudo-op:1	v3 p.3:55
+sdm-form:fadd:fadd.pc.sf:pseudo-op:1	v3 p.3:56
+sdm-form:famax:famax.sf:F8:1	v3 p.3:57
+sdm-form:famin:famin.sf:F8:1	v3 p.3:58
+sdm-form:fand:fand:F9:1	v3 p.3:59
+sdm-form:fandcm:fandcm:F9:1	v3 p.3:60
+sdm-form:fc:fc.i:M28:2	v3 p.3:61
+sdm-form:fc:fc:M28:1	v3 p.3:61
+sdm-form:fchkf:fchkf.sf:F14:1	v3 p.3:63
+sdm-form:fclass:fclass.fcrel.fctype:F5:1	v3 p.3:64
+sdm-form:fclrf:fclrf.sf:F13:1	v3 p.3:66
+sdm-form:fcmp:fcmp.frel.fctype.sf:F4:1	v3 p.3:67
+sdm-form:fcvt.fx:fcvt.fx.sf:F10:1	v3 p.3:70
+sdm-form:fcvt.fx:fcvt.fx.trunc.sf:F10:2	v3 p.3:70
+sdm-form:fcvt.fx:fcvt.fxu.sf:F10:3	v3 p.3:70
+sdm-form:fcvt.fx:fcvt.fxu.trunc.sf:F10:4	v3 p.3:70
+sdm-form:fcvt.xf:fcvt.xf:F11:1	v3 p.3:72
+sdm-form:fcvt.xuf:fcvt.xuf.pc.sf:pseudo-op:1	v3 p.3:73
+sdm-form:fetchadd:fetchadd4.sem.ldhint:M17:1	v3 p.3:74
+sdm-form:fetchadd:fetchadd8.sem.ldhint:M17:2	v3 p.3:74
+sdm-form:flushrs:flushrs:M25:1	v3 p.3:76
+sdm-form:fma:fma.pc.sf:F1:1	v3 p.3:77
+sdm-form:fmax:fmax.sf:F8:1	v3 p.3:79
+sdm-form:fmerge:fmerge.ns:F9:1	v3 p.3:80
+sdm-form:fmerge:fmerge.s:F9:2	v3 p.3:80
+sdm-form:fmerge:fmerge.se:F9:3	v3 p.3:80
+sdm-form:fmin:fmin.sf:F8:1	v3 p.3:82
+sdm-form:fmix:fmix.l:F9:1	v3 p.3:83
+sdm-form:fmix:fmix.lr:F9:3	v3 p.3:83
+sdm-form:fmix:fmix.r:F9:2	v3 p.3:83
+sdm-form:fmpy:fmpy.pc.sf:pseudo-op:1	v3 p.3:85
+sdm-form:fms:fms.pc.sf:F1:1	v3 p.3:86
+sdm-form:fneg:fneg:pseudo-op:1	v3 p.3:88
+sdm-form:fnegabs:fnegabs:pseudo-op:1	v3 p.3:89
+sdm-form:fnma:fnma.pc.sf:F1:1	v3 p.3:90
+sdm-form:fnmpy:fnmpy.pc.sf:pseudo-op:1	v3 p.3:92
+sdm-form:fnorm:fnorm.pc.sf:pseudo-op:1	v3 p.3:93
+sdm-form:for:for:F9:1	v3 p.3:94
+sdm-form:fpabs:fpabs:pseudo-op:1	v3 p.3:95
+sdm-form:fpack:fpack:F9:1	v3 p.3:96
+sdm-form:fpamax:fpamax.sf:F8:1	v3 p.3:97
+sdm-form:fpamin:fpamin.sf:F8:1	v3 p.3:99
+sdm-form:fpcmp:fpcmp.frel.sf:F8:1	v3 p.3:101
+sdm-form:fpcvt.fx:fpcvt.fx.sf:F10:1	v3 p.3:104
+sdm-form:fpcvt.fx:fpcvt.fx.trunc.sf:F10:2	v3 p.3:104
+sdm-form:fpcvt.fx:fpcvt.fxu.sf:F10:3	v3 p.3:104
+sdm-form:fpcvt.fx:fpcvt.fxu.trunc.sf:F10:4	v3 p.3:104
+sdm-form:fpma:fpma.sf:F1:1	v3 p.3:107
+sdm-form:fpmax:fpmax.sf:F8:1	v3 p.3:109
+sdm-form:fpmerge:fpmerge.ns:F9:1	v3 p.3:111
+sdm-form:fpmerge:fpmerge.s:F9:2	v3 p.3:111
+sdm-form:fpmerge:fpmerge.se:F9:3	v3 p.3:111
+sdm-form:fpmin:fpmin.sf:F8:1	v3 p.3:113
+sdm-form:fpmpy:fpmpy.sf:pseudo-op:1	v3 p.3:115
+sdm-form:fpms:fpms.sf:F1:1	v3 p.3:116
+sdm-form:fpneg:fpneg:pseudo-op:1	v3 p.3:118
+sdm-form:fpnegabs:fpnegabs:pseudo-op:1	v3 p.3:119
+sdm-form:fpnma:fpnma.sf:F1:1	v3 p.3:120
+sdm-form:fpnmpy:fpnmpy.sf:pseudo-op:1	v3 p.3:122
+sdm-form:fprcpa:fprcpa.sf:F6:1	v3 p.3:123
+sdm-form:fprsqrta:fprsqrta.sf:F7:1	v3 p.3:126
+sdm-form:frcpa:frcpa.sf:F6:1	v3 p.3:128
+sdm-form:frsqrta:frsqrta.sf:F7:1	v3 p.3:131
+sdm-form:fselect:fselect:F3:1	v3 p.3:134
+sdm-form:fsetc:fsetc.sf:F12:1	v3 p.3:135
+sdm-form:fsub:fsub.pc.sf:pseudo-op:1	v3 p.3:136
+sdm-form:fswap:fswap.nl:F9:2	v3 p.3:137
+sdm-form:fswap:fswap.nr:F9:3	v3 p.3:137
+sdm-form:fswap:fswap:F9:1	v3 p.3:137
+sdm-form:fsxt:fsxt.l:F9:1	v3 p.3:139
+sdm-form:fsxt:fsxt.r:F9:2	v3 p.3:139
+sdm-form:fwb:fwb:M24:1	v3 p.3:141
+sdm-form:fxor:fxor:F9:1	v3 p.3:142
+sdm-form:getf:getf.d:M19:2	v3 p.3:143
+sdm-form:getf:getf.exp:M19:3	v3 p.3:143
+sdm-form:getf:getf.s:M19:1	v3 p.3:143
+sdm-form:getf:getf.sig:M19:4	v3 p.3:143
+sdm-form:hint:hint.b:B9:3	v3 p.3:145
+sdm-form:hint:hint.f:F16:5	v3 p.3:145
+sdm-form:hint:hint.i:I18:2	v3 p.3:145
+sdm-form:hint:hint.m:M48:4	v3 p.3:145
+sdm-form:hint:hint.x:X5:6	v3 p.3:145
+sdm-form:hint:hint:pseudo-op:1	v3 p.3:145
+sdm-form:invala:invala.e:M26:2	v3 p.3:146
+sdm-form:invala:invala.e:M27:3	v3 p.3:146
+sdm-form:invala:invala:M24:1	v3 p.3:146
+sdm-form:itc:itc.d:M41:2	v3 p.3:147
+sdm-form:itc:itc.i:M41:1	v3 p.3:147
+sdm-form:itr:itr.d:M42:2	v3 p.3:149
+sdm-form:itr:itr.i:M42:1	v3 p.3:149
+sdm-form:ld:ld16.acq.ldhint:M2:5	v3 p.3:151
+sdm-form:ld:ld16.ldhint:M2:4	v3 p.3:151
+sdm-form:ld:ld8.fill.ldhint:M2:6	v3 p.3:151
+sdm-form:ld:ld8.fill.ldhint:M2:7	v3 p.3:151
+sdm-form:ld:ld8.fill.ldhint:M3:8	v3 p.3:151
+sdm-form:ld:ldsz.ldtype.ldhint:M2:1	v3 p.3:151
+sdm-form:ld:ldsz.ldtype.ldhint:M2:2	v3 p.3:151
+sdm-form:ld:ldsz.ldtype.ldhint:M3:3	v3 p.3:151
+sdm-form:ldf:ldf.fill.ldhint:M7:8	v3 p.3:157
+sdm-form:ldf:ldf.fill.ldhint:M8:9	v3 p.3:157
+sdm-form:ldf:ldf.fill.ldhint:M9:7	v3 p.3:157
+sdm-form:ldf:ldf8.fldtype.ldhint:M7:5	v3 p.3:157
+sdm-form:ldf:ldf8.fldtype.ldhint:M8:6	v3 p.3:157
+sdm-form:ldf:ldf8.fldtype.ldhint:M9:4	v3 p.3:157
+sdm-form:ldf:ldffsz.fldtype.ldhint:M7:2	v3 p.3:157
+sdm-form:ldf:ldffsz.fldtype.ldhint:M8:3	v3 p.3:157
+sdm-form:ldf:ldffsz.fldtype.ldhint:M9:1	v3 p.3:157
+sdm-form:ldfp:ldfp8.fldtype.ldhint:M11:5	v3 p.3:161
+sdm-form:ldfp:ldfp8.fldtype.ldhint:M12:6	v3 p.3:161
+sdm-form:ldfp:ldfpd.fldtype.ldhint:M11:3	v3 p.3:161
+sdm-form:ldfp:ldfpd.fldtype.ldhint:M12:4	v3 p.3:161
+sdm-form:ldfp:ldfps.fldtype.ldhint:M11:1	v3 p.3:161
+sdm-form:ldfp:ldfps.fldtype.ldhint:M12:2	v3 p.3:161
+sdm-form:lfetch:lfetch.lftype.excl.lfhint:M18:4	v3 p.3:164
+sdm-form:lfetch:lfetch.lftype.excl.lfhint:M20:5	v3 p.3:164
+sdm-form:lfetch:lfetch.lftype.excl.lfhint:M22:6	v3 p.3:164
+sdm-form:lfetch:lfetch.lftype.lfhint:M18:1	v3 p.3:164
+sdm-form:lfetch:lfetch.lftype.lfhint:M20:2	v3 p.3:164
+sdm-form:lfetch:lfetch.lftype.lfhint:M22:3	v3 p.3:164
+sdm-form:loadrs:loadrs:M25:1	v3 p.3:167
+sdm-form:mf:mf.a:M24:2	v3 p.3:168
+sdm-form:mf:mf:M24:1	v3 p.3:168
+sdm-form:mix:mix1.l:I2:1	v3 p.3:169
+sdm-form:mix:mix1.r:I2:4	v3 p.3:169
+sdm-form:mix:mix2.l:I2:2	v3 p.3:169
+sdm-form:mix:mix2.r:I2:5	v3 p.3:169
+sdm-form:mix:mix4.l:I2:3	v3 p.3:169
+sdm-form:mix:mix4.r:I2:6	v3 p.3:169
+sdm-form:mov-ar:mov.i:I26:5	v3 p.3:172
+sdm-form:mov-ar:mov.i:I27:6	v3 p.3:172
+sdm-form:mov-ar:mov.i:I28:4	v3 p.3:172
+sdm-form:mov-ar:mov.m:M29:8	v3 p.3:172
+sdm-form:mov-ar:mov.m:M30:9	v3 p.3:172
+sdm-form:mov-ar:mov.m:M31:7	v3 p.3:172
+sdm-form:mov-ar:mov:pseudo-op:1	v3 p.3:172
+sdm-form:mov-ar:mov:pseudo-op:2	v3 p.3:172
+sdm-form:mov-ar:mov:pseudo-op:3	v3 p.3:172
+sdm-form:mov-br:mov.mwh.ih:I21:3	v3 p.3:174
+sdm-form:mov-br:mov.ret.mwh.ih:I21:4	v3 p.3:174
+sdm-form:mov-br:mov:I22:1	v3 p.3:174
+sdm-form:mov-br:mov:pseudo-op:2	v3 p.3:174
+sdm-form:mov-cr:mov:M32:2	v3 p.3:175
+sdm-form:mov-cr:mov:M33:1	v3 p.3:175
+sdm-form:mov-fr:mov:pseudo-op:1	v3 p.3:177
+sdm-form:mov-gr:mov:pseudo-op:1	v3 p.3:178
+sdm-form:mov-imm:mov:pseudo-op:1	v3 p.3:179
+sdm-form:mov-indirect:mov:M42:2	v3 p.3:180
+sdm-form:mov-indirect:mov:M43:1	v3 p.3:180
+sdm-form:mov-ip:mov:I25:1	v3 p.3:183
+sdm-form:mov-pr:mov:I23:2	v3 p.3:184
+sdm-form:mov-pr:mov:I24:3	v3 p.3:184
+sdm-form:mov-pr:mov:I25:1	v3 p.3:184
+sdm-form:mov-psr:mov:M35:2	v3 p.3:185
+sdm-form:mov-psr:mov:M36:1	v3 p.3:185
+sdm-form:mov-um:mov:M35:2	v3 p.3:186
+sdm-form:mov-um:mov:M36:1	v3 p.3:186
+sdm-form:movl:movl:X2:1	v3 p.3:187
+sdm-form:mpy4:mpy4:I2:1	v3 p.3:188
+sdm-form:mpyshl4:mpyshl4:I2:1	v3 p.3:189
+sdm-form:mux:mux1:I3:1	v3 p.3:190
+sdm-form:mux:mux2:I4:2	v3 p.3:190
+sdm-form:nop:nop.b:B9:3	v3 p.3:193
+sdm-form:nop:nop.f:F16:5	v3 p.3:193
+sdm-form:nop:nop.i:I18:2	v3 p.3:193
+sdm-form:nop:nop.m:M48:4	v3 p.3:193
+sdm-form:nop:nop.x:X5:6	v3 p.3:193
+sdm-form:nop:nop:pseudo-op:1	v3 p.3:193
+sdm-form:or:or:A1:1	v3 p.3:194
+sdm-form:or:or:A3:2	v3 p.3:194
+sdm-form:pack:pack2.sss:I2:1	v3 p.3:195
+sdm-form:pack:pack2.uss:I2:2	v3 p.3:195
+sdm-form:pack:pack4.sss:I2:3	v3 p.3:195
+sdm-form:padd:padd1.sss:A9:2	v3 p.3:197
+sdm-form:padd:padd1.uus:A9:3	v3 p.3:197
+sdm-form:padd:padd1.uuu:A9:4	v3 p.3:197
+sdm-form:padd:padd1:A9:1	v3 p.3:197
+sdm-form:padd:padd2.sss:A9:6	v3 p.3:197
+sdm-form:padd:padd2.uus:A9:7	v3 p.3:197
+sdm-form:padd:padd2.uuu:A9:8	v3 p.3:197
+sdm-form:padd:padd2:A9:5	v3 p.3:197
+sdm-form:padd:padd4:A9:9	v3 p.3:197
+sdm-form:pavg:pavg1.raz:A9:2	v3 p.3:201
+sdm-form:pavg:pavg1:A9:1	v3 p.3:201
+sdm-form:pavg:pavg2.raz:A9:4	v3 p.3:201
+sdm-form:pavg:pavg2:A9:3	v3 p.3:201
+sdm-form:pavgsub:pavgsub1:A9:1	v3 p.3:204
+sdm-form:pavgsub:pavgsub2:A9:2	v3 p.3:204
+sdm-form:pcmp:pcmp1.prel:A9:1	v3 p.3:206
+sdm-form:pcmp:pcmp2.prel:A9:2	v3 p.3:206
+sdm-form:pcmp:pcmp4.prel:A9:3	v3 p.3:206
+sdm-form:pmax:pmax1.u:I2:1	v3 p.3:209
+sdm-form:pmax:pmax2:I2:2	v3 p.3:209
+sdm-form:pmin:pmin1.u:I2:1	v3 p.3:211
+sdm-form:pmin:pmin2:I2:2	v3 p.3:211
+sdm-form:pmpy:pmpy2.l:I2:2	v3 p.3:213
+sdm-form:pmpy:pmpy2.r:I2:1	v3 p.3:213
+sdm-form:pmpyshr:pmpyshr2.u:I1:2	v3 p.3:214
+sdm-form:pmpyshr:pmpyshr2:I1:1	v3 p.3:214
+sdm-form:popcnt:popcnt:I9:1	v3 p.3:216
+sdm-form:probe:probe.r.fault:M40:5	v3 p.3:217
+sdm-form:probe:probe.r:M38:1	v3 p.3:217
+sdm-form:probe:probe.r:M39:3	v3 p.3:217
+sdm-form:probe:probe.rw.fault:M40:7	v3 p.3:217
+sdm-form:probe:probe.w.fault:M40:6	v3 p.3:217
+sdm-form:probe:probe.w:M38:2	v3 p.3:217
+sdm-form:probe:probe.w:M39:4	v3 p.3:217
+sdm-form:psad:psad1:I2:1	v3 p.3:220
+sdm-form:pshl:pshl2:I7:1	v3 p.3:222
+sdm-form:pshl:pshl2:I8:2	v3 p.3:222
+sdm-form:pshl:pshl4:I7:3	v3 p.3:222
+sdm-form:pshl:pshl4:I8:4	v3 p.3:222
+sdm-form:pshladd:pshladd2:A10:1	v3 p.3:223
+sdm-form:pshr:pshr2.u:I5:3	v3 p.3:224
+sdm-form:pshr:pshr2.u:I6:4	v3 p.3:224
+sdm-form:pshr:pshr2:I5:1	v3 p.3:224
+sdm-form:pshr:pshr2:I6:2	v3 p.3:224
+sdm-form:pshr:pshr4.u:I5:7	v3 p.3:224
+sdm-form:pshr:pshr4.u:I6:8	v3 p.3:224
+sdm-form:pshr:pshr4:I5:5	v3 p.3:224
+sdm-form:pshr:pshr4:I6:6	v3 p.3:224
+sdm-form:pshradd:pshradd2:A10:1	v3 p.3:226
+sdm-form:psub:psub1.sss:A9:2	v3 p.3:227
+sdm-form:psub:psub1.uus:A9:3	v3 p.3:227
+sdm-form:psub:psub1.uuu:A9:4	v3 p.3:227
+sdm-form:psub:psub1:A9:1	v3 p.3:227
+sdm-form:psub:psub2.sss:A9:6	v3 p.3:227
+sdm-form:psub:psub2.uus:A9:7	v3 p.3:227
+sdm-form:psub:psub2.uuu:A9:8	v3 p.3:227
+sdm-form:psub:psub2:A9:5	v3 p.3:227
+sdm-form:psub:psub4:A9:9	v3 p.3:227
+sdm-form:ptc.e:ptc.e:M47:1	v3 p.3:230
+sdm-form:ptc.g-ptc.ga:ptc.g:M45:1	v3 p.3:231
+sdm-form:ptc.g-ptc.ga:ptc.ga:M45:2	v3 p.3:231
+sdm-form:ptc.l:ptc.l:M45:1	v3 p.3:233
+sdm-form:ptr:ptr.d:M45:1	v3 p.3:234
+sdm-form:ptr:ptr.i:M45:2	v3 p.3:234
+sdm-form:rfi:rfi:B8:1	v3 p.3:236
+sdm-form:rsm:rsm:M44:1	v3 p.3:239
+sdm-form:rum:rum:M44:1	v3 p.3:241
+sdm-form:setf:setf.d:M18:2	v3 p.3:242
+sdm-form:setf:setf.exp:M18:3	v3 p.3:242
+sdm-form:setf:setf.s:M18:1	v3 p.3:242
+sdm-form:setf:setf.sig:M18:4	v3 p.3:242
+sdm-form:shl:shl:I7:1	v3 p.3:244
+sdm-form:shl:shl:pseudo-op:2	v3 p.3:244
+sdm-form:shladd:shladd:A2:1	v3 p.3:245
+sdm-form:shladdp4:shladdp4:A2:1	v3 p.3:246
+sdm-form:shr:shr.u:I5:2	v3 p.3:247
+sdm-form:shr:shr.u:pseudo-op:4	v3 p.3:247
+sdm-form:shr:shr:I5:1	v3 p.3:247
+sdm-form:shr:shr:pseudo-op:3	v3 p.3:247
+sdm-form:shrp:shrp:I10:1	v3 p.3:248
+sdm-form:srlz:srlz.d:M24:2	v3 p.3:249
+sdm-form:srlz:srlz.i:M24:1	v3 p.3:249
+sdm-form:ssm:ssm:M44:1	v3 p.3:250
+sdm-form:st:st16.sttype.sthint:M6:3	v3 p.3:251
+sdm-form:st:st8.spill.sthint:M5:5	v3 p.3:251
+sdm-form:st:st8.spill.sthint:M6:4	v3 p.3:251
+sdm-form:st:stsz.sttype.sthint:M5:2	v3 p.3:251
+sdm-form:st:stsz.sttype.sthint:M6:1	v3 p.3:251
+sdm-form:stf:stf.spill.sthint:M10:6	v3 p.3:254
+sdm-form:stf:stf.spill.sthint:M13:5	v3 p.3:254
+sdm-form:stf:stf8.sthint:M10:4	v3 p.3:254
+sdm-form:stf:stf8.sthint:M13:3	v3 p.3:254
+sdm-form:stf:stffsz.sthint:M10:2	v3 p.3:254
+sdm-form:stf:stffsz.sthint:M13:1	v3 p.3:254
+sdm-form:sub:sub:A1:1	v3 p.3:256
+sdm-form:sub:sub:A1:2	v3 p.3:256
+sdm-form:sub:sub:A3:3	v3 p.3:256
+sdm-form:sum:sum:M44:1	v3 p.3:257
+sdm-form:sxt:sxtxsz:I29:1	v3 p.3:258
+sdm-form:sync:sync.i:M24:1	v3 p.3:259
+sdm-form:tak:tak:M46:1	v3 p.3:260
+sdm-form:tbit:tbit.trel.ctype:I16:1	v3 p.3:261
+sdm-form:tf:tf.trel.ctype:I30:1	v3 p.3:263
+sdm-form:thash:thash:M46:1	v3 p.3:265
+sdm-form:tnat:tnat.trel.ctype:I17:1	v3 p.3:266
+sdm-form:tpa:tpa:M46:1	v3 p.3:268
+sdm-form:ttag:ttag:M46:1	v3 p.3:269
+sdm-form:unpack:unpack1.h:I2:1	v3 p.3:270
+sdm-form:unpack:unpack1.l:I2:4	v3 p.3:270
+sdm-form:unpack:unpack2.h:I2:2	v3 p.3:270
+sdm-form:unpack:unpack2.l:I2:5	v3 p.3:270
+sdm-form:unpack:unpack4.h:I2:3	v3 p.3:270
+sdm-form:unpack:unpack4.l:I2:6	v3 p.3:270
+sdm-form:vmsw:vmsw.0:B8:1	v3 p.3:273
+sdm-form:vmsw:vmsw.1:B8:2	v3 p.3:273
+sdm-form:xchg:xchgsz.ldhint:M16:1	v3 p.3:274
+sdm-form:xma:xma.h:F2:3	v3 p.3:276
+sdm-form:xma:xma.hu:F2:4	v3 p.3:276
+sdm-form:xma:xma.l:F2:1	v3 p.3:276
+sdm-form:xma:xma.lu:pseudo-op:2	v3 p.3:276
+sdm-form:xmpy:xmpy.h:pseudo-op:3	v3 p.3:278
+sdm-form:xmpy:xmpy.hu:pseudo-op:4	v3 p.3:278
+sdm-form:xmpy:xmpy.l:pseudo-op:1	v3 p.3:278
+sdm-form:xmpy:xmpy.lu:pseudo-op:2	v3 p.3:278
+sdm-form:xor:xor:A1:1	v3 p.3:279
+sdm-form:xor:xor:A3:2	v3 p.3:279
+sdm-form:zxt:zxtxsz:I29:1	v3 p.3:280
+sdm-ia32:AAA	v4 4:21
+sdm-ia32:AAD	v4 4:22
+sdm-ia32:AAM	v4 4:23
+sdm-ia32:AAS	v4 4:24
+sdm-ia32:ADC	v4 4:25, 4:26
+sdm-ia32:ADD	v4 4:27, 4:28
+sdm-ia32:ADDPS	v4 4:486
+sdm-ia32:ADDSS	v4 4:487
+sdm-ia32:AND	v4 4:29, 4:30
+sdm-ia32:ANDNPS	v4 4:488
+sdm-ia32:ANDPS	v4 4:489
+sdm-ia32:ARPL	v4 4:31, 4:32
+sdm-ia32:BOUND	v4 4:33, 4:34
+sdm-ia32:BSF	v4 4:35, 4:36
+sdm-ia32:BSR	v4 4:37, 4:38
+sdm-ia32:BSWAP	v4 4:39
+sdm-ia32:BT	v4 4:40, 4:41
+sdm-ia32:BTC	v4 4:42, 4:43
+sdm-ia32:BTR	v4 4:44, 4:45
+sdm-ia32:BTS	v4 4:46, 4:47
+sdm-ia32:CALL	v4 4:48, 4:49, 4:50, 4:51, 4:52, 4:53, 4:54, 4:55, 4:56
+sdm-ia32:CBW	v4 4:57
+sdm-ia32:CDQ	v4 4:58, 4:85
+sdm-ia32:CLC	v4 4:59
+sdm-ia32:CLD	v4 4:60
+sdm-ia32:CLI	v4 4:61, 4:62
+sdm-ia32:CLTS	v4 4:63
+sdm-ia32:CMC	v4 4:64
+sdm-ia32:CMOVcc	v4 4:65, 4:66, 4:67, 4:68
+sdm-ia32:CMP	v4 4:69, 4:70
+sdm-ia32:CMPPS	v4 4:490, 4:491, 4:492
+sdm-ia32:CMPS	v4 4:71, 4:72, 4:73
+sdm-ia32:CMPSB	v4 4:71, 4:72, 4:73
+sdm-ia32:CMPSD	v4 4:71, 4:72, 4:73
+sdm-ia32:CMPSS	v4 4:493, 4:494, 4:495
+sdm-ia32:CMPSW	v4 4:71, 4:72, 4:73
+sdm-ia32:CMPXCHG	v4 4:74, 4:75
+sdm-ia32:CMPXCHG8B	v4 4:76, 4:77
+sdm-ia32:COMISS	v4 4:496, 4:497
+sdm-ia32:CPUID	v4 4:78, 4:80, 4:83, 4:84
+sdm-ia32:CVTPI2PS	v4 4:498, 4:499
+sdm-ia32:CVTPS2PI	v4 4:500, 4:501
+sdm-ia32:CVTSI2SS	v4 4:502
+sdm-ia32:CVTSS2SI	v4 4:503
+sdm-ia32:CVTTPS2PI	v4 4:504, 4:505
+sdm-ia32:CVTTSS2SI	v4 4:506
+sdm-ia32:CWD	v4 4:85
+sdm-ia32:CWDE	v4 4:57, 4:86
+sdm-ia32:DAA	v4 4:87
+sdm-ia32:DAS	v4 4:88
+sdm-ia32:DEC	v4 4:89, 4:90
+sdm-ia32:DIV	v4 4:91, 4:92, 4:93
+sdm-ia32:DIVPS	v4 4:507
+sdm-ia32:DIVSS	v4 4:508
+sdm-ia32:EMMS	v4 4:400
+sdm-ia32:ENTER	v4 4:94, 4:95, 4:96
+sdm-ia32:F2XM1	v4 4:97, 4:98
+sdm-ia32:FABS	v4 4:99
+sdm-ia32:FADD	v4 4:100, 4:101, 4:102
+sdm-ia32:FADDP	v4 4:100, 4:101, 4:102
+sdm-ia32:FBLD	v4 4:103, 4:104
+sdm-ia32:FBSTP	v4 4:105, 4:106, 4:107
+sdm-ia32:FCHS	v4 4:108
+sdm-ia32:FCLEX	v4 4:109
+sdm-ia32:FCMOVcc	v4 4:110, 4:111
+sdm-ia32:FCOM	v4 4:112, 4:113, 4:114
+sdm-ia32:FCOMI	v4 4:115, 4:116, 4:117
+sdm-ia32:FCOMIP	v4 4:115, 4:116, 4:117
+sdm-ia32:FCOMP	v4 4:112, 4:113, 4:114
+sdm-ia32:FCOMPP	v4 4:112, 4:113, 4:114
+sdm-ia32:FCOS	v4 4:118, 4:119
+sdm-ia32:FDECSTP	v4 4:120
+sdm-ia32:FDIV	v4 4:121, 4:122, 4:123
+sdm-ia32:FDIVP	v4 4:121, 4:122, 4:123
+sdm-ia32:FDIVR	v4 4:124, 4:125, 4:126
+sdm-ia32:FDIVRP	v4 4:124, 4:125, 4:126
+sdm-ia32:FFREE	v4 4:127
+sdm-ia32:FIADD	v4 4:100, 4:101, 4:102
+sdm-ia32:FICOM	v4 4:128, 4:129
+sdm-ia32:FICOMP	v4 4:128, 4:129
+sdm-ia32:FIDIV	v4 4:121, 4:122, 4:123
+sdm-ia32:FIDIVR	v4 4:124, 4:125, 4:126
+sdm-ia32:FILD	v4 4:130, 4:131
+sdm-ia32:FIMUL	v4 4:145, 4:146, 4:147
+sdm-ia32:FINCSTP	v4 4:132
+sdm-ia32:FINIT	v4 4:133
+sdm-ia32:FIST	v4 4:134, 4:135, 4:136
+sdm-ia32:FISTP	v4 4:134, 4:135, 4:136
+sdm-ia32:FISUB	v4 4:182, 4:183, 4:184
+sdm-ia32:FISUBR	v4 4:185, 4:186, 4:187
+sdm-ia32:FLD	v4 4:137, 4:138
+sdm-ia32:FLD1	v4 4:139, 4:140
+sdm-ia32:FLDCW	v4 4:141, 4:142
+sdm-ia32:FLDENV	v4 4:143, 4:144
+sdm-ia32:FLDL2E	v4 4:139, 4:140
+sdm-ia32:FLDL2T	v4 4:139, 4:140
+sdm-ia32:FLDLG2	v4 4:139, 4:140
+sdm-ia32:FLDLN2	v4 4:139, 4:140
+sdm-ia32:FLDPI	v4 4:139, 4:140
+sdm-ia32:FLDZ	v4 4:139, 4:140
+sdm-ia32:FMUL	v4 4:145, 4:146, 4:147
+sdm-ia32:FMULP	v4 4:145, 4:146, 4:147
+sdm-ia32:FNCLEX	v4 4:109
+sdm-ia32:FNINIT	v4 4:133
+sdm-ia32:FNOP	v4 4:148
+sdm-ia32:FNSAVE	v4 4:162, 4:163, 4:164
+sdm-ia32:FNSTCW	v4 4:176, 4:177
+sdm-ia32:FNSTENV	v4 4:178, 4:179
+sdm-ia32:FNSTSW	v4 4:180, 4:181
+sdm-ia32:FPATAN	v4 4:149, 4:150
+sdm-ia32:FPREM	v4 4:151, 4:152, 4:153
+sdm-ia32:FPREM1	v4 4:154, 4:155, 4:156
+sdm-ia32:FPTAN	v4 4:157, 4:158
+sdm-ia32:FRNDINT	v4 4:159
+sdm-ia32:FRSTOR	v4 4:160, 4:161
+sdm-ia32:FSAVE	v4 4:162, 4:163, 4:164
+sdm-ia32:FSCALE	v4 4:165, 4:166
+sdm-ia32:FSIN	v4 4:167, 4:168
+sdm-ia32:FSINCOS	v4 4:169, 4:170
+sdm-ia32:FSQRT	v4 4:171, 4:172
+sdm-ia32:FST	v4 4:173, 4:174, 4:175
+sdm-ia32:FSTCW	v4 4:176, 4:177
+sdm-ia32:FSTENV	v4 4:178, 4:179
+sdm-ia32:FSTP	v4 4:173, 4:174, 4:175
+sdm-ia32:FSTSW	v4 4:180, 4:181
+sdm-ia32:FSUB	v4 4:182, 4:183, 4:184
+sdm-ia32:FSUBP	v4 4:182, 4:183, 4:184
+sdm-ia32:FSUBR	v4 4:185, 4:186, 4:187
+sdm-ia32:FSUBRP	v4 4:185, 4:186, 4:187
+sdm-ia32:FTST	v4 4:188, 4:189
+sdm-ia32:FUCOM	v4 4:190, 4:191
+sdm-ia32:FUCOMI	v4 4:115, 4:116, 4:117
+sdm-ia32:FUCOMIP	v4 4:115, 4:116, 4:117
+sdm-ia32:FUCOMP	v4 4:190, 4:191
+sdm-ia32:FUCOMPP	v4 4:190, 4:191
+sdm-ia32:FWAIT	v4 4:192, 4:386
+sdm-ia32:FXAM	v4 4:193, 4:194
+sdm-ia32:FXCH	v4 4:195, 4:196
+sdm-ia32:FXRSTOR	v4 4:509, 4:511
+sdm-ia32:FXSAVE	v4 4:512, 4:515
+sdm-ia32:FXTRACT	v4 4:197, 4:198
+sdm-ia32:FYL2X	v4 4:199, 4:200
+sdm-ia32:FYL2XP1	v4 4:201, 4:202
+sdm-ia32:HLT	v4 4:203
+sdm-ia32:IDIV	v4 4:204, 4:205, 4:206
+sdm-ia32:IMUL	v4 4:207, 4:208, 4:209
+sdm-ia32:IN	v4 4:210, 4:211
+sdm-ia32:INC	v4 4:212, 4:213
+sdm-ia32:INS	v4 4:214, 4:215, 4:216
+sdm-ia32:INSB	v4 4:214, 4:215, 4:216
+sdm-ia32:INSD	v4 4:214, 4:215, 4:216
+sdm-ia32:INSW	v4 4:214, 4:215, 4:216
+sdm-ia32:INT3	v4 4:217, 4:218, 4:219, 4:220, 4:221, 4:222, 4:223, 4:224, 4:225, 4:226, 4:227
+sdm-ia32:INTO	v4 4:217, 4:218, 4:219, 4:220, 4:221, 4:222, 4:223, 4:224, 4:225, 4:226, 4:227
+sdm-ia32:INTn	v4 4:217, 4:218, 4:219, 4:220, 4:221, 4:222, 4:223, 4:224, 4:225, 4:226, 4:227
+sdm-ia32:INVD	v4 4:228, 4:229
+sdm-ia32:INVLPG	v4 4:230
+sdm-ia32:IRET	v4 4:231, 4:232, 4:233, 4:234, 4:235, 4:236, 4:237, 4:238
+sdm-ia32:IRETD	v4 4:231, 4:232, 4:233, 4:234, 4:235, 4:236, 4:237, 4:238
+sdm-ia32:JMP	v4 4:243, 4:244, 4:245, 4:246, 4:247, 4:248
+sdm-ia32:JMPE	v4 4:249, 4:250
+sdm-ia32:Jcc	v4 4:239, 4:240, 4:241, 4:242
+sdm-ia32:LAHF	v4 4:251
+sdm-ia32:LAR	v4 4:252, 4:253, 4:254
+sdm-ia32:LDMXCSR	v4 4:516, 4:517, 4:518
+sdm-ia32:LDS	v4 4:255, 4:256, 4:257
+sdm-ia32:LEA	v4 4:258, 4:259
+sdm-ia32:LEAVE	v4 4:260, 4:261
+sdm-ia32:LES	v4 4:255, 4:256, 4:257, 4:262
+sdm-ia32:LFS	v4 4:255, 4:256, 4:257, 4:263
+sdm-ia32:LGDT	v4 4:264, 4:265
+sdm-ia32:LGS	v4 4:255, 4:256, 4:257, 4:266
+sdm-ia32:LIDT	v4 4:264, 4:265, 4:269
+sdm-ia32:LLDT	v4 4:267, 4:268
+sdm-ia32:LMSW	v4 4:270, 4:271
+sdm-ia32:LOCK	v4 4:272, 4:273
+sdm-ia32:LODS	v4 4:274, 4:275
+sdm-ia32:LODSB	v4 4:274, 4:275
+sdm-ia32:LODSD	v4 4:274, 4:275
+sdm-ia32:LODSW	v4 4:274, 4:275
+sdm-ia32:LOOP	v4 4:276, 4:277
+sdm-ia32:LOOPcc	v4 4:276, 4:277
+sdm-ia32:LSL	v4 4:278, 4:279, 4:280
+sdm-ia32:LSS	v4 4:255, 4:256, 4:257, 4:281
+sdm-ia32:LTR	v4 4:282, 4:283
+sdm-ia32:MASKMOVQ	v4 4:576, 4:577
+sdm-ia32:MAXPS	v4 4:519, 4:520
+sdm-ia32:MAXSS	v4 4:521, 4:522
+sdm-ia32:MINPS	v4 4:523, 4:524
+sdm-ia32:MINSS	v4 4:525, 4:526
+sdm-ia32:MOV	v4 4:284, 4:285, 4:286, 4:287, 4:288, 4:289, 4:290, 4:291
+sdm-ia32:MOVAPS	v4 4:527, 4:528
+sdm-ia32:MOVD	v4 4:401, 4:402
+sdm-ia32:MOVHLPS	v4 4:529
+sdm-ia32:MOVHPS	v4 4:530, 4:531
+sdm-ia32:MOVLHPS	v4 4:532
+sdm-ia32:MOVLPS	v4 4:533, 4:534
+sdm-ia32:MOVMSKPS	v4 4:535
+sdm-ia32:MOVNTPS	v4 4:578
+sdm-ia32:MOVNTQ	v4 4:579
+sdm-ia32:MOVQ	v4 4:403, 4:404
+sdm-ia32:MOVS	v4 4:292, 4:293
+sdm-ia32:MOVSB	v4 4:292, 4:293
+sdm-ia32:MOVSD	v4 4:292, 4:293
+sdm-ia32:MOVSS	v4 4:536, 4:537
+sdm-ia32:MOVSW	v4 4:292, 4:293
+sdm-ia32:MOVSX	v4 4:294
+sdm-ia32:MOVUPS	v4 4:538, 4:539
+sdm-ia32:MOVZX	v4 4:295, 4:296
+sdm-ia32:MUL	v4 4:297, 4:298
+sdm-ia32:MULPS	v4 4:540
+sdm-ia32:MULSS	v4 4:541
+sdm-ia32:NEG	v4 4:299, 4:300
+sdm-ia32:NOP	v4 4:301
+sdm-ia32:NOT	v4 4:302, 4:303
+sdm-ia32:OR	v4 4:304, 4:305
+sdm-ia32:ORPS	v4 4:542
+sdm-ia32:OUT	v4 4:306, 4:307
+sdm-ia32:OUTS	v4 4:308, 4:309, 4:310
+sdm-ia32:OUTSB	v4 4:308, 4:309, 4:310
+sdm-ia32:OUTSD	v4 4:308, 4:309, 4:310
+sdm-ia32:OUTSW	v4 4:308, 4:309, 4:310
+sdm-ia32:PACKSSDW	v4 4:405, 4:406, 4:407
+sdm-ia32:PACKSSWB	v4 4:405, 4:406, 4:407
+sdm-ia32:PACKUSWB	v4 4:408, 4:409
+sdm-ia32:PADDB	v4 4:410, 4:411, 4:412
+sdm-ia32:PADDD	v4 4:410, 4:411, 4:412
+sdm-ia32:PADDSB	v4 4:413, 4:414, 4:415
+sdm-ia32:PADDSW	v4 4:413, 4:414, 4:415
+sdm-ia32:PADDUSB	v4 4:416, 4:417, 4:418
+sdm-ia32:PADDUSW	v4 4:416, 4:417, 4:418
+sdm-ia32:PADDW	v4 4:410, 4:411, 4:412
+sdm-ia32:PAND	v4 4:419, 4:420
+sdm-ia32:PANDN	v4 4:421, 4:422
+sdm-ia32:PAVGB	v4 4:563, 4:564
+sdm-ia32:PAVGW	v4 4:563, 4:564
+sdm-ia32:PCMPEQB	v4 4:423, 4:424, 4:425
+sdm-ia32:PCMPEQD	v4 4:423, 4:424, 4:425
+sdm-ia32:PCMPEQW	v4 4:423, 4:424, 4:425
+sdm-ia32:PCMPGTB	v4 4:426, 4:427, 4:428
+sdm-ia32:PCMPGTD	v4 4:426, 4:427, 4:428
+sdm-ia32:PCMPGTW	v4 4:426, 4:427, 4:428
+sdm-ia32:PEXTRW	v4 4:565
+sdm-ia32:PINSRW	v4 4:566
+sdm-ia32:PMADDWD	v4 4:429, 4:430
+sdm-ia32:PMAXSW	v4 4:567
+sdm-ia32:PMAXUB	v4 4:568
+sdm-ia32:PMINSW	v4 4:569
+sdm-ia32:PMINUB	v4 4:570
+sdm-ia32:PMOVMSKB	v4 4:571
+sdm-ia32:PMULHUW	v4 4:572
+sdm-ia32:PMULHW	v4 4:431, 4:432
+sdm-ia32:PMULLW	v4 4:433, 4:434
+sdm-ia32:POP	v4 4:311, 4:312, 4:313, 4:314
+sdm-ia32:POPA	v4 4:315, 4:316
+sdm-ia32:POPAD	v4 4:315, 4:316
+sdm-ia32:POPF	v4 4:317, 4:318, 4:319
+sdm-ia32:POPFD	v4 4:317, 4:318, 4:319
+sdm-ia32:POR	v4 4:435, 4:436
+sdm-ia32:PREFETCH	v4 4:580
+sdm-ia32:PSADBW	v4 4:573, 4:574
+sdm-ia32:PSHUFW	v4 4:575
+sdm-ia32:PSLLD	v4 4:437, 4:438, 4:439
+sdm-ia32:PSLLQ	v4 4:437, 4:438, 4:439
+sdm-ia32:PSLLW	v4 4:437, 4:438, 4:439
+sdm-ia32:PSRAD	v4 4:440, 4:441, 4:442
+sdm-ia32:PSRAW	v4 4:440, 4:441, 4:442
+sdm-ia32:PSRLD	v4 4:443, 4:444, 4:445
+sdm-ia32:PSRLQ	v4 4:443, 4:444, 4:445
+sdm-ia32:PSRLW	v4 4:443, 4:444, 4:445
+sdm-ia32:PSUBB	v4 4:446, 4:447, 4:448
+sdm-ia32:PSUBD	v4 4:446, 4:447, 4:448
+sdm-ia32:PSUBSB	v4 4:449, 4:450, 4:451
+sdm-ia32:PSUBSW	v4 4:449, 4:450, 4:451
+sdm-ia32:PSUBUSB	v4 4:452, 4:453, 4:454
+sdm-ia32:PSUBUSW	v4 4:452, 4:453, 4:454
+sdm-ia32:PSUBW	v4 4:446, 4:447, 4:448
+sdm-ia32:PUNPCKHBW	v4 4:455, 4:456, 4:457
+sdm-ia32:PUNPCKHDQ	v4 4:455, 4:456, 4:457
+sdm-ia32:PUNPCKHWD	v4 4:455, 4:456, 4:457
+sdm-ia32:PUNPCKLBW	v4 4:458, 4:459, 4:460
+sdm-ia32:PUNPCKLDQ	v4 4:458, 4:459, 4:460
+sdm-ia32:PUNPCKLWD	v4 4:458, 4:459, 4:460
+sdm-ia32:PUSH	v4 4:320, 4:321, 4:322
+sdm-ia32:PUSHA	v4 4:323, 4:324
+sdm-ia32:PUSHAD	v4 4:323, 4:324
+sdm-ia32:PUSHF	v4 4:325, 4:326
+sdm-ia32:PUSHFD	v4 4:325, 4:326
+sdm-ia32:PXOR	v4 4:461, 4:462
+sdm-ia32:RCL	v4 4:327, 4:328, 4:329, 4:330
+sdm-ia32:RCPPS	v4 4:543, 4:544
+sdm-ia32:RCPSS	v4 4:545, 4:546
+sdm-ia32:RCR	v4 4:327, 4:328, 4:329, 4:330
+sdm-ia32:RDMSR	v4 4:331, 4:332
+sdm-ia32:RDPMC	v4 4:333, 4:334
+sdm-ia32:RDTSC	v4 4:335, 4:336
+sdm-ia32:REP	v4 4:337, 4:338, 4:339
+sdm-ia32:REPE	v4 4:337, 4:338, 4:339
+sdm-ia32:REPNE	v4 4:337, 4:338, 4:339
+sdm-ia32:REPNZ	v4 4:337, 4:338, 4:339
+sdm-ia32:REPZ	v4 4:337, 4:338, 4:339
+sdm-ia32:RET	v4 4:340, 4:341, 4:342, 4:343, 4:344
+sdm-ia32:ROL	v4 4:327, 4:328, 4:329, 4:330, 4:345
+sdm-ia32:ROR	v4 4:327, 4:328, 4:329, 4:330, 4:345
+sdm-ia32:RSM	v4 4:346
+sdm-ia32:RSQRTPS	v4 4:547
+sdm-ia32:RSQRTSS	v4 4:548
+sdm-ia32:SAHF	v4 4:347
+sdm-ia32:SAL	v4 4:348, 4:349, 4:350, 4:351
+sdm-ia32:SAR	v4 4:348, 4:349, 4:350, 4:351
+sdm-ia32:SBB	v4 4:352, 4:353
+sdm-ia32:SCAS	v4 4:354, 4:355
+sdm-ia32:SCASB	v4 4:354, 4:355
+sdm-ia32:SCASD	v4 4:354, 4:355
+sdm-ia32:SCASW	v4 4:354, 4:355
+sdm-ia32:SETcc	v4 4:356, 4:357, 4:358
+sdm-ia32:SFENCE	v4 4:581
+sdm-ia32:SGDT	v4 4:359, 4:360
+sdm-ia32:SHL	v4 4:348, 4:349, 4:350, 4:351, 4:361
+sdm-ia32:SHLD	v4 4:362, 4:363
+sdm-ia32:SHR	v4 4:348, 4:349, 4:350, 4:351, 4:361
+sdm-ia32:SHRD	v4 4:364, 4:365
+sdm-ia32:SHUFPS	v4 4:549, 4:550
+sdm-ia32:SIDT	v4 4:359, 4:360, 4:366
+sdm-ia32:SLDT	v4 4:367, 4:368
+sdm-ia32:SMSW	v4 4:369, 4:370
+sdm-ia32:SQRTPS	v4 4:551
+sdm-ia32:SQRTSS	v4 4:552
+sdm-ia32:STC	v4 4:371
+sdm-ia32:STD	v4 4:372
+sdm-ia32:STI	v4 4:373, 4:374, 4:375
+sdm-ia32:STMXCSR	v4 4:553
+sdm-ia32:STOS	v4 4:376, 4:377
+sdm-ia32:STOSB	v4 4:376, 4:377
+sdm-ia32:STOSD	v4 4:376, 4:377
+sdm-ia32:STOSW	v4 4:376, 4:377
+sdm-ia32:STR	v4 4:378
+sdm-ia32:SUB	v4 4:379, 4:380
+sdm-ia32:SUBPS	v4 4:554
+sdm-ia32:SUBSS	v4 4:555
+sdm-ia32:TEST	v4 4:381, 4:382
+sdm-ia32:UCOMISS	v4 4:556, 4:557
+sdm-ia32:UD2	v4 4:383
+sdm-ia32:UNPCKHPS	v4 4:558, 4:559
+sdm-ia32:UNPCKLPS	v4 4:560, 4:561
+sdm-ia32:VERR	v4 4:384, 4:385
+sdm-ia32:VERW	v4 4:384, 4:385
+sdm-ia32:WAIT	v4 4:386
+sdm-ia32:WBINVD	v4 4:387, 4:388
+sdm-ia32:WRMSR	v4 4:389, 4:390
+sdm-ia32:XADD	v4 4:391, 4:392
+sdm-ia32:XCHG	v4 4:393, 4:394
+sdm-ia32:XLAT	v4 4:395, 4:396
+sdm-ia32:XLATB	v4 4:395, 4:396
+sdm-ia32:XOR	v4 4:397, 4:398
+sdm-ia32:XORPS	v4 4:562
+sdm-native:add	v3 p.3:14
+sdm-native:addp4	v3 p.3:15
+sdm-native:alloc	v3 p.3:16
+sdm-native:and	v3 p.3:18
+sdm-native:andcm	v3 p.3:19
+sdm-native:br	v3 p.3:20
+sdm-native:break	v3 p.3:29
+sdm-native:brl	v3 p.3:30
+sdm-native:brp	v3 p.3:32
+sdm-native:bsw	v3 p.3:34
+sdm-native:chk	v3 p.3:35
+sdm-native:clrrrb	v3 p.3:37
+sdm-native:clz	v3 p.3:38
+sdm-native:cmp	v3 p.3:39
+sdm-native:cmp4	v3 p.3:43
+sdm-native:cmpxchg	v3 p.3:46
+sdm-native:cover	v3 p.3:48
+sdm-native:czx	v3 p.3:49
+sdm-native:dep	v3 p.3:51
+sdm-native:epc	v3 p.3:53
+sdm-native:extr	v3 p.3:54
+sdm-native:fabs	v3 p.3:55
+sdm-native:fadd	v3 p.3:56
+sdm-native:famax	v3 p.3:57
+sdm-native:famin	v3 p.3:58
+sdm-native:fand	v3 p.3:59
+sdm-native:fandcm	v3 p.3:60
+sdm-native:fc	v3 p.3:61
+sdm-native:fchkf	v3 p.3:63
+sdm-native:fclass	v3 p.3:64
+sdm-native:fclrf	v3 p.3:66
+sdm-native:fcmp	v3 p.3:67
+sdm-native:fcvt.fx	v3 p.3:70
+sdm-native:fcvt.xf	v3 p.3:72
+sdm-native:fcvt.xuf	v3 p.3:73
+sdm-native:fetchadd	v3 p.3:74
+sdm-native:flushrs	v3 p.3:76
+sdm-native:fma	v3 p.3:77
+sdm-native:fmax	v3 p.3:79
+sdm-native:fmerge	v3 p.3:80
+sdm-native:fmin	v3 p.3:82
+sdm-native:fmix	v3 p.3:83
+sdm-native:fmpy	v3 p.3:85
+sdm-native:fms	v3 p.3:86
+sdm-native:fneg	v3 p.3:88
+sdm-native:fnegabs	v3 p.3:89
+sdm-native:fnma	v3 p.3:90
+sdm-native:fnmpy	v3 p.3:92
+sdm-native:fnorm	v3 p.3:93
+sdm-native:for	v3 p.3:94
+sdm-native:fpabs	v3 p.3:95
+sdm-native:fpack	v3 p.3:96
+sdm-native:fpamax	v3 p.3:97
+sdm-native:fpamin	v3 p.3:99
+sdm-native:fpcmp	v3 p.3:101
+sdm-native:fpcvt.fx	v3 p.3:104
+sdm-native:fpma	v3 p.3:107
+sdm-native:fpmax	v3 p.3:109
+sdm-native:fpmerge	v3 p.3:111
+sdm-native:fpmin	v3 p.3:113
+sdm-native:fpmpy	v3 p.3:115
+sdm-native:fpms	v3 p.3:116
+sdm-native:fpneg	v3 p.3:118
+sdm-native:fpnegabs	v3 p.3:119
+sdm-native:fpnma	v3 p.3:120
+sdm-native:fpnmpy	v3 p.3:122
+sdm-native:fprcpa	v3 p.3:123
+sdm-native:fprsqrta	v3 p.3:126
+sdm-native:frcpa	v3 p.3:128
+sdm-native:frsqrta	v3 p.3:131
+sdm-native:fselect	v3 p.3:134
+sdm-native:fsetc	v3 p.3:135
+sdm-native:fsub	v3 p.3:136
+sdm-native:fswap	v3 p.3:137
+sdm-native:fsxt	v3 p.3:139
+sdm-native:fwb	v3 p.3:141
+sdm-native:fxor	v3 p.3:142
+sdm-native:getf	v3 p.3:143
+sdm-native:hint	v3 p.3:145
+sdm-native:invala	v3 p.3:146
+sdm-native:itc	v3 p.3:147
+sdm-native:itr	v3 p.3:149
+sdm-native:ld	v3 p.3:151
+sdm-native:ldf	v3 p.3:157
+sdm-native:ldfp	v3 p.3:161
+sdm-native:lfetch	v3 p.3:164
+sdm-native:loadrs	v3 p.3:167
+sdm-native:mf	v3 p.3:168
+sdm-native:mix	v3 p.3:169
+sdm-native:mov-ar	v3 p.3:172
+sdm-native:mov-br	v3 p.3:174
+sdm-native:mov-cr	v3 p.3:175
+sdm-native:mov-fr	v3 p.3:177
+sdm-native:mov-gr	v3 p.3:178
+sdm-native:mov-imm	v3 p.3:179
+sdm-native:mov-indirect	v3 p.3:180
+sdm-native:mov-ip	v3 p.3:183
+sdm-native:mov-pr	v3 p.3:184
+sdm-native:mov-psr	v3 p.3:185
+sdm-native:mov-um	v3 p.3:186
+sdm-native:movl	v3 p.3:187
+sdm-native:mpy4	v3 p.3:188
+sdm-native:mpyshl4	v3 p.3:189
+sdm-native:mux	v3 p.3:190
+sdm-native:nop	v3 p.3:193
+sdm-native:or	v3 p.3:194
+sdm-native:pack	v3 p.3:195
+sdm-native:padd	v3 p.3:197
+sdm-native:pavg	v3 p.3:201
+sdm-native:pavgsub	v3 p.3:204
+sdm-native:pcmp	v3 p.3:206
+sdm-native:pmax	v3 p.3:209
+sdm-native:pmin	v3 p.3:211
+sdm-native:pmpy	v3 p.3:213
+sdm-native:pmpyshr	v3 p.3:214
+sdm-native:popcnt	v3 p.3:216
+sdm-native:probe	v3 p.3:217
+sdm-native:psad	v3 p.3:220
+sdm-native:pshl	v3 p.3:222
+sdm-native:pshladd	v3 p.3:223
+sdm-native:pshr	v3 p.3:224
+sdm-native:pshradd	v3 p.3:226
+sdm-native:psub	v3 p.3:227
+sdm-native:ptc.e	v3 p.3:230
+sdm-native:ptc.g-ptc.ga	v3 p.3:231
+sdm-native:ptc.l	v3 p.3:233
+sdm-native:ptr	v3 p.3:234
+sdm-native:rfi	v3 p.3:236
+sdm-native:rsm	v3 p.3:239
+sdm-native:rum	v3 p.3:241
+sdm-native:setf	v3 p.3:242
+sdm-native:shl	v3 p.3:244
+sdm-native:shladd	v3 p.3:245
+sdm-native:shladdp4	v3 p.3:246
+sdm-native:shr	v3 p.3:247
+sdm-native:shrp	v3 p.3:248
+sdm-native:srlz	v3 p.3:249
+sdm-native:ssm	v3 p.3:250
+sdm-native:st	v3 p.3:251
+sdm-native:stf	v3 p.3:254
+sdm-native:sub	v3 p.3:256
+sdm-native:sum	v3 p.3:257
+sdm-native:sxt	v3 p.3:258
+sdm-native:sync	v3 p.3:259
+sdm-native:tak	v3 p.3:260
+sdm-native:tbit	v3 p.3:261
+sdm-native:tf	v3 p.3:263
+sdm-native:thash	v3 p.3:265
+sdm-native:tnat	v3 p.3:266
+sdm-native:tpa	v3 p.3:268
+sdm-native:ttag	v3 p.3:269
+sdm-native:unpack	v3 p.3:270
+sdm-native:vmsw	v3 p.3:273
+sdm-native:xchg	v3 p.3:274
+sdm-native:xma	v3 p.3:276
+sdm-native:xmpy	v3 p.3:278
+sdm-native:xor	v3 p.3:279
+sdm-native:zxt	v3 p.3:280
+sdm-pal:PAL_BRAND_INFO	v2 Table 11-50, index 274
+sdm-pal:PAL_BUS_GET_FEATURES	v2 Table 11-50, index 9
+sdm-pal:PAL_BUS_SET_FEATURES	v2 Table 11-50, index 10
+sdm-pal:PAL_CACHE_FLUSH	v2 Table 11-49, index 1
+sdm-pal:PAL_CACHE_INFO	v2 Table 11-49, index 2
+sdm-pal:PAL_CACHE_INIT	v2 Table 11-49, index 3
+sdm-pal:PAL_CACHE_LINE_INIT	v2 Table 11-53, index 31
+sdm-pal:PAL_CACHE_PROT_INFO	v2 Table 11-49, index 38
+sdm-pal:PAL_CACHE_READ	v2 Table 11-53, index 259
+sdm-pal:PAL_CACHE_SHARED_INFO	v2 Table 11-49, index 43
+sdm-pal:PAL_CACHE_SUMMARY	v2 Table 11-49, index 4
+sdm-pal:PAL_CACHE_WRITE	v2 Table 11-53, index 260
+sdm-pal:PAL_COPY_INFO	v2 Table 11-54, index 30
+sdm-pal:PAL_COPY_PAL	v2 Table 11-54, index 256
+sdm-pal:PAL_DEBUG_INFO	v2 Table 11-50, index 11
+sdm-pal:PAL_FIXED_ADDR	v2 Table 11-50, index 12
+sdm-pal:PAL_FREQ_BASE	v2 Table 11-50, index 13
+sdm-pal:PAL_FREQ_RATIOS	v2 Table 11-50, index 14
+sdm-pal:PAL_GET_HW_POLICY	v2 Table 11-50, index 48
+sdm-pal:PAL_GET_PSTATE	v2 Table 11-52, index 262
+sdm-pal:PAL_HALT	v2 Table 11-52, index 28
+sdm-pal:PAL_HALT_INFO	v2 Table 11-52, index 257
+sdm-pal:PAL_HALT_LIGHT	v2 Table 11-52, index 29
+sdm-pal:PAL_LOGICAL_TO_PHYSICAL	v2 Table 11-50, index 42
+sdm-pal:PAL_MC_CLEAR_LOG	v2 Table 11-51, index 21
+sdm-pal:PAL_MC_DRAIN	v2 Table 11-51, index 22
+sdm-pal:PAL_MC_DYNAMIC_STATE	v2 Table 11-51, index 24
+sdm-pal:PAL_MC_ERROR_INFO	v2 Table 11-51, index 25
+sdm-pal:PAL_MC_ERROR_INJECT	v2 Table 11-51, index 276
+sdm-pal:PAL_MC_EXPECTED	v2 Table 11-51, index 23
+sdm-pal:PAL_MC_HW_TRACKING	v2 Table 11-51, index 51
+sdm-pal:PAL_MC_REGISTER_MEM	v2 Table 11-51, index 27
+sdm-pal:PAL_MC_RESUME	v2 Table 11-51, index 26
+sdm-pal:PAL_MEMORY_BUFFER	v2 Table 11-54, index 277
+sdm-pal:PAL_MEM_ATTRIB	v2 Table 11-49, index 5
+sdm-pal:PAL_PERF_MON_INFO	v2 Table 11-50, index 15
+sdm-pal:PAL_PLATFORM_ADDR	v2 Table 11-50, index 16
+sdm-pal:PAL_PMI_ENTRYPOINT	v2 Table 11-54, index 32
+sdm-pal:PAL_PREFETCH_VISIBILITY	v2 Table 11-49, index 41
+sdm-pal:PAL_PROC_GET_FEATURES	v2 Table 11-50, index 17
+sdm-pal:PAL_PROC_SET_FEATURES	v2 Table 11-50, index 18
+sdm-pal:PAL_PSTATE_INFO	v2 Table 11-52, index 44
+sdm-pal:PAL_PTCE_INFO	v2 Table 11-49, index 6
+sdm-pal:PAL_REGISTER_INFO	v2 Table 11-50, index 39
+sdm-pal:PAL_RSE_INFO	v2 Table 11-50, index 19
+sdm-pal:PAL_SET_HW_POLICY	v2 Table 11-50, index 49
+sdm-pal:PAL_SET_PSTATE	v2 Table 11-52, index 263
+sdm-pal:PAL_SHUTDOWN	v2 Table 11-52, index 45
+sdm-pal:PAL_TEST_INFO	v2 Table 11-53, index 37
+sdm-pal:PAL_TEST_PROC	v2 Table 11-53, index 258
+sdm-pal:PAL_VERSION	v2 Table 11-50, index 20
+sdm-pal:PAL_VM_INFO	v2 Table 11-49, index 7
+sdm-pal:PAL_VM_PAGE_SIZE	v2 Table 11-49, index 34
+sdm-pal:PAL_VM_SUMMARY	v2 Table 11-49, index 8
+sdm-pal:PAL_VM_TR_READ	v2 Table 11-49, index 261
+sdm-pal:PAL_VP_CREATE	v2 Table 11-55, index 265
+sdm-pal:PAL_VP_ENV_INFO	v2 Table 11-55, index 266
+sdm-pal:PAL_VP_EXIT_ENV	v2 Table 11-55, index 267
+sdm-pal:PAL_VP_INFO	v2 Table 11-55, index 50
+sdm-pal:PAL_VP_INIT_ENV	v2 Table 11-55, index 268
+sdm-pal:PAL_VP_REGISTER	v2 Table 11-55, index 269
+sdm-pal:PAL_VP_RESTORE	v2 Table 11-55, index 270
+sdm-pal:PAL_VP_SAVE	v2 Table 11-55, index 271
+sdm-pal:PAL_VP_TERMINATE	v2 Table 11-55, index 272
+sdm-section:v1:2	v1 p.1:13
+sdm-section:v1:2.1	v1 p.1:13
+sdm-section:v1:2.10	v1 p.1:19
+sdm-section:v1:2.11	v1 p.1:20
+sdm-section:v1:2.12	v1 p.1:20
+sdm-section:v1:2.12.1	v1 p.1:20
+sdm-section:v1:2.12.2	v1 p.1:20
+sdm-section:v1:2.12.3	v1 p.1:21
+sdm-section:v1:2.12.4	v1 p.1:21
+sdm-section:v1:2.13	v1 p.1:21
+sdm-section:v1:2.2	v1 p.1:14
+sdm-section:v1:2.3	v1 p.1:15
+sdm-section:v1:2.4	v1 p.1:15
+sdm-section:v1:2.5	v1 p.1:16
+sdm-section:v1:2.6	v1 p.1:16
+sdm-section:v1:2.6.1	v1 p.1:16
+sdm-section:v1:2.6.2	v1 p.1:17
+sdm-section:v1:2.6.3	v1 p.1:17
+sdm-section:v1:2.7	v1 p.1:18
+sdm-section:v1:2.8	v1 p.1:19
+sdm-section:v1:2.9	v1 p.1:19
+sdm-section:v1:3	v1 p.1:23
+sdm-section:v1:3.1	v1 p.1:23
+sdm-section:v1:3.1.1	v1 p.1:23
+sdm-section:v1:3.1.10	v1 p.1:33
+sdm-section:v1:3.1.11	v1 p.1:34
+sdm-section:v1:3.1.2	v1 p.1:25
+sdm-section:v1:3.1.3	v1 p.1:26
+sdm-section:v1:3.1.4	v1 p.1:26
+sdm-section:v1:3.1.5	v1 p.1:26
+sdm-section:v1:3.1.6	v1 p.1:27
+sdm-section:v1:3.1.7	v1 p.1:27
+sdm-section:v1:3.1.8	v1 p.1:28
+sdm-section:v1:3.1.9	v1 p.1:33
+sdm-section:v1:3.2	v1 p.1:36
+sdm-section:v1:3.2.1	v1 p.1:36
+sdm-section:v1:3.2.2	v1 p.1:36
+sdm-section:v1:3.2.3	v1 p.1:36
+sdm-section:v1:3.3	v1 p.1:38
+sdm-section:v1:3.4	v1 p.1:39
+sdm-section:v1:3.4.1	v1 p.1:42
+sdm-section:v1:3.4.2	v1 p.1:43
+sdm-section:v1:3.4.3	v1 p.1:44
+sdm-section:v1:3.4.4	v1 p.1:44
+sdm-section:v1:3.5	v1 p.1:44
+sdm-section:v1:4	v1 p.1:47
+sdm-section:v1:4.1	v1 p.1:47
+sdm-section:v1:4.1.1	v1 p.1:47
+sdm-section:v1:4.1.2	v1 p.1:49
+sdm-section:v1:4.2	v1 p.1:50
+sdm-section:v1:4.2.1	v1 p.1:51
+sdm-section:v1:4.2.2	v1 p.1:51
+sdm-section:v1:4.2.3	v1 p.1:52
+sdm-section:v1:4.2.4	v1 p.1:52
+sdm-section:v1:4.2.5	v1 p.1:53
+sdm-section:v1:4.3	v1 p.1:54
+sdm-section:v1:4.3.1	v1 p.1:54
+sdm-section:v1:4.3.2	v1 p.1:54
+sdm-section:v1:4.3.3	v1 p.1:55
+sdm-section:v1:4.3.4	v1 p.1:57
+sdm-section:v1:4.4	v1 p.1:57
+sdm-section:v1:4.4.1	v1 p.1:58
+sdm-section:v1:4.4.2	v1 p.1:59
+sdm-section:v1:4.4.3	v1 p.1:59
+sdm-section:v1:4.4.4	v1 p.1:60
+sdm-section:v1:4.4.5	v1 p.1:63
+sdm-section:v1:4.4.6	v1 p.1:69
+sdm-section:v1:4.4.7	v1 p.1:73
+sdm-section:v1:4.5	v1 p.1:74
+sdm-section:v1:4.5.1	v1 p.1:75
+sdm-section:v1:4.5.2	v1 p.1:78
+sdm-section:v1:4.5.3	v1 p.1:79
+sdm-section:v1:4.6	v1 p.1:79
+sdm-section:v1:4.6.1	v1 p.1:79
+sdm-section:v1:4.6.2	v1 p.1:81
+sdm-section:v1:4.6.3	v1 p.1:81
+sdm-section:v1:4.7	v1 p.1:82
+sdm-section:v1:4.8	v1 p.1:83
+sdm-section:v1:4.8.1	v1 p.1:83
+sdm-section:v1:4.8.2	v1 p.1:84
+sdm-section:v1:4.9	v1 p.1:84
+sdm-section:v1:5	v1 p.1:85
+sdm-section:v1:5.1	v1 p.1:85
+sdm-section:v1:5.1.1	v1 p.1:85
+sdm-section:v1:5.1.2	v1 p.1:85
+sdm-section:v1:5.1.3	v1 p.1:86
+sdm-section:v1:5.2	v1 p.1:88
+sdm-section:v1:5.3	v1 p.1:91
+sdm-section:v1:5.3.1	v1 p.1:91
+sdm-section:v1:5.3.2	v1 p.1:97
+sdm-section:v1:5.3.3	v1 p.1:98
+sdm-section:v1:5.3.4	v1 p.1:99
+sdm-section:v1:5.3.5	v1 p.1:100
+sdm-section:v1:5.3.6	v1 p.1:101
+sdm-section:v1:5.4	v1 p.1:101
+sdm-section:v1:5.4.1	v1 p.1:101
+sdm-section:v1:5.4.2	v1 p.1:105
+sdm-section:v1:5.4.3	v1 p.1:106
+sdm-section:v1:5.4.4	v1 p.1:107
+sdm-section:v1:5.4.5	v1 p.1:107
+sdm-section:v1:5.4.6	v1 p.1:107
+sdm-section:v1:5.4.7	v1 p.1:107
+sdm-section:v1:5.4.8	v1 p.1:107
+sdm-section:v1:6	v1 p.1:109
+sdm-section:v1:6.1	v1 p.1:109
+sdm-section:v1:6.2	v1 p.1:109
+sdm-section:v1:6.2.1	v1 p.1:110
+sdm-section:v1:6.2.2	v1 p.1:113
+sdm-section:v1:6.2.3	v1 p.1:130
+sdm-section:v1:6.2.4	v1 p.1:133
+sdm-section:v2-p2:10	v2 Part II p.2:603
+sdm-section:v2-p2:10.1	v2 Part II p.2:603
+sdm-section:v2-p2:10.2	v2 Part II p.2:604
+sdm-section:v2-p2:10.3	v2 Part II p.2:604
+sdm-section:v2-p2:10.3.1	v2 Part II p.2:604
+sdm-section:v2-p2:10.3.2	v2 Part II p.2:605
+sdm-section:v2-p2:10.3.3	v2 Part II p.2:605
+sdm-section:v2-p2:10.3.4	v2 Part II p.2:605
+sdm-section:v2-p2:10.4	v2 Part II p.2:606
+sdm-section:v2-p2:10.5	v2 Part II p.2:607
+sdm-section:v2-p2:10.5.1	v2 Part II p.2:608
+sdm-section:v2-p2:10.5.2	v2 Part II p.2:608
+sdm-section:v2-p2:10.5.3	v2 Part II p.2:609
+sdm-section:v2-p2:10.5.4	v2 Part II p.2:609
+sdm-section:v2-p2:10.5.5	v2 Part II p.2:609
+sdm-section:v2-p2:10.5.6	v2 Part II p.2:611
+sdm-section:v2-p2:10.5.7	v2 Part II p.2:611
+sdm-section:v2-p2:10.5.8	v2 Part II p.2:612
+sdm-section:v2-p2:10.5.9	v2 Part II p.2:612
+sdm-section:v2-p2:11	v2 Part II p.2:615
+sdm-section:v2-p2:11.1	v2 Part II p.2:615
+sdm-section:v2-p2:11.2	v2 Part II p.2:616
+sdm-section:v2-p2:12	v2 Part II p.2:619
+sdm-section:v2-p2:12.1	v2 Part II p.2:619
+sdm-section:v2-p2:12.2	v2 Part II p.2:620
+sdm-section:v2-p2:13	v2 Part II p.2:623
+sdm-section:v2-p2:13.1	v2 Part II p.2:623
+sdm-section:v2-p2:13.1.1	v2 Part II p.2:623
+sdm-section:v2-p2:13.1.2	v2 Part II p.2:625
+sdm-section:v2-p2:13.2	v2 Part II p.2:628
+sdm-section:v2-p2:13.2.1	v2 Part II p.2:628
+sdm-section:v2-p2:13.2.2	v2 Part II p.2:630
+sdm-section:v2-p2:13.2.3	v2 Part II p.2:630
+sdm-section:v2-p2:13.2.4	v2 Part II p.2:631
+sdm-section:v2-p2:13.2.5	v2 Part II p.2:631
+sdm-section:v2-p2:13.3	v2 Part II p.2:632
+sdm-section:v2-p2:13.3.1	v2 Part II p.2:632
+sdm-section:v2-p2:13.3.2	v2 Part II p.2:635
+sdm-section:v2-p2:13.3.3	v2 Part II p.2:637
+sdm-section:v2-p2:13.3.4	v2 Part II p.2:637
+sdm-section:v2-p2:2	v2 Part II p.2:507
+sdm-section:v2-p2:2.1	v2 Part II p.2:507
+sdm-section:v2-p2:2.1.1	v2 Part II p.2:507
+sdm-section:v2-p2:2.1.2	v2 Part II p.2:508
+sdm-section:v2-p2:2.1.3	v2 Part II p.2:508
+sdm-section:v2-p2:2.1.4	v2 Part II p.2:510
+sdm-section:v2-p2:2.2	v2 Part II p.2:510
+sdm-section:v2-p2:2.2.1	v2 Part II p.2:511
+sdm-section:v2-p2:2.2.2	v2 Part II p.2:524
+sdm-section:v2-p2:2.2.3	v2 Part II p.2:525
+sdm-section:v2-p2:2.3	v2 Part II p.2:526
+sdm-section:v2-p2:2.4	v2 Part II p.2:526
+sdm-section:v2-p2:2.4.1	v2 Part II p.2:527
+sdm-section:v2-p2:2.4.2	v2 Part II p.2:528
+sdm-section:v2-p2:2.4.3	v2 Part II p.2:529
+sdm-section:v2-p2:2.4.4	v2 Part II p.2:530
+sdm-section:v2-p2:2.5	v2 Part II p.2:531
+sdm-section:v2-p2:2.5.1	v2 Part II p.2:532
+sdm-section:v2-p2:2.5.2	v2 Part II p.2:533
+sdm-section:v2-p2:2.5.3	v2 Part II p.2:534
+sdm-section:v2-p2:2.5.4	v2 Part II p.2:536
+sdm-section:v2-p2:2.6	v2 Part II p.2:536
+sdm-section:v2-p2:3	v2 Part II p.2:537
+sdm-section:v2-p2:3.1	v2 Part II p.2:537
+sdm-section:v2-p2:3.2	v2 Part II p.2:538
+sdm-section:v2-p2:3.3	v2 Part II p.2:539
+sdm-section:v2-p2:3.3.1	v2 Part II p.2:539
+sdm-section:v2-p2:3.3.2	v2 Part II p.2:540
+sdm-section:v2-p2:3.3.3	v2 Part II p.2:542
+sdm-section:v2-p2:3.3.4	v2 Part II p.2:543
+sdm-section:v2-p2:3.4	v2 Part II p.2:543
+sdm-section:v2-p2:3.4.1	v2 Part II p.2:543
+sdm-section:v2-p2:3.4.2	v2 Part II p.2:544
+sdm-section:v2-p2:3.4.3	v2 Part II p.2:546
+sdm-section:v2-p2:4	v2 Part II p.2:549
+sdm-section:v2-p2:4.1	v2 Part II p.2:549
+sdm-section:v2-p2:4.1.1	v2 Part II p.2:550
+sdm-section:v2-p2:4.1.2	v2 Part II p.2:551
+sdm-section:v2-p2:4.2	v2 Part II p.2:551
+sdm-section:v2-p2:4.2.1	v2 Part II p.2:552
+sdm-section:v2-p2:4.2.2	v2 Part II p.2:553
+sdm-section:v2-p2:4.3	v2 Part II p.2:554
+sdm-section:v2-p2:4.4	v2 Part II p.2:555
+sdm-section:v2-p2:4.4.1	v2 Part II p.2:555
+sdm-section:v2-p2:4.4.2	v2 Part II p.2:556
+sdm-section:v2-p2:4.4.3	v2 Part II p.2:556
+sdm-section:v2-p2:4.5	v2 Part II p.2:557
+sdm-section:v2-p2:4.5.1	v2 Part II p.2:557
+sdm-section:v2-p2:4.5.2	v2 Part II p.2:558
+sdm-section:v2-p2:5	v2 Part II p.2:561
+sdm-section:v2-p2:5.1	v2 Part II p.2:561
+sdm-section:v2-p2:5.1.1	v2 Part II p.2:561
+sdm-section:v2-p2:5.1.2	v2 Part II p.2:564
+sdm-section:v2-p2:5.2	v2 Part II p.2:565
+sdm-section:v2-p2:5.2.1	v2 Part II p.2:566
+sdm-section:v2-p2:5.2.2	v2 Part II p.2:567
+sdm-section:v2-p2:5.3	v2 Part II p.2:571
+sdm-section:v2-p2:5.3.1	v2 Part II p.2:572
+sdm-section:v2-p2:5.3.2	v2 Part II p.2:573
+sdm-section:v2-p2:5.3.3	v2 Part II p.2:573
+sdm-section:v2-p2:5.4	v2 Part II p.2:573
+sdm-section:v2-p2:5.4.1	v2 Part II p.2:573
+sdm-section:v2-p2:5.4.2	v2 Part II p.2:575
+sdm-section:v2-p2:5.4.3	v2 Part II p.2:576
+sdm-section:v2-p2:5.4.4	v2 Part II p.2:576
+sdm-section:v2-p2:5.4.5	v2 Part II p.2:577
+sdm-section:v2-p2:5.4.6	v2 Part II p.2:577
+sdm-section:v2-p2:5.4.7	v2 Part II p.2:577
+sdm-section:v2-p2:5.4.8	v2 Part II p.2:577
+sdm-section:v2-p2:5.5	v2 Part II p.2:577
+sdm-section:v2-p2:6	v2 Part II p.2:579
+sdm-section:v2-p2:6.1	v2 Part II p.2:579
+sdm-section:v2-p2:6.1.1	v2 Part II p.2:580
+sdm-section:v2-p2:6.1.2	v2 Part II p.2:580
+sdm-section:v2-p2:6.1.3	v2 Part II p.2:580
+sdm-section:v2-p2:6.2	v2 Part II p.2:580
+sdm-section:v2-p2:6.3	v2 Part II p.2:581
+sdm-section:v2-p2:6.3.1	v2 Part II p.2:581
+sdm-section:v2-p2:7	v2 Part II p.2:583
+sdm-section:v2-p2:7.1	v2 Part II p.2:583
+sdm-section:v2-p2:7.2	v2 Part II p.2:584
+sdm-section:v2-p2:7.3	v2 Part II p.2:584
+sdm-section:v2-p2:7.4	v2 Part II p.2:585
+sdm-section:v2-p2:8	v2 Part II p.2:587
+sdm-section:v2-p2:8.1	v2 Part II p.2:587
+sdm-section:v2-p2:8.1.1	v2 Part II p.2:587
+sdm-section:v2-p2:8.1.2	v2 Part II p.2:590
+sdm-section:v2-p2:8.2	v2 Part II p.2:593
+sdm-section:v2-p2:9	v2 Part II p.2:595
+sdm-section:v2-p2:9.1	v2 Part II p.2:596
+sdm-section:v2-p2:9.1.1	v2 Part II p.2:596
+sdm-section:v2-p2:9.1.2	v2 Part II p.2:596
+sdm-section:v2-p2:9.1.3	v2 Part II p.2:597
+sdm-section:v2-p2:9.1.4	v2 Part II p.2:597
+sdm-section:v2-p2:9.2	v2 Part II p.2:599
+sdm-section:v2-p2:9.3	v2 Part II p.2:600
+sdm-section:v2-p2:9.3.1	v2 Part II p.2:600
+sdm-section:v2-p2:9.3.2	v2 Part II p.2:600
+sdm-section:v2-p2:9.3.3	v2 Part II p.2:601
+sdm-section:v2-p2:9.3.4	v2 Part II p.2:601
+sdm-section:v2:10.1	v2 p.2:239
+sdm-section:v2:10.10	v2 p.2:277
+sdm-section:v2:10.10.1	v2 p.2:278
+sdm-section:v2:10.2	v2 p.2:239
+sdm-section:v2:10.3	v2 p.2:241
+sdm-section:v2:10.3.1	v2 p.2:243
+sdm-section:v2:10.3.2	v2 p.2:243
+sdm-section:v2:10.3.3	v2 p.2:246
+sdm-section:v2:10.4	v2 p.2:252
+sdm-section:v2:10.4.1	v2 p.2:253
+sdm-section:v2:10.4.2	v2 p.2:253
+sdm-section:v2:10.5	v2 p.2:253
+sdm-section:v2:10.6	v2 p.2:259
+sdm-section:v2:10.6.1	v2 p.2:260
+sdm-section:v2:10.6.10	v2 p.2:265
+sdm-section:v2:10.6.2	v2 p.2:261
+sdm-section:v2:10.6.3	v2 p.2:261
+sdm-section:v2:10.6.4	v2 p.2:262
+sdm-section:v2:10.6.5	v2 p.2:262
+sdm-section:v2:10.6.6	v2 p.2:263
+sdm-section:v2:10.6.7	v2 p.2:263
+sdm-section:v2:10.6.8	v2 p.2:264
+sdm-section:v2:10.6.9	v2 p.2:264
+sdm-section:v2:10.7	v2 p.2:267
+sdm-section:v2:10.7.1	v2 p.2:268
+sdm-section:v2:10.7.2	v2 p.2:270
+sdm-section:v2:10.7.3	v2 p.2:271
+sdm-section:v2:10.7.4	v2 p.2:272
+sdm-section:v2:10.8	v2 p.2:273
+sdm-section:v2:10.8.1	v2 p.2:274
+sdm-section:v2:10.8.2	v2 p.2:274
+sdm-section:v2:10.9	v2 p.2:275
+sdm-section:v2:10.9.1	v2 p.2:275
+sdm-section:v2:10.9.2	v2 p.2:277
+sdm-section:v2:11	v2 p.2:279
+sdm-section:v2:11.1	v2 p.2:279
+sdm-section:v2:11.1.1	v2 p.2:280
+sdm-section:v2:11.1.2	v2 p.2:281
+sdm-section:v2:11.1.3	v2 p.2:282
+sdm-section:v2:11.1.4	v2 p.2:282
+sdm-section:v2:11.1.5	v2 p.2:283
+sdm-section:v2:11.1.6	v2 p.2:283
+sdm-section:v2:11.10	v2 p.2:353
+sdm-section:v2:11.10.1	v2 p.2:354
+sdm-section:v2:11.10.2	v2 p.2:358
+sdm-section:v2:11.10.3	v2 p.2:365
+sdm-section:v2:11.11	v2 p.2:486
+sdm-section:v2:11.11.1	v2 p.2:486
+sdm-section:v2:11.11.2	v2 p.2:488
+sdm-section:v2:11.2	v2 p.2:289
+sdm-section:v2:11.2.1	v2 p.2:289
+sdm-section:v2:11.2.2	v2 p.2:289
+sdm-section:v2:11.2.3	v2 p.2:295
+sdm-section:v2:11.3	v2 p.2:296
+sdm-section:v2:11.3.1	v2 p.2:296
+sdm-section:v2:11.3.2	v2 p.2:297
+sdm-section:v2:11.3.3	v2 p.2:305
+sdm-section:v2:11.4	v2 p.2:306
+sdm-section:v2:11.4.1	v2 p.2:306
+sdm-section:v2:11.4.2	v2 p.2:306
+sdm-section:v2:11.5	v2 p.2:310
+sdm-section:v2:11.5.1	v2 p.2:310
+sdm-section:v2:11.5.2	v2 p.2:312
+sdm-section:v2:11.5.3	v2 p.2:313
+sdm-section:v2:11.6	v2 p.2:313
+sdm-section:v2:11.6.1	v2 p.2:315
+sdm-section:v2:11.7	v2 p.2:324
+sdm-section:v2:11.7.1	v2 p.2:325
+sdm-section:v2:11.7.2	v2 p.2:331
+sdm-section:v2:11.7.3	v2 p.2:332
+sdm-section:v2:11.7.4	v2 p.2:335
+sdm-section:v2:11.8	v2 p.2:350
+sdm-section:v2:11.9	v2 p.2:352
+sdm-section:v2:2	v2 p.2:13
+sdm-section:v2:2.1	v2 p.2:13
+sdm-section:v2:2.2	v2 p.2:14
+sdm-section:v2:3	v2 p.2:17
+sdm-section:v2:3.1	v2 p.2:17
+sdm-section:v2:3.2	v2 p.2:17
+sdm-section:v2:3.2.1	v2 p.2:18
+sdm-section:v2:3.2.2	v2 p.2:18
+sdm-section:v2:3.2.3	v2 p.2:19
+sdm-section:v2:3.3	v2 p.2:20
+sdm-section:v2:3.3.1	v2 p.2:20
+sdm-section:v2:3.3.2	v2 p.2:23
+sdm-section:v2:3.3.3	v2 p.2:29
+sdm-section:v2:3.3.4	v2 p.2:31
+sdm-section:v2:3.3.5	v2 p.2:36
+sdm-section:v2:3.3.6	v2 p.2:42
+sdm-section:v2:3.3.7	v2 p.2:42
+sdm-section:v2:3.4	v2 p.2:44
+sdm-section:v2:4	v2 p.2:45
+sdm-section:v2:4.1	v2 p.2:45
+sdm-section:v2:4.1.1	v2 p.2:47
+sdm-section:v2:4.1.10	v2 p.2:72
+sdm-section:v2:4.1.2	v2 p.2:58
+sdm-section:v2:4.1.3	v2 p.2:59
+sdm-section:v2:4.1.4	v2 p.2:60
+sdm-section:v2:4.1.5	v2 p.2:61
+sdm-section:v2:4.1.6	v2 p.2:65
+sdm-section:v2:4.1.7	v2 p.2:67
+sdm-section:v2:4.1.8	v2 p.2:69
+sdm-section:v2:4.1.9	v2 p.2:71
+sdm-section:v2:4.2	v2 p.2:73
+sdm-section:v2:4.3	v2 p.2:73
+sdm-section:v2:4.3.1	v2 p.2:73
+sdm-section:v2:4.3.2	v2 p.2:74
+sdm-section:v2:4.3.3	v2 p.2:75
+sdm-section:v2:4.4	v2 p.2:75
+sdm-section:v2:4.4.1	v2 p.2:75
+sdm-section:v2:4.4.10	v2 p.2:87
+sdm-section:v2:4.4.11	v2 p.2:88
+sdm-section:v2:4.4.2	v2 p.2:76
+sdm-section:v2:4.4.3	v2 p.2:77
+sdm-section:v2:4.4.4	v2 p.2:78
+sdm-section:v2:4.4.5	v2 p.2:78
+sdm-section:v2:4.4.6	v2 p.2:79
+sdm-section:v2:4.4.7	v2 p.2:82
+sdm-section:v2:4.4.8	v2 p.2:86
+sdm-section:v2:4.4.9	v2 p.2:86
+sdm-section:v2:4.5	v2 p.2:93
+sdm-section:v2:5	v2 p.2:95
+sdm-section:v2:5.1	v2 p.2:95
+sdm-section:v2:5.2	v2 p.2:97
+sdm-section:v2:5.3	v2 p.2:98
+sdm-section:v2:5.4	v2 p.2:101
+sdm-section:v2:5.5	v2 p.2:101
+sdm-section:v2:5.5.1	v2 p.2:102
+sdm-section:v2:5.5.2	v2 p.2:103
+sdm-section:v2:5.5.3	v2 p.2:104
+sdm-section:v2:5.5.4	v2 p.2:104
+sdm-section:v2:5.5.5	v2 p.2:105
+sdm-section:v2:5.6	v2 p.2:108
+sdm-section:v2:5.6.1	v2 p.2:111
+sdm-section:v2:5.7	v2 p.2:113
+sdm-section:v2:5.8	v2 p.2:114
+sdm-section:v2:5.8.1	v2 p.2:118
+sdm-section:v2:5.8.2	v2 p.2:119
+sdm-section:v2:5.8.3	v2 p.2:121
+sdm-section:v2:5.8.4	v2 p.2:127
+sdm-section:v2:5.8.5	v2 p.2:131
+sdm-section:v2:6	v2 p.2:133
+sdm-section:v2:6.1	v2 p.2:133
+sdm-section:v2:6.10	v2 p.2:147
+sdm-section:v2:6.11	v2 p.2:147
+sdm-section:v2:6.11.1	v2 p.2:148
+sdm-section:v2:6.11.2	v2 p.2:148
+sdm-section:v2:6.11.3	v2 p.2:148
+sdm-section:v2:6.12	v2 p.2:149
+sdm-section:v2:6.2	v2 p.2:135
+sdm-section:v2:6.3	v2 p.2:136
+sdm-section:v2:6.4	v2 p.2:137
+sdm-section:v2:6.5	v2 p.2:139
+sdm-section:v2:6.5.1	v2 p.2:139
+sdm-section:v2:6.5.2	v2 p.2:140
+sdm-section:v2:6.5.3	v2 p.2:141
+sdm-section:v2:6.5.4	v2 p.2:142
+sdm-section:v2:6.5.5	v2 p.2:143
+sdm-section:v2:6.6	v2 p.2:144
+sdm-section:v2:6.7	v2 p.2:146
+sdm-section:v2:6.8	v2 p.2:146
+sdm-section:v2:6.9	v2 p.2:146
+sdm-section:v2:7	v2 p.2:151
+sdm-section:v2:7.1	v2 p.2:151
+sdm-section:v2:7.1.1	v2 p.2:152
+sdm-section:v2:7.1.2	v2 p.2:154
+sdm-section:v2:7.2	v2 p.2:155
+sdm-section:v2:7.2.1	v2 p.2:156
+sdm-section:v2:7.2.2	v2 p.2:160
+sdm-section:v2:7.2.3	v2 p.2:162
+sdm-section:v2:7.2.4	v2 p.2:162
+sdm-section:v2:8	v2 p.2:165
+sdm-section:v2:8.1	v2 p.2:165
+sdm-section:v2:8.2	v2 p.2:165
+sdm-section:v2:8.3	v2 p.2:166
+sdm-section:v2:9	v2 p.2:213
+sdm-section:v2:9.1	v2 p.2:213
+sdm-section:v2:9.2	v2 p.2:213
+sdm-section:v3:4.1	v3 p.3:294
+sdm-section:v3:4.2	v3 p.3:300
+sdm-section:v3:4.2.1	v3 p.3:300
+sdm-section:v3:4.2.2	v3 p.3:302
+sdm-section:v3:4.2.3	v3 p.3:306
+sdm-section:v3:4.3	v3 p.3:310
+sdm-section:v3:4.3.1	v3 p.3:310
+sdm-section:v3:4.3.2	v3 p.3:315
+sdm-section:v3:4.3.3	v3 p.3:316
+sdm-section:v3:4.3.4	v3 p.3:318
+sdm-section:v3:4.3.5	v3 p.3:320
+sdm-section:v3:4.3.6	v3 p.3:321
+sdm-section:v3:4.3.7	v3 p.3:321
+sdm-section:v3:4.3.8	v3 p.3:322
+sdm-section:v3:4.3.9	v3 p.3:323
+sdm-section:v3:4.4	v3 p.3:323
+sdm-section:v3:4.4.1	v3 p.3:323
+sdm-section:v3:4.4.10	v3 p.3:345
+sdm-section:v3:4.4.11	v3 p.3:349
+sdm-section:v3:4.4.2	v3 p.3:337
+sdm-section:v3:4.4.3	v3 p.3:338
+sdm-section:v3:4.4.4	v3 p.3:339
+sdm-section:v3:4.4.5	v3 p.3:340
+sdm-section:v3:4.4.6	v3 p.3:341
+sdm-section:v3:4.4.7	v3 p.3:342
+sdm-section:v3:4.4.8	v3 p.3:343
+sdm-section:v3:4.4.9	v3 p.3:344
+sdm-section:v3:4.5	v3 p.3:349
+sdm-section:v3:4.5.1	v3 p.3:350
+sdm-section:v3:4.5.2	v3 p.3:353
+sdm-section:v3:4.5.3	v3 p.3:355
+sdm-section:v3:4.6	v3 p.3:356
+sdm-section:v3:4.6.1	v3 p.3:358
+sdm-section:v3:4.6.3	v3 p.3:359
+sdm-section:v3:4.6.4	v3 p.3:361
+sdm-section:v3:4.6.5	v3 p.3:362
+sdm-section:v3:4.6.6	v3 p.3:363
+sdm-section:v3:4.6.7	v3 p.3:363
+sdm-section:v3:4.6.8	v3 p.3:364
+sdm-section:v3:4.6.9	v3 p.3:365
+sdm-section:v3:4.7	v3 p.3:365
+sdm-section:v3:4.7.1	v3 p.3:365
+sdm-section:v3:4.7.2	v3 p.3:366
+sdm-section:v3:4.7.3	v3 p.3:367
+sdm-section:v3:4.7.4	v3 p.3:368
+sdm-section:v3:4.8	v3 p.3:368

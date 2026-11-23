@@ -1,0 +1,184 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+[contract."function:target/ia64/arch/rse.c:ia64_rse_collect_bit"]
+check = "rse"
+module = "Rse.Implementation"
+statement = """
+∀ addr : BitVec 64, RseImplementation.collectBitC addr = RseSpec.collectBit addr
+"""
+
+[contract."function:target/ia64/arch/rse.c:ia64_rse_collect_word"]
+check = "rse"
+module = "Rse.Implementation"
+statement = """
+∀ addr : BitVec 64, RseImplementation.collectWordC addr = RseSpec.collectWord addr
+"""
+
+[contract."function:target/ia64/arch/rse.c:ia64_rse_rnat_low_mask"]
+check = "rse"
+module = "Rse.Implementation"
+statement = """
+∀ index : BitVec 32,
+  RseImplementation.definedNaTBitsC index = RseSpec.definedNaTBits index
+"""
+
+[contract."function:target/ia64/arch/rse.c:ia64_rse_nat_word_count_slow"]
+check = "rse"
+module = "Rse.Implementation"
+statement = """
+∀ slots : BitVec 32, RseImplementation.natCountSlowC slots = RseSpec.natCount slots
+"""
+
+[contract."function:target/ia64/arch/rse.c:ia64_rse_nat_word_count"]
+check = "rse"
+module = "Rse.Implementation"
+statement = """
+∀ slots : BitVec 32, RseImplementation.natCountC slots = RseSpec.natCount slots
+"""
+
+[contract."function:target/ia64/arch/rse.c:ia64_rse_nat_words_grow"]
+check = "rse"
+module = "Rse.Implementation"
+statement = """
+∀ (addr : BitVec 64) (n : BitVec 32),
+  RseImplementation.natGrowC addr n = RseSpec.natGrow addr n
+"""
+
+[contract."function:target/ia64/arch/rse.c:ia64_rse_nat_words_shrink"]
+check = "rse"
+module = "Rse.Implementation"
+statement = """
+∀ (addr : BitVec 64) (n : BitVec 32),
+  RseImplementation.natShrinkC addr n = RseSpec.natShrink addr n
+"""
+
+[contract."function:target/ia64/arch/rse.c:ia64_rse_register_words_below"]
+check = "rse"
+module = "Rse.Implementation"
+statement = """
+∀ (addr : BitVec 64) (words : BitVec 32),
+  RseImplementation.payloadWordsBelowC addr words = RseSpec.payloadWordsBelow addr words
+"""
+
+[contract."function:target/ia64/arch/rse.c:ia64_rse_current_cfm"]
+check = "rse"
+module = "Rse.Implementation"
+statement = """
+∀ (sof sol : BitVec 7) (sor : BitVec 4) (gr fr : BitVec 7) (pr : BitVec 6),
+  RseImplementation.frameMarkerC sof sol sor gr fr pr =
+  RseSpec.frameMarker sof sol sor gr fr pr
+"""
+
+[contract."function:target/ia64/arch/rse.c:ia64_rse_rotating_gr_count"]
+check = "rse"
+module = "Rse.Implementation"
+statement = """
+∀ sof sor : BitVec 8,
+  RseImplementation.rotateCountC sof sor = RseSpec.rotateCount sof sor
+"""
+
+[contract."function:target/ia64/arch/rse.c:ia64_rse_virt_to_phys"]
+check = "rse"
+module = "Rse.Implementation"
+statement = """
+∀ (sof sor rrb : BitVec 8) (bol v : BitVec 32), bol < 96 → v < 96 →
+  (rrb.zeroExtend 32 < RseSpec.rotateCount sof sor ∨ RseSpec.rotateCount sof sor = 0) →
+  RseImplementation.virtToPhysC sof sor rrb bol v = RseSpec.virtToPhys sof sor rrb bol v
+"""
+
+[contract."function:target/ia64/arch/rse.c:ia64_rse_phys_to_virt"]
+check = "rse"
+module = "Rse.Implementation"
+statement = """
+∀ (sof sor rrb : BitVec 8) (bol p : BitVec 32), bol < 96 → p < 96 →
+  (rrb.zeroExtend 32 < RseSpec.rotateCount sof sor ∨ RseSpec.rotateCount sof sor = 0) →
+  RseImplementation.physToVirtC sof sor rrb bol p = RseSpec.physToVirt sof sor rrb bol p
+"""
+
+[contract."function:target/ia64/arch/rse.c:ia64_rse_wrap_phys_slow"]
+check = "rse"
+module = "Rse.Implementation"
+statement = """
+∀ idx : BitVec 32,
+  RseImplementation.wrapSlowC idx.toInt = RseSpec.wrapPhys idx.toInt
+"""
+
+[contract."function:target/ia64/arch/rse.c:ia64_rse_wrap_phys"]
+check = "rse"
+module = "Rse.Implementation"
+statement = """
+∀ idx : BitVec 32,
+  RseImplementation.wrapPhysC idx.toInt = RseSpec.wrapPhys idx.toInt
+"""
+
+[contract."function:target/ia64/arch/rse.c:ia64_rotate_low_bits_left_one"]
+check = "rse"
+module = "Rse.Implementation"
+statement = """
+∀ (bits : BitVec 128) (n : BitVec 32), 0 < n → n ≤ 96 →
+  RseImplementation.rotatePrefixC bits n = RseSpec.rotatePrefix bits n
+"""
+
+[contract."route:tcg-rse-alloc-resident"]
+check = "rse"
+module = "Rse.Implementation"
+statement = """
+∀ (s : RseSpec.FrameState) (sof sol : BitVec 7) (sor : BitVec 4)
+  (r : BitVec 7) (old : BitVec 64) (nat : Bool) (qp : BitVec 6) (slot : BitVec 2)
+  (startsGroup stopAfterSlot0 : Bool),
+  RseSpec.allocSite qp slot startsGroup stopAfterSlot0 → s.complete →
+  ({ s.cfm with sof := sof, sol := sol, sor := sor } : RseSpec.Frame).valid →
+  r ≠ 0 → r.toNat < 32 + sof.toNat →
+  (sor = s.cfm.sor ∨ s.cfm.gr = 0 ∧ s.cfm.fr = 0 ∧ s.cfm.pr = 0) →
+  (sof.toNat : Int) - s.cfm.sof.toNat ≤ s.invalid + s.clean →
+  RseImplementation.allocResidentC s (RseImplementation.packAllocC sof sol sor) r old nat =
+    (RseSpec.allocResident s sof sol sor, RseSpec.allocDestination s)
+"""
+
+[contract."route:tcg-rse-cover-frame"]
+check = "rse"
+module = "Rse.Implementation"
+statement = """
+∀ (s : RseSpec.FrameState) (hasVirtualization endsGroup : Bool),
+  RseSpec.coverSite s hasVirtualization endsGroup → s.complete →
+  RseImplementation.coverFrameC s = RseSpec.coverFrame s
+"""
+
+[contract."route:tcg-rse-alloc-register"]
+check = "rse"
+module = "Rse.Implementation"
+statement = """
+∀ (oldSize newSize : Nat) (invalid : Int) (rrb : BitVec 7) (destination reg : Nat)
+  (pfs : BitVec 64) (old loaded : RseSpec.RegisterCell) (oldDirty : Bool),
+  destination ≠ 0 → destination < 32 + newSize →
+  RseSpec.registerRefines
+    (RseImplementation.allocRegisterC oldSize newSize destination reg pfs old loaded)
+    (RseSpec.allocRegister oldSize newSize destination reg pfs old) ∧
+  ((RseImplementation.allocDirtyC oldSize newSize invalid rrb destination reg oldDirty = true) ↔
+    (32 ≤ reg ∧ reg < 128 ∧ destination = reg ∨
+      (oldSize ≤ newSize ∧ (newSize : Int) - oldSize ≤ invalid ∧ rrb = 0) ∧ oldDirty = true))
+"""
+
+[contract."route:tcg-rse-cover-register"]
+check = "rse"
+module = "Rse.Implementation"
+statement = """
+∀ (sof sor rrb : BitVec 8) (bol v : BitVec 32) (dirty natFilesClear : Bool)
+  (current : RseSpec.RegisterCell) (physical : BitVec 32 → RseSpec.RegisterCell),
+  bol < 96 → v < 96 → v < sof.zeroExtend 32 →
+  (rrb.zeroExtend 32 < RseSpec.rotateCount sof sor ∨ RseSpec.rotateCount sof sor = 0) →
+  (dirty = false → physical (RseSpec.virtToPhys sof sor rrb bol v) = current) →
+  (natFilesClear = true →
+    (physical (RseSpec.virtToPhys sof sor rrb bol v)).2 = false ∧ current.2 = false) →
+  RseImplementation.coverSavedRegisterC sof sor rrb bol v dirty natFilesClear current physical =
+    RseSpec.coverSavedRegister sof sor rrb bol v current
+"""
+
+[contract."route:tcg-rse-frame-alat"]
+check = "rse"
+module = "Rse.Implementation"
+statement = """
+∀ (isCover frLive : Bool) (oldRrb : BitVec 7) (entries : Nat)
+  (old : Option RseSpec.AlatTag),
+  RseSpec.alatFrameRefines old (RseImplementation.alatFrameC isCover frLive oldRrb entries old)
+"""

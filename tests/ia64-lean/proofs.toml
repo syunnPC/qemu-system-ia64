@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+[proof."function:target/ia64/arch/memory.c:ia64_memop_size"]
+theorem = "MemoryImplementation.memopSize_matches"
+sources = { "target/ia64/arch/memory.c" = "5759b9dbf18757c9c18caffcc4301895d83a11956e88068efc95301a6a9836c5", "include/exec/memop.h" = "b8852c91479cd50307c1993049590233d3889ed46a031d19d4cb140447496432" }
+
+[proof."function:target/ia64/arch/memory.c:ia64_data_big_endian"]
+theorem = "MemoryImplementation.psrEndian_matches"
+sources = { "target/ia64/arch/memory.c" = "5759b9dbf18757c9c18caffcc4301895d83a11956e88068efc95301a6a9836c5", "target/ia64/cpu.h" = "0248204f0a5465666fbb7ec0021c69406ac3ca07fbd6f200c5bd2ad2708d5427" }
+
+[proof."function:target/ia64/arch/memory.c:ia64_runtime_data_memop"]
+theorem = "MemoryImplementation.runtimePsrDescriptor_matches"
+sources = { "target/ia64/arch/memory.c" = "5759b9dbf18757c9c18caffcc4301895d83a11956e88068efc95301a6a9836c5", "include/exec/memop.h" = "b8852c91479cd50307c1993049590233d3889ed46a031d19d4cb140447496432", "target/ia64/cpu.h" = "0248204f0a5465666fbb7ec0021c69406ac3ca07fbd6f200c5bd2ad2708d5427" }
+
+[proof."function:target/ia64/translate/translate.c:ia64_memop_with_endian"]
+theorem = "MemoryImplementation.tcgDescriptor_matches"
+sources = { "target/ia64/translate/translate.c" = "c3e614d2e55b7683783c55daf81097d993d2bdab9e2b6e76a1fee14e6626c2a8", "include/exec/memop.h" = "b8852c91479cd50307c1993049590233d3889ed46a031d19d4cb140447496432" }

@@ -1,0 +1,2089 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+[contract."decode:ADD"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a1 0 0) FullDecodeImplementation.bundleADD
+"""
+
+[contract."decode:ADD_ONE"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a1 0 1) FullDecodeImplementation.bundleADD_ONE
+"""
+
+[contract."decode:SUB_ONE"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a1 1 0) FullDecodeImplementation.bundleSUB_ONE
+"""
+
+[contract."decode:SUB"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a1 1 1) FullDecodeImplementation.bundleSUB
+"""
+
+[contract."decode:ADDP4"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a1 2 0) FullDecodeImplementation.bundleADDP4
+"""
+
+[contract."decode:AND"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a1 3 0) FullDecodeImplementation.bundleAND
+"""
+
+[contract."decode:ANDCM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a1 3 1) FullDecodeImplementation.bundleANDCM
+"""
+
+[contract."decode:OR"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a1 3 2) FullDecodeImplementation.bundleOR
+"""
+
+[contract."decode:XOR"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a1 3 3) FullDecodeImplementation.bundleXOR
+"""
+
+[contract."decode:SHLADD"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a2 4) FullDecodeImplementation.bundleSHLADD
+"""
+
+[contract."decode:SHLADDP4"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a2 6) FullDecodeImplementation.bundleSHLADDP4
+"""
+
+[contract."decode:SUB_IMM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a3 9 1) FullDecodeImplementation.bundleSUB_IMM
+"""
+
+[contract."decode:AND_IMM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a3 11 0) FullDecodeImplementation.bundleAND_IMM
+"""
+
+[contract."decode:ANDCM_IMM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a3 11 1) FullDecodeImplementation.bundleANDCM_IMM
+"""
+
+[contract."decode:OR_IMM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a3 11 2) FullDecodeImplementation.bundleOR_IMM
+"""
+
+[contract."decode:XOR_IMM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a3 11 3) FullDecodeImplementation.bundleXOR_IMM
+"""
+
+[contract."decode:ADDS"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a4 2) FullDecodeImplementation.bundleADDS
+"""
+
+[contract."decode:ADDP4_IMM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a4 3) FullDecodeImplementation.bundleADDP4_IMM
+"""
+
+[contract."decode:ADDL"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a5) FullDecodeImplementation.bundleADDL
+"""
+
+[contract."decode:CMP_LT"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a6 12 0 0 none) FullDecodeImplementation.bundleCMP_LT
+"""
+
+[contract."decode:CMP_EQ_AND"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a6 12 0 1 (some 0)) FullDecodeImplementation.bundleCMP_EQ_AND
+"""
+
+[contract."decode:CMP_NE_AND"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a6 12 0 1 (some 1)) FullDecodeImplementation.bundleCMP_NE_AND
+"""
+
+[contract."decode:CMP_LT_IMM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a8 12 2 0 none) FullDecodeImplementation.bundleCMP_LT_IMM
+"""
+
+[contract."decode:CMP_EQ_AND_IMM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a8 12 2 1 (some 0)) FullDecodeImplementation.bundleCMP_EQ_AND_IMM
+"""
+
+[contract."decode:CMP_NE_AND_IMM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a8 12 2 1 (some 1)) FullDecodeImplementation.bundleCMP_NE_AND_IMM
+"""
+
+[contract."decode:CMP4_LT"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a6 12 1 0 none) FullDecodeImplementation.bundleCMP4_LT
+"""
+
+[contract."decode:CMP4_EQ_AND"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a6 12 1 1 (some 0)) FullDecodeImplementation.bundleCMP4_EQ_AND
+"""
+
+[contract."decode:CMP4_NE_AND"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a6 12 1 1 (some 1)) FullDecodeImplementation.bundleCMP4_NE_AND
+"""
+
+[contract."decode:CMP4_LT_IMM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a8 12 3 0 none) FullDecodeImplementation.bundleCMP4_LT_IMM
+"""
+
+[contract."decode:CMP4_EQ_AND_IMM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a8 12 3 1 (some 0)) FullDecodeImplementation.bundleCMP4_EQ_AND_IMM
+"""
+
+[contract."decode:CMP4_NE_AND_IMM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a8 12 3 1 (some 1)) FullDecodeImplementation.bundleCMP4_NE_AND_IMM
+"""
+
+[contract."decode:CMP_LTU"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a6 13 0 0 none) FullDecodeImplementation.bundleCMP_LTU
+"""
+
+[contract."decode:CMP_EQ_OR"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a6 13 0 1 (some 0)) FullDecodeImplementation.bundleCMP_EQ_OR
+"""
+
+[contract."decode:CMP_NE_OR"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a6 13 0 1 (some 1)) FullDecodeImplementation.bundleCMP_NE_OR
+"""
+
+[contract."decode:CMP_LTU_IMM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a8 13 2 0 none) FullDecodeImplementation.bundleCMP_LTU_IMM
+"""
+
+[contract."decode:CMP_EQ_OR_IMM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a8 13 2 1 (some 0)) FullDecodeImplementation.bundleCMP_EQ_OR_IMM
+"""
+
+[contract."decode:CMP_NE_OR_IMM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a8 13 2 1 (some 1)) FullDecodeImplementation.bundleCMP_NE_OR_IMM
+"""
+
+[contract."decode:CMP4_LTU"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a6 13 1 0 none) FullDecodeImplementation.bundleCMP4_LTU
+"""
+
+[contract."decode:CMP4_EQ_OR"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a6 13 1 1 (some 0)) FullDecodeImplementation.bundleCMP4_EQ_OR
+"""
+
+[contract."decode:CMP4_NE_OR"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a6 13 1 1 (some 1)) FullDecodeImplementation.bundleCMP4_NE_OR
+"""
+
+[contract."decode:CMP4_LTU_IMM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a8 13 3 0 none) FullDecodeImplementation.bundleCMP4_LTU_IMM
+"""
+
+[contract."decode:CMP4_EQ_OR_IMM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a8 13 3 1 (some 0)) FullDecodeImplementation.bundleCMP4_EQ_OR_IMM
+"""
+
+[contract."decode:CMP4_NE_OR_IMM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a8 13 3 1 (some 1)) FullDecodeImplementation.bundleCMP4_NE_OR_IMM
+"""
+
+[contract."decode:CMP_EQ"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a6 14 0 0 none) FullDecodeImplementation.bundleCMP_EQ
+"""
+
+[contract."decode:CMP_EQ_OR_ANDCM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a6 14 0 1 (some 0)) FullDecodeImplementation.bundleCMP_EQ_OR_ANDCM
+"""
+
+[contract."decode:CMP_NE_OR_ANDCM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a6 14 0 1 (some 1)) FullDecodeImplementation.bundleCMP_NE_OR_ANDCM
+"""
+
+[contract."decode:CMP_EQ_IMM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a8 14 2 0 none) FullDecodeImplementation.bundleCMP_EQ_IMM
+"""
+
+[contract."decode:CMP_EQ_OR_ANDCM_IMM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a8 14 2 1 (some 0)) FullDecodeImplementation.bundleCMP_EQ_OR_ANDCM_IMM
+"""
+
+[contract."decode:CMP_NE_OR_ANDCM_IMM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a8 14 2 1 (some 1)) FullDecodeImplementation.bundleCMP_NE_OR_ANDCM_IMM
+"""
+
+[contract."decode:CMP4_EQ"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a6 14 1 0 none) FullDecodeImplementation.bundleCMP4_EQ
+"""
+
+[contract."decode:CMP4_EQ_OR_ANDCM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a6 14 1 1 (some 0)) FullDecodeImplementation.bundleCMP4_EQ_OR_ANDCM
+"""
+
+[contract."decode:CMP4_NE_OR_ANDCM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a6 14 1 1 (some 1)) FullDecodeImplementation.bundleCMP4_NE_OR_ANDCM
+"""
+
+[contract."decode:CMP4_EQ_IMM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a8 14 3 0 none) FullDecodeImplementation.bundleCMP4_EQ_IMM
+"""
+
+[contract."decode:CMP4_EQ_OR_ANDCM_IMM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a8 14 3 1 (some 0)) FullDecodeImplementation.bundleCMP4_EQ_OR_ANDCM_IMM
+"""
+
+[contract."decode:CMP4_NE_OR_ANDCM_IMM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a8 14 3 1 (some 1)) FullDecodeImplementation.bundleCMP4_NE_OR_ANDCM_IMM
+"""
+
+[contract."decode:CMP_GT_AND"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a7 12 0 0 (some 0)) FullDecodeImplementation.bundleCMP_GT_AND
+"""
+
+[contract."decode:CMP_LE_AND"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a7 12 0 0 (some 1)) FullDecodeImplementation.bundleCMP_LE_AND
+"""
+
+[contract."decode:CMP_GE_AND"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a7 12 0 1 (some 0)) FullDecodeImplementation.bundleCMP_GE_AND
+"""
+
+[contract."decode:CMP_LT_AND"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a7 12 0 1 (some 1)) FullDecodeImplementation.bundleCMP_LT_AND
+"""
+
+[contract."decode:CMP4_GT_AND"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a7 12 1 0 (some 0)) FullDecodeImplementation.bundleCMP4_GT_AND
+"""
+
+[contract."decode:CMP4_LE_AND"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a7 12 1 0 (some 1)) FullDecodeImplementation.bundleCMP4_LE_AND
+"""
+
+[contract."decode:CMP4_GE_AND"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a7 12 1 1 (some 0)) FullDecodeImplementation.bundleCMP4_GE_AND
+"""
+
+[contract."decode:CMP4_LT_AND"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a7 12 1 1 (some 1)) FullDecodeImplementation.bundleCMP4_LT_AND
+"""
+
+[contract."decode:CMP_GT_OR"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a7 13 0 0 (some 0)) FullDecodeImplementation.bundleCMP_GT_OR
+"""
+
+[contract."decode:CMP_LE_OR"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a7 13 0 0 (some 1)) FullDecodeImplementation.bundleCMP_LE_OR
+"""
+
+[contract."decode:CMP_GE_OR"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a7 13 0 1 (some 0)) FullDecodeImplementation.bundleCMP_GE_OR
+"""
+
+[contract."decode:CMP_LT_OR"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a7 13 0 1 (some 1)) FullDecodeImplementation.bundleCMP_LT_OR
+"""
+
+[contract."decode:CMP4_GT_OR"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a7 13 1 0 (some 0)) FullDecodeImplementation.bundleCMP4_GT_OR
+"""
+
+[contract."decode:CMP4_LE_OR"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a7 13 1 0 (some 1)) FullDecodeImplementation.bundleCMP4_LE_OR
+"""
+
+[contract."decode:CMP4_GE_OR"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a7 13 1 1 (some 0)) FullDecodeImplementation.bundleCMP4_GE_OR
+"""
+
+[contract."decode:CMP4_LT_OR"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a7 13 1 1 (some 1)) FullDecodeImplementation.bundleCMP4_LT_OR
+"""
+
+[contract."decode:CMP_GT_OR_ANDCM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a7 14 0 0 (some 0)) FullDecodeImplementation.bundleCMP_GT_OR_ANDCM
+"""
+
+[contract."decode:CMP_LE_OR_ANDCM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a7 14 0 0 (some 1)) FullDecodeImplementation.bundleCMP_LE_OR_ANDCM
+"""
+
+[contract."decode:CMP_GE_OR_ANDCM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a7 14 0 1 (some 0)) FullDecodeImplementation.bundleCMP_GE_OR_ANDCM
+"""
+
+[contract."decode:CMP_LT_OR_ANDCM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a7 14 0 1 (some 1)) FullDecodeImplementation.bundleCMP_LT_OR_ANDCM
+"""
+
+[contract."decode:CMP4_GT_OR_ANDCM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a7 14 1 0 (some 0)) FullDecodeImplementation.bundleCMP4_GT_OR_ANDCM
+"""
+
+[contract."decode:CMP4_LE_OR_ANDCM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a7 14 1 0 (some 1)) FullDecodeImplementation.bundleCMP4_LE_OR_ANDCM
+"""
+
+[contract."decode:CMP4_GE_OR_ANDCM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a7 14 1 1 (some 0)) FullDecodeImplementation.bundleCMP4_GE_OR_ANDCM
+"""
+
+[contract."decode:CMP4_LT_OR_ANDCM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.cmp .a7 14 1 1 (some 1)) FullDecodeImplementation.bundleCMP4_LT_OR_ANDCM
+"""
+
+[contract."decode:PADD1"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a9 0 0 0 3) FullDecodeImplementation.bundlePADD1
+"""
+
+[contract."decode:PSUB1"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a9 0 1 0 3) FullDecodeImplementation.bundlePSUB1
+"""
+
+[contract."decode:PADD2"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a9 1 0 0 3) FullDecodeImplementation.bundlePADD2
+"""
+
+[contract."decode:PSUB2"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a9 1 1 0 3) FullDecodeImplementation.bundlePSUB2
+"""
+
+[contract."decode:PADD4"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a9 2 0 0 0) FullDecodeImplementation.bundlePADD4
+"""
+
+[contract."decode:PSUB4"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a9 2 1 0 0) FullDecodeImplementation.bundlePSUB4
+"""
+
+[contract."decode:PAVG1"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a9 0 2 2 3) FullDecodeImplementation.bundlePAVG1
+"""
+
+[contract."decode:PAVGSUB1"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a9 0 3 2 2) FullDecodeImplementation.bundlePAVGSUB1
+"""
+
+[contract."decode:PAVG2"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a9 1 2 2 3) FullDecodeImplementation.bundlePAVG2
+"""
+
+[contract."decode:PAVGSUB2"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a9 1 3 2 2) FullDecodeImplementation.bundlePAVGSUB2
+"""
+
+[contract."decode:PCMP1_EQ"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a9 0 9 0 0) FullDecodeImplementation.bundlePCMP1_EQ
+"""
+
+[contract."decode:PCMP1_GT"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a9 0 9 1 1) FullDecodeImplementation.bundlePCMP1_GT
+"""
+
+[contract."decode:PCMP2_EQ"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a9 1 9 0 0) FullDecodeImplementation.bundlePCMP2_EQ
+"""
+
+[contract."decode:PCMP2_GT"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a9 1 9 1 1) FullDecodeImplementation.bundlePCMP2_GT
+"""
+
+[contract."decode:PCMP4_EQ"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a9 2 9 0 0) FullDecodeImplementation.bundlePCMP4_EQ
+"""
+
+[contract."decode:PCMP4_GT"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a9 2 9 1 1) FullDecodeImplementation.bundlePCMP4_GT
+"""
+
+[contract."decode:PSHLADD2"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a10 4) FullDecodeImplementation.bundlePSHLADD2
+"""
+
+[contract."decode:PSHRADD2"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.a10 6) FullDecodeImplementation.bundlePSHRADD2
+"""
+
+[contract."decode:LD1"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.load 0 (some 16) (some 20)) FullDecodeImplementation.bundleLD1
+"""
+
+[contract."decode:LD1S"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.load 4 none none) FullDecodeImplementation.bundleLD1S
+"""
+
+[contract."decode:LD1A"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.load 8 none none) FullDecodeImplementation.bundleLD1A
+"""
+
+[contract."decode:LD1SA"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.load 12 none none) FullDecodeImplementation.bundleLD1SA
+"""
+
+[contract."decode:LD1C_NC"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.load 36 none none) FullDecodeImplementation.bundleLD1C_NC
+"""
+
+[contract."decode:LD1C_CLR"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.load 32 none (some 40)) FullDecodeImplementation.bundleLD1C_CLR
+"""
+
+[contract."decode:ST1"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.store 48 false) FullDecodeImplementation.bundleST1
+"""
+
+[contract."decode:ST1REL"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.store 52 true) FullDecodeImplementation.bundleST1REL
+"""
+
+[contract."decode:CMPXCHG1"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.semaphore 0 (some 4) false) FullDecodeImplementation.bundleCMPXCHG1
+"""
+
+[contract."decode:XCHG1"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.semaphore 8 none false) FullDecodeImplementation.bundleXCHG1
+"""
+
+[contract."decode:LD2"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.load 1 (some 17) (some 21)) FullDecodeImplementation.bundleLD2
+"""
+
+[contract."decode:LD2S"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.load 5 none none) FullDecodeImplementation.bundleLD2S
+"""
+
+[contract."decode:LD2A"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.load 9 none none) FullDecodeImplementation.bundleLD2A
+"""
+
+[contract."decode:LD2SA"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.load 13 none none) FullDecodeImplementation.bundleLD2SA
+"""
+
+[contract."decode:LD2C_NC"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.load 37 none none) FullDecodeImplementation.bundleLD2C_NC
+"""
+
+[contract."decode:LD2C_CLR"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.load 33 none (some 41)) FullDecodeImplementation.bundleLD2C_CLR
+"""
+
+[contract."decode:ST2"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.store 49 false) FullDecodeImplementation.bundleST2
+"""
+
+[contract."decode:ST2REL"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.store 53 true) FullDecodeImplementation.bundleST2REL
+"""
+
+[contract."decode:CMPXCHG2"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.semaphore 1 (some 5) false) FullDecodeImplementation.bundleCMPXCHG2
+"""
+
+[contract."decode:XCHG2"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.semaphore 9 none false) FullDecodeImplementation.bundleXCHG2
+"""
+
+[contract."decode:LD4"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.load 2 (some 18) (some 22)) FullDecodeImplementation.bundleLD4
+"""
+
+[contract."decode:LD4S"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.load 6 none none) FullDecodeImplementation.bundleLD4S
+"""
+
+[contract."decode:LD4A"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.load 10 none none) FullDecodeImplementation.bundleLD4A
+"""
+
+[contract."decode:LD4SA"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.load 14 none none) FullDecodeImplementation.bundleLD4SA
+"""
+
+[contract."decode:LD4C_NC"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.load 38 none none) FullDecodeImplementation.bundleLD4C_NC
+"""
+
+[contract."decode:LD4C_CLR"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.load 34 none (some 42)) FullDecodeImplementation.bundleLD4C_CLR
+"""
+
+[contract."decode:ST4"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.store 50 false) FullDecodeImplementation.bundleST4
+"""
+
+[contract."decode:ST4REL"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.store 54 true) FullDecodeImplementation.bundleST4REL
+"""
+
+[contract."decode:CMPXCHG4"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.semaphore 2 (some 6) false) FullDecodeImplementation.bundleCMPXCHG4
+"""
+
+[contract."decode:XCHG4"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.semaphore 10 none false) FullDecodeImplementation.bundleXCHG4
+"""
+
+[contract."decode:FETCHADD4"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.semaphore 18 (some 22) true) FullDecodeImplementation.bundleFETCHADD4
+"""
+
+[contract."decode:LD8"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.load 3 (some 19) (some 23)) FullDecodeImplementation.bundleLD8
+"""
+
+[contract."decode:LD8S"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.load 7 none none) FullDecodeImplementation.bundleLD8S
+"""
+
+[contract."decode:LD8A"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.load 11 none none) FullDecodeImplementation.bundleLD8A
+"""
+
+[contract."decode:LD8SA"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.load 15 none none) FullDecodeImplementation.bundleLD8SA
+"""
+
+[contract."decode:LD8C_NC"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.load 39 none none) FullDecodeImplementation.bundleLD8C_NC
+"""
+
+[contract."decode:LD8C_CLR"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.load 35 none (some 43)) FullDecodeImplementation.bundleLD8C_CLR
+"""
+
+[contract."decode:ST8"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.store 51 false) FullDecodeImplementation.bundleST8
+"""
+
+[contract."decode:ST8REL"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.store 55 true) FullDecodeImplementation.bundleST8REL
+"""
+
+[contract."decode:CMPXCHG8"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.semaphore 3 (some 7) false) FullDecodeImplementation.bundleCMPXCHG8
+"""
+
+[contract."decode:XCHG8"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.semaphore 11 none false) FullDecodeImplementation.bundleXCHG8
+"""
+
+[contract."decode:FETCHADD8"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.semaphore 19 (some 23) true) FullDecodeImplementation.bundleFETCHADD8
+"""
+
+[contract."decode:LD8FILL"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.load 27 none none) FullDecodeImplementation.bundleLD8FILL
+"""
+
+[contract."decode:ST8SPILL"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.store 59 false) FullDecodeImplementation.bundleST8SPILL
+"""
+
+[contract."decode:LD16"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.AoBundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.wideLoad) FullDecodeImplementation.bundleLD16 FullDecodeImplementation.aoFaultLD16
+"""
+
+[contract."decode:ST16"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.AoBundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.wideStore) FullDecodeImplementation.bundleST16 FullDecodeImplementation.aoFaultST16
+"""
+
+[contract."decode:CMP8XCHG16"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.AoBundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.semaphore 32 (some 36) false) FullDecodeImplementation.bundleCMP8XCHG16 FullDecodeImplementation.aoFaultCMP8XCHG16
+"""
+
+[contract."decode:LDFE"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.fpLoad 0 false) FullDecodeImplementation.bundleLDFE
+"""
+
+[contract."decode:LDF8"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.fpLoad 1 false) FullDecodeImplementation.bundleLDF8
+"""
+
+[contract."decode:LDFS"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.fpLoad 2 false) FullDecodeImplementation.bundleLDFS
+"""
+
+[contract."decode:LDFD"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.fpLoad 3 false) FullDecodeImplementation.bundleLDFD
+"""
+
+[contract."decode:LDF_FILL"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.fpLoad 3 true) FullDecodeImplementation.bundleLDF_FILL
+"""
+
+[contract."decode:LDFP8"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.fpPair 1) FullDecodeImplementation.bundleLDFP8
+"""
+
+[contract."decode:LDFPS"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.fpPair 2) FullDecodeImplementation.bundleLDFPS
+"""
+
+[contract."decode:LDFPD"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.fpPair 3) FullDecodeImplementation.bundleLDFPD
+"""
+
+[contract."decode:PMPYSH2"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMajorSeven .i1 1 0 3 none) FullDecodeImplementation.bundlePMPYSH2
+"""
+
+[contract."decode:PMPYSH2_U"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMajorSeven .i1 1 0 1 none) FullDecodeImplementation.bundlePMPYSH2_U
+"""
+
+[contract."decode:MUX1"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMajorSeven .i3 0 3 2 (some 2)) FullDecodeImplementation.bundleMUX1
+"""
+
+[contract."decode:MUX2"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMajorSeven .i4 1 3 2 (some 2)) FullDecodeImplementation.bundleMUX2
+"""
+
+[contract."decode:POPCNT"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMajorSeven .i9 1 1 1 (some 2)) FullDecodeImplementation.bundlePOPCNT
+"""
+
+[contract."decode:CLZ"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.IntegerFeatureBundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMajorSeven .i9 1 1 1 (some 3)) .cz FullDecodeImplementation.bundleCLZ FullDecodeImplementation.integerFeatureFaultCLZ
+"""
+
+[contract."decode:PMPY2_L"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMajorSeven .i2 1 2 3 (some 3)) FullDecodeImplementation.bundlePMPY2_L
+"""
+
+[contract."decode:PMPY2_R"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMajorSeven .i2 1 2 1 (some 3)) FullDecodeImplementation.bundlePMPY2_R
+"""
+
+[contract."decode:MPY4"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.IntegerFeatureBundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMajorSeven .i2 2 0 1 (some 3)) .x2 FullDecodeImplementation.bundleMPY4 FullDecodeImplementation.integerFeatureFaultMPY4
+"""
+
+[contract."decode:MPYSHL4"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.IntegerFeatureBundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMajorSeven .i2 2 0 3 (some 3)) .x2 FullDecodeImplementation.bundleMPYSHL4 FullDecodeImplementation.integerFeatureFaultMPYSHL4
+"""
+
+[contract."decode:PACK2_USS"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMajorSeven .i2 1 2 0 (some 0)) FullDecodeImplementation.bundlePACK2_USS
+"""
+
+[contract."decode:PACK2_SSS"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMajorSeven .i2 1 2 2 (some 0)) FullDecodeImplementation.bundlePACK2_SSS
+"""
+
+[contract."decode:PACK4_SSS"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMajorSeven .i2 2 2 2 (some 0)) FullDecodeImplementation.bundlePACK4_SSS
+"""
+
+[contract."decode:PMIN1_U"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMajorSeven .i2 0 2 1 (some 0)) FullDecodeImplementation.bundlePMIN1_U
+"""
+
+[contract."decode:PMAX1_U"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMajorSeven .i2 0 2 1 (some 1)) FullDecodeImplementation.bundlePMAX1_U
+"""
+
+[contract."decode:PMIN2"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMajorSeven .i2 1 2 3 (some 0)) FullDecodeImplementation.bundlePMIN2
+"""
+
+[contract."decode:PMAX2"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMajorSeven .i2 1 2 3 (some 1)) FullDecodeImplementation.bundlePMAX2
+"""
+
+[contract."decode:PSAD1"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMajorSeven .i2 0 2 3 (some 2)) FullDecodeImplementation.bundlePSAD1
+"""
+
+[contract."decode:MIX1_R"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMajorSeven .i2 0 2 0 (some 2)) FullDecodeImplementation.bundleMIX1_R
+"""
+
+[contract."decode:MIX1_L"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMajorSeven .i2 0 2 2 (some 2)) FullDecodeImplementation.bundleMIX1_L
+"""
+
+[contract."decode:UNPACK1_H"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMajorSeven .i2 0 2 0 (some 1)) FullDecodeImplementation.bundleUNPACK1_H
+"""
+
+[contract."decode:UNPACK1_L"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMajorSeven .i2 0 2 2 (some 1)) FullDecodeImplementation.bundleUNPACK1_L
+"""
+
+[contract."decode:MIX2_R"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMajorSeven .i2 1 2 0 (some 2)) FullDecodeImplementation.bundleMIX2_R
+"""
+
+[contract."decode:MIX2_L"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMajorSeven .i2 1 2 2 (some 2)) FullDecodeImplementation.bundleMIX2_L
+"""
+
+[contract."decode:UNPACK2_H"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMajorSeven .i2 1 2 0 (some 1)) FullDecodeImplementation.bundleUNPACK2_H
+"""
+
+[contract."decode:UNPACK2_L"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMajorSeven .i2 1 2 2 (some 1)) FullDecodeImplementation.bundleUNPACK2_L
+"""
+
+[contract."decode:MIX4_R"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMajorSeven .i2 2 2 0 (some 2)) FullDecodeImplementation.bundleMIX4_R
+"""
+
+[contract."decode:MIX4_L"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMajorSeven .i2 2 2 2 (some 2)) FullDecodeImplementation.bundleMIX4_L
+"""
+
+[contract."decode:UNPACK4_H"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMajorSeven .i2 2 2 0 (some 1)) FullDecodeImplementation.bundleUNPACK4_H
+"""
+
+[contract."decode:UNPACK4_L"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMajorSeven .i2 2 2 2 (some 1)) FullDecodeImplementation.bundleUNPACK4_L
+"""
+
+[contract."decode:PSHL2"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iShift 1 true false) FullDecodeImplementation.bundlePSHL2
+"""
+
+[contract."decode:PSHR2"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iShift 1 false false) FullDecodeImplementation.bundlePSHR2
+"""
+
+[contract."decode:PSHR2_U"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iShift 1 false true) FullDecodeImplementation.bundlePSHR2_U
+"""
+
+[contract."decode:PSHL4"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iShift 2 true false) FullDecodeImplementation.bundlePSHL4
+"""
+
+[contract."decode:PSHR4"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iShift 2 false false) FullDecodeImplementation.bundlePSHR4
+"""
+
+[contract."decode:PSHR4_U"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iShift 2 false true) FullDecodeImplementation.bundlePSHR4_U
+"""
+
+[contract."decode:SHL"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iShift 3 true false) FullDecodeImplementation.bundleSHL
+"""
+
+[contract."decode:SHR"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iShift 3 false false) FullDecodeImplementation.bundleSHR
+"""
+
+[contract."decode:SHRU"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iShift 3 false true) FullDecodeImplementation.bundleSHRU
+"""
+
+[contract."decode:SHRP_IMM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iBitfield .i10) FullDecodeImplementation.bundleSHRP_IMM
+"""
+
+[contract."decode:EXTR"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iBitfield (.i11 true)) FullDecodeImplementation.bundleEXTR
+"""
+
+[contract."decode:EXTRU"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iBitfield (.i11 false)) FullDecodeImplementation.bundleEXTRU
+"""
+
+[contract."decode:DEPZ"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iBitfield .i12) FullDecodeImplementation.bundleDEPZ
+"""
+
+[contract."decode:DEPZ_IMM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iBitfield .i13) FullDecodeImplementation.bundleDEPZ_IMM
+"""
+
+[contract."decode:DEP"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iBitfield .i15) FullDecodeImplementation.bundleDEP
+"""
+
+[contract."decode:TBIT_Z"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iPredicate .i16 false) FullDecodeImplementation.bundleTBIT_Z
+"""
+
+[contract."decode:TBIT_NZ"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iPredicate .i16 true) FullDecodeImplementation.bundleTBIT_NZ
+"""
+
+[contract."decode:TNAT_Z"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iPredicate .i17 false) FullDecodeImplementation.bundleTNAT_Z
+"""
+
+[contract."decode:TNAT_NZ"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iPredicate .i17 true) FullDecodeImplementation.bundleTNAT_NZ
+"""
+
+[contract."decode:TF_Z"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iPredicate .i30 false) FullDecodeImplementation.bundleTF_Z
+"""
+
+[contract."decode:TF_NZ"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iPredicate .i30 true) FullDecodeImplementation.bundleTF_NZ
+"""
+
+[contract."decode:HINT_I"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMisc .hint) FullDecodeImplementation.bundleHINT_I
+"""
+
+[contract."decode:CHK_S"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMisc .check) FullDecodeImplementation.bundleCHK_S
+"""
+
+[contract."decode:MOV_GRBR"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMisc .toBranch) FullDecodeImplementation.bundleMOV_GRBR
+"""
+
+[contract."decode:MOV_BRGR"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMisc .fromBranch) FullDecodeImplementation.bundleMOV_BRGR
+"""
+
+[contract."decode:MOV_GRPR"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMisc .toPredicates) FullDecodeImplementation.bundleMOV_GRPR
+"""
+
+[contract."decode:MOV_PR_ROT_IMM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMisc .rotatingPredicates) FullDecodeImplementation.bundleMOV_PR_ROT_IMM
+"""
+
+[contract."decode:MOV_PRGR"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMisc .fromPredicates) FullDecodeImplementation.bundleMOV_PRGR
+"""
+
+[contract."decode:MOV_CURRENT_IP"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMisc .fromIp) FullDecodeImplementation.bundleMOV_CURRENT_IP
+"""
+
+[contract."decode:MOV_GRAR"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMisc .toAr) FullDecodeImplementation.bundleMOV_GRAR
+"""
+
+[contract."decode:MOV_IMMAR"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMisc .immediateAr) FullDecodeImplementation.bundleMOV_IMMAR
+"""
+
+[contract."decode:MOV_ARGR"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMisc .fromAr) FullDecodeImplementation.bundleMOV_ARGR
+"""
+
+[contract."decode:ZXT1"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMisc (.extend 16)) FullDecodeImplementation.bundleZXT1
+"""
+
+[contract."decode:ZXT2"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMisc (.extend 17)) FullDecodeImplementation.bundleZXT2
+"""
+
+[contract."decode:ZXT4"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMisc (.extend 18)) FullDecodeImplementation.bundleZXT4
+"""
+
+[contract."decode:SXT1"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMisc (.extend 20)) FullDecodeImplementation.bundleSXT1
+"""
+
+[contract."decode:SXT2"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMisc (.extend 21)) FullDecodeImplementation.bundleSXT2
+"""
+
+[contract."decode:SXT4"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMisc (.extend 22)) FullDecodeImplementation.bundleSXT4
+"""
+
+[contract."decode:FCLASS"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.fClass) FullDecodeImplementation.bundleFCLASS
+"""
+
+[contract."decode:FPABS"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.fpMergeAlias .absolute) FullDecodeImplementation.bundleFPABS
+"""
+
+[contract."decode:FPNEG"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.fpMergeAlias .negate) FullDecodeImplementation.bundleFPNEG
+"""
+
+[contract."decode:FPNEGABS"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.fpMergeAlias .negateAbsolute) FullDecodeImplementation.bundleFPNEGABS
+"""
+
+[contract."decode:FMERGE_S"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.f9 0 16) FullDecodeImplementation.bundleFMERGE_S
+"""
+
+[contract."decode:FMERGE"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.f9 0 17) FullDecodeImplementation.bundleFMERGE
+"""
+
+[contract."decode:FMERGE_SE"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.f9 0 18) FullDecodeImplementation.bundleFMERGE_SE
+"""
+
+[contract."decode:FPACK"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.f9 0 40) FullDecodeImplementation.bundleFPACK
+"""
+
+[contract."decode:FAND"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.f9 0 44) FullDecodeImplementation.bundleFAND
+"""
+
+[contract."decode:FANDCM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.f9 0 45) FullDecodeImplementation.bundleFANDCM
+"""
+
+[contract."decode:FOR"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.f9 0 46) FullDecodeImplementation.bundleFOR
+"""
+
+[contract."decode:FXOR"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.f9 0 47) FullDecodeImplementation.bundleFXOR
+"""
+
+[contract."decode:FSWAP"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.f9 0 52) FullDecodeImplementation.bundleFSWAP
+"""
+
+[contract."decode:FSWAP_NL"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.f9 0 53) FullDecodeImplementation.bundleFSWAP_NL
+"""
+
+[contract."decode:FSWAP_NR"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.f9 0 54) FullDecodeImplementation.bundleFSWAP_NR
+"""
+
+[contract."decode:FMIX_LR"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.f9 0 57) FullDecodeImplementation.bundleFMIX_LR
+"""
+
+[contract."decode:FMIX_R"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.f9 0 58) FullDecodeImplementation.bundleFMIX_R
+"""
+
+[contract."decode:FMIX_L"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.f9 0 59) FullDecodeImplementation.bundleFMIX_L
+"""
+
+[contract."decode:FSXT_R"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.f9 0 60) FullDecodeImplementation.bundleFSXT_R
+"""
+
+[contract."decode:FSXT_L"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.f9 0 61) FullDecodeImplementation.bundleFSXT_L
+"""
+
+[contract."decode:FPMERGE_S"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.f9 1 16) FullDecodeImplementation.bundleFPMERGE_S
+"""
+
+[contract."decode:FPMERGE"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.f9 1 17) FullDecodeImplementation.bundleFPMERGE
+"""
+
+[contract."decode:FPMERGE_SE"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.f9 1 18) FullDecodeImplementation.bundleFPMERGE_SE
+"""
+
+[contract."decode:STFE"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+¬ FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.fpStore 48) FullDecodeImplementation.bundleSTFE
+"""
+
+[contract."decode:STF8"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+¬ FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.fpStore 49) FullDecodeImplementation.bundleSTF8
+"""
+
+[contract."decode:STFS"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+¬ FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.fpStore 50) FullDecodeImplementation.bundleSTFS
+"""
+
+[contract."decode:STFD"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+¬ FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.fpStore 51) FullDecodeImplementation.bundleSTFD
+"""
+
+[contract."decode:STF_SPILL"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+¬ FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.fpStore 59) FullDecodeImplementation.bundleSTF_SPILL
+"""
+
+[contract."decode:GETF_SIG"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+¬ FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.fpTransfer 4 28) FullDecodeImplementation.bundleGETF_SIG
+"""
+
+[contract."decode:GETF_EXP"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+¬ FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.fpTransfer 4 29) FullDecodeImplementation.bundleGETF_EXP
+"""
+
+[contract."decode:GETF_S"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+¬ FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.fpTransfer 4 30) FullDecodeImplementation.bundleGETF_S
+"""
+
+[contract."decode:GETF_D"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+¬ FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.fpTransfer 4 31) FullDecodeImplementation.bundleGETF_D
+"""
+
+[contract."decode:SETF_SIG"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+¬ FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.fpTransfer 6 28) FullDecodeImplementation.bundleSETF_SIG
+"""
+
+[contract."decode:SETF_EXP"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+¬ FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.fpTransfer 6 29) FullDecodeImplementation.bundleSETF_EXP
+"""
+
+[contract."decode:SETF_S"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+¬ FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.fpTransfer 6 30) FullDecodeImplementation.bundleSETF_S
+"""
+
+[contract."decode:SETF_D"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+¬ FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.fpTransfer 6 31) FullDecodeImplementation.bundleSETF_D
+"""
+
+[contract."decode:DEP_IMM"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+¬ FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iBitfield .i14) FullDecodeImplementation.bundleDEP_IMM
+"""
+
+[contract."decode:CZX1_L"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+¬ FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMisc (.extend 24)) FullDecodeImplementation.bundleCZX1_L
+"""
+
+[contract."decode:CZX2_L"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+¬ FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMisc (.extend 25)) FullDecodeImplementation.bundleCZX2_L
+"""
+
+[contract."decode:CZX1_R"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+¬ FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMisc (.extend 28)) FullDecodeImplementation.bundleCZX1_R
+"""
+
+[contract."decode:CZX2_R"]
+check = "full-decode"
+module = "FullDecode.Implementation"
+statement = """
+¬ FullDecodeSpec.BundleContract FullDecodeImplementation.reservedUnit FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+  (.iMisc (.extend 29)) FullDecodeImplementation.bundleCZX2_R
+"""

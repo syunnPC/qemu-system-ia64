@@ -81,8 +81,11 @@ python = import('python').find_installation()
 
 cc = meson.get_compiler('c')
 all_languages = ['c']
-enable_cpp = host_os == 'windows' or get_option('plugins')
-if enable_cpp and add_languages('cpp', required: false, native: false)
+ia64_llvm = get_option('ia64_llvm').require(
+  'ia64-softmmu' in target_dirs and get_option('tcg').allowed(),
+  error_message: 'The IA-64 LLVM JIT requires the ia64-softmmu target and TCG')
+enable_cpp = host_os == 'windows' or get_option('plugins') or ia64_llvm.allowed()
+if enable_cpp and add_languages('cpp', required: ia64_llvm.enabled(), native: false)
   all_languages += ['cpp']
   cxx = meson.get_compiler('cpp')
 endif
@@ -4903,6 +4906,9 @@ if have_system
   summary_info += {'Xen emulation':     config_all_devices.has_key('CONFIG_XEN_EMU')}
 endif
 summary_info += {'TCG support':       config_all_accel.has_key('CONFIG_TCG')}
+if 'ia64-softmmu' in target_dirs
+  summary_info += {'IA-64 built-in LLVM JIT': ia64_llvm_builtin}
+endif
 if config_all_accel.has_key('CONFIG_TCG')
   if get_option('tcg_interpreter')
     summary_info += {'TCG backend':   'TCI (TCG with bytecode interpreter, slow)'}

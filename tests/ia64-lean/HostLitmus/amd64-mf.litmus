@@ -1,0 +1,10 @@
+X86_64 IA64_AMD64_mf
+(* SPDX-License-Identifier: GPL-2.0-or-later *)
+{
+  x=0; y=0;
+}
+ P0            | P1            ;
+ movl $1,(x)   | movl $1,(y)   ;
+ mfence        | mfence        ;
+ movl (y),%eax | movl (x),%eax ;
+exists (0:rax=0 /\ 1:rax=0)

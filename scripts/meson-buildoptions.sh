@@ -129,6 +129,7 @@ meson_options_help() {
   printf "%s\n" '  guest-agent-msi Build MSI package for the QEMU Guest Agent'
   printf "%s\n" '  hv-balloon      hv-balloon driver (requires Glib 2.68+ GTree API)'
   printf "%s\n" '  hvf             HVF acceleration support'
+  printf "%s\n" '  ia64-llvm       Statically linked IA-64 LLVM JIT'
   printf "%s\n" '  iconv           Font glyph conversion support'
   printf "%s\n" '  igvm            Independent Guest Virtual Machine (IGVM) file support'
   printf "%s\n" '  jack            JACK sound support'
@@ -348,6 +349,8 @@ _meson_option_parse() {
     --disable-hv-balloon) printf "%s" -Dhv_balloon=disabled ;;
     --enable-hvf) printf "%s" -Dhvf=enabled ;;
     --disable-hvf) printf "%s" -Dhvf=disabled ;;
+    --enable-ia64-llvm) printf "%s" -Dia64_llvm=enabled ;;
+    --disable-ia64-llvm) printf "%s" -Dia64_llvm=disabled ;;
     --iasl=*) quote_sh "-Diasl=$2" ;;
     --enable-iconv) printf "%s" -Diconv=enabled ;;
     --disable-iconv) printf "%s" -Diconv=disabled ;;

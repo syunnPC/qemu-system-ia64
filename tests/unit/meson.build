@@ -602,6 +602,14 @@ if 'ia64-softmmu' in target_dirs
          suite: ['unit', 'ia64'])
   endforeach
 
+  if ia64_llvm_builtin and host_machine.endian() == 'little'
+    test('test-ia64-llvm-hot-regions', python,
+         args: [files('../../contrib/ia64-llvm/tests/hot_regions.py'),
+                emulators['qemu-system-ia64']],
+         timeout: 100,
+         suite: ['unit', 'ia64'])
+  endif
+
   test('test-ia64-cli',
        python,
        depends: emulators['qemu-system-ia64'],

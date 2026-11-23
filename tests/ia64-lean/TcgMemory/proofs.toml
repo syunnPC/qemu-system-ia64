@@ -1,0 +1,92 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+[source]
+"accel/tcg/atomic_template.h" = "352ec0906ee270cae4f7cee10b67a3fb092fb8251106ffe131ce2216c11627d4"
+"accel/tcg/cpu-exec-common.c" = "bdaad1f6b12fd335227dc459371e43dabd1e6b3045a319e29d15bb6746ce86eb"
+"accel/tcg/cpu-exec.c" = "5b5a1dfa00535a5b5d09dd70d39bf5189697fde4d6b1418b7b09cf1bef514180"
+"accel/tcg/cputlb.c" = "960b1114784658c397928bc4b7781781d28d8e76d593ca93668edd9320b223d8"
+"accel/tcg/ldst_atomicity.c.inc" = "ba20b201a12c34068221f0496968215a7c1aec45023a643abc56f3e498c88e5a"
+"accel/tcg/ldst_common.c.inc" = "d84e2c2613cdb15c0419c9a2d8057db76b590724274700e2e6ea9f8aaf725cdb"
+"include/exec/memop.h" = "b8852c91479cd50307c1993049590233d3889ed46a031d19d4cb140447496432"
+"include/qemu/atomic.h" = "899788e917bc6855479128a7d319786789446fdbb7cb85b2209124857358e968"
+"include/tcg/tcg-mo.h" = "c67d8ef7a2326c24fea654d024c1503a11b9a9d49a4e72ad58fc59bf2adbcac2"
+"target/ia64/arch/memory.c" = "5759b9dbf18757c9c18caffcc4301895d83a11956e88068efc95301a6a9836c5"
+"target/ia64/arch/mmu.c" = "ec9a4da1c338f6956a3711a6370e9f7f31a75695c2719776f6714e08ae19ca9f"
+"target/ia64/cpu.c" = "c18fc3fc75b0856e2f8b84457c24d8e206745c2525a39a2f4d7ca0faec0ad3e2"
+"target/ia64/cpu.h" = "0248204f0a5465666fbb7ec0021c69406ac3ca07fbd6f200c5bd2ad2708d5427"
+"target/ia64/decode/decode.c" = "0ef526fb5c066be8fb50c286bb02e1be8d88733a5df33a7a7b3031f9d8c58d35"
+"target/ia64/decode/opcode.inc" = "8b0b6eb184e62471f9fdf9fb668b93fec168450853725af38081a6e88254c9b4"
+"target/ia64/helper/helper-mmu.c" = "396f977bc26b277ed6d9dcc46d7c5fc8422144a949b4ac0b158eb5b2942ad103"
+"target/ia64/translate/gen-memory.c" = "0b7fb1f43480f196d1f06ebd12f48491807a0d7fc8fce668cd96066dd2f25e1d"
+"target/ia64/translate/translate.c" = "c3e614d2e55b7683783c55daf81097d993d2bdab9e2b6e76a1fee14e6626c2a8"
+"target/ia64/translate/translate.h" = "1421a93ebda89b009a759b1cf1987165d4cdbfc0f7059b63b9c21836c1583549"
+"tcg/optimize.c" = "12cd795c7371d5e6228d0be7b27ddc273ddc2b42e1bad69e613bdfb5f205c83f"
+"tcg/tcg-op-ldst.c" = "ac15c84fa6de0ae9fea3ecea70cd2e8d53eee897cf6685b2be24f6f87eb3bc65"
+"tcg/tcg-op.c" = "26590038bb6fb35bf518396496c9d488e748cc9891dc7b88bb8793243b34cd71"
+"target/ia64/exec-access.c" = "74b3c71220c7930c80fc79974e575d14f6f35f18bf305d7b4bd2883bd2b49eaf"
+"target/ia64/helper/helper-memory.c" = "189648d61b588e4797a2fe00f4b8544380253178a9337a9753c079693f40d248"
+
+[proof."route:tcg-scalar-wb-projection"]
+theorem = "TcgMemory.scalarWbComposedProjection"
+sources = [
+  "accel/tcg/cpu-exec-common.c",
+  "accel/tcg/cputlb.c",
+  "accel/tcg/ldst_atomicity.c.inc",
+  "accel/tcg/ldst_common.c.inc",
+  "include/exec/memop.h",
+  "include/tcg/tcg-mo.h",
+  "target/ia64/arch/memory.c",
+  "target/ia64/cpu.c",
+  "target/ia64/cpu.h",
+  "target/ia64/decode/decode.c",
+  "target/ia64/decode/opcode.inc",
+  "target/ia64/translate/gen-memory.c",
+  "target/ia64/translate/translate.c",
+  "target/ia64/translate/translate.h",
+  "tcg/tcg-op-ldst.c",
+]
+
+[proof."route:tcg-aligned-wb-semaphores"]
+theorem = "TcgMemory.alignedAtomicContract"
+sources = [
+  "accel/tcg/atomic_template.h",
+  "accel/tcg/cpu-exec.c",
+  "accel/tcg/cputlb.c",
+  "include/exec/memop.h",
+  "include/qemu/atomic.h",
+  "include/tcg/tcg-mo.h",
+  "target/ia64/arch/memory.c",
+  "target/ia64/arch/mmu.c",
+  "target/ia64/cpu.c",
+  "target/ia64/cpu.h",
+  "target/ia64/decode/decode.c",
+  "target/ia64/decode/opcode.inc",
+  "target/ia64/helper/helper-mmu.c",
+  "target/ia64/translate/gen-memory.c",
+  "target/ia64/translate/translate.c",
+  "target/ia64/translate/translate.h",
+  "tcg/optimize.c",
+  "tcg/tcg-op-ldst.c",
+  "tcg/tcg-op.c",
+]
+
+[proof."route:tcg-aligned-wb-compare"]
+theorem = "TcgMemory.Compare.contract"
+sources = [
+  "accel/tcg/atomic_template.h",
+  "accel/tcg/cpu-exec.c",
+  "accel/tcg/cputlb.c",
+  "include/exec/memop.h",
+  "include/qemu/atomic.h",
+  "target/ia64/arch/memory.c",
+  "target/ia64/arch/mmu.c",
+  "target/ia64/cpu.h",
+  "target/ia64/decode/decode.c",
+  "target/ia64/decode/opcode.inc",
+  "target/ia64/exec-access.c",
+  "target/ia64/helper/helper-memory.c",
+  "target/ia64/helper/helper-mmu.c",
+  "target/ia64/translate/gen-memory.c",
+  "target/ia64/translate/translate.c",
+  "tcg/tcg-op-ldst.c",
+]

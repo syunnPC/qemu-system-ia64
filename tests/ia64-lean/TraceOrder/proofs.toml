@@ -1,0 +1,83 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+[source]
+"accel/tcg/atomic_template.h" = "352ec0906ee270cae4f7cee10b67a3fb092fb8251106ffe131ce2216c11627d4"
+"accel/tcg/backend-ldst.h" = "768a75e8d45c53cf53eb30d644a61238495f7047ee6df5eb5e4f67bdb827eee2"
+"accel/tcg/cputlb.c" = "960b1114784658c397928bc4b7781781d28d8e76d593ca93668edd9320b223d8"
+"accel/tcg/translate-all.c" = "d01a895eecd99533644b7627a7bdf66fc2d9694127e80f0c776780cb065c5f64"
+"include/qemu/atomic.h" = "899788e917bc6855479128a7d319786789446fdbb7cb85b2209124857358e968"
+"include/tcg/tcg-mo.h" = "c67d8ef7a2326c24fea654d024c1503a11b9a9d49a4e72ad58fc59bf2adbcac2"
+"target/ia64/arch/memory.c" = "5759b9dbf18757c9c18caffcc4301895d83a11956e88068efc95301a6a9836c5"
+"target/ia64/arch/rse.c" = "851524dcb2f3679a5855ff58f0741723e6c0ff7b9905d3075b6fe3f28332f0a7"
+"target/ia64/cpu.c" = "c18fc3fc75b0856e2f8b84457c24d8e206745c2525a39a2f4d7ca0faec0ad3e2"
+"target/ia64/decode/decode.c" = "0ef526fb5c066be8fb50c286bb02e1be8d88733a5df33a7a7b3031f9d8c58d35"
+"target/ia64/decoder.c" = "d0add84a8c39330ae737ef55bc17bca1d39914de667cb13d86814653b03851c7"
+"target/ia64/exec-access.c" = "74b3c71220c7930c80fc79974e575d14f6f35f18bf305d7b4bd2883bd2b49eaf"
+"target/ia64/helper/helper-memory.c" = "189648d61b588e4797a2fe00f4b8544380253178a9337a9753c079693f40d248"
+"target/ia64/helper/helper-rse.c" = "502e3cdd0bb6a60235d7513965cddd73628cc68e10dabf1fbeedba52b10bec4e"
+"target/ia64/translate/gen-branch.c" = "73f5b46ffc917251ba214782ef30842130d4b10d62473111f06f8ce2acc25604"
+"target/ia64/translate/gen-memory.c" = "0b7fb1f43480f196d1f06ebd12f48491807a0d7fc8fce668cd96066dd2f25e1d"
+"target/ia64/translate/gen-system.c" = "14b73135ec8d7dd369e5e2ef4a9bdd476c55775639481d4c2c97aa17c5740b56"
+"target/ia64/translate/translate.c" = "c3e614d2e55b7683783c55daf81097d993d2bdab9e2b6e76a1fee14e6626c2a8"
+"tcg/optimize.c" = "12cd795c7371d5e6228d0be7b27ddc273ddc2b42e1bad69e613bdfb5f205c83f"
+"tcg/tcg-op-ldst.c" = "ac15c84fa6de0ae9fea3ecea70cd2e8d53eee897cf6685b2be24f6f87eb3bc65"
+"tcg/tcg-op.c" = "26590038bb6fb35bf518396496c9d488e748cc9891dc7b88bb8793243b34cd71"
+
+[proof."ordering:tcg-observation-graph"]
+theorem = "TraceOrder.Lowering.observationGraph"
+sources = [
+  "accel/tcg/atomic_template.h",
+  "accel/tcg/translate-all.c",
+  "include/qemu/atomic.h",
+  "include/tcg/tcg-mo.h",
+  "target/ia64/cpu.c",
+  "target/ia64/translate/gen-memory.c",
+  "target/ia64/translate/gen-system.c",
+  "target/ia64/translate/translate.c",
+  "tcg/optimize.c",
+  "tcg/tcg-op-ldst.c",
+  "tcg/tcg-op.c",
+]
+
+[counterexample."ordering:fused-release-loop"]
+theorem = "TraceOrder.Examples.noFusedRefinement"
+sources = [
+  "accel/tcg/atomic_template.h",
+  "accel/tcg/translate-all.c",
+  "include/qemu/atomic.h",
+  "include/tcg/tcg-mo.h",
+  "target/ia64/arch/rse.c",
+  "target/ia64/cpu.c",
+  "target/ia64/decode/decode.c",
+  "target/ia64/decoder.c",
+  "target/ia64/exec-access.c",
+  "target/ia64/helper/helper-rse.c",
+  "target/ia64/translate/gen-branch.c",
+  "target/ia64/translate/gen-memory.c",
+  "target/ia64/translate/gen-system.c",
+  "target/ia64/translate/translate.c",
+  "tcg/optimize.c",
+  "tcg/tcg-op-ldst.c",
+  "tcg/tcg-op.c",
+]
+
+[counterexample."ordering:tcg-narrow-cmpxchg-rel"]
+theorem = "TraceOrder.Examples.noNarrowRefinement"
+sources = [
+  "accel/tcg/atomic_template.h",
+  "accel/tcg/backend-ldst.h",
+  "accel/tcg/cputlb.c",
+  "accel/tcg/translate-all.c",
+  "include/qemu/atomic.h",
+  "include/tcg/tcg-mo.h",
+  "target/ia64/arch/memory.c",
+  "target/ia64/cpu.c",
+  "target/ia64/exec-access.c",
+  "target/ia64/helper/helper-memory.c",
+  "target/ia64/translate/gen-memory.c",
+  "target/ia64/translate/gen-system.c",
+  "target/ia64/translate/translate.c",
+  "tcg/optimize.c",
+  "tcg/tcg-op-ldst.c",
+  "tcg/tcg-op.c",
+]

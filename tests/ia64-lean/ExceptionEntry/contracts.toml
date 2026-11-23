@@ -1,0 +1,82 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+[contract."helper:raise_exception"]
+check = "exception-entry"
+module = "ExceptionEntry.Implementation"
+statement = """
+∀ (code : BitVec 32) (fault : IA64ExceptionEntry.Fault),
+  IA64ExceptionEntry.cRaiseWithCode code fault =
+    ⟨fault.bundle, fault.bundle, fault.raw, fault.slot, code, code, code⟩
+"""
+
+[contract."route:tcg-native-illegal-entry"]
+check = "exception-entry"
+module = "ExceptionEntry.Implementation"
+statement = """
+∀ (before : IA64ExceptionEntry.Before) (request : IA64Slot.FaultRequest),
+  request.code = 2 →
+  IA64ExceptionEntry.nativeOrdinary before →
+  request.address.bundle &&& 15 = 0 →
+  before.iva &&& 0x7fff = 0 →
+  request.address.slot < 3 →
+  (IA64ExceptionEntry.SDM.collecting before.psr = true ∨ before.iva ≠ 0) →
+  (IA64ExceptionEntry.cDispatch before
+    (IA64ExceptionEntry.cRaiseWithCode (request.code.setWidth 32)
+      (IA64ExceptionEntry.fromSlotRequest request))).map
+        (IA64ExceptionEntry.observe before) =
+    some (IA64ExceptionEntry.SDM.illegalEntry before (IA64ExceptionEntry.fromSlotRequest request))
+"""
+
+[contract."route:tcg-a1-a5-illegal-entry"]
+check = "exception-entry-alu"
+module = "ExceptionEntry.AluImplementation"
+statement = """
+∀ (α : Type) (tag : IA64Alu.Opcode) (lo hi ip : BitVec 64) (index : BitVec 2)
+  (state faulted : IA64Add.Joined α) (facts : IA64Tcg.Facts) (ctx : IA64Add.Context)
+  (cfg : IA64ExceptionEntry.Before) (address : IA64Slot.Address) (raw : BitVec 64),
+  IA64Alu.selected tag lo hi ip index →
+  IA64Tcg.Sound state.data (IA64Alu.emittedRecord (IA64Alu.decode tag lo hi ip index)) facts →
+  IA64Add.EntryFacts state (IA64Alu.emittedRecord (IA64Alu.decode tag lo hi ip index))
+    {ctx with stopAfter := FullDecodeImplementation.cStop (FullDecodeSpec.templateBits lo) index} →
+  IA64Alu.sourceBundleStep tag lo hi ip index state facts ctx =
+    .fault faulted .illegal address raw →
+  IA64ExceptionEntry.nativeOrdinary (IA64ExceptionEntry.beforeFromBoundary cfg faulted) →
+  ip &&& 15 = 0 →
+  cfg.iva &&& 0x7fff = 0 →
+  (IA64ExceptionEntry.SDM.collecting faulted.control.psr = true ∨ cfg.iva ≠ 0) →
+  let input := IA64Alu.sdmRecord tag (FullDecodeSpec.slotBits lo hi index) ip index
+  let prior := {IA64ExceptionEntry.beforeFromBoundary cfg faulted with
+    lastSuccessfulBundle := state.control.lastSuccess}
+  let fault : IA64ExceptionEntry.Fault :=
+    ⟨input.ip, (IA64Add.realSlot input.ri).number.setWidth 32, input.raw⟩
+  IA64Tcg.SDM.legalTarget state.data input.dst = false ∧
+  IA64ExceptionEntry.emittedAluEntry tag lo hi ip index state facts ctx cfg =
+    some (IA64ExceptionEntry.SDM.illegalEntry prior fault)
+"""
+
+[contract."route:tcg-a1-a5-illegal-deliverability"]
+check = "exception-entry-alu"
+module = "ExceptionEntry.AluImplementation"
+statement = """
+∀ (α : Type) (tag : IA64Alu.Opcode) (lo hi ip : BitVec 64) (index : BitVec 2)
+  (state : IA64Add.Joined α) (facts : IA64Tcg.Facts) (ctx : IA64Add.Context)
+  (cfg : IA64ExceptionEntry.Before),
+  IA64Alu.selected tag lo hi ip index →
+  IA64Tcg.Sound state.data (IA64Alu.emittedRecord (IA64Alu.decode tag lo hi ip index)) facts →
+  IA64Add.EntryFacts state (IA64Alu.emittedRecord (IA64Alu.decode tag lo hi ip index))
+    {ctx with stopAfter := FullDecodeImplementation.cStop (FullDecodeSpec.templateBits lo) index} →
+  let i := IA64Alu.sdmRecord tag (FullDecodeSpec.slotBits lo hi index) ip index
+  let stopped := IA64ExceptionEntry.expectedStopped state i ctx
+  let before := IA64ExceptionEntry.beforeFromBoundary cfg stopped
+  IA64ExceptionEntry.sdmTargetFault state i →
+  IA64ExceptionEntry.nativeOrdinary before →
+  ip &&& 15 = 0 →
+  cfg.iva &&& 0x7fff = 0 →
+  (IA64ExceptionEntry.SDM.collecting before.psr = true ∨ cfg.iva ≠ 0) →
+  IA64Alu.sourceBundleStep tag lo hi ip index state facts ctx =
+    .fault stopped .illegal ⟨i.ip, (IA64Add.realSlot i.ri).number⟩ i.raw ∧
+  IA64ExceptionEntry.emittedAluEntry tag lo hi ip index state facts ctx cfg =
+    some (IA64ExceptionEntry.SDM.illegalEntry
+      {before with lastSuccessfulBundle := state.control.lastSuccess}
+      ⟨i.ip, (IA64Add.realSlot i.ri).number.setWidth 32, i.raw⟩)
+"""

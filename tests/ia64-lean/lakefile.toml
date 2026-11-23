@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+name = "ia64-proofs"
+version = "0.1.0"
+defaultTargets = ["IA64Specs"]
+
+[[lean_lib]]
+name = "IA64Specs"
+roots = [
+  "Alat.Spec",
+  "Branch.Spec",
+  "Decode.Spec",
+  "Floating.Spec",
+  "FullDecode.Spec",
+  "Integer.Spec",
+  "Memory.Fused",
+  "Memory.Spec",
+  "Mmu.Spec",
+  "Ordering.Spec",
+  "Purges.Spec",
+  "Refinement.Spec",
+  "Rse.Spec",
+  "Simd.Spec",
+  "System.Spec",
+  "Tcg.Spec",
+  "TcgMemory.Spec",
+  "TraceOrder.Spec",
+  "TraceOrder.Forward",
+]

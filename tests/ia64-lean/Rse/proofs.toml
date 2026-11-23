@@ -1,0 +1,81 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+[proof."function:target/ia64/arch/rse.c:ia64_rse_collect_bit"]
+theorem = "RseImplementation.collectBit_matches"
+sources = { "target/ia64/arch/rse.c" = "851524dcb2f3679a5855ff58f0741723e6c0ff7b9905d3075b6fe3f28332f0a7" }
+
+[proof."function:target/ia64/arch/rse.c:ia64_rse_collect_word"]
+theorem = "RseImplementation.collectWord_matches"
+sources = { "target/ia64/arch/rse.c" = "851524dcb2f3679a5855ff58f0741723e6c0ff7b9905d3075b6fe3f28332f0a7" }
+
+[proof."function:target/ia64/arch/rse.c:ia64_rse_rnat_low_mask"]
+theorem = "RseImplementation.definedNaTBits_matches"
+sources = { "target/ia64/arch/rse.c" = "851524dcb2f3679a5855ff58f0741723e6c0ff7b9905d3075b6fe3f28332f0a7" }
+
+[proof."function:target/ia64/arch/rse.c:ia64_rse_nat_word_count_slow"]
+theorem = "RseImplementation.natCountSlow_matches"
+sources = { "target/ia64/arch/rse.c" = "851524dcb2f3679a5855ff58f0741723e6c0ff7b9905d3075b6fe3f28332f0a7" }
+
+[proof."function:target/ia64/arch/rse.c:ia64_rse_nat_word_count"]
+theorem = "RseImplementation.natCount_matches"
+sources = { "target/ia64/arch/rse.c" = "851524dcb2f3679a5855ff58f0741723e6c0ff7b9905d3075b6fe3f28332f0a7" }
+
+[proof."function:target/ia64/arch/rse.c:ia64_rse_nat_words_grow"]
+theorem = "RseImplementation.natGrow_matches"
+sources = { "target/ia64/arch/rse.c" = "851524dcb2f3679a5855ff58f0741723e6c0ff7b9905d3075b6fe3f28332f0a7" }
+
+[proof."function:target/ia64/arch/rse.c:ia64_rse_nat_words_shrink"]
+theorem = "RseImplementation.natShrink_matches"
+sources = { "target/ia64/arch/rse.c" = "851524dcb2f3679a5855ff58f0741723e6c0ff7b9905d3075b6fe3f28332f0a7" }
+
+[proof."function:target/ia64/arch/rse.c:ia64_rse_register_words_below"]
+theorem = "RseImplementation.payloadWordsBelow_matches"
+sources = { "target/ia64/arch/rse.c" = "851524dcb2f3679a5855ff58f0741723e6c0ff7b9905d3075b6fe3f28332f0a7" }
+
+[proof."function:target/ia64/arch/rse.c:ia64_rse_current_cfm"]
+theorem = "RseImplementation.frameMarker_matches"
+sources = { "target/ia64/arch/rse.c" = "851524dcb2f3679a5855ff58f0741723e6c0ff7b9905d3075b6fe3f28332f0a7", "target/ia64/cpu.h" = "0248204f0a5465666fbb7ec0021c69406ac3ca07fbd6f200c5bd2ad2708d5427" }
+
+[proof."function:target/ia64/arch/rse.c:ia64_rse_rotating_gr_count"]
+theorem = "RseImplementation.rotateCount_matches"
+sources = { "target/ia64/arch/rse.c" = "851524dcb2f3679a5855ff58f0741723e6c0ff7b9905d3075b6fe3f28332f0a7", "target/ia64/cpu.h" = "0248204f0a5465666fbb7ec0021c69406ac3ca07fbd6f200c5bd2ad2708d5427" }
+
+[proof."function:target/ia64/arch/rse.c:ia64_rse_virt_to_phys"]
+theorem = "RseImplementation.virtToPhys_matches"
+sources = { "target/ia64/arch/rse.c" = "851524dcb2f3679a5855ff58f0741723e6c0ff7b9905d3075b6fe3f28332f0a7", "target/ia64/cpu.h" = "0248204f0a5465666fbb7ec0021c69406ac3ca07fbd6f200c5bd2ad2708d5427" }
+
+[proof."function:target/ia64/arch/rse.c:ia64_rse_phys_to_virt"]
+theorem = "RseImplementation.physToVirt_matches"
+sources = { "target/ia64/arch/rse.c" = "851524dcb2f3679a5855ff58f0741723e6c0ff7b9905d3075b6fe3f28332f0a7", "target/ia64/cpu.h" = "0248204f0a5465666fbb7ec0021c69406ac3ca07fbd6f200c5bd2ad2708d5427" }
+
+[proof."function:target/ia64/arch/rse.c:ia64_rse_wrap_phys_slow"]
+theorem = "RseImplementation.wrapSlow32_matches"
+sources = { "target/ia64/arch/rse.c" = "851524dcb2f3679a5855ff58f0741723e6c0ff7b9905d3075b6fe3f28332f0a7", "target/ia64/cpu.h" = "0248204f0a5465666fbb7ec0021c69406ac3ca07fbd6f200c5bd2ad2708d5427" }
+
+[proof."function:target/ia64/arch/rse.c:ia64_rse_wrap_phys"]
+theorem = "RseImplementation.wrapPhys32_matches"
+sources = { "target/ia64/arch/rse.c" = "851524dcb2f3679a5855ff58f0741723e6c0ff7b9905d3075b6fe3f28332f0a7", "target/ia64/cpu.h" = "0248204f0a5465666fbb7ec0021c69406ac3ca07fbd6f200c5bd2ad2708d5427" }
+
+[proof."function:target/ia64/arch/rse.c:ia64_rotate_low_bits_left_one"]
+theorem = "RseImplementation.rotatePrefix_matches"
+sources = { "target/ia64/arch/rse.c" = "851524dcb2f3679a5855ff58f0741723e6c0ff7b9905d3075b6fe3f28332f0a7" }
+
+[proof."route:tcg-rse-alloc-resident"]
+theorem = "RseImplementation.allocResident_matches"
+sources = { "target/ia64/arch/rse.c" = "851524dcb2f3679a5855ff58f0741723e6c0ff7b9905d3075b6fe3f28332f0a7", "target/ia64/cpu.h" = "0248204f0a5465666fbb7ec0021c69406ac3ca07fbd6f200c5bd2ad2708d5427", "target/ia64/helper/helper-rse.c" = "502e3cdd0bb6a60235d7513965cddd73628cc68e10dabf1fbeedba52b10bec4e", "target/ia64/translate/gen-system.c" = "14b73135ec8d7dd369e5e2ef4a9bdd476c55775639481d4c2c97aa17c5740b56" }
+
+[proof."route:tcg-rse-cover-frame"]
+theorem = "RseImplementation.coverFrame_matches"
+sources = { "target/ia64/arch/rse.c" = "851524dcb2f3679a5855ff58f0741723e6c0ff7b9905d3075b6fe3f28332f0a7", "target/ia64/cpu.h" = "0248204f0a5465666fbb7ec0021c69406ac3ca07fbd6f200c5bd2ad2708d5427", "target/ia64/helper/helper-rse.c" = "502e3cdd0bb6a60235d7513965cddd73628cc68e10dabf1fbeedba52b10bec4e", "target/ia64/translate/gen-system.c" = "14b73135ec8d7dd369e5e2ef4a9bdd476c55775639481d4c2c97aa17c5740b56", "target/ia64/arch/fp.c" = "fda64e0b8bc9840acdbc741b7aa9921d1955464f3c0720df15b8c1ef4cb86ac1", "target/ia64/arch/system.c" = "1aa8df7463c90f9b39e1d098d041d6e37157da2eb0b79ba881c2bafff91f46e5" }
+
+[proof."route:tcg-rse-alloc-register"]
+theorem = "RseImplementation.allocRegisterAndDirty_matches"
+sources = { "target/ia64/arch/rse.c" = "851524dcb2f3679a5855ff58f0741723e6c0ff7b9905d3075b6fe3f28332f0a7", "target/ia64/cpu.h" = "0248204f0a5465666fbb7ec0021c69406ac3ca07fbd6f200c5bd2ad2708d5427", "target/ia64/helper/helper-rse.c" = "502e3cdd0bb6a60235d7513965cddd73628cc68e10dabf1fbeedba52b10bec4e", "target/ia64/translate/gen-system.c" = "14b73135ec8d7dd369e5e2ef4a9bdd476c55775639481d4c2c97aa17c5740b56" }
+
+[proof."route:tcg-rse-cover-register"]
+theorem = "RseImplementation.coverSavedRegister_matches"
+sources = { "target/ia64/arch/rse.c" = "851524dcb2f3679a5855ff58f0741723e6c0ff7b9905d3075b6fe3f28332f0a7", "target/ia64/cpu.h" = "0248204f0a5465666fbb7ec0021c69406ac3ca07fbd6f200c5bd2ad2708d5427", "target/ia64/helper/helper-rse.c" = "502e3cdd0bb6a60235d7513965cddd73628cc68e10dabf1fbeedba52b10bec4e", "target/ia64/translate/gen-system.c" = "14b73135ec8d7dd369e5e2ef4a9bdd476c55775639481d4c2c97aa17c5740b56" }
+
+[proof."route:tcg-rse-frame-alat"]
+theorem = "RseImplementation.alatFrame_matches"
+sources = { "target/ia64/arch/rse.c" = "851524dcb2f3679a5855ff58f0741723e6c0ff7b9905d3075b6fe3f28332f0a7", "target/ia64/cpu.h" = "0248204f0a5465666fbb7ec0021c69406ac3ca07fbd6f200c5bd2ad2708d5427", "target/ia64/helper/helper-rse.c" = "502e3cdd0bb6a60235d7513965cddd73628cc68e10dabf1fbeedba52b10bec4e", "target/ia64/translate/gen-system.c" = "14b73135ec8d7dd369e5e2ef4a9bdd476c55775639481d4c2c97aa17c5740b56", "target/ia64/arch/alat.c" = "bbba8385e8832c0ea60c9e5352da87a42d8e7022ca473fa3ba703e395c663f4c", "target/ia64/arch/fp.c" = "fda64e0b8bc9840acdbc741b7aa9921d1955464f3c0720df15b8c1ef4cb86ac1" }

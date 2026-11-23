@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# IA-64 state through emitted and optimized TCG IR, including helper effects.
+
+[obligations]
+prefixes = [
+  "decode:", "tcg:", "route:tcg-", "ordering:tcg-",
+  "refinement:tcg", "sdm-native:", "sdm-form:", "sdm-ia32:", "sdm-pal:",
+]
+ids = [
+  "feature:bundle-legality", "feature:issue-restart", "feature:register-files",
+  "feature:privilege", "feature:memory", "feature:speculation",
+  "feature:translation", "feature:exceptions", "feature:interrupts",
+  "feature:rse", "feature:debug-perf", "feature:fp", "feature:pal",
+  "feature:sal", "feature:ras", "feature:cpu-models", "feature:ia32",
+  "ordering:guest-accesses", "ordering:guest-coherence",
+  "ordering:guest-propagation", "ordering:guest-rmw", "ordering:serial",
+  "ordering:mttcg", "ordering:alat-race", "ordering:purge-shootdown",
+  "ordering:fused-release-loop",
+]
+
+[supporting]
+prefixes = [
+  "helper:",
+  "function:target/ia64/arch/", "function:target/ia64/decode/",
+  "function:target/ia64/helper/", "function:target/ia64/ia32/",
+  "function:target/ia64/translate/", "function:target/ia64/decoder.c:",
+  "function:target/ia64/exec-access.c:", "function:target/ia64/fpreg.c:",
+  "function:target/ia64/fpreg.h:", "function:target/ia64/internals.h:",
+]
+ids = []
+
+[sources]
+prefixes = [
+  "target/ia64/arch/", "target/ia64/decode/", "target/ia64/helper/",
+  "target/ia64/ia32/", "target/ia64/translate/", "target/i386/tcg/",
+]
+paths = [
+  "target/ia64/Kconfig", "target/ia64/meson.build", "target/ia64/cpu.c",
+  "target/ia64/cpu.h", "target/ia64/cpu-param.h", "target/ia64/cpu-qom.h",
+  "target/ia64/decoder.c", "target/ia64/decoder.h", "target/ia64/exec-access.c",
+  "target/ia64/exec-access.h", "target/ia64/fpreg.c", "target/ia64/fpreg.h",
+  "target/ia64/helper.h", "target/ia64/internals.h",
+  "accel/tcg/backend-ldst.h", "accel/tcg/cpu-exec-common.c",
+  "accel/tcg/translate-all.c",
+  "include/exec/memop.h", "include/qemu/bitops.h", "include/qemu/host-utils.h",
+  "include/tcg/tcg-mo.h", "tcg/optimize.c",
+  "tcg/tcg-op.c", "tcg/tcg-op-ldst.c", "tcg/tcg.c",
+]

@@ -54,6 +54,12 @@ struct TCGState {
     bool one_insn_per_tb;
     int splitwx_enabled;
     unsigned long tb_size;
+#ifndef CONFIG_USER_ONLY
+    uint64_t llvm_cache_size;
+    uint32_t llvm_threads;
+    char *llvm_library;
+    char *llvm_stats;
+#endif
 };
 typedef struct TCGState TCGState;
 
@@ -216,6 +222,77 @@ static void tcg_set_tb_size(Object *obj, Visitor *v,
     s->tb_size = value;
 }
 
+#ifndef CONFIG_USER_ONLY
+static bool tcg_llvm_option_writable(Object *obj, Error **errp)
+{
+    if (current_machine && current_accel() == ACCEL(obj)) {
+        error_setg(errp, "LLVM options must be set before TCG starts");
+        return false;
+    }
+    return true;
+}
+
+static void tcg_llvm_cache_size(Object *obj, Visitor *v, const char *name,
+                                void *opaque, Error **errp)
+{
+    if (!visit_is_input(v) || tcg_llvm_option_writable(obj, errp)) {
+        visit_type_size(v, name, &TCG_STATE(obj)->llvm_cache_size, errp);
+    }
+}
+
+static char *tcg_get_llvm_library(Object *obj, Error **errp)
+{
+    return g_strdup(TCG_STATE(obj)->llvm_library);
+}
+
+static void tcg_llvm_threads(Object *obj, Visitor *v, const char *name,
+                             void *opaque, Error **errp)
+{
+    TCGState *s = TCG_STATE(obj);
+    uint32_t threads = s->llvm_threads;
+    if (visit_is_input(v) && !tcg_llvm_option_writable(obj, errp)) {
+        return;
+    }
+    if (visit_type_uint32(v, name, &threads, errp) && visit_is_input(v)) {
+        if (!threads || threads > G_MAXINT) {
+            error_setg(errp, "llvm-thread must be between 1 and %d", G_MAXINT);
+            return;
+        }
+        s->llvm_threads = threads;
+    }
+}
+
+static void tcg_set_llvm_library(Object *obj, const char *value, Error **errp)
+{
+    TCGState *s = TCG_STATE(obj);
+    if (tcg_llvm_option_writable(obj, errp)) {
+        g_free(s->llvm_library);
+        s->llvm_library = g_strdup(value);
+    }
+}
+
+static char *tcg_get_llvm_stats(Object *obj, Error **errp)
+{
+    return g_strdup(TCG_STATE(obj)->llvm_stats);
+}
+
+static void tcg_set_llvm_stats(Object *obj, const char *value, Error **errp)
+{
+    TCGState *s = TCG_STATE(obj);
+    if (tcg_llvm_option_writable(obj, errp)) {
+        g_free(s->llvm_stats);
+        s->llvm_stats = g_strdup(value);
+    }
+}
+
+static void tcg_accel_instance_finalize(Object *obj)
+{
+    TCGState *s = TCG_STATE(obj);
+    g_free(s->llvm_library);
+    g_free(s->llvm_stats);
+}
+#endif
+
 static bool tcg_get_splitwx(Object *obj, Error **errp)
 {
     TCGState *s = TCG_STATE(obj);
@@ -278,6 +355,33 @@ static void tcg_accel_class_init(ObjectClass *oc, const void *data)
     object_class_property_set_description(oc, "tb-size",
         "TCG translation block cache size");
 
+#ifndef CONFIG_USER_ONLY
+    if (g_str_equal(target_name(), "ia64")) {
+        ObjectProperty *p = object_class_property_add(
+            oc, "cachesize", "size", tcg_llvm_cache_size, tcg_llvm_cache_size,
+            NULL, NULL);
+        object_property_set_default_uint(p, GiB);
+        object_class_property_set_description(
+            oc, "cachesize",
+            "Maximum host memory for IA-64 LLVM code mappings (default 1 GiB)");
+        p = object_class_property_add(oc, "llvm-thread", "uint32",
+                                      tcg_llvm_threads, tcg_llvm_threads, NULL,
+                                      NULL);
+        object_property_set_default_uint(p, 1);
+        object_class_property_set_description(
+            oc, "llvm-thread",
+            "Maximum number of background LLVM compiler threads (default 1)");
+        object_class_property_add_str(oc, "llvm-library", tcg_get_llvm_library,
+                                      tcg_set_llvm_library);
+        object_class_property_set_description(oc, "llvm-library",
+                                              "IA-64 LLVM JIT library path");
+        object_class_property_add_str(oc, "llvm-stats", tcg_get_llvm_stats,
+                                      tcg_set_llvm_stats);
+        object_class_property_set_description(
+            oc, "llvm-stats", "IA-64 LLVM JIT statistics file (default off)");
+    }
+#endif
+
     object_class_property_add_bool(oc, "split-wx",
         tcg_get_splitwx, tcg_set_splitwx);
     object_class_property_set_description(oc, "split-wx",
@@ -294,6 +398,9 @@ static const TypeInfo tcg_accel_type = {
     .name = TYPE_TCG_ACCEL,
     .parent = TYPE_ACCEL,
     .instance_init = tcg_accel_instance_init,
+#ifndef CONFIG_USER_ONLY
+    .instance_finalize = tcg_accel_instance_finalize,
+#endif
     .class_init = tcg_accel_class_init,
     .instance_size = sizeof(TCGState),
 };

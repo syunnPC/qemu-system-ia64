@@ -1,0 +1,132 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+[contract."route:tcg-scalar-wb-projection"]
+check = "tcg-memory"
+module = "TcgMemory.Implementation"
+statement = """
+  ((∀ (l : TcgMemory.Load) (s : TcgMemory.Registers) (m : TcgMemory.CellInput),
+    TcgMemory.tcgLoad l s m = TcgMemory.specLoad l s m) ∧
+  (∀ (st : TcgMemory.Store) (s : TcgMemory.Registers) (m : TcgMemory.CellInput),
+    TcgMemory.tcgStore st s m = TcgMemory.specStore st s m) ∧
+  ((TcgMemory.acquireMask &&& TcgMemory.loadLoadMask) = TcgMemory.loadLoadMask ∧
+    (TcgMemory.acquireMask &&& TcgMemory.loadStoreMask) = TcgMemory.loadStoreMask) ∧
+  ((TcgMemory.releaseMask &&& TcgMemory.loadStoreMask) = TcgMemory.loadStoreMask ∧
+    (TcgMemory.releaseMask &&& TcgMemory.storeStoreMask) = TcgMemory.storeStoreMask)) ∧
+    (∀ {Cpu : Type} (p : TcgMemory.Programs Cpu)
+      (rf co dependency : TraceOrder.Edge (TcgMemory.EventId p))
+      (visibility : TraceOrder.Visibility (TcgMemory.EventId p) Cpu),
+      let x := TcgMemory.graph p rf co dependency
+      TcgMemory.WholeCells x →
+      TraceOrder.IRExecution x visibility (TcgMemory.scalarOrdering x) →
+      (∀ cpu, TcgMemory.traces p TcgMemory.tcgStep cpu =
+        TcgMemory.traces p TcgMemory.specStep cpu) ∧
+        TcgMemory.WholeCells x ∧ TraceOrder.GuestExecution x visibility) ∧
+    (∀ {Cpu : Type} (p : TcgMemory.Programs Cpu)
+      (rf co dependency : TraceOrder.Edge (TcgMemory.EventId p))
+      (visibility : TraceOrder.Visibility (TcgMemory.EventId p) Cpu),
+      let x := TcgMemory.graph p rf co dependency
+      TcgMemory.WholeCells x →
+      TraceOrder.Forward.IRExecution x visibility (TcgMemory.wholeCellImage p)
+        (TcgMemory.scalarOrdering x) →
+      (∀ cpu, TcgMemory.traces p TcgMemory.tcgStep cpu =
+        TcgMemory.traces p TcgMemory.specStep cpu) ∧ TcgMemory.WholeCells x ∧
+        TraceOrder.Forward.GuestExecution x visibility (TcgMemory.wholeCellImage p)) ∧
+    (∀ {Cpu : Type} (p : TcgMemory.Programs Cpu)
+      (rf co dependency : TraceOrder.Edge (TcgMemory.EventId p))
+      (visibility : TraceOrder.Visibility (TcgMemory.EventId p) Cpu),
+      let x := TcgMemory.graph p rf co dependency
+      TcgMemory.AlignedFootprints p →
+      TraceOrder.Forward.IRExecution x visibility (TcgMemory.byteImage p)
+        (TcgMemory.scalarOrdering x) →
+      (∀ cpu, TcgMemory.traces p TcgMemory.tcgStep cpu =
+        TcgMemory.traces p TcgMemory.specStep cpu) ∧ TcgMemory.AlignedFootprints p ∧
+        TraceOrder.Forward.GuestExecution x visibility (TcgMemory.byteImage p))
+"""
+
+[contract."route:tcg-aligned-wb-semaphores"]
+check = "tcg-memory"
+module = "TcgMemory.Implementation"
+statement = """
+  ((∀ i s m parallel, TcgMemory.tcgAtomic i s m parallel = TcgMemory.atomicSpec i s m) ∧
+  (∀ i s m parallel, (TcgMemory.tcgAtomic i s m parallel).exit ≠ .success →
+    (TcgMemory.tcgAtomic i s m parallel).regs = s ∧
+      (TcgMemory.tcgAtomic i s m parallel).effect = none) ∧
+  (∀ op path, TcgMemory.helperContract op path = decide (path ≠ .serial)) ∧
+  (∀ (op : TcgMemory.AtomicOperand) (path : TcgMemory.AtomicPath)
+    (slot : Nat) (effect : TcgMemory.AtomicEffect) (other : TraceOrder.Kind),
+    TcgMemory.helperContract op path = true →
+      (TcgMemory.helperAfterMask (some (.atomicRead slot op path effect)) &&&
+        TcgMemory.atomicPairMask .rmwRead other) ≠ 0 ∧
+      (TcgMemory.helperBeforeMask (some (.atomicWrite slot op path effect)) &&&
+        TcgMemory.atomicPairMask other .rmwWrite) ≠ 0) ∧
+  (∀ (width : TcgMemory.FetchWidth) (increment : TcgMemory.Increment)
+    (initialRaw : TcgMemory.Word) (observations : List TcgMemory.Word) (old next : TcgMemory.Word),
+    TcgMemory.reverseFetchAddAttempts width increment initialRaw observations = some (old, next) →
+      old ∈ observations ∧
+      next = TcgMemory.bswapPayload width.width
+        (TcgMemory.bswapPayload width.width old + increment.value)) ∧
+  (∀ s slot requests, TcgMemory.runMemory TcgMemory.tcgStep TcgMemory.tcgAtomic s slot requests =
+    TcgMemory.runMemory TcgMemory.specStep (fun i r m _ => TcgMemory.atomicSpec i r m) s slot requests)) ∧
+  (∀ {Cpu : Type} (p : TcgMemory.AtomicPrograms Cpu) (s : TcgMemory.LinearAtomic.Schedule p),
+    TcgMemory.LinearAtomic.Admitted p s →
+    (∀ dependency, TraceOrder.AtomicPairs (TcgMemory.LinearAtomic.graph p s dependency)) ∧
+    (∀ e, (TcgMemory.atomicEventLabel p e).kind.read = true →
+      ∃ w, TcgMemory.LinearAtomic.readsFrom p s w e ∧
+        (TcgMemory.atomicEventLabel p e).value = (TcgMemory.atomicEventLabel p w).value ∧
+        ∀ other, TcgMemory.LinearAtomic.readsFrom p s other e → other = w) ∧
+    (∀ r, (TcgMemory.atomicEventLabel p r).kind = .rmwRead →
+      ∃ w, TcgMemory.LinearAtomic.paired p s r w ∧
+        ∀ other, TcgMemory.LinearAtomic.paired p s r other → other = w) ∧
+    (∀ w, (TcgMemory.atomicEventLabel p w).kind = .rmwWrite →
+      ∃ r, TcgMemory.LinearAtomic.paired p s r w ∧
+        ∀ other, TcgMemory.LinearAtomic.paired p s other w → other = r)) ∧
+  (∀ {Cpu : Type} (p : TcgMemory.AtomicPrograms Cpu) (s : TcgMemory.ByteAtomic.BlockSchedule p),
+    TcgMemory.ByteAtomic.Admitted p s →
+    ∀ (block position : Nat) (r w : TcgMemory.AtomicEventId p),
+      (s block)[position]? = some (.atomic r w) →
+      ∃ cell, TcgMemory.aligned cell ∧ cell.1.toNat / 8 = block ∧
+        ∀ offset, offset < cell.2 →
+          ∃ previous writer value,
+            let physical := cell.1.toNat + offset
+            physical / 8 = block ∧
+            (TcgMemory.LinearAtomic.payload p r)[offset]? = some value ∧
+              TcgMemory.ByteAtomic.payloadByte p writer physical = some value ∧
+              previous < position ∧
+              TcgMemory.ByteAtomic.writeAtByte p s block physical previous = some writer ∧
+              (∀ later contender, later < position →
+                TcgMemory.ByteAtomic.writeAtByte p s block physical later = some contender →
+                later ≤ previous) ∧
+              TcgMemory.LinearAtomic.stateBefore
+                (TcgMemory.ByteAtomic.writeAtByte p s block physical) (position + 1) =
+                some (position, w))
+"""
+
+[contract."route:tcg-aligned-wb-compare"]
+check = "tcg-memory"
+module = "TcgMemory.Implementation"
+statement = """
+  (∀ i s m, (TcgMemory.Compare.source i s m).project = TcgMemory.Compare.architecture i s m) ∧
+  (∀ i s m, (TcgMemory.Compare.source i s m).exit ≠ .success →
+    (TcgMemory.Compare.source i s m).regs = s ∧ (TcgMemory.Compare.source i s m).attempt = none) ∧
+  (∀ i s m a, (TcgMemory.Compare.source i s m).attempt = some a →
+    (a.route = .loadOnly → a.effect.committed = none ∧ a.store = none) ∧
+    (a.effect.committed = none →
+      a.store = if a.route = .serial then some a.effect.before else none)) ∧
+  (∀ w m, TcgMemory.Compare.route w m = .loadOnly ↔ TcgMemory.Compare.low w m.ccv ≠ m.ccv) ∧
+  (∀ {Cpu : Type} (p : TcgMemory.AtomicPrograms Cpu)
+    (history : TcgMemory.ByteAtomic.BlockSchedule p) (physical : TcgMemory.Word)
+    (position : Nat) (i : TcgMemory.Compare.Instruction) (s : TcgMemory.Registers)
+    (m : TcgMemory.Compare.Inputs) (bytes : List TcgMemory.Byte) (a : TcgMemory.Compare.Attempt),
+    TcgMemory.aligned (physical, i.width.bytes) →
+    TcgMemory.ByteAtomic.snapshot p history (physical.toNat / 8) position
+      (physical, i.width.bytes) = some bytes →
+    (TcgMemory.Compare.replay i s m bytes).attempt = some a →
+    ∀ offset, offset < i.width.bytes → ∃ previous writer value,
+      let address := physical.toNat + offset
+      address / 8 = physical.toNat / 8 ∧ a.effect.before[offset]? = some value ∧
+        TcgMemory.ByteAtomic.payloadByte p writer address = some value ∧ previous < position ∧
+        TcgMemory.ByteAtomic.writeAtByte p history (physical.toNat / 8) address previous = some writer ∧
+        (∀ other contender, other < position →
+          TcgMemory.ByteAtomic.writeAtByte p history (physical.toNat / 8) address other = some contender →
+          other ≤ previous))
+"""

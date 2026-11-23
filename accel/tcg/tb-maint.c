@@ -790,6 +790,11 @@ void tb_flush__exclusive_or_serial(void)
     qemu_plugin_flush_cb();
 }
 
+unsigned tcg_tb_flush_count(void)
+{
+    return qatomic_read(&tb_ctx.tb_flush_count);
+}
+
 static void do_tb_flush(CPUState *cpu, run_on_cpu_data tb_flush_count)
 {
     /* If it is already been done on request of another CPU, just retry. */
@@ -801,7 +806,7 @@ static void do_tb_flush(CPUState *cpu, run_on_cpu_data tb_flush_count)
 void queue_tb_flush(CPUState *cs)
 {
     if (tcg_enabled()) {
-        unsigned tb_flush_count = qatomic_read(&tb_ctx.tb_flush_count);
+        unsigned tb_flush_count = tcg_tb_flush_count();
         async_safe_run_on_cpu(cs, do_tb_flush,
                               RUN_ON_CPU_HOST_INT(tb_flush_count));
     }

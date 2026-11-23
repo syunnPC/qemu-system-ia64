@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+[contract."ordering:tcg-observation-graph"]
+check = "traceorder"
+module = "TraceOrder.Implementation"
+statement = """
+(∀ {Event Cpu Loc : Type} (implicitOrder : BitVec 8)
+  (x : TraceOrder.Execution Event Cpu Loc) (visibility : TraceOrder.Visibility Event Cpu)
+  (semEdges : TraceOrder.Edge Event),
+  TraceOrder.Lowering.Admitted x →
+  (∀ a b, TraceOrder.GuestOrder x a b →
+    ((x.event a).kind.rmw = true ∨ (x.event b).kind.rmw = true) → semEdges a b) →
+  TraceOrder.IRExecution x visibility
+    (TraceOrder.Lowering.EmittedOrdering implicitOrder x semEdges) →
+  TraceOrder.GuestExecution x visibility) ∧
+(∀ {Event Cpu Loc U : Type} (implicitOrder : BitVec 8)
+  (x : TraceOrder.Execution Event Cpu Loc) (visibility : TraceOrder.Visibility Event Cpu)
+  (image : TraceOrder.Forward.Image Event U),
+  (∀ e, TraceOrder.Lowering.Ordinary (x.event e)) →
+  TraceOrder.Forward.IRExecution x visibility image
+    (TraceOrder.Lowering.EmittedOrdering implicitOrder x (fun _ _ => False)) →
+  TraceOrder.Forward.GuestExecution x visibility image)
+"""
+
+[contract."ordering:fused-release-loop"]
+check = "traceorder"
+module = "TraceOrder.Implementation"
+statement = """
+¬ ((∃ w, FusedRelease.bulkOrdering w ∧ FusedRelease.messagePassingFailure w) →
+  (∃ v, TraceOrder.IRExecution (TraceOrder.Examples.mp true) v
+    TraceOrder.Examples.fusedOrder) →
+  (∃ v, TraceOrder.GuestExecution (TraceOrder.Examples.mp true) v))
+"""
+
+[contract."ordering:tcg-narrow-cmpxchg-rel"]
+check = "traceorder"
+module = "TraceOrder.Implementation"
+statement = """
+¬ ((TraceOrder.Lowering.narrowInlineEdge TraceOrder.Lowering.threePairDefault = false ∧
+    TraceOrder.Lowering.narrowHelperEdge TraceOrder.Lowering.threePairDefault = false) →
+  (∃ v, TraceOrder.IRExecution TraceOrder.Examples.narrow v
+    TraceOrder.Examples.narrowOrder) →
+  (∃ v, TraceOrder.GuestExecution TraceOrder.Examples.narrow v))
+"""

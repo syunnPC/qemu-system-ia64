@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+[proof."route:tcg-optimize-i64-local"]
+theorem = "IA64Optimizer.rewriteSound"
+sources = { "tcg/optimize.c" = "12cd795c7371d5e6228d0be7b27ddc273ddc2b42e1bad69e613bdfb5f205c83f", "include/qemu/host-utils.h" = "533c0162b8445327f0b39f8dcab6958b58e35a697a5f391dd0b0068b27dda15b" }
+
+[proof."route:tcg-optimize-i64-copies"]
+theorem = "IA64Optimizer.initializedScalarBlock"
+sources = { "tcg/optimize.c" = "12cd795c7371d5e6228d0be7b27ddc273ddc2b42e1bad69e613bdfb5f205c83f", "include/qemu/host-utils.h" = "533c0162b8445327f0b39f8dcab6958b58e35a697a5f391dd0b0068b27dda15b", "include/qemu/bitops.h" = "07b58ab9438002e79a347dbb1f254e7610e40ce3866dfb1c53699df3d7942c47" }
+
+[proof."route:tcg-optimize-a-values"]
+theorem = "IA64Optimizer.optimizedPayload"
+sources = { "tcg/optimize.c" = "12cd795c7371d5e6228d0be7b27ddc273ddc2b42e1bad69e613bdfb5f205c83f", "include/qemu/host-utils.h" = "533c0162b8445327f0b39f8dcab6958b58e35a697a5f391dd0b0068b27dda15b", "include/qemu/bitops.h" = "07b58ab9438002e79a347dbb1f254e7610e40ce3866dfb1c53699df3d7942c47", "tcg/tcg-op.c" = "26590038bb6fb35bf518396496c9d488e748cc9891dc7b88bb8793243b34cd71", "target/ia64/translate/gen-integer.c" = "03d64192da868794e715da07b9c6889a92063b13f211815448cf741f89a966cc", "target/ia64/translate/translate.c" = "c3e614d2e55b7683783c55daf81097d993d2bdab9e2b6e76a1fee14e6626c2a8" }
+
+[proof."route:tcg-optimize-a-branchless-values"]
+theorem = "IA64Optimizer.optimizedBranchlessPayload"
+sources = { "tcg/optimize.c" = "12cd795c7371d5e6228d0be7b27ddc273ddc2b42e1bad69e613bdfb5f205c83f", "include/qemu/host-utils.h" = "533c0162b8445327f0b39f8dcab6958b58e35a697a5f391dd0b0068b27dda15b", "include/qemu/bitops.h" = "07b58ab9438002e79a347dbb1f254e7610e40ce3866dfb1c53699df3d7942c47", "tcg/tcg-op.c" = "26590038bb6fb35bf518396496c9d488e748cc9891dc7b88bb8793243b34cd71", "target/ia64/translate/gen-integer.c" = "03d64192da868794e715da07b9c6889a92063b13f211815448cf741f89a966cc", "target/ia64/translate/translate.c" = "c3e614d2e55b7683783c55daf81097d993d2bdab9e2b6e76a1fee14e6626c2a8" }

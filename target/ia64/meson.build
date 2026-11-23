@@ -1,9 +1,40 @@
 ia64_ss = ss.source_set()
+ia64_llvm_builtin = false
+if ia64_llvm.allowed() and 'cpp' in all_languages
+  jit_source = files('../../contrib/ia64-llvm/jit.cpp')
+  foreach method : ['config-tool', 'cmake']
+    llvm = dependency('llvm', method: method, static: true,
+                      modules: ['core', 'orcjit', 'native', 'passes'],
+                      include_type: 'system', required: false)
+    if llvm.found() and cxx.compiles(jit_source[0], dependencies: llvm,
+                                    name: 'IA-64 LLVM JIT API')
+      ia64_llvm_builtin = true
+      break
+    endif
+  endforeach
+  if ia64_llvm_builtin
+    builtin_flag = '-DCONFIG_IA64_LLVM_BUILTIN'
+    jit_cpp_args = ['-fno-rtti']
+    if get_option('cfi')
+      # ORC calls back across the boundary between QEMU and the system LLVM.
+      jit_cpp_args += '-fno-sanitize=cfi-icall'
+    endif
+    backend = static_library('ia64-llvm-backend',
+      files('../../contrib/ia64-llvm/frontend.c', '../../contrib/ia64-llvm/lower.c'),
+      jit_source, dependencies: llvm, include_directories: include_directories('../..'),
+      c_args: builtin_flag, cpp_args: jit_cpp_args, gnu_symbol_visibility: 'hidden')
+    ia64_ss.add(declare_dependency(link_with: backend, compile_args: builtin_flag))
+  endif
+endif
+if ia64_llvm.enabled() and not ia64_llvm_builtin
+  error('The IA-64 LLVM JIT requires compatible static LLVM development libraries')
+endif
 ia64_ss.add(files(
   'decoder.c',
   'dump.c',
   'exec-access.c',
   'gdbstub.c',
+  'llvm.c',
   'arch/alat.c',
   'arch/exception.c',
   'arch/firmware.c',

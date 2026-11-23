@@ -1,0 +1,14 @@
+AArch64 IA64_AArch64_mf
+(* SPDX-License-Identifier: GPL-2.0-or-later *)
+{
+  x=0; y=0;
+  0:X0=x; 0:X1=y; 1:X0=y; 1:X1=x;
+  0:X2=1; 1:X2=1;
+}
+ P0           | P1           ;
+ DMB ISH      | DMB ISH      ;
+ STR W2,[X0]  | STR W2,[X0]  ;
+ DMB ISH      | DMB ISH      ;
+ DMB ISHLD    | DMB ISHLD    ;
+ LDR W3,[X1]  | LDR W3,[X1]  ;
+exists (0:X3=0 /\ 1:X3=0)

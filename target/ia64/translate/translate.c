@@ -7,6 +7,8 @@
 #include "qemu/osdep.h"
 #include "qemu/atomic.h"
 #include "qemu/log.h"
+#include "contrib/ia64-llvm/insn.h"
+#include "target/ia64/llvm.h"
 
 #include "arch/arch.h"
 #include "cpu.h"
@@ -4380,6 +4382,10 @@ static void ia64_tr_init_disas_context(DisasContextBase *db, CPUState *cs)
     uint32_t flags = ctx->base.tb->flags;
 
     ctx->env = cpu_env(cs);
+    ctx->llvm_scan_until = 0;
+    ctx->llvm_tb_state_until = db->pc_first;
+    ctx->llvm_end = 0;
+    ctx->llvm_resume = NULL;
     ctx->fp = (IA64TranslationFPState) { 0 };
     if (flags & IA64_TB_FLAG_IRQ_DEFER) {
         ctx->base.max_insns = 1;
@@ -4488,6 +4494,143 @@ static void ia64_gen_check_sequential_native_traps(const Ia64Instruction *insn,
         mlx_long && insn->slot == 1 ? 2 : insn->slot, 0, 0);
 }
 
+typedef struct LLVMRegionChecks {
+    bool fixed_regs;
+    bool preserves_tb_state;
+    bool has_memory_access;
+} LLVMRegionChecks;
+
+static int llvm_bundle_weight(DisasContext *ctx, uint64_t pc, uint64_t lo,
+                              uint64_t hi, Ia64Opcode *barrier,
+                              LLVMRegionChecks *checks)
+{
+    const IA64TemplateInfo *t =
+        ia64_template_info(ia64_bundle_template_code(lo));
+    int weight = 0;
+    if (!t->defined || t->units[1] == IA64_UNIT_L) {
+        return -1;
+    }
+    for (int slot = 0; slot < IA64_BUNDLE_SLOTS; slot++) {
+        uint64_t bits = ia64_bundle_slot(lo, hi, slot);
+        Ia64Instruction insn = ia64_decode_insn(t->units[slot], bits, pc, slot);
+
+        *barrier = insn.opcode;
+        if (!ia64_llvm_insn_supported(&insn)) {
+            return -1;
+        }
+        if (insn.opcode != IA64_OP_NOP) {
+            /* Supported GR operands use the first three fields. */
+            const IA64CommonOperands *op = &insn.operands.common;
+            bool preserves_nats =
+                (checks->fixed_regs || checks->preserves_tb_state) &&
+                insn.opcode != IA64_OP_GETF_SIG &&
+                ia64_insn_preserves_all_nat_clear(ctx, &insn);
+            checks->fixed_regs = checks->fixed_regs && preserves_nats &&
+                                 op->destination < IA64_STACKED_GR_BASE &&
+                                 op->source1 < IA64_STACKED_GR_BASE &&
+                                 op->source2 < IA64_STACKED_GR_BASE &&
+                                 !(ia64_insn_predicate_write_mask(&insn) >>
+                                   IA64_PR_ROTATING_BASE);
+            checks->has_memory_access = checks->has_memory_access ||
+                                        ia64_opcode_is_load(insn.opcode) ||
+                                        ia64_opcode_is_store(insn.opcode);
+            /* The TCG fallback can access a device for a load or store. */
+            checks->preserves_tb_state = checks->preserves_tb_state &&
+                                         preserves_nats &&
+                                         !checks->has_memory_access;
+            weight++;
+        }
+    }
+    return weight;
+}
+
+static void ia64_try_llvm(DisasContext *ctx, uint64_t pc, uint64_t lo,
+                          uint64_t hi)
+{
+    DisasContextBase *db = &ctx->base;
+    uint32_t flags = db->tb->flags;
+    if (pc > UINT64_MAX - IA64_LLVM_MAX_BUNDLES * UINT64_C(16) ||
+        pc < ctx->llvm_scan_until || ctx->restart.start_slot ||
+        !(flags & IA64_TB_FLAG_PSR_IC) || !(flags & IA64_TB_FLAG_NAT_CLEAR) ||
+        (flags & (IA64_TB_FLAG_BE | IA64_TB_FLAG_PSR_DB | IA64_TB_FLAG_PSR_TB |
+                  IA64_TB_FLAG_PSR_SS | IA64_TB_FLAG_PSR_SUPPRESS |
+                  IA64_TB_FLAG_IRQ_DEFER)) ||
+        db->plugin_enabled || ctx->restart.track_psr_suppression ||
+        (tb_cflags(db->tb) & (CF_SINGLE_STEP | CF_BP_PAGE | CF_USE_ICOUNT |
+                              CF_NO_GOTO_TB | CF_NOIRQ | CF_MEMI_ONLY))) {
+        return;
+    }
+    /* The TB key establishes the entry PSR and NaTs on every chained path. */
+    bool tb_entry = pc == ctx->llvm_tb_state_until &&
+                    ctx->restart.current_ri_known && !ctx->restart.current_ri;
+    LLVMRegionChecks checks = {
+        .fixed_regs = tb_entry,
+        .preserves_tb_state = tb_entry,
+    };
+    unsigned max = IA64_LLVM_MAX_BUNDLES;
+    if (tb_cflags(db->tb) & CF_COUNT_MASK) {
+        max = MIN(max, db->max_insns - db->num_insns + 1);
+    }
+    uint64_t words[2 * IA64_LLVM_MAX_BUNDLES];
+    size_t n = 0;
+    unsigned weight = 0;
+    Ia64Opcode barrier = IA64_OP_NOP;
+    bool stop = false;
+    for (; n < max; n++) {
+        uint64_t address = pc + n * 16;
+        if (n) {
+            if (!translator_is_same_page(db, address + 15)) {
+                break;
+            }
+            lo = translator_ldq_end(ctx->env, db, address, MO_LE);
+            hi = translator_ldq_end(ctx->env, db, address + 8, MO_LE);
+        }
+        LLVMRegionChecks bundle_checks = checks;
+        int w =
+            llvm_bundle_weight(ctx, address, lo, hi, &barrier, &bundle_checks);
+        if (w < 0) {
+            break;
+        }
+        checks = bundle_checks;
+        words[2 * n] = lo;
+        words[2 * n + 1] = hi;
+        const IA64TemplateInfo *t =
+            ia64_template_info(ia64_bundle_template_code(lo));
+        stop = t->stop_after[2];
+        weight += w;
+    }
+    ctx->llvm_scan_until = pc + 16 * n;
+    if (checks.preserves_tb_state) {
+        ctx->llvm_tb_state_until = ctx->llvm_scan_until;
+    }
+    if (n >= 5 && weight >= 20 &&
+        !ia64_static_native_trap_needed(ctx, ctx->llvm_scan_until, 0, 0)) {
+        uint8_t mode = ctx->memory.full_alat ? IA64_LLVM_FULL_ALAT : 0;
+        if (checks.has_memory_access && ctx->memory.mmu_idx != MMU_PHYS_IDX &&
+            ia64_env_cpu_class(ctx->env)->model == IA64_CPU_MODEL_MERCED) {
+            mode |= IA64_LLVM_MERCED_DTLB1;
+        }
+        IA64LLVMRegion *r =
+            ia64_llvm_register(words, n, stop, pc, barrier, mode);
+        if (r) {
+            ctx->llvm_resume = gen_new_label();
+            TCGv_i32 executed = tcg_temp_new_i32();
+            ctx->llvm_end = MAX(ctx->llvm_end, ctx->llvm_scan_until);
+            TCGv_ptr region = tcg_constant_ptr(r);
+            TCGv_i64 start = tcg_constant_i64((int64_t)pc);
+            TCGv_i32 mmu = tcg_constant_i32(ctx->memory.mmu_idx);
+            if (checks.fixed_regs) {
+                gen_helper_llvm_region_fixed(executed, tcg_env, region, start,
+                                             mmu);
+            } else {
+                gen_helper_llvm_region(executed, tcg_env, region, start, mmu,
+                                       tcg_constant_i32(tb_entry));
+            }
+            tcg_gen_brcondi_i32(TCG_COND_NE, executed, 0, ctx->llvm_resume);
+        }
+    }
+}
+
 static void ia64_tr_translate_insn(DisasContextBase *db, CPUState *cs)
 {
     DisasContext *ctx = container_of(db, DisasContext, base);
@@ -4512,6 +4655,9 @@ static void ia64_tr_translate_insn(DisasContextBase *db, CPUState *cs)
 
     low = translator_ldq_end(ctx->env, db, bundle_ip, MO_LE);
     high = translator_ldq_end(ctx->env, db, bundle_ip + 8, MO_LE);
+    if (unlikely(ia64_llvm_enabled)) {
+        ia64_try_llvm(ctx, bundle_ip, low, high);
+    }
     template_code = ia64_bundle_template_code(low);
     template_info = ia64_template_info(template_code);
 
@@ -4649,6 +4795,14 @@ static void ia64_tr_translate_insn(DisasContextBase *db, CPUState *cs)
     }
 
     ctx->restart.start_slot = 0;
+    if (ctx->llvm_resume && db->pc_next == ctx->llvm_end) {
+        gen_set_label(ctx->llvm_resume);
+        ctx->llvm_resume = NULL;
+        ctx->fp.enabled_sets = 0;
+        ctx->fp.rotating_synced = false;
+        /* The taken edge skipped the fallback's cached CFM load. */
+        ctx->reg.cfm_sof_valid = false;
+    }
     /* Preserve translator_io_start() requests for timer register accesses. */
     if (ctx->restart.exit_after_bundle) {
         db->is_jmp = IA64_DISAS_EXIT;
@@ -4718,6 +4872,21 @@ static void ia64_tr_tb_stop(DisasContextBase *db, CPUState *cs)
     default:
         g_assert_not_reached();
     }
+    if (ctx->llvm_resume) {
+        unsigned slot = ctx->branch.goto_tb_slots;
+
+        /* The native helper already committed the successor's PC and TB key. */
+        gen_set_label(ctx->llvm_resume);
+        if (slot <= TB_EXIT_IDXMAX && ctx->reg.cpl_known &&
+            translator_use_goto_tb(db, ctx->llvm_end)) {
+            tcg_gen_goto_tb(slot);
+            tcg_gen_exit_tb(db->tb, slot);
+        } else {
+            ia64_gen_lookup_or_exit(ctx);
+        }
+    }
+    /* Invalidate the entire range a native exit can execute. */
+    db->pc_next = MAX(db->pc_next, ctx->llvm_end);
 }
 
 static const char *ia64_unit_log_name(IA64SlotUnit unit)

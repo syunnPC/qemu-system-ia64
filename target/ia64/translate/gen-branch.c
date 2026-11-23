@@ -90,6 +90,16 @@ IA64GenResult ia64_gen_branch(DisasContext *ctx, const Ia64Instruction *insn,
         gen_helper_br_call_rse(tcg_env, tcg_constant_i32(op->link),
                                tcg_constant_i64(next_ip),
                                tcg_constant_i64(target));
+        /*
+         * The callee sees the renamed output registers.  Forget the
+         * caller's stacked NaTs before emitting the direct edge, so its
+         * guard reads the post-call NaT words on every execution.  Other
+         * TB key changes still require a lookup.
+         */
+        ia64_update_nat_known(ctx, insn);
+        ctx->memory.direct_chain_nat_safe = ctx->reg.cpl_known &&
+                                            !ctx->restart.exit_after_bundle &&
+                                            !track_psr_suppression;
         return ia64_gen_complete_branch(
             ctx, skip,
             &(IA64BranchCompletion) {

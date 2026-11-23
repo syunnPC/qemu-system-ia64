@@ -123,6 +123,8 @@ DEF_HELPER_FLAGS_5(check_alignment, TCG_CALL_NO_WG, void, env, i64, i32, i64,
 DEF_HELPER_FLAGS_6(speculative_probe, TCG_CALL_NO_WG, i64, env, i64, i32, i32,
                    i32, i32)
 DEF_HELPER_FLAGS_3(speculative_int_probe, TCG_CALL_NO_WG, i64, env, i64, i32)
+DEF_HELPER_FLAGS_4(speculative_int_load, TCG_CALL_NO_WG, i128, env, i64, i32,
+                   i32)
 DEF_HELPER_FLAGS_3(speculative_int_probe_pa, TCG_CALL_NO_WG, i128, env, i64,
                    i32)
 DEF_HELPER_FLAGS_6(speculative_probe_pa, TCG_CALL_NO_WG, i128, env, i64, i32,
@@ -211,3 +213,6 @@ DEF_HELPER_FLAGS_2(simd_sum, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 #include "target/i386/helper.h"
 #undef rsm
 #undef raise_exception
+
+DEF_HELPER_5(llvm_region, i32, env, ptr, i64, i32, i32)
+DEF_HELPER_4(llvm_region_fixed, i32, env, ptr, i64, i32)

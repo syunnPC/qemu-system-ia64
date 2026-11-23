@@ -894,13 +894,20 @@ static void ia64_rse_copy_dirty(uint64_t *dst, const uint64_t *src,
     }
 }
 
-/*
- * Copy a directly mapped, NaT-free frame into the physical file.  Keep this
- * path separate from the general mapper below: the latter needs snapshots,
- * rotation state, tracing arguments, and a stack protector even when none of
- * those facilities is used.  Normal compiler-generated call frames satisfy
- * these conditions overwhelmingly often.
- */
+/* Each dirty word spans at most one end of the physical register file. */
+static void ia64_rse_copy_dirty_word(CPUIA64State *env, uint32_t p, uint32_t v,
+                                     uint64_t dirty)
+{
+    const uint64_t *src = &env->gr[IA64_STACKED_GR_BASE + v];
+    uint32_t tail = IA64_STACKED_GR_COUNT - p;
+
+    if (tail < 64 && (dirty >> tail)) {
+        ia64_rse_copy_dirty(env->rse.rse_pgr, src + tail, dirty >> tail);
+        dirty &= (UINT64_C(1) << tail) - 1;
+    }
+    ia64_rse_copy_dirty(&env->rse.rse_pgr[p], src, dirty);
+}
+
 static G_GNUC_NO_INLINE void
 ia64_rse_sync_frame_out_direct(CPUIA64State *env, uint64_t dirty0,
                                uint64_t dirty1, uint32_t sof, uint32_t bol)
@@ -916,11 +923,10 @@ ia64_rse_sync_frame_out_direct(CPUIA64State *env, uint64_t dirty0,
         dirty1 &= (1ULL << (sof - 64)) - 1;
     }
 
-    ia64_rse_copy_dirty(&env->rse.rse_pgr[bol], &env->gr[IA64_STACKED_GR_BASE],
-                        dirty0);
+    ia64_rse_copy_dirty_word(env, bol, 0, dirty0);
     if (dirty1) {
-        ia64_rse_copy_dirty(&env->rse.rse_pgr[bol + 64],
-                            &env->gr[IA64_STACKED_GR_BASE + 64], dirty1);
+        ia64_rse_copy_dirty_word(env, (bol + 64) % IA64_STACKED_GR_COUNT, 64,
+                                 dirty1);
     }
 }
 
@@ -951,26 +957,6 @@ static G_GNUC_NO_INLINE void ia64_rse_sync_frame_out_slow(CPUIA64State *env,
         dirty[1] = 0;
     } else {
         dirty[1] &= (1ULL << (sof - 64)) - 1;
-    }
-
-    /*
-     * Most frames neither rotate their GRs nor wrap around the physical
-     * register ring.  With no NaT state to update, their mapping is a simple
-     * base-plus-index copy; select that case once per frame instead of
-     * repeating rotation and wrap checks for every dirty register.
-     */
-    if (nat_files_clear && (sor_regs == 0 || rrb_gr == 0) &&
-        bol + sof <= IA64_STACKED_GR_COUNT) {
-        for (word = 0; word < 2; word++) {
-            while (dirty[word] != 0) {
-                uint32_t bit = ctz64(dirty[word]);
-                uint32_t v = word * 64 + bit;
-
-                dirty[word] &= dirty[word] - 1;
-                env->rse.rse_pgr[bol + v] = env->gr[IA64_STACKED_GR_BASE + v];
-            }
-        }
-        return;
     }
 
     if (nat_files_clear) {
@@ -1039,18 +1025,10 @@ static inline QEMU_ALWAYS_INLINE void ia64_rse_sync_frame_out(CPUIA64State *env)
         uint32_t sof = env->cfm_sof;
         uint32_t bol = env->rse.rse_bol;
 
-        /*
-         * With no stacked NaTs, no active GR rotation, and no physical-file
-         * wrap, virtual register v maps exactly to physical register bol+v.
-         * This is the same first branch as the general helper, selected here
-         * so its large uncommon frame is never entered on the usual path.
-         * Malformed SOR state deliberately falls back to the defensive
-         * normalizer in ia64_rse_rotating_gr_count().
-         */
+        /* Nonrotating, NaT-free frames only need dirty data copies. */
         if (likely(((env->nat[0] >> IA64_STACKED_GR_BASE) | env->nat[1] |
                     env->rse.rse_pgr_nat[0] | env->rse.rse_pgr_nat[1]) == 0 &&
-                   (env->cfm_sor == 0 || env->cfm_rrb_gr == 0) &&
-                   bol + sof <= IA64_STACKED_GR_COUNT)) {
+                   (env->cfm_sor == 0 || env->cfm_rrb_gr == 0))) {
             ia64_rse_sync_frame_out_direct(env, dirty0, dirty1, sof, bol);
             return;
         }
@@ -1106,23 +1084,27 @@ static void ia64_rse_sync_frame_in_range(CPUIA64State *env, uint32_t first,
     }
 }
 
-/*
- * Load a directly mapped frame when the physical file contains no NaTs.
- * Keeping this path out of the general mapper avoids its rotation, 128-bit
- * NaT-copy, and large register-save frame on every ordinary br.ret/rfi.
- */
-static G_GNUC_NO_INLINE void
-ia64_rse_sync_frame_in_direct(CPUIA64State *env, uint32_t sof, uint32_t bol)
+/* Copy a nonrotating range, splitting only at the end of the ring. */
+static void ia64_rse_load_linear(CPUIA64State *env, uint32_t start,
+                                 uint32_t count)
 {
-    uint32_t first = MIN(sof, IA64_STACKED_GR_COUNT - bol);
-    uint32_t second = sof - first;
+    uint32_t p = env->rse.rse_bol + start;
+    uint64_t *dst = &env->gr[IA64_STACKED_GR_BASE + start];
+    uint32_t first;
 
-    memcpy(&env->gr[IA64_STACKED_GR_BASE], &env->rse.rse_pgr[bol],
-           first * sizeof(env->rse.rse_pgr[0]));
-    if (second != 0) {
-        memcpy(&env->gr[IA64_STACKED_GR_BASE + first], env->rse.rse_pgr,
-               second * sizeof(env->rse.rse_pgr[0]));
+    if (p >= IA64_STACKED_GR_COUNT) {
+        p -= IA64_STACKED_GR_COUNT;
     }
+    first = MIN(count, IA64_STACKED_GR_COUNT - p);
+    memcpy(dst, &env->rse.rse_pgr[p], first * sizeof(*dst));
+    if (first < count) {
+        memcpy(dst + first, env->rse.rse_pgr, (count - first) * sizeof(*dst));
+    }
+}
+
+static G_GNUC_NO_INLINE void ia64_rse_sync_frame_in_direct(CPUIA64State *env)
+{
+    ia64_rse_load_linear(env, 0, env->cfm_sof);
 
     /* All virtual stacked NaTs are known clear, including outside SOF. */
     env->nat[0] &= UINT32_MAX;
@@ -1134,39 +1116,6 @@ ia64_rse_sync_frame_in_direct(CPUIA64State *env, uint32_t sof, uint32_t bol)
 /* Load the virtual view of the current frame from the physical file. */
 static G_GNUC_NO_INLINE void ia64_rse_sync_frame_in_slow(CPUIA64State *env)
 {
-    if (env->cfm_sor == 0 || env->cfm_rrb_gr == 0) {
-        uint32_t first = MIN((uint32_t)env->cfm_sof,
-                             IA64_STACKED_GR_COUNT - env->rse.rse_bol);
-        uint32_t second = env->cfm_sof - first;
-
-        memcpy(&env->gr[IA64_STACKED_GR_BASE],
-               &env->rse.rse_pgr[env->rse.rse_bol],
-               first * sizeof(env->rse.rse_pgr[0]));
-        if (second != 0) {
-            memcpy(&env->gr[IA64_STACKED_GR_BASE + first], env->rse.rse_pgr,
-                   second * sizeof(env->rse.rse_pgr[0]));
-        }
-        if (likely((env->rse.rse_pgr_nat[0] | env->rse.rse_pgr_nat[1]) == 0)) {
-            /*
-             * With no physical stacked-register NaTs, every bit in the
-             * virtual stacked view is known clear, including registers
-             * outside the current frame.  Preserve only static GR NaTs.
-             */
-            env->nat[0] &= UINT32_MAX;
-            env->nat[1] = 0;
-        } else {
-            ia64_copy_bit_range(env->nat, IA64_STACKED_GR_BASE,
-                                env->rse.rse_pgr_nat, env->rse.rse_bol, first);
-            if (second != 0) {
-                ia64_copy_bit_range(env->nat, IA64_STACKED_GR_BASE + first,
-                                    env->rse.rse_pgr_nat, 0, second);
-            }
-        }
-        env->rse.rse_gr_dirty[0] = 0;
-        env->rse.rse_gr_dirty[1] = 0;
-        return;
-    }
-
     ia64_rse_sync_frame_in_range(env, 0, env->cfm_sof);
     env->rse.rse_gr_dirty[0] = 0;
     env->rse.rse_gr_dirty[1] = 0;
@@ -1176,7 +1125,7 @@ static inline QEMU_ALWAYS_INLINE void ia64_rse_sync_frame_in(CPUIA64State *env)
 {
     if (likely((env->cfm_sor == 0 || env->cfm_rrb_gr == 0) &&
                (env->rse.rse_pgr_nat[0] | env->rse.rse_pgr_nat[1]) == 0)) {
-        ia64_rse_sync_frame_in_direct(env, env->cfm_sof, env->rse.rse_bol);
+        ia64_rse_sync_frame_in_direct(env);
         return;
     }
     ia64_rse_sync_frame_in_slow(env);
@@ -2335,13 +2284,29 @@ void ia64_rse_alloc(CPUIA64State *env, uint32_t r1, uint32_t pfm,
                              slot);
     }
 
-    ia64_rse_sync_frame_out(env);
+    /*
+     * Growing into invalid registers with an unchanged mapping leaves the
+     * existing virtual registers authoritative. Their dirty bits can carry
+     * over until the frame next moves. Commit before shrinking or spilling.
+     */
+    if (growth < 0 || growth > env->rse.rse_invalid || env->cfm_rrb_gr) {
+        ia64_rse_sync_frame_out(env);
+    }
     ia64_rse_new_frame(env, growth, ra);
     env->cfm_sof = new_sof;
     env->cfm_sol = new_sol;
     env->cfm_sor = new_sor;
-    if (new_sof > old_sof) {
-        ia64_rse_sync_frame_in_range(env, old_sof, new_sof - old_sof);
+    if (growth > 0) {
+        if (likely((!new_sor || !env->cfm_rrb_gr) &&
+                   !(env->rse.rse_pgr_nat[0] | env->rse.rse_pgr_nat[1]))) {
+            ia64_rse_load_linear(env, old_sof, growth);
+            if (unlikely((env->nat[0] >> IA64_STACKED_GR_BASE) | env->nat[1])) {
+                ia64_clear_bit_range(env->nat, IA64_STACKED_GR_BASE + old_sof,
+                                     growth);
+            }
+        } else {
+            ia64_rse_sync_frame_in_range(env, old_sof, growth);
+        }
     }
     ia64_rse_invalidate_stacked_alat(env);
 

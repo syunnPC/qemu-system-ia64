@@ -1,0 +1,58 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+[contract."route:tcg-optimize-i64-local"]
+check = "optimizer"
+module = "Optimizer.Implementation"
+statement = """
+∀ (op : IA64Optimizer.Opcode) (facts : IA64Optimizer.Info) (a b : BitVec 64),
+  facts.sound a b →
+  (IA64Optimizer.rewrite op facts).expression.value a b = IA64Optimizer.eval op a b ∧
+  (IA64Optimizer.rewrite op facts).result.sound (IA64Optimizer.eval op a b)
+"""
+
+[contract."route:tcg-optimize-i64-copies"]
+check = "optimizer-copy"
+module = "Optimizer.CopyImplementation"
+statement = """
+∀ {Temp : Type} [DecidableEq Temp] (pool : IA64Optimizer.ConstantPool Temp)
+    {final : IA64Optimizer.Metadata Temp} {srcs : List (IA64Optimizer.ScalarInput Temp)}
+    {ops : List (IA64Optimizer.Operation Temp)},
+  IA64Optimizer.Translation pool (IA64Optimizer.initialized pool.readonly) srcs ops final →
+  ∀ s : IA64Optimizer.State Temp, pool.sound s →
+    IA64Optimizer.run s ops = IA64Optimizer.run s (srcs.map IA64Optimizer.ScalarInput.unoptimized) ∧
+    final.sound (IA64Optimizer.run s ops).1
+"""
+
+[contract."route:tcg-optimize-a-values"]
+check = "optimizer-payload"
+module = "Optimizer.PayloadImplementation"
+statement = """
+∀ {Temp : Type} [DecidableEq Temp] (pool : IA64Optimizer.ConstantPool Temp)
+    (s : IA64Optimizer.State Temp) (r : IA64Optimizer.PayloadRegs Temp) (imm : BitVec 64)
+    (target : IA64Optimizer.PayloadTarget) (options : Nat → IA64Optimizer.FoldOptions)
+    (tag : IA64Optimizer.AValue),
+  IA64Optimizer.PayloadInputs s r imm tag →
+  pool.sound s →
+  ∀ {final : IA64Optimizer.Metadata Temp} {ops : List (IA64Optimizer.Operation Temp)},
+    IA64Optimizer.Translation pool (IA64Optimizer.initialized pool.readonly)
+      (IA64Optimizer.aPayload r imm target options tag) ops final →
+    (IA64Optimizer.run s ops).1 r.dst = IA64Optimizer.sdmPayload s r imm tag
+"""
+
+[contract."route:tcg-optimize-a-branchless-values"]
+check = "optimizer-payload"
+module = "Optimizer.PayloadImplementation"
+statement = """
+∀ {Temp : Type} [DecidableEq Temp] (pool : IA64Optimizer.ConstantPool Temp)
+    (s : IA64Optimizer.State Temp) (r : IA64Optimizer.PayloadRegs Temp) (imm : BitVec 64)
+    (target : IA64Optimizer.PayloadTarget) (extract : Option (BitVec 6))
+    (options : Nat → IA64Optimizer.FoldOptions) (tag : IA64Optimizer.AValue),
+  (IA64Optimizer.needsImmediate tag = true → s r.immediate = imm) →
+  IA64Optimizer.permitsFastExtract imm extract →
+  pool.sound s →
+  ∀ {srcs : List (IA64Optimizer.ScalarInput Temp)} {final : IA64Optimizer.Metadata Temp}
+      {ops : List (IA64Optimizer.Operation Temp)},
+    IA64Optimizer.fastPayload r imm target extract options tag = some srcs →
+    IA64Optimizer.Translation pool (IA64Optimizer.initialized pool.readonly) srcs ops final →
+    (IA64Optimizer.run s ops).1 r.dst = IA64Optimizer.sdmPayload s r imm tag
+"""

@@ -215,6 +215,7 @@ static int ia64_cpu_post_load(void *opaque, int version_id)
         }
     }
 
+    ia64_tlb_rebuild_indexes(env);
     memset(env->mmu.tlb_data_micro, 0, sizeof(env->mmu.tlb_data_micro));
     memset(env->mmu.tlb_inst_micro, 0, sizeof(env->mmu.tlb_inst_micro));
     memset(&env->mmu.code_tlb_ed, 0, sizeof(env->mmu.code_tlb_ed));
@@ -225,6 +226,8 @@ static int ia64_cpu_post_load(void *opaque, int version_id)
         env->mmu.tlb_data[i].micro_generation = 0;
         env->mmu.tlb_inst[i].micro_generation = 0;
     }
+    memset(env->mmu.speculative_pages, 0, sizeof(env->mmu.speculative_pages));
+    env->mmu.speculative_generation = 1;
     env->mmu.tlb_data_generation = 1;
     env->mmu.tlb_inst_generation = 1;
     memset(env->mmu.tlb_data_victim, 0, sizeof(env->mmu.tlb_data_victim));

@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from collections import deque
 import json
-import os
 import select
 import time
+from collections import deque
 from typing import Any, TextIO
 
 
@@ -53,7 +52,7 @@ class QmpClient:
             ready, _, _ = select.select([fd], [], [], remaining)
             if not ready:
                 raise QmpError("timed out waiting for QMP response")
-            chunk = os.read(fd, 65536)
+            chunk = self.reader.buffer.read1(65536)
             if not chunk:
                 raise QmpError("QMP stream closed unexpectedly")
             self._read_buffer.extend(chunk)
@@ -61,6 +60,10 @@ class QmpClient:
     def _send(self, message: dict[str, Any]) -> None:
         self.writer.write(json.dumps(message, separators=(",", ":")) + "\n")
         self.writer.flush()
+
+    def quit(self) -> None:
+        """Request shutdown. QEMU may exit before delivering the reply."""
+        self._send({"execute": "quit"})
 
     def execute(self, command: str, arguments: dict[str, Any] | None = None,
                 timeout_s: float | None = None) -> Any:

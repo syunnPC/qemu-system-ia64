@@ -23,6 +23,9 @@
  */
 void tb_flush__exclusive_or_serial(void);
 
+/* Generation of the TCG code cache, advanced on each full flush. */
+unsigned tcg_tb_flush_count(void);
+
 /**
  * queue_tb_flush() - add flush to the cpu work queue
  * @cs: CPUState

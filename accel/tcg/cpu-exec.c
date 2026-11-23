@@ -731,9 +731,13 @@ static inline bool cpu_handle_exception(CPUState *cpu, int *ret)
     if (replay_exception()) {
         const TCGCPUOps *tcg_ops = cpu->cc->tcg_ops;
 
-        bql_lock();
-        tcg_ops->do_interrupt(cpu);
-        bql_unlock();
+        if (replay_mode != REPLAY_MODE_NONE ||
+            !tcg_ops->do_interrupt_unlocked ||
+            !tcg_ops->do_interrupt_unlocked(cpu)) {
+            bql_lock();
+            tcg_ops->do_interrupt(cpu);
+            bql_unlock();
+        }
         cpu->exception_index = -1;
 
         if (unlikely(cpu->singlestep_enabled)) {

@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+[contract."route:tcg-a1-add-slot"]
+check = "slot-control"
+module = "SlotControl.Implementation"
+statement = """
+∀ {α : Type} (insn : IA64Add.NativeRegisterAdd) (s : IA64Add.Joined α)
+    (facts : IA64Tcg.Facts) (c : IA64Add.Context),
+  let raw := insn.raw.zeroExtend 64
+  let emitted := IA64Add.emittedDecoded raw insn.ip insn.ri
+  let guest := IA64Add.decodedBySDM raw insn.ip insn.ri
+  IA64Tcg.Sound s.data emitted facts →
+  IA64Add.EntryFacts s emitted c →
+  ∃ operands, IA64Add.OperandChoice s.data guest operands ∧
+    IA64Add.emittedStep s emitted facts (IA64Add.chosenRoute raw insn.ip insn.ri facts) c =
+      IA64Add.referenceStep s guest operands c
+"""
+
+[contract."route:tcg-a1-add-bundle"]
+check = "slot-control-bundle"
+module = "SlotControl.BundleImplementation"
+statement = """
+∀ {α : Type} (low high ip : BitVec 64) (slot : BitVec 2)
+    (s : IA64Add.Joined α) (facts : IA64Tcg.Facts) (c : IA64Add.Context),
+  let wire := FullDecodeImplementation.bundleADD low high ip slot
+  let decoded := IA64Add.projectedADD wire
+  let template := FullDecodeSpec.templateBits low
+  let stopC := FullDecodeImplementation.cStop template slot
+  let stopSDM := IA64Add.templateAddStop template slot
+  let raw := FullDecodeSpec.slotBits low high slot
+  let guest := IA64Add.decodedBySDM (raw.zeroExtend 64) ip (Fin.ofNat' 3 slot.toNat)
+  wire.getLsbD 394 = true →
+  IA64Tcg.Sound s.data decoded facts →
+  IA64Add.EntryFacts s decoded {c with stopAfter := stopC} →
+  ∃ operands, IA64Add.OperandChoice s.data guest operands ∧
+    IA64Add.emittedStep s decoded facts (IA64Add.chosenWireRoute wire facts) {c with stopAfter := stopC} =
+      IA64Add.referenceStep s guest operands {c with stopAfter := stopSDM}
+"""
+
+[contract."route:tcg-a1-a5-alu-bundle"]
+check = "slot-control-alu"
+module = "SlotControl.AluImplementation"
+statement = """
+∀ {α : Type} (tag : IA64Alu.Opcode) (low high ip : BitVec 64) (index : BitVec 2)
+    (s : IA64Add.Joined α) (facts : IA64Tcg.Facts) (ctx : IA64Add.Context),
+  let wire := IA64Alu.decode tag low high ip index
+  let decoded := IA64Alu.emittedRecord wire
+  let raw := FullDecodeSpec.slotBits low high index
+  let stopC := FullDecodeImplementation.cStop (FullDecodeSpec.templateBits low) index
+  wire.getLsbD 394 = true →
+  IA64Tcg.Sound s.data decoded facts →
+  IA64Add.EntryFacts s decoded {ctx with stopAfter := stopC} →
+  ∃ operands, IA64Add.OperandChoice s.data (IA64Alu.sdmRecord tag raw ip index) operands ∧
+    IA64Alu.sourceBundleStep tag low high ip index s facts ctx =
+      IA64Alu.sdmBundleStep tag low high ip index s operands ctx
+"""

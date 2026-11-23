@@ -1,0 +1,1057 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+[source]
+"target/ia64/decode/opcode.inc" = "8b0b6eb184e62471f9fdf9fb668b93fec168450853725af38081a6e88254c9b4"
+"target/ia64/decode/opcode.h" = "2d224198bad020b34a6378fa695693ab6a7c44ba1e801ae24137160392c2ab75"
+"target/ia64/decode/operand.h" = "2a018164e354a82fc0d3134b5a615bfe1ddb3211306969e0cbd1efde03df9389"
+"target/ia64/decode/decode.h" = "a74d375447866636c3020ccd11b9d1b8f6c510b0a1f593b74cae926fa301a4ef"
+"target/ia64/decode/decode.c" = "0ef526fb5c066be8fb50c286bb02e1be8d88733a5df33a7a7b3031f9d8c58d35"
+"target/ia64/decoder.h" = "f5fafb4959a901d541c907b1c94bf9bba5b30b445ae24128a4628b31ea9bc6e2"
+"target/ia64/decoder.c" = "d0add84a8c39330ae737ef55bc17bca1d39914de667cb13d86814653b03851c7"
+"target/ia64/translate/translate.c" = "c3e614d2e55b7683783c55daf81097d993d2bdab9e2b6e76a1fee14e6626c2a8"
+"target/ia64/cpu.h" = "0248204f0a5465666fbb7ec0021c69406ac3ca07fbd6f200c5bd2ad2708d5427"
+"target/ia64/arch/system.c" = "1aa8df7463c90f9b39e1d098d041d6e37157da2eb0b79ba881c2bafff91f46e5"
+
+[proof."decode:ADD"]
+theorem = "FullDecodeImplementation.ADD_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:ADD_ONE"]
+theorem = "FullDecodeImplementation.ADD_ONE_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:SUB_ONE"]
+theorem = "FullDecodeImplementation.SUB_ONE_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:SUB"]
+theorem = "FullDecodeImplementation.SUB_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:ADDP4"]
+theorem = "FullDecodeImplementation.ADDP4_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:AND"]
+theorem = "FullDecodeImplementation.AND_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:ANDCM"]
+theorem = "FullDecodeImplementation.ANDCM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:OR"]
+theorem = "FullDecodeImplementation.OR_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:XOR"]
+theorem = "FullDecodeImplementation.XOR_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:SHLADD"]
+theorem = "FullDecodeImplementation.SHLADD_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:SHLADDP4"]
+theorem = "FullDecodeImplementation.SHLADDP4_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:SUB_IMM"]
+theorem = "FullDecodeImplementation.SUB_IMM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:AND_IMM"]
+theorem = "FullDecodeImplementation.AND_IMM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:ANDCM_IMM"]
+theorem = "FullDecodeImplementation.ANDCM_IMM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:OR_IMM"]
+theorem = "FullDecodeImplementation.OR_IMM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:XOR_IMM"]
+theorem = "FullDecodeImplementation.XOR_IMM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:ADDS"]
+theorem = "FullDecodeImplementation.ADDS_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:ADDP4_IMM"]
+theorem = "FullDecodeImplementation.ADDP4_IMM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:ADDL"]
+theorem = "FullDecodeImplementation.ADDL_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP_LT"]
+theorem = "FullDecodeImplementation.CMP_LT_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP_EQ_AND"]
+theorem = "FullDecodeImplementation.CMP_EQ_AND_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP_NE_AND"]
+theorem = "FullDecodeImplementation.CMP_NE_AND_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP_LT_IMM"]
+theorem = "FullDecodeImplementation.CMP_LT_IMM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP_EQ_AND_IMM"]
+theorem = "FullDecodeImplementation.CMP_EQ_AND_IMM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP_NE_AND_IMM"]
+theorem = "FullDecodeImplementation.CMP_NE_AND_IMM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP4_LT"]
+theorem = "FullDecodeImplementation.CMP4_LT_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP4_EQ_AND"]
+theorem = "FullDecodeImplementation.CMP4_EQ_AND_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP4_NE_AND"]
+theorem = "FullDecodeImplementation.CMP4_NE_AND_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP4_LT_IMM"]
+theorem = "FullDecodeImplementation.CMP4_LT_IMM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP4_EQ_AND_IMM"]
+theorem = "FullDecodeImplementation.CMP4_EQ_AND_IMM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP4_NE_AND_IMM"]
+theorem = "FullDecodeImplementation.CMP4_NE_AND_IMM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP_LTU"]
+theorem = "FullDecodeImplementation.CMP_LTU_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP_EQ_OR"]
+theorem = "FullDecodeImplementation.CMP_EQ_OR_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP_NE_OR"]
+theorem = "FullDecodeImplementation.CMP_NE_OR_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP_LTU_IMM"]
+theorem = "FullDecodeImplementation.CMP_LTU_IMM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP_EQ_OR_IMM"]
+theorem = "FullDecodeImplementation.CMP_EQ_OR_IMM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP_NE_OR_IMM"]
+theorem = "FullDecodeImplementation.CMP_NE_OR_IMM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP4_LTU"]
+theorem = "FullDecodeImplementation.CMP4_LTU_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP4_EQ_OR"]
+theorem = "FullDecodeImplementation.CMP4_EQ_OR_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP4_NE_OR"]
+theorem = "FullDecodeImplementation.CMP4_NE_OR_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP4_LTU_IMM"]
+theorem = "FullDecodeImplementation.CMP4_LTU_IMM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP4_EQ_OR_IMM"]
+theorem = "FullDecodeImplementation.CMP4_EQ_OR_IMM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP4_NE_OR_IMM"]
+theorem = "FullDecodeImplementation.CMP4_NE_OR_IMM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP_EQ"]
+theorem = "FullDecodeImplementation.CMP_EQ_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP_EQ_OR_ANDCM"]
+theorem = "FullDecodeImplementation.CMP_EQ_OR_ANDCM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP_NE_OR_ANDCM"]
+theorem = "FullDecodeImplementation.CMP_NE_OR_ANDCM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP_EQ_IMM"]
+theorem = "FullDecodeImplementation.CMP_EQ_IMM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP_EQ_OR_ANDCM_IMM"]
+theorem = "FullDecodeImplementation.CMP_EQ_OR_ANDCM_IMM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP_NE_OR_ANDCM_IMM"]
+theorem = "FullDecodeImplementation.CMP_NE_OR_ANDCM_IMM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP4_EQ"]
+theorem = "FullDecodeImplementation.CMP4_EQ_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP4_EQ_OR_ANDCM"]
+theorem = "FullDecodeImplementation.CMP4_EQ_OR_ANDCM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP4_NE_OR_ANDCM"]
+theorem = "FullDecodeImplementation.CMP4_NE_OR_ANDCM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP4_EQ_IMM"]
+theorem = "FullDecodeImplementation.CMP4_EQ_IMM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP4_EQ_OR_ANDCM_IMM"]
+theorem = "FullDecodeImplementation.CMP4_EQ_OR_ANDCM_IMM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP4_NE_OR_ANDCM_IMM"]
+theorem = "FullDecodeImplementation.CMP4_NE_OR_ANDCM_IMM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP_GT_AND"]
+theorem = "FullDecodeImplementation.CMP_GT_AND_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP_LE_AND"]
+theorem = "FullDecodeImplementation.CMP_LE_AND_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP_GE_AND"]
+theorem = "FullDecodeImplementation.CMP_GE_AND_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP_LT_AND"]
+theorem = "FullDecodeImplementation.CMP_LT_AND_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP4_GT_AND"]
+theorem = "FullDecodeImplementation.CMP4_GT_AND_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP4_LE_AND"]
+theorem = "FullDecodeImplementation.CMP4_LE_AND_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP4_GE_AND"]
+theorem = "FullDecodeImplementation.CMP4_GE_AND_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP4_LT_AND"]
+theorem = "FullDecodeImplementation.CMP4_LT_AND_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP_GT_OR"]
+theorem = "FullDecodeImplementation.CMP_GT_OR_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP_LE_OR"]
+theorem = "FullDecodeImplementation.CMP_LE_OR_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP_GE_OR"]
+theorem = "FullDecodeImplementation.CMP_GE_OR_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP_LT_OR"]
+theorem = "FullDecodeImplementation.CMP_LT_OR_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP4_GT_OR"]
+theorem = "FullDecodeImplementation.CMP4_GT_OR_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP4_LE_OR"]
+theorem = "FullDecodeImplementation.CMP4_LE_OR_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP4_GE_OR"]
+theorem = "FullDecodeImplementation.CMP4_GE_OR_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP4_LT_OR"]
+theorem = "FullDecodeImplementation.CMP4_LT_OR_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP_GT_OR_ANDCM"]
+theorem = "FullDecodeImplementation.CMP_GT_OR_ANDCM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP_LE_OR_ANDCM"]
+theorem = "FullDecodeImplementation.CMP_LE_OR_ANDCM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP_GE_OR_ANDCM"]
+theorem = "FullDecodeImplementation.CMP_GE_OR_ANDCM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP_LT_OR_ANDCM"]
+theorem = "FullDecodeImplementation.CMP_LT_OR_ANDCM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP4_GT_OR_ANDCM"]
+theorem = "FullDecodeImplementation.CMP4_GT_OR_ANDCM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP4_LE_OR_ANDCM"]
+theorem = "FullDecodeImplementation.CMP4_LE_OR_ANDCM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP4_GE_OR_ANDCM"]
+theorem = "FullDecodeImplementation.CMP4_GE_OR_ANDCM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMP4_LT_OR_ANDCM"]
+theorem = "FullDecodeImplementation.CMP4_LT_OR_ANDCM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PADD1"]
+theorem = "FullDecodeImplementation.PADD1_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PSUB1"]
+theorem = "FullDecodeImplementation.PSUB1_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PADD2"]
+theorem = "FullDecodeImplementation.PADD2_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PSUB2"]
+theorem = "FullDecodeImplementation.PSUB2_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PADD4"]
+theorem = "FullDecodeImplementation.PADD4_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PSUB4"]
+theorem = "FullDecodeImplementation.PSUB4_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PAVG1"]
+theorem = "FullDecodeImplementation.PAVG1_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PAVGSUB1"]
+theorem = "FullDecodeImplementation.PAVGSUB1_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PAVG2"]
+theorem = "FullDecodeImplementation.PAVG2_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PAVGSUB2"]
+theorem = "FullDecodeImplementation.PAVGSUB2_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PCMP1_EQ"]
+theorem = "FullDecodeImplementation.PCMP1_EQ_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PCMP1_GT"]
+theorem = "FullDecodeImplementation.PCMP1_GT_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PCMP2_EQ"]
+theorem = "FullDecodeImplementation.PCMP2_EQ_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PCMP2_GT"]
+theorem = "FullDecodeImplementation.PCMP2_GT_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PCMP4_EQ"]
+theorem = "FullDecodeImplementation.PCMP4_EQ_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PCMP4_GT"]
+theorem = "FullDecodeImplementation.PCMP4_GT_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PSHLADD2"]
+theorem = "FullDecodeImplementation.PSHLADD2_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PSHRADD2"]
+theorem = "FullDecodeImplementation.PSHRADD2_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LD1"]
+theorem = "FullDecodeImplementation.LD1_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LD1S"]
+theorem = "FullDecodeImplementation.LD1S_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LD1A"]
+theorem = "FullDecodeImplementation.LD1A_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LD1SA"]
+theorem = "FullDecodeImplementation.LD1SA_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LD1C_NC"]
+theorem = "FullDecodeImplementation.LD1C_NC_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LD1C_CLR"]
+theorem = "FullDecodeImplementation.LD1C_CLR_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:ST1"]
+theorem = "FullDecodeImplementation.ST1_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:ST1REL"]
+theorem = "FullDecodeImplementation.ST1REL_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMPXCHG1"]
+theorem = "FullDecodeImplementation.CMPXCHG1_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:XCHG1"]
+theorem = "FullDecodeImplementation.XCHG1_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LD2"]
+theorem = "FullDecodeImplementation.LD2_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LD2S"]
+theorem = "FullDecodeImplementation.LD2S_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LD2A"]
+theorem = "FullDecodeImplementation.LD2A_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LD2SA"]
+theorem = "FullDecodeImplementation.LD2SA_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LD2C_NC"]
+theorem = "FullDecodeImplementation.LD2C_NC_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LD2C_CLR"]
+theorem = "FullDecodeImplementation.LD2C_CLR_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:ST2"]
+theorem = "FullDecodeImplementation.ST2_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:ST2REL"]
+theorem = "FullDecodeImplementation.ST2REL_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMPXCHG2"]
+theorem = "FullDecodeImplementation.CMPXCHG2_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:XCHG2"]
+theorem = "FullDecodeImplementation.XCHG2_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LD4"]
+theorem = "FullDecodeImplementation.LD4_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LD4S"]
+theorem = "FullDecodeImplementation.LD4S_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LD4A"]
+theorem = "FullDecodeImplementation.LD4A_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LD4SA"]
+theorem = "FullDecodeImplementation.LD4SA_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LD4C_NC"]
+theorem = "FullDecodeImplementation.LD4C_NC_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LD4C_CLR"]
+theorem = "FullDecodeImplementation.LD4C_CLR_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:ST4"]
+theorem = "FullDecodeImplementation.ST4_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:ST4REL"]
+theorem = "FullDecodeImplementation.ST4REL_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMPXCHG4"]
+theorem = "FullDecodeImplementation.CMPXCHG4_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:XCHG4"]
+theorem = "FullDecodeImplementation.XCHG4_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:FETCHADD4"]
+theorem = "FullDecodeImplementation.FETCHADD4_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LD8"]
+theorem = "FullDecodeImplementation.LD8_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LD8S"]
+theorem = "FullDecodeImplementation.LD8S_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LD8A"]
+theorem = "FullDecodeImplementation.LD8A_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LD8SA"]
+theorem = "FullDecodeImplementation.LD8SA_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LD8C_NC"]
+theorem = "FullDecodeImplementation.LD8C_NC_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LD8C_CLR"]
+theorem = "FullDecodeImplementation.LD8C_CLR_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:ST8"]
+theorem = "FullDecodeImplementation.ST8_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:ST8REL"]
+theorem = "FullDecodeImplementation.ST8REL_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CMPXCHG8"]
+theorem = "FullDecodeImplementation.CMPXCHG8_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:XCHG8"]
+theorem = "FullDecodeImplementation.XCHG8_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:FETCHADD8"]
+theorem = "FullDecodeImplementation.FETCHADD8_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LD8FILL"]
+theorem = "FullDecodeImplementation.LD8FILL_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:ST8SPILL"]
+theorem = "FullDecodeImplementation.ST8SPILL_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LD16"]
+theorem = "FullDecodeImplementation.LD16_withFeature"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c", "target/ia64/cpu.h", "target/ia64/arch/system.c" ]
+
+[proof."decode:ST16"]
+theorem = "FullDecodeImplementation.ST16_withFeature"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c", "target/ia64/cpu.h", "target/ia64/arch/system.c" ]
+
+[proof."decode:CMP8XCHG16"]
+theorem = "FullDecodeImplementation.CMP8XCHG16_withFeature"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c", "target/ia64/cpu.h", "target/ia64/arch/system.c" ]
+
+[proof."decode:LDFE"]
+theorem = "FullDecodeImplementation.LDFE_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LDF8"]
+theorem = "FullDecodeImplementation.LDF8_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LDFS"]
+theorem = "FullDecodeImplementation.LDFS_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LDFD"]
+theorem = "FullDecodeImplementation.LDFD_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LDF_FILL"]
+theorem = "FullDecodeImplementation.LDF_FILL_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LDFP8"]
+theorem = "FullDecodeImplementation.LDFP8_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LDFPS"]
+theorem = "FullDecodeImplementation.LDFPS_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:LDFPD"]
+theorem = "FullDecodeImplementation.LDFPD_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PMPYSH2"]
+theorem = "FullDecodeImplementation.PMPYSH2_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PMPYSH2_U"]
+theorem = "FullDecodeImplementation.PMPYSH2_U_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:MUX1"]
+theorem = "FullDecodeImplementation.MUX1_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:MUX2"]
+theorem = "FullDecodeImplementation.MUX2_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:POPCNT"]
+theorem = "FullDecodeImplementation.POPCNT_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CLZ"]
+theorem = "FullDecodeImplementation.CLZ_withFeature"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c", "target/ia64/cpu.h", "target/ia64/arch/system.c" ]
+
+[proof."decode:PMPY2_L"]
+theorem = "FullDecodeImplementation.PMPY2_L_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PMPY2_R"]
+theorem = "FullDecodeImplementation.PMPY2_R_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:MPY4"]
+theorem = "FullDecodeImplementation.MPY4_withFeature"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c", "target/ia64/cpu.h", "target/ia64/arch/system.c" ]
+
+[proof."decode:MPYSHL4"]
+theorem = "FullDecodeImplementation.MPYSHL4_withFeature"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c", "target/ia64/cpu.h", "target/ia64/arch/system.c" ]
+
+[proof."decode:PACK2_USS"]
+theorem = "FullDecodeImplementation.PACK2_USS_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PACK2_SSS"]
+theorem = "FullDecodeImplementation.PACK2_SSS_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PACK4_SSS"]
+theorem = "FullDecodeImplementation.PACK4_SSS_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PMIN1_U"]
+theorem = "FullDecodeImplementation.PMIN1_U_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PMAX1_U"]
+theorem = "FullDecodeImplementation.PMAX1_U_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PMIN2"]
+theorem = "FullDecodeImplementation.PMIN2_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PMAX2"]
+theorem = "FullDecodeImplementation.PMAX2_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PSAD1"]
+theorem = "FullDecodeImplementation.PSAD1_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:MIX1_R"]
+theorem = "FullDecodeImplementation.MIX1_R_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:MIX1_L"]
+theorem = "FullDecodeImplementation.MIX1_L_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:UNPACK1_H"]
+theorem = "FullDecodeImplementation.UNPACK1_H_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:UNPACK1_L"]
+theorem = "FullDecodeImplementation.UNPACK1_L_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:MIX2_R"]
+theorem = "FullDecodeImplementation.MIX2_R_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:MIX2_L"]
+theorem = "FullDecodeImplementation.MIX2_L_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:UNPACK2_H"]
+theorem = "FullDecodeImplementation.UNPACK2_H_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:UNPACK2_L"]
+theorem = "FullDecodeImplementation.UNPACK2_L_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:MIX4_R"]
+theorem = "FullDecodeImplementation.MIX4_R_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:MIX4_L"]
+theorem = "FullDecodeImplementation.MIX4_L_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:UNPACK4_H"]
+theorem = "FullDecodeImplementation.UNPACK4_H_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:UNPACK4_L"]
+theorem = "FullDecodeImplementation.UNPACK4_L_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PSHL2"]
+theorem = "FullDecodeImplementation.PSHL2_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PSHR2"]
+theorem = "FullDecodeImplementation.PSHR2_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PSHR2_U"]
+theorem = "FullDecodeImplementation.PSHR2_U_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PSHL4"]
+theorem = "FullDecodeImplementation.PSHL4_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PSHR4"]
+theorem = "FullDecodeImplementation.PSHR4_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:PSHR4_U"]
+theorem = "FullDecodeImplementation.PSHR4_U_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:SHL"]
+theorem = "FullDecodeImplementation.SHL_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:SHR"]
+theorem = "FullDecodeImplementation.SHR_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:SHRU"]
+theorem = "FullDecodeImplementation.SHRU_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:SHRP_IMM"]
+theorem = "FullDecodeImplementation.SHRP_IMM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:EXTR"]
+theorem = "FullDecodeImplementation.EXTR_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:EXTRU"]
+theorem = "FullDecodeImplementation.EXTRU_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:DEPZ"]
+theorem = "FullDecodeImplementation.DEPZ_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:DEPZ_IMM"]
+theorem = "FullDecodeImplementation.DEPZ_IMM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:DEP"]
+theorem = "FullDecodeImplementation.DEP_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:TBIT_Z"]
+theorem = "FullDecodeImplementation.TBIT_Z_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:TBIT_NZ"]
+theorem = "FullDecodeImplementation.TBIT_NZ_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:TNAT_Z"]
+theorem = "FullDecodeImplementation.TNAT_Z_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:TNAT_NZ"]
+theorem = "FullDecodeImplementation.TNAT_NZ_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:TF_Z"]
+theorem = "FullDecodeImplementation.TF_Z_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:TF_NZ"]
+theorem = "FullDecodeImplementation.TF_NZ_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:HINT_I"]
+theorem = "FullDecodeImplementation.HINT_I_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:CHK_S"]
+theorem = "FullDecodeImplementation.CHK_S_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:MOV_GRBR"]
+theorem = "FullDecodeImplementation.MOV_GRBR_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:MOV_BRGR"]
+theorem = "FullDecodeImplementation.MOV_BRGR_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:MOV_GRPR"]
+theorem = "FullDecodeImplementation.MOV_GRPR_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:MOV_PR_ROT_IMM"]
+theorem = "FullDecodeImplementation.MOV_PR_ROT_IMM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:MOV_PRGR"]
+theorem = "FullDecodeImplementation.MOV_PRGR_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:MOV_CURRENT_IP"]
+theorem = "FullDecodeImplementation.MOV_CURRENT_IP_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:MOV_GRAR"]
+theorem = "FullDecodeImplementation.MOV_GRAR_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:MOV_IMMAR"]
+theorem = "FullDecodeImplementation.MOV_IMMAR_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:MOV_ARGR"]
+theorem = "FullDecodeImplementation.MOV_ARGR_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:ZXT1"]
+theorem = "FullDecodeImplementation.ZXT1_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:ZXT2"]
+theorem = "FullDecodeImplementation.ZXT2_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:ZXT4"]
+theorem = "FullDecodeImplementation.ZXT4_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:SXT1"]
+theorem = "FullDecodeImplementation.SXT1_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:SXT2"]
+theorem = "FullDecodeImplementation.SXT2_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:SXT4"]
+theorem = "FullDecodeImplementation.SXT4_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:FCLASS"]
+theorem = "FullDecodeImplementation.FCLASS_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:FPABS"]
+theorem = "FullDecodeImplementation.FPABS_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:FPNEG"]
+theorem = "FullDecodeImplementation.FPNEG_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:FPNEGABS"]
+theorem = "FullDecodeImplementation.FPNEGABS_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:FMERGE_S"]
+theorem = "FullDecodeImplementation.FMERGE_S_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:FMERGE"]
+theorem = "FullDecodeImplementation.FMERGE_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:FMERGE_SE"]
+theorem = "FullDecodeImplementation.FMERGE_SE_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:FPACK"]
+theorem = "FullDecodeImplementation.FPACK_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:FAND"]
+theorem = "FullDecodeImplementation.FAND_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:FANDCM"]
+theorem = "FullDecodeImplementation.FANDCM_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:FOR"]
+theorem = "FullDecodeImplementation.FOR_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:FXOR"]
+theorem = "FullDecodeImplementation.FXOR_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:FSWAP"]
+theorem = "FullDecodeImplementation.FSWAP_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:FSWAP_NL"]
+theorem = "FullDecodeImplementation.FSWAP_NL_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:FSWAP_NR"]
+theorem = "FullDecodeImplementation.FSWAP_NR_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:FMIX_LR"]
+theorem = "FullDecodeImplementation.FMIX_LR_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:FMIX_R"]
+theorem = "FullDecodeImplementation.FMIX_R_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:FMIX_L"]
+theorem = "FullDecodeImplementation.FMIX_L_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:FSXT_R"]
+theorem = "FullDecodeImplementation.FSXT_R_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:FSXT_L"]
+theorem = "FullDecodeImplementation.FSXT_L_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:FPMERGE_S"]
+theorem = "FullDecodeImplementation.FPMERGE_S_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:FPMERGE"]
+theorem = "FullDecodeImplementation.FPMERGE_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[proof."decode:FPMERGE_SE"]
+theorem = "FullDecodeImplementation.FPMERGE_SE_complete"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[counterexample."decode:STFE"]
+theorem = "FullDecodeImplementation.STFE_refuted"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[counterexample."decode:STF8"]
+theorem = "FullDecodeImplementation.STF8_refuted"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[counterexample."decode:STFS"]
+theorem = "FullDecodeImplementation.STFS_refuted"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[counterexample."decode:STFD"]
+theorem = "FullDecodeImplementation.STFD_refuted"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[counterexample."decode:STF_SPILL"]
+theorem = "FullDecodeImplementation.STF_SPILL_refuted"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[counterexample."decode:GETF_SIG"]
+theorem = "FullDecodeImplementation.GETF_SIG_refuted"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[counterexample."decode:GETF_EXP"]
+theorem = "FullDecodeImplementation.GETF_EXP_refuted"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[counterexample."decode:GETF_S"]
+theorem = "FullDecodeImplementation.GETF_S_refuted"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[counterexample."decode:GETF_D"]
+theorem = "FullDecodeImplementation.GETF_D_refuted"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[counterexample."decode:SETF_SIG"]
+theorem = "FullDecodeImplementation.SETF_SIG_refuted"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[counterexample."decode:SETF_EXP"]
+theorem = "FullDecodeImplementation.SETF_EXP_refuted"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[counterexample."decode:SETF_S"]
+theorem = "FullDecodeImplementation.SETF_S_refuted"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[counterexample."decode:SETF_D"]
+theorem = "FullDecodeImplementation.SETF_D_refuted"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[counterexample."decode:DEP_IMM"]
+theorem = "FullDecodeImplementation.DEP_IMM_refuted"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[counterexample."decode:CZX1_L"]
+theorem = "FullDecodeImplementation.CZX1_L_refuted"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[counterexample."decode:CZX2_L"]
+theorem = "FullDecodeImplementation.CZX2_L_refuted"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[counterexample."decode:CZX1_R"]
+theorem = "FullDecodeImplementation.CZX1_R_refuted"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]
+
+[counterexample."decode:CZX2_R"]
+theorem = "FullDecodeImplementation.CZX2_R_refuted"
+sources = [ "target/ia64/decode/opcode.inc", "target/ia64/decode/opcode.h", "target/ia64/decode/operand.h", "target/ia64/decode/decode.h", "target/ia64/decode/decode.c", "target/ia64/decoder.h", "target/ia64/decoder.c", "target/ia64/translate/translate.c" ]

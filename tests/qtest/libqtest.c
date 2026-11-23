@@ -1384,16 +1384,17 @@ uint64_t qtest_csr_call(QTestState *s, const char *name,
 
 uint64_t qtest_ia64_stale_victim_load(QTestState *s, uint64_t va,
                                       uint64_t old_pa, uint64_t new_pa,
-                                      bool *probe_succeeded)
+                                      const char *mode, bool *probe_succeeded)
 {
     gchar **args;
     uint64_t probe;
     uint64_t value;
     int rc;
 
-    qtest_sendf(s, "ia64-stale-victim-load 0x%" PRIx64
-                " 0x%" PRIx64 " 0x%" PRIx64 "\n",
-                va, old_pa, new_pa);
+    qtest_sendf(s,
+                "ia64-stale-victim-load 0x%" PRIx64 " 0x%" PRIx64 " 0x%" PRIx64
+                "%s%s\n",
+                va, old_pa, new_pa, mode ? " " : "", mode ? mode : "");
     args = qtest_rsp_args(s, 3);
 
     rc = qemu_strtou64(args[1], NULL, 0, &probe);

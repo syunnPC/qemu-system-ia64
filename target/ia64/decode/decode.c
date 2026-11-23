@@ -4,7 +4,6 @@
  * IA-64 instruction decoding.  This translation unit is TCG-independent.
  */
 
-#include "qemu/osdep.h"
 #include "target/ia64/decode/decode.h"
 
 typedef struct Ia64A3AluPattern {
@@ -595,9 +594,10 @@ static Ia64Opcode ia64_f1_opcode_from_major(uint64_t major, uint64_t f2,
 
 static const Ia64A3AluPattern *ia64_lookup_a3_alu(uint64_t x4, uint64_t x2b)
 {
-    size_t i;
+    size_t count =
+        sizeof(ia64_a3_alu_patterns) / sizeof(ia64_a3_alu_patterns[0]);
 
-    for (i = 0; i < ARRAY_SIZE(ia64_a3_alu_patterns); ++i) {
+    for (size_t i = 0; i < count; ++i) {
         const Ia64A3AluPattern *pattern = &ia64_a3_alu_patterns[i];
         if (pattern->x4 == x4 && pattern->x2b == x2b) {
             return pattern;

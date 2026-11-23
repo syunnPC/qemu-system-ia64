@@ -1,0 +1,9 @@
+X86_64 IA64_AMD64_mp_rel_acq
+(* SPDX-License-Identifier: GPL-2.0-or-later *)
+{
+  data=0; flag=0;
+}
+ P0              | P1               ;
+ movl $1,(data)  | movl (flag),%eax ;
+ movl $1,(flag)  | movl (data),%ebx ;
+exists (1:rax=1 /\ 1:rbx=0)
