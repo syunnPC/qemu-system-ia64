@@ -68,6 +68,27 @@ inductive IntegerMiscFormat where
 inductive FpMergeAlias where
   | absolute | negate | negateAbsolute
 
+inductive BranchFormat where
+  | relative (btype : BitVec 3)
+  | indirect (x6 : BitVec 6) (btype : BitVec 3)
+  | call (direct : Bool)
+  | predict
+  | system (x6 : BitVec 6)
+  | virtualSwitch
+  | hint
+
+inductive MemorySystemFormat where
+  | noOperands | rse | invalidateEntry
+  | cacheFlush (instruction : Bool)
+  | hint | toDahr | mask
+  | toControl | fromControl | toStatus (onlyLow : Bool) | fromStatus
+  | toIndexed | fromIndexed | toRegion | fromRegion
+  | translation (release : Bool)
+
+inductive FloatingArithmetic where
+  | fma | fms | fnma | fpma | fpms | fpnma | fadd | fsub | fmpy | fnorm
+  deriving DecidableEq
+
 inductive Form where
   | a1 (x4 x2b : BitVec 4)
   | a2 (x4 : BitVec 4)
@@ -93,30 +114,79 @@ inductive Form where
   | fpPair (width : BitVec 2)
   | fpStore (x6 : BitVec 6)
   | fpTransfer (major : BitVec 4) (x6 : BitVec 6)
+  | f1 (arith : FloatingArithmetic)
+  | f2 (selector : BitVec 2) (multiplyAlias : Bool)
+  | f3
+  | f4
+  | fApprox (parallel sqrt : Bool)
+  | f8 (parallel : Bool) (first last : BitVec 6)
+  | f10 (parallel : Bool) (unsigned : Option Bool)
+  | f11
+  | fStatus (x6 : BitVec 6)
   | f9 (major : BitVec 4) (x6 : BitVec 6)
   | fpMergeAlias (alias : FpMergeAlias)
   | fClass
+  | branch (format : BranchFormat)
+  | mSystem (major : BitVec 4) (x6 : BitVec 6) (format : MemorySystemFormat)
+  | mAllocate
+  | prefetchCount
 
 def aUnit (m i u : UnitCode) : Prop := u = m ∨ u = i
 
 -- CHK_S and the three GR/AR transfer tags have I-unit and M-unit
 -- encodings. Major and x6 identify the unit on those shared rows.
-def formUnit (m i f : UnitCode) (form : Form) (unit : UnitCode) (raw : Slot) : Prop :=
+def formUnit (m i b f : UnitCode) (form : Form) (unit : UnitCode) (raw : Slot) : Prop :=
   match form with
   | .load .. | .store .. | .semaphore .. | .wideLoad | .wideStore
-  | .fpLoad .. | .fpPair .. | .fpStore .. | .fpTransfer .. => unit = m
+  | .fpLoad .. | .fpPair .. | .fpStore .. | .fpTransfer ..
+  | .mSystem .. | .mAllocate | .prefetchCount => unit = m
   | .iMajorSeven .. | .iShift .. | .iBitfield .. | .iPredicate .. => unit = i
   | .iMisc .check | .iMisc .toAr | .iMisc .fromAr =>
     unit = (if raw.extractLsb' 37 4 = 1 then m else i)
   | .iMisc .immediateAr => unit = (if raw.extractLsb' 27 6 = 0x28 then m else i)
   | .iMisc .. => unit = i
+  | .f1 .. | .f2 .. | .f3 | .f4 | .fApprox .. | .f8 .. | .f10 .. | .f11 | .fStatus ..
   | .f9 .. | .fpMergeAlias .. | .fClass => unit = f
+  | .branch .. => unit = b
   | _ => aUnit m i unit
 
-instance (m i f : UnitCode) (form : Form) (unit : UnitCode) (raw : Slot) :
-    Decidable (formUnit m i f form unit raw) := by
+instance (m i b f : UnitCode) (form : Form) (unit : UnitCode) (raw : Slot) :
+    Decidable (formUnit m i b f form unit raw) := by
   cases form <;> try (dsimp only [formUnit, aUnit]; infer_instance)
   case iMisc format => cases format <;> dsimp only [formUnit] <;> infer_instance
+
+def branchEncoding (format : BranchFormat) (raw : Slot) : Prop :=
+  let major := raw.extractLsb' 37 4
+  let x6 := raw.extractLsb' 27 6
+  let btype := raw.extractLsb' 6 3
+  let qp := raw.extractLsb' 0 6
+  match format with
+  | .relative kind => major = 4 ∧ btype = kind ∧ (5 ≤ kind → qp = 0)
+  | .indirect ext kind => major = 0 ∧ x6 = ext ∧ btype = kind ∧ (kind = 1 → qp = 0)
+  | .call direct => major = (if direct then 5 else 1)
+  | .predict => major = 7 ∨ (major = 2 ∧ (x6 = 0x10 ∨ x6 = 0x11))
+  | .system ext => major = 0 ∧ x6 = ext ∧ qp = 0
+  | .virtualSwitch => major = 0 ∧ (x6 = 0x18 ∨ x6 = 0x19) ∧ qp = 0
+  | .hint => major = 2 ∧ x6 = 1
+
+instance (format : BranchFormat) (raw : Slot) :
+    Decidable (branchEncoding format raw) := by
+  cases format <;> dsimp only [branchEncoding] <;> infer_instance
+
+def memorySystemEncoding (format : MemorySystemFormat) (x6 : BitVec 6) (raw : Slot) : Prop :=
+  let ext := raw.extractLsb' 27 6
+  match format with
+  | .rse => ext = x6 ∧ raw.extractLsb' 0 6 = 0
+  | .hint => ext = x6 ∧ raw.getLsbD 26 = true ∧ raw.extractLsb' 10 2 = 0
+  | .toDahr => ext = x6 ∧ raw.getLsbD 26 = true ∧ raw.extractLsb' 10 2 = 1
+  | .mask => raw.extractLsb' 27 4 = x6.setWidth 4
+  | .invalidateEntry => ext = x6 ∨ ext = (x6 + 1)
+  | .cacheFlush instruction => ext = x6 ∧ raw.getLsbD 36 = instruction
+  | _ => ext = x6
+
+instance (format : MemorySystemFormat) (x6 : BitVec 6) (raw : Slot) :
+    Decidable (memorySystemEncoding format x6 raw) := by
+  cases format <;> dsimp only [memorySystemEncoding] <;> infer_instance
 
 -- Bit 36 is tb in A6/A7 and the immediate sign in A8.
 -- Bits 19:13 are literal zero in A7.
@@ -266,6 +336,26 @@ def fpMergeAliasEncoding (alias : FpMergeAlias) (raw : Slot) : Prop :=
 instance (alias : FpMergeAlias) (raw : Slot) : Decidable (fpMergeAliasEncoding alias raw) := by
   cases alias <;> dsimp only [fpMergeAliasEncoding] <;> infer_instance
 
+-- F1 constant-register aliases retain their physical operand encodings.
+def f1Encoding (arith : FloatingArithmetic) (raw : Slot) : Prop :=
+  let major := raw.extractLsb' 37 4
+  let x := raw.extractLsb' 36 1
+  let addFamily := major = 8 ∨ major = 9 ∧ x = 0
+  let subFamily := major = 10 ∨ major = 11 ∧ x = 0
+  let addendZero := raw.extractLsb' 13 7 = 0
+  let multiplierOne := raw.extractLsb' 27 7 = 1
+  match arith with
+  | .fma => addFamily ∧ ¬ addendZero ∧ ¬ multiplierOne
+  | .fms => subFamily ∧ ¬ multiplierOne
+  | .fnma => major = 12 ∨ major = 13 ∧ x = 0
+  | .fpma => major = 9 ∧ x = 1
+  | .fpms => major = 11 ∧ x = 1
+  | .fpnma => major = 13 ∧ x = 1
+  | .fadd => addFamily ∧ multiplierOne ∧ ¬ addendZero
+  | .fsub => subFamily ∧ multiplierOne ∧ ¬ addendZero
+  | .fmpy => addFamily ∧ addendZero ∧ ¬ multiplierOne
+  | .fnorm => (addFamily ∨ subFamily) ∧ multiplierOne ∧ addendZero
+
 def aEncoding (form : Form) (raw : Slot) : Prop :=
   let major := raw.extractLsb' 37 4
   let x2a := raw.extractLsb' 34 2
@@ -333,11 +423,39 @@ def aEncoding (form : Form) (raw : Slot) : Prop :=
     (op = 1 ∧ (x6 = 0x10 ∨ x6 = 0x11) → raw.extractLsb' 13 7 ≠ 0) ∧
     (op = 1 ∧ x6 = 0x11 → raw.extractLsb' 13 7 ≠ raw.extractLsb' 20 7)
   | .fpMergeAlias alias => major = 1 ∧ ve = 0 ∧ fpMergeAliasEncoding alias raw
+  | .f1 arith => f1Encoding arith raw
+  | .f2 selector alias =>
+    major = 14 ∧ raw.extractLsb' 36 1 = 1 ∧ raw.extractLsb' 34 2 = selector ∧
+    (selector = 2 → if alias then raw.extractLsb' 13 7 = 0 else raw.extractLsb' 13 7 ≠ 0)
+  | .f3 => major = 14 ∧ raw.extractLsb' 36 1 = 0
+  | .f4 => major = 4
+  | .fApprox parallel sqrt =>
+    major = (if parallel then 1 else 0) ∧ ve = 1 ∧ raw.getLsbD 36 = sqrt
+  | .f8 parallel first last =>
+    let ext := raw.extractLsb' 27 6
+    major = (if parallel then 1 else 0) ∧ ve = 0 ∧ first ≤ ext ∧ ext ≤ last
+  | .f10 parallel unsigned =>
+    major = (if parallel then 1 else 0) ∧ ve = 0 ∧ raw.extractLsb' 29 4 = 6 ∧
+      (match unsigned with
+       | some expected => raw.getLsbD 27 = expected
+       | none => True)
+  | .f11 => major = 0 ∧ ve = 0 ∧ raw.extractLsb' 27 6 = 0x1c
+  | .fStatus x6 => major = 0 ∧ ve = 0 ∧ raw.extractLsb' 27 6 = x6
   | .fClass => major = 5
+  | .branch format => branchEncoding format raw
+  | .mSystem op x6 format =>
+    major = op ∧ raw.extractLsb' 33 3 = 0 ∧ memorySystemEncoding format x6 raw
+  | .mAllocate => major = 1 ∧ raw.extractLsb' 33 3 = 6
+  | .prefetchCount =>
+    major = 6 ∧ raw.extractLsb' 36 1 = 0 ∧ raw.extractLsb' 30 6 = 0x2c ∧
+      raw.extractLsb' 27 1 = 0 ∧ raw.extractLsb' 19 1 = 1
 
 instance (m i u : UnitCode) : Decidable (aUnit m i u) := by unfold aUnit; infer_instance
 instance (form : Form) (raw : Slot) : Decidable (aEncoding form raw) := by
-  cases form <;> simp only [aEncoding] <;> infer_instance
+  cases form <;> simp only [aEncoding]
+  case f1 arith => cases arith <;> dsimp [f1Encoding] <;> infer_instance
+  case f10 parallel unsigned => cases unsigned <;> infer_instance
+  all_goals infer_instance
 
 def imm8 (raw : Slot) : Word :=
   (raw.extractLsb' 36 1 ++ raw.extractLsb' 13 7).signExtend 64
@@ -351,6 +469,11 @@ def imm22 (raw : Slot) : Word :=
 
 def reg (raw : Slot) (low width : Nat) : BitVec 8 :=
   (raw.extractLsb' low width).zeroExtend 8
+
+def prefetchCount (raw : Slot) : Word := (raw.extractLsb' 6 6).zeroExtend 64 + 1
+
+def prefetchStride (raw : Slot) : Word :=
+  (raw.extractLsb' 13 5).signExtend 64 <<< 6
 
 def imm9 (raw : Slot) (low : Nat) : Word :=
   (raw.extractLsb' 36 1 ++ raw.extractLsb' 27 1 ++ raw.extractLsb' low 7).signExtend 64
@@ -427,6 +550,9 @@ def iMiscImm (format : IntegerMiscFormat) (raw : Slot) : Word :=
 def aR2 (form : Form) (raw : Slot) : BitVec 8 :=
   match form with
   | .a1 .. | .a2 .. | .cmp .a6 .. | .a9 .. | .a10 .. | .f9 .. | .fClass => reg raw 13 7
+  | .f1 .fsub | .f1 .fmpy => reg raw 20 7
+  | .f1 .. | .f2 .. | .f3 | .f4 | .fApprox _ false | .f8 .. | .f10 .. | .f11
+  | .fStatus .. => reg raw 13 7
   | .iMajorSeven .i9 .. => 0
   | .iMajorSeven .. => reg raw 13 7
   | .iShift size left _ => iShiftR2 size left raw
@@ -436,6 +562,9 @@ def aR2 (form : Form) (raw : Slot) : BitVec 8 :=
   | .iMisc .fromBranch | .iMisc .fromPredicates => reg raw 13 3
   | .iMisc .toAr | .iMisc .immediateAr | .iMisc .fromAr => reg raw 20 7
   | .fpMergeAlias .. => reg raw 20 7
+  | .mSystem _ _ .toControl | .mSystem _ _ .fromControl
+  | .mSystem _ _ .toRegion | .mSystem _ _ .fromRegion => reg raw 20 7
+  | .mSystem _ _ (.translation _) => reg raw 13 7
   -- The no-update M2 decoder keeps the ignored raw field in this
   -- record slot. The update selector determines when it is an operand.
   | .load .. => if raw.extractLsb' 37 4 = 4 then reg raw 13 7 else 0
@@ -447,10 +576,16 @@ def aR2 (form : Form) (raw : Slot) : BitVec 8 :=
 
 def aR3 (form : Form) (raw : Slot) : BitVec 8 :=
   match form with
+  | .f1 .fsub => reg raw 13 7
+  | .f1 .fmpy => reg raw 27 7
   | .a5 => reg raw 20 2
   | .fpTransfer .. | .iMajorSeven .i3 .. | .iMajorSeven .i4 .. => 0
   | .iShift size left _ => iShiftR3 size left raw
-  | .iBitfield .i12 | .iBitfield .i13 | .iPredicate .i30 _ | .fpMergeAlias .. | .fClass => 0
+  | .iBitfield .i12 | .iBitfield .i13 | .iPredicate .i30 _ | .fpMergeAlias .. | .fClass
+  | .branch .. => 0
+  | .mSystem _ _ (.cacheFlush _) | .mSystem _ _ .toIndexed
+  | .mSystem _ _ .fromIndexed | .mSystem _ _ (.translation _) => reg raw 20 7
+  | .mSystem .. | .mAllocate => 0
   | .iMisc (.extend _) => reg raw 20 7
   | .iMisc .. => 0
   | _ => reg raw 20 7
@@ -487,14 +622,44 @@ def aImm (form : Form) (raw : Slot) : Word :=
   | .fpPair width => if raw.extractLsb' 36 1 = 1 then (if width = 2 then 8 else 16) else 0
   -- F5: Table 4-74. The paired F9 record also retains three low
   -- opcode-extension bits as implementation metadata.
+  | .f1 .. | .f2 .. | .f3 => 0
+  | .f4 => (raw.extractLsb' 33 1 ++ raw.extractLsb' 36 1).zeroExtend 64
+  | .f8 true .. => (raw.extractLsb' 27 3).zeroExtend 64
+  | .f10 .. => (raw.extractLsb' 27 2).zeroExtend 64
+  | .fStatus x6 =>
+    if x6 = 8 then (raw.extractLsb' 36 1 ++ raw.extractLsb' 6 20 ++ 0#4).signExtend 64
+    else 0
+  | .fApprox .. | .f8 false .. | .f11 => 0
   | .fClass => (raw.extractLsb' 20 7 ++ raw.extractLsb' 33 2).zeroExtend 64
+  | .branch (.relative _) | .branch (.call true) =>
+    (raw.extractLsb' 36 1 ++ raw.extractLsb' 13 20 ++ 0#4).signExtend 64
+  | .branch .virtualSwitch => (raw.extractLsb' 27 1).zeroExtend 64
+  | .branch .hint => (raw.extractLsb' 36 1 ++ raw.extractLsb' 6 20).zeroExtend 64
+  | .branch .. => 0
+  | .mSystem _ _ .hint =>
+    (raw.extractLsb' 36 1 ++ raw.extractLsb' 12 14 ++ raw.extractLsb' 6 4).zeroExtend 64
+  | .mSystem _ _ .toDahr =>
+    (raw.extractLsb' 36 1 ++ raw.extractLsb' 12 11 ++ raw.extractLsb' 6 4).zeroExtend 64
+  | .mSystem _ _ .mask => (raw.extractLsb' 36 1 ++ raw.extractLsb' 31 2 ++
+      raw.extractLsb' 6 21).zeroExtend 64
+  | .mSystem _ _ (.toStatus true) => 1
+  | .mSystem .. => 0
+  | .mAllocate =>
+    (raw.extractLsb' 27 4 ++ raw.extractLsb' 20 7 ++ raw.extractLsb' 13 7).zeroExtend 64
+  | .prefetchCount => 0
   | .f9 op _ => if op = 1 then (raw.extractLsb' 27 3).zeroExtend 64 else 0
 
 def aR1 (form : Form) (raw : Slot) : BitVec 8 :=
   match form with
-  | .cmp .. | .iPredicate .. | .wideStore | .fpStore .. | .fClass => 0
+  | .cmp .. | .iPredicate .. | .wideStore | .fpStore .. | .fClass | .branch .. => 0
   | .iMisc .hint | .iMisc .check | .iMisc .rotatingPredicates | .iMisc .immediateAr => 0
   | .iMisc .toBranch | .iMisc .toPredicates | .iMisc .toAr => reg raw 13 7
+  | .mSystem _ _ .toControl | .mSystem _ _ (.toStatus _)
+  | .mSystem _ _ .toRegion | .mSystem _ _ .toIndexed => reg raw 13 7
+  | .mSystem _ _ .fromStatus | .mSystem _ _ .fromControl | .mSystem _ _ .fromRegion
+  | .mSystem _ _ .fromIndexed | .mSystem _ _ .invalidateEntry => reg raw 6 7
+  | .mSystem _ _ .toDahr => reg raw 23 3
+  | .mSystem .. | .prefetchCount => 0
   -- M6 likewise keeps the ignored raw field in the unused r1 slot.
   | .store .. => if raw.extractLsb' 37 4 = 4 then reg raw 6 7 else 0
   | _ => reg raw 6 7
@@ -502,6 +667,15 @@ def aR1 (form : Form) (raw : Slot) : BitVec 8 :=
 def aPred (form : Form) (raw : Slot) (low : Nat) : BitVec 8 :=
   match form with
   | .cmp .. | .iPredicate .. | .fClass => reg raw low 6
+  | .f1 .fma | .f1 .fms | .f1 .fnma | .f1 .fpma | .f1 .fpms | .f1 .fpnma
+  | .f2 .. | .f3 => if low = 6 then reg raw 27 7 else 0
+  | .f1 .. => if low = 6 then reg raw 27 6 else 0
+  | .f4 => reg raw low 6
+  | .fApprox parallel sqrt => if low == 27 || (!parallel && !sqrt) then reg raw 27 6 else 0
+  | .f8 parallel .. | .f10 parallel _ =>
+    if low = 6 then (if parallel then reg raw 34 2 else reg raw 27 6) else 0
+  | .f11 => if low = 6 then reg raw 27 6 else 0
+  | .fStatus .. => if low = 6 then reg raw 34 2 else 0
   -- QEMU's generic F-unit decoder writes these raw fields into p1.
   -- F9 operands and selection are independent of the unused field.
   | .f9 op _ => if low = 6 then (if op = 1 then reg raw 34 2 else reg raw 27 6) else 0
@@ -509,7 +683,7 @@ def aPred (form : Form) (raw : Slot) (low : Nat) : BitVec 8 :=
 
 def aUnc (form : Form) (raw : Slot) : BitVec 1 :=
   match form with
-  | .cmp .a6 _ _ _ none | .cmp .a8 _ _ _ none | .fClass => raw.extractLsb' 12 1
+  | .cmp .a6 _ _ _ none | .cmp .a8 _ _ _ none | .fClass | .f4 => raw.extractLsb' 12 1
   | .iPredicate .. => if iTestParallel raw then 0 else raw.extractLsb' 12 1
   | _ => 0
 
@@ -523,14 +697,38 @@ def aPredUpdate (form : Form) (raw : Slot) : BitVec 32 :=
 def aCheckFp (form : Form) (raw : Slot) : BitVec 1 :=
   match form with
   | .iMisc .check => if raw.extractLsb' 33 3 = 3 then 1 else 0
+  | .mSystem _ _ .invalidateEntry => raw.extractLsb' 27 1
+  | _ => 0
+
+def aClearP2 (form : Form) : BitVec 1 :=
+  match form with
+  | .fApprox .. => 1
   | _ => 0
 
 def aStatusField (form : Form) (raw : Slot) : BitVec 8 :=
-  -- The shared F-unit decoder keeps bits 35:34 even when the
-  -- instruction has no FPSR status-field operand (F5 and F9).
+  -- The shared F-unit decoder retains bits 35:34 for non-status operands too.
   match form with
+  | .f1 .. | .f2 .. | .f3 | .f4 | .fApprox .. | .f8 .. | .f10 .. | .f11 | .fStatus ..
   | .f9 .. | .fpMergeAlias .. | .fClass => reg raw 34 2
   | _ => 0
+
+-- Paired arithmetic keeps the major's precision code in its ABI slot.
+def aFpPrecision (form : Form) (raw : Slot) : BitVec 8 :=
+  match form with
+  | .f1 .. =>
+    if raw.extractLsb' 37 1 = 1 then 2 else (raw.extractLsb' 36 1).zeroExtend 8
+  | _ => 0
+
+def aQualifier (form : Form) (raw : Slot) : BitVec 8 :=
+  match form with
+  | .branch .predict => 0
+  | _ => reg raw 0 6
+
+def aBranchRegister (form : Form) (raw : Slot) (link : Bool) : BitVec 8 :=
+  match form, link with
+  | .branch (.call _), true => reg raw 6 3
+  | .branch (.call false), false | .branch (.indirect ..), false => reg raw 13 3
+  | _, _ => 0
 
 def updateByRegister (form : Form) (raw : Slot) : BitVec 1 :=
   match form with
@@ -558,6 +756,7 @@ def memRelease (form : Form) (raw : Slot) : BitVec 1 :=
   | .store _ release => if release then 1 else 0
   | .semaphore _ release _ => if hasExtension (raw.extractLsb' 30 6) release then 1 else 0
   | .wideStore => if raw.extractLsb' 30 6 = 52 then 1 else 0
+  | .mSystem _ _ (.translation true) => 1
   | _ => 0
 
 def fpLoadAttributes (form : Form) (raw : Slot) : BitVec 4 :=
@@ -577,25 +776,26 @@ def aRecordTail (form : Form) (raw : Slot) : BitVec 194 :=
   -- A1–A5 use only the ordinary register fields and immediate.
   | .a1 .. | .a2 .. | .a3 .. | .a4 .. | .a5 => 0#48 ++ aImm form raw ++ 2#82
   | _ =>
-    aPred form raw 6 ++ aPred form raw 27 ++ 0#16 ++ aStatusField form raw ++ 0#8 ++ aImm form raw ++
+    aPred form raw 6 ++ aPred form raw 27 ++ aBranchRegister form raw true ++
+      aBranchRegister form raw false ++ aStatusField form raw ++ aFpPrecision form raw ++ aImm form raw ++
       0#32 ++ aPredUpdate form raw ++ 0#1 ++ updateByRegister form raw ++ updateByImmediate form raw ++
       memAcquire form raw ++ memRelease form raw ++ aUnc form raw ++
-      0#1 ++ aCheckFp form raw ++ fpLoadAttributes form raw ++ 0#4 ++ 1#1 ++ 0#1
+      aClearP2 form ++ aCheckFp form raw ++ fpLoadAttributes form raw ++ 0#4 ++ 1#1 ++ 0#1
 
 def aRecord (form : Form) (unit : UnitCode) (raw : Slot) (address : Word) (slot : BitVec 8) :
     Observation :=
   1#1 ++ unit.zeroExtend 32 ++ raw.zeroExtend 64 ++ address ++ slot ++
-    reg raw 0 6 ++ aR1 form raw ++ aR2 form raw ++ aR3 form raw ++ aRecordTail form raw
+    aQualifier form raw ++ aR1 form raw ++ aR2 form raw ++ aR3 form raw ++ aRecordTail form raw
 
-def aOpcode (m i f : UnitCode) (form : Form) (unit : UnitCode) (raw : Slot)
+def aOpcode (m i b f : UnitCode) (form : Form) (unit : UnitCode) (raw : Slot)
     (address : Word) (slot : BitVec 8) : Observation :=
-  if formUnit m i f form unit raw ∧ aEncoding form raw then aRecord form unit raw address slot else 0
+  if formUnit m i b f form unit raw ∧ aEncoding form raw then aRecord form unit raw address slot else 0
 
 def aBundle (reserved m i b f l x : UnitCode) (form : Form)
     (low high address : Word) (index : BitVec 2) : Observation :=
   let code := templateBits low
   if validTemplate code = true ∧ index < 3 then
-    aOpcode m i f form (templateUnit reserved m i b f l x code index)
+    aOpcode m i b f form (templateUnit reserved m i b f l x code index)
       (slotBits low high index) address (index.zeroExtend 8)
   else 0
 
@@ -603,7 +803,7 @@ def aBundleEncoding (reserved m i b f l x : UnitCode) (form : Form)
     (low high : Word) (index : BitVec 2) : Prop :=
   let code := templateBits low
   validTemplate code = true ∧ index < 3 ∧
-    formUnit m i f form (templateUnit reserved m i b f l x code index) (slotBits low high index) ∧
+    formUnit m i b f form (templateUnit reserved m i b f l x code index) (slotBits low high index) ∧
       aEncoding form (slotBits low high index)
 
 -- Type shared by the individually registered, implementation-bound proofs.

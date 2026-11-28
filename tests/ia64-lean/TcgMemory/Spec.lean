@@ -156,7 +156,7 @@ def specLoad (l : Load) (s : Registers) (m : CellInput) : Result :=
           (getNat s l.base || getNat s i)
     ⟨updated, some (.read address ((List.range l.width.bytes).map m.bytes) l.acquire), .success⟩
 
--- Intel SDM v3 st, M5/M6. The stored value is taken before any update of
+-- Intel SDM v3 st, M4/M5. The stored value is taken before any update of
 -- the address register, which may also be the instruction's data source.
 def specStore (st : Store) (s : Registers) (m : CellInput) : Result :=
   if !predicate s st.qp then stop s .nullified

@@ -59,3 +59,20 @@ sources = [
   "target/ia64/cpu.h",
   "target/ia64/helper.h",
 ]
+
+[proof."route:tcg-x2-movl-bundle"]
+theorem = "IA64Movl.verified"
+sources = [
+  "target/ia64/decoder.c",
+  "target/ia64/decoder.h",
+  "target/ia64/decode/decode.c",
+  "target/ia64/decode/decode.h",
+  "target/ia64/decode/opcode.inc",
+  "target/ia64/decode/opcode.h",
+  "target/ia64/decode/operand.h",
+  "target/ia64/translate/translate.c",
+  "target/ia64/translate/gen-integer.c",
+  "target/ia64/translate/gen-system.c",
+  "target/ia64/cpu.h",
+  "target/ia64/helper.h",
+]

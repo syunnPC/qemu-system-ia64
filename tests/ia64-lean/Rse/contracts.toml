@@ -182,3 +182,26 @@ statement = """
   (old : Option RseSpec.AlatTag),
   RseSpec.alatFrameRefines old (RseImplementation.alatFrameC isCover frLive oldRrb entries old)
 """
+
+[contract."route:tcg-rse-alloc-spill-ram"]
+check = "rse"
+module = "Rse.Implementation"
+statement = """
+∀ (f : RseSpec.FrameState) (sof sol : BitVec 7) (sor : BitVec 4)
+  (s : RseSpec.SpillRamState) (i : RseSpec.SpillRamInput) (h : RseSpec.SpillRamHistory)
+  (fuel : Nat) (dst : BitVec 7)
+  (qp : BitVec 6) (slot : BitVec 2) (startsGroup stopAfterSlot0 : Bool),
+  RseSpec.allocSite qp slot startsGroup stopAfterSlot0 → f.complete →
+  s.describesFrame f i →
+  ({ f.cfm with sof := sof, sol := sol, sor := sor } : RseSpec.Frame).valid →
+  (dst ≠ 0 ∧ dst.toNat < 32 + sof.toNat) →
+  (sor = f.cfm.sor ∨ f.cfm.gr = 0 ∧ f.cfm.fr = 0 ∧ f.cfm.pr = 0) →
+  h.valid s i fuel →
+  RseSpec.spillRamStart s i (RseSpec.mandatorySpillNeed f sof) →
+  let actual := RseImplementation.spillRamTraceC i s
+    (RseImplementation.mandatorySpillNeedC f (RseImplementation.packAllocC sof sol sor)) fuel
+  actual = RseSpec.spillRamTrace i s (RseSpec.mandatorySpillNeed f sof) fuel ∧
+    RseSpec.consecutiveSpillWrites s.counters.bspstore actual.writes ∧
+    actual.state.ram = RseSpec.applySpillWrites s.ram actual.writes ∧
+    (∀ addr, actual.stop = .fault addr → addr = actual.state.counters.bspstore)
+"""

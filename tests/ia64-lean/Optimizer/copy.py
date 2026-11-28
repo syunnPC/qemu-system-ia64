@@ -111,6 +111,7 @@ def generate(root, source=None):
         extras.generate(root, code),
         (HERE / "ExtraTheorems.lean.inc").read_text(encoding="utf-8"),
         (HERE / "CopyBlock.lean.inc").read_text(encoding="utf-8"),
+        (HERE / "Total.lean.inc").read_text(encoding="utf-8"),
         (HERE / "CopyExample.lean.inc").read_text(encoding="utf-8"),
     ])
 

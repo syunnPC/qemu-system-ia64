@@ -33,6 +33,7 @@ ids = []
 prefixes = [
   "target/ia64/arch/", "target/ia64/decode/", "target/ia64/helper/",
   "target/ia64/ia32/", "target/ia64/translate/", "target/i386/tcg/",
+  "fpu/", "include/fpu/", "include/tcg/", "tcg/tcg-op",
 ]
 paths = [
   "target/ia64/Kconfig", "target/ia64/meson.build", "target/ia64/cpu.c",
@@ -43,6 +44,6 @@ paths = [
   "accel/tcg/backend-ldst.h", "accel/tcg/cpu-exec-common.c",
   "accel/tcg/translate-all.c",
   "include/exec/memop.h", "include/qemu/bitops.h", "include/qemu/host-utils.h",
-  "include/tcg/tcg-mo.h", "tcg/optimize.c",
-  "tcg/tcg-op.c", "tcg/tcg-op-ldst.c", "tcg/tcg.c",
+  "tcg/aarch64/tcg-target-mo.h", "tcg/x86_64/tcg-target-mo.h",
+  "tcg/optimize.c", "tcg/tcg-has.h", "tcg/tcg-internal.h", "tcg/tcg.c",
 ]

@@ -18,6 +18,8 @@ from fclass import generate_fclass
 from merge import helper_merge, tcg_merge, validate_cache
 from rotation import generate_rotation
 from target_write import generate_target_write
+from xma import XMA, generate_xma
+from xma_bundle import lift_admission, lift_decoder
 
 
 class FloatExpression(Expression):
@@ -225,9 +227,14 @@ def generate(root):
     unfolds += ["load", "load32", "load64", "store", "store32", "store64",
                 "spill", "fill", "compact", "sign", "significand", "exponent"]
     validate_cache(fpreg, header, translate, fp, body, cpu_header)
+    helpers, tcg, opcodes = [uncomment((root / relative).read_text(encoding="utf-8"))
+                            for relative in ("target/ia64/helper.h", "tcg/tcg-op.c",
+                                             "target/ia64/decode/opcode.inc")]
+    admission = lift_admission(translate, cpu_header, helpers, operands, opcodes, body)
     return (
-        (HERE / "Spec.lean").read_text(encoding="utf-8") +
-        "\nopen IA64.Floating\n" + "\n".join(definitions)
+        (HERE / "Spec.lean").read_text(encoding="utf-8")
+        + lift_decoder(root)
+        + "\nopen IA64.Floating\n" + "\n".join(definitions)
         + "\n".join(f"theorem {name} {args} : {goal} := by\n"
                     f"  simp only [{', '.join(unfolds)}] <;> bv_decide\n"
                     for name, args, goal in THEOREMS)
@@ -243,6 +250,15 @@ def generate(root):
         + generate_fclass(translate, fpgen, fp, fp_helper, header, cpu_header, decode,
                          operands, body, macro, word)
         + (HERE / "ClassProof.lean.inc").read_text(encoding="utf-8")
+        + "\nnamespace IA64.Floating\n"
+        + (HERE / "XmaSpec.lean.inc").read_text(encoding="utf-8")
+        + generate_xma(translate, fpgen, fp, fp_helper, helpers, operands, tcg, body)
+        + (HERE / "XmaProof.lean.inc").read_text(encoding="utf-8")
+        + "\nend IA64.Floating\n"
+        + "\nnamespace IA64.Floating\n"
+        + admission
+        + (HERE / "XmaBundle.lean.inc").read_text(encoding="utf-8")
+        + "\nend IA64.Floating\n"
     )
 
 
@@ -270,6 +286,11 @@ def main():
         }
         for opcode, *_ in (*LOGICAL, *MIX):
             coverage[f"tcg:{opcode}"] = f"F9 logical/mix {bits}, assuming {inputs}"
+        for opcode, _ in XMA:
+            coverage[f"tcg:{opcode}"] = (
+                "F2 bundle decode through native admission and first fault request or "
+                f"fixed-point multiply/add {bits}, with sound materialized FP cache and TB facts"
+            )
         print(json.dumps(coverage, sort_keys=True))
         return
     text = generate(args.source_root.resolve())
@@ -281,7 +302,7 @@ def main():
         proof = work / "FloatingSource.lean"
         proof.write_text(text, encoding="utf-8")
         run_lean(work, proof, "-DwarningAsError=true")
-    print("IA-64 floating register conversions and FCLASS, scalar merge, and F9 paths verified")
+    print("IA-64 floating register conversions, F2, FCLASS, scalar merge and F9 paths verified")
 
 
 if __name__ == "__main__":

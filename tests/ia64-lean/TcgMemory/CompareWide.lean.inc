@@ -216,11 +216,21 @@ def architectureAt (i : Instruction) (s : Registers) (m : Inputs) (snapshot : Pa
 
 def firstPair (m : Inputs) : Pair := operand m.cell.bytes m.cell.guestBig
 
+def firstCAS (i : Instruction) (s : Registers) (m : Inputs) (index : Nat) (snapshot : Pair) : Prop :=
+  let big := m.cell.guestBig
+  let select := sourceHalf big (sourceUpper (getGR s i.base))
+  let initial := orderWords big (firstPair m)
+  let observations := m.observations.map (orderWords big)
+  m.observations[index]? = some snapshot ∧
+    retry select m.ccv initial (observations.take (index + 1)) =
+      some (orderWords big snapshot, true) ∧
+    ∀ n, n ≤ index → retry select m.ccv initial (observations.take n) = none
+
 theorem retiresAtSnapshot (i : Instruction) (s after : Registers) (m : Inputs) (effect : Effect)
     (completed : attempt i s m = .retired after effect) :
     ∃ snapshot, snapshot ∈ firstPair m :: m.observations ∧
       architectureAt i s m snapshot = .retired after effect ∧
-      (m.parallel = true → effect.store.isSome = true → snapshot ∈ m.observations) := by
+      (m.parallel = true → effect.store.isSome = true → ∃ index, firstCAS i s m index snapshot) := by
   unfold attempt at completed
   cases enabled : beforePrimitive i s m
   case some fault => simp [enabled] at completed
@@ -259,7 +269,7 @@ theorem retiresAtSnapshot (i : Instruction) (s after : Registers) (m : Inputs) (
     split at completed
     · cases completed
     · rename_i pair commits monitor
-      obtain ⟨seen, correct, committed⟩ := retryTerminal _ _ _ _ _ _ monitor
+      obtain ⟨seen, correct, _⟩ := retryTerminal _ _ _ _ _ _ monitor
       have seenPhysical : orderWords big pair ∈ firstPair m :: m.observations := by
         have visible := List.mem_map_of_mem (f := orderWords big) seen
         simpa [initial, List.map_map, Function.comp_def, orderWordsInverse] using visible
@@ -268,8 +278,14 @@ theorem retiresAtSnapshot (i : Instruction) (s after : Registers) (m : Inputs) (
       have yes : commits = true := by
         cases completed
         simpa using written
-      have visible := List.mem_map_of_mem (f := orderWords big) (committed yes)
-      simpa [List.map_map, Function.comp_def, orderWordsInverse] using visible
+      rw [yes] at monitor
+      obtain ⟨index, atIndex, committed, earlier⟩ := retryFirstCommit _ _ _ _ _ monitor
+      refine ⟨index, ?_, ?_, earlier⟩
+      · have physical := congrArg (Option.map (orderWords big)) atIndex
+        simpa [List.getElem?_map, Option.map_map, Function.comp_def, orderWordsInverse] using physical
+      · change retry select m.ccv initial ((m.observations.map (orderWords big)).take (index + 1)) =
+          some (orderWords big (orderWords big pair), true)
+        rwa [orderWordsInverse]
 
 -- The selected eight bytes are decoded in guest byte order even
 -- when the underlying primitive loads both halves of the block.

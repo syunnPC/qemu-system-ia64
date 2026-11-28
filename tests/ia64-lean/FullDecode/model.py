@@ -15,7 +15,7 @@ def compact_body(source, name):
     return re.sub(r"\s+", "", body)
 
 
-def feature_masks(root, translator, gated_forms, integer_features, covered):
+def feature_masks(root, translator, gated_forms, integer_features, covered, long_branch=False):
     _, atomic_body = c_function(translator, "ia64_insn_needs_16byte_atomics")
     cases, = get_match(
         r"\s*switch\s*\(insn->opcode\)\s*\{"
@@ -56,7 +56,10 @@ def feature_masks(root, translator, gated_forms, integer_features, covered):
         fast_path, "predicated fast-path opcode selection",
     ).groups()
     fast = set(re.findall(r"caseIA64_OP_(\w+):", fast_cases))
-    need(not fast.intersection(observed | integer_features.keys()),
+    optional = observed | integer_features.keys()
+    if long_branch:
+        optional |= {"BRL_COND", "BRL_CALL"}
+    need(not fast.intersection(optional),
          "an optional opcode bypasses its model gate")
     prepare = compact_body(translator, "ia64_gen_prepare_insn")
     predicate = (
@@ -82,6 +85,20 @@ def feature_masks(root, translator, gated_forms, integer_features, covered):
     for gate in (atomic_gate, integer_gate):
         need(prepare.count(predicate) == 1 and prepare.count(gate) == 1
              and prepare.index(predicate) < prepare.index(gate), "unrecognized CPUID instruction gate")
+    long_branch_gate = (
+        "if((insn->opcode==IA64_OP_BRL_COND||insn->opcode==IA64_OP_BRL_CALL)&&"
+        "!(ia64_env_cpu_class(ctx->env)->cpuid_features&IA64_CPUID4_LB)){"
+        "ia64_gen_raise_exception(IA64_EXCP_ILLEGAL,insn->address,insn->raw,insn->slot);"
+        "returnIA64_PREPARE_NORETURN;}"
+    )
+    if long_branch:
+        need(prepare.count(long_branch_gate + predicate) == 1,
+             "unrecognized unconditional long-branch CPUID gate")
+        empty = compact_body(translator, "ia64_insn_is_empty_hint")
+        need(re.fullmatch(r"switch\(insn->opcode\)\{(?:caseIA64_OP_\w+:)+"
+                          r"returntrue;default:returnfalse;\}", empty)
+             and not any(tag in empty for tag in ("BRL_COND", "BRL_CALL")),
+             "a long branch is no longer evaluated as an instruction")
     qualifiers = (
         "qp_known=ia64_predicate_known(ctx,insn->qp);"
         "ctx->reg.current_qp_known=qp_known!=IA64_PREDICATE_UNKNOWN;"
@@ -115,11 +132,53 @@ def feature_masks(root, translator, gated_forms, integer_features, covered):
          "CPU feature word differs from the architectural CPUID[4] read")
     cpu = uncomment((root / "target/ia64/cpu.h").read_text(encoding="utf-8"))
     masks = {}
-    for name in sorted({"AO", *integer_features.values()}):
+    mask_names = {"AO", *integer_features.values()}
+    if long_branch:
+        mask_names.add("LB")
+    for name in sorted(mask_names):
         bit, = get_match(rf"^#define[ \t]+IA64_CPUID4_{name}[ \t]+\(1ULL\s*<<\s*([0-9]+)\)[ \t]*$",
                          cpu, f"CPUID.{name.lower()} position").groups()
         need(0 <= int(bit) < 64, f"CPUID.{name.lower()} mask is outside the feature word")
         masks[name] = 1 << int(bit)
+    if not long_branch:
+        return masks
+    opcodes = (root / "target/ia64/decode/opcode.inc").read_text(encoding="utf-8")
+    for tag in ("BRL_COND", "BRL_CALL"):
+        get_match(rf"^IA64_OPCODE\({tag},\s*BRANCH,\s*[^)]+\)$",
+                  opcodes, f"{tag} generator")
+    generator = uncomment((root / "target/ia64/translate/gen-branch.c").read_text(encoding="utf-8"))
+    branch = compact_body(generator, "ia64_gen_branch")
+    need(branch.startswith(
+        "constIA64BranchOperands*op=&insn->operands.branch;constuint64_tnext_ip=insn->address+16;"
+        "switch(insn->opcode){caseIA64_OP_BR_COND:caseIA64_OP_BRL_COND:"
+        "returnia64_gen_complete_branch(ctx,skip,&(IA64BranchCompletion){"
+        ".target_kind=IA64_BRANCH_TARGET_DIRECT,.direct_target=insn->address+op->displacement,"
+        ".completed_ip=insn->address,"
+    ) and (
+        "caseIA64_OP_BR_CALL:caseIA64_OP_BRL_CALL:{"
+        "constuint64_ttarget=insn->address+op->displacement;"
+        "tcg_gen_movi_i64(cpu_ip,insn->address);"
+        "gen_helper_br_call_rse(tcg_env,tcg_constant_i32(op->link),"
+        "tcg_constant_i64(next_ip),tcg_constant_i64(target));"
+    ) in branch, "unrecognized long-branch target or link projection")
+    cpu_models = uncomment((root / "target/ia64/cpu.c").read_text(encoding="utf-8"))
+    merced, = get_match(
+        r"static const IA64CPUModelDef ia64_cpu_model_merced\s*=\s*\{[^{}]*"
+        r"\.cpuid_features\s*=\s*(0x[0-9a-fA-F]+|[0-9]+)\s*,",
+        cpu_models, "Merced CPUID[4]",
+    ).groups()
+    model_class = compact_body(cpu_models, "ia64_cpu_model_class_init")
+    need(model_class.count("icc->cpuid_features=") == 1 and
+         "icc->cpuid_features=model->cpuid_features;" in model_class,
+         "Merced feature word differs from architectural CPUID[4]")
+    get_match(
+        r"\.name\s*=\s*IA64_CPU_TYPE_NAME\(\"merced-800\"\),\s*"
+        r"\.parent\s*=\s*TYPE_IA64_CPU,\s*"
+        r"\.class_init\s*=\s*ia64_cpu_model_class_init,\s*"
+        r"\.class_data\s*=\s*&ia64_cpu_model_merced,",
+        cpu_models, "Merced model selection",
+    )
+    masks["MERCED"] = int(merced, 0)
     return masks
 
 

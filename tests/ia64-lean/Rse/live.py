@@ -7,11 +7,17 @@ from Emitted.check import imm
 from HostLitmus.replay import trace_program
 from ia64.encoding import (
     br_cond,
+    cover_b,
+    ld8,
+    ld8_postinc,
+    mov_ar,
     mov_i_imm_ar,
     mov_m_ar_gr,
     mov_m_cr_gr,
+    movl_mlx,
     nop_i,
     nop_m,
+    raw_bundle,
 )
 
 ALLOC_IP = 0x20
@@ -33,7 +39,7 @@ def capture(qemu):
     return trace_program(qemu, bundles, expected, "rse-frame", log_flags="op,op_opt")
 
 
-def slices(trace):
+def slices(trace, addresses=(ALLOC_IP, COVER_IP)):
     pairs = re.findall(
         r"^OP:\n(.*?)^OP after optimization and liveness analysis:\n(.*?)(?=^OP:\n|\Z)",
         trace, re.M | re.S,
@@ -45,7 +51,7 @@ def slices(trace):
             marks = list(markers.finditer(pair[index]))
             for i, mark in enumerate(marks):
                 addr = int(mark[1], 16)
-                if addr not in (ALLOC_IP, COVER_IP):
+                if addr not in addresses:
                     continue
                 if addr in slices_by_address:
                     raise ValueError(f"{stage}: multiple frame slices at {addr:#x}")
@@ -54,12 +60,12 @@ def slices(trace):
                     " ".join(line.split()[:2])
                     for line in pair[index][mark.end():end].splitlines() if line.strip()
                 ]
-        if slices_by_address.keys() != {ALLOC_IP, COVER_IP}:
-            raise ValueError(f"{stage}: expected an ALLOC and a COVER slice")
-        yield stage, slices_by_address[ALLOC_IP], slices_by_address[COVER_IP]
+        if slices_by_address.keys() != set(addresses):
+            raise ValueError(f"{stage}: expected RSE slices at {addresses}")
+        yield stage, *(slices_by_address[address] for address in addresses)
 
 
-def project(stage, alloc, cover):
+def alloc_operands(stage, alloc, expected_ip):
     alloc_call = re.fullmatch(
         r"call alloc_rse,\$0x0,\$0,env,(\$0x[\da-f]+),(\$0x[\da-f]+),"
         r"(\$0x[\da-f]+),(\$0x[\da-f]+)", alloc[0],
@@ -67,9 +73,13 @@ def project(stage, alloc, cover):
     if not alloc_call:
         raise ValueError(f"{stage}: expected direct ALLOC helper at instruction entry")
     r, packed, ip, slot = map(imm, alloc_call.groups())
-    if r >= 128 or packed >= 1 << 32 or (ip, slot) != (ALLOC_IP, 0):
+    if r >= 128 or packed >= 1 << 32 or (ip, slot) != (expected_ip, 0):
         raise ValueError(f"{stage}: invalid ALLOC helper operands")
+    return r, packed
 
+
+def project(stage, alloc, cover):
+    r, packed = alloc_operands(stage, alloc, ALLOC_IP)
     try:
         dispatch = cover.index("call cover_rse,$0x0,$0,env")
     except ValueError as exc:
@@ -118,5 +128,45 @@ end RseImplementation
 """
 
 
+def capture_spill(qemu):
+    address = 0x1001f0
+    spill_ip = 0x70
+    alloc_full = (1 << 37) | (6 << 33) | (96 << 20) | (96 << 13) | (5 << 6)
+    alloc_two = (1 << 37) | (6 << 33) | (2 << 20) | (2 << 13) | (5 << 6)
+    bundles = [
+        (0x10, *movl_mlx(3, address)),
+        (0x20, 0x01, mov_ar(3, 18), nop_i(), nop_i()),
+        (0x30, 0x01, alloc_full, nop_i(), nop_i()),
+        (0x40, *movl_mlx(32, 0x1111)),
+        (0x50, *movl_mlx(33, 0x2222)),
+        (0x60, 0x18, nop_m(), nop_m(), cover_b()),
+        (spill_ip, 0x01, alloc_two, nop_i(), nop_i()),
+        (0x80, 0x01, ld8_postinc(8, 3, 8), nop_i(), nop_i()),
+        (0x90, 0x01, ld8_postinc(9, 3, 8), nop_i(), nop_i()),
+        (0xa0, 0x01, ld8(10, 3), nop_i(), nop_i()),
+        (0xb0, 0x01, mov_m_ar_gr(11, 18), nop_i(), nop_i()),
+        (0xc0, 0x11, nop_m(), nop_i(), br_cond(0xc0, 0xc0)),
+        raw_bundle(address, 0, 4),
+    ]
+    expected = {"ip": 0xc0, "r8": 0x1111, "r9": 4, "r10": 0x2222, "r11": address + 24}
+    trace = trace_program(qemu, bundles, expected, "mandatory-alloc-spill", log_flags="op,op_opt")
+    for stage, alloc in slices(trace, (spill_ip,)):
+        r, packed = alloc_operands(stage, alloc, spill_ip)
+        yield f"""
+namespace RseImplementation
+open RseSpec
+
+theorem {stage}_mandatory_alloc_spill :
+    let result := spillRamTraceC liveSpillInput liveSpillStart
+      (mandatorySpillNeedC liveSpillFrame {packed}) 3
+    ({r} : BitVec 7) = 5 ∧
+    result.writes = [⟨{address}, 0x1111, false⟩, ⟨{address + 8}, 4, false⟩, ⟨{address + 16}, 0x2222, false⟩] ∧
+    result.stop = .retired ∧ result.state.counters.bspstore = {address + 24} := by decide
+
+end RseImplementation
+"""
+
+
 def generate(qemu):
-    return "\n".join(project(stage, alloc, cover) for stage, alloc, cover in slices(capture(qemu)))
+    frames = (project(stage, alloc, cover) for stage, alloc, cover in slices(capture(qemu)))
+    return "\n".join([*frames, *capture_spill(qemu)])

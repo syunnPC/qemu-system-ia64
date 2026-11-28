@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+[contract."route:tcg-f2-xma-value"]
+check = "floating"
+module = "Floating.Implementation"
+statement = """
+∀ (form : IA64.Floating.XmaForm) (low high address : BitVec 64) (index : BitVec 2)
+    (context : IA64.Floating.XmaContext) (cache : IA64.Floating.XmaCache) (state : FpWriteState),
+  IA64.Floating.f2Encoding form low high index →
+  IA64.Floating.XmaEntryFacts context state →
+  let instruction := IA64.Floating.f2Fields (FullDecodeSpec.slotBits low high index) address index
+  (IA64.Floating.prepareF2 context.predicates state.psr instruction = .dispatch →
+    IA64.Floating.XmaWriteFacts context cache state instruction.operands.destination) →
+  IA64.Floating.cF2Bundle low high address index context cache state =
+    some (IA64.Floating.f2Step form instruction context state)
+"""

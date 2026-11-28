@@ -54,3 +54,31 @@ statement = """
     IA64Alu.sourceBundleStep tag low high ip index s facts ctx =
       IA64Alu.sdmBundleStep tag low high ip index s operands ctx
 """
+
+[contract."route:tcg-x2-movl-bundle"]
+check = "slot-control-movl"
+module = "SlotControl.MovlImplementation"
+statement = """
+(∀ {α : Type} (low high ip : BitVec 64) (index : BitVec 2)
+    (s : IA64Add.Joined α) (facts : IA64Tcg.Facts) (c : IA64Add.Context),
+  let decoded := IA64Movl.projected (FullDecodeImplementation.bundleMOVL low high ip index)
+  FullDecodeSpec.longBundleEncoding .movl low high index →
+  IA64Tcg.Sound s.data decoded facts →
+  IA64Add.EntryFacts s decoded
+    {c with stopAfter := FullDecodeImplementation.cLongStop low high ip index} →
+  FullDecodeImplementation.bundleMOVL low high ip 2 = 0 ∧
+    IA64Movl.sourceBundleStep low high ip index s facts c =
+      IA64Movl.architecturalBundleStep low high ip s c) ∧
+(∀ {α : Type} (low high ip : BitVec 64) (index : BitVec 2)
+    (s : IA64Tcg.State α) (facts : IA64Tcg.Facts),
+  let decoded := IA64Movl.projected (FullDecodeImplementation.bundleMOVL low high ip index)
+  let spec := IA64Movl.architectural low high ip
+  FullDecodeSpec.longBundleEncoding .movl low high index →
+  IA64Tcg.Sound s decoded facts →
+  IA64Tcg.SDM.qualified s spec.qp = true →
+  IA64Tcg.SDM.legalTarget s spec.dst = true →
+  ∃ result, IA64Movl.emittedData s decoded facts = .committed result ∧
+    result.gr spec.dst = FullDecodeSpec.longImm .movl
+      (FullDecodeSpec.slotBits low high 1) (FullDecodeSpec.slotBits low high 2) ∧
+    IA64Tcg.SDM.nat result spec.dst = false)
+"""

@@ -136,10 +136,12 @@ def atomic_templates(source):
     return add[1]
 
 
-def defaults(root, ldst):
+def defaults(root, ldst, cpu_source=None):
     masks = {name: int(value, 16) for name, value in re.findall(
         r"(TCG_(?:MO|BAR)_\w+)\s*=\s*(0x[\da-fA-F]+)", (root / MASKS).read_text())}
-    match = re.search(r"\.guest_default_memory_order\s*=\s*([^,]+)", (root / CPU).read_text())
+    if cpu_source is None:
+        cpu_source = (root / CPU).read_text()
+    match = re.search(r"\.guest_default_memory_order\s*=\s*([^,]+)", cpu_source)
     require(match is not None, "missing IA-64 guest order default")
     requests = conventional_masks(ldst, masks)
     check_optimizer(stripped((root / OPTIMIZER).read_text()))
@@ -151,7 +153,7 @@ def defaults(root, ldst):
     }
 
 
-def generate(root, ldst_source=None):
+def generate(root, ldst_source=None, *, cpu_source=None):
     for path, functions in SOURCE_BODIES.items():
         source = (root / path).read_text()
         for name, digest in functions.items():
@@ -190,6 +192,6 @@ def generate(root, ldst_source=None):
                f"def serialExchangeReturnsOld : Bool := {serial_return(ldst, 'xchg')}",
                f"def serialAddReturnsOld : Bool := {serial_return(ldst, 'fetch_add')}"]
     output += [f"def {name}SeqCst : Bool := {sc}" for name, sc in orders.items()]
-    output += [f"def {name} : BitVec 8 := {mask}" for name, mask in defaults(root, ldst).items()]
+    output += [f"def {name} : BitVec 8 := {mask}" for name, mask in defaults(root, ldst, cpu_source).items()]
     output += ["end TcgMemory"]
     return "\n".join(output)

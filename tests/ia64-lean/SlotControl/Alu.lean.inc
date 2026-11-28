@@ -35,7 +35,9 @@ private theorem packedRecord_eq (tag : Opcode) (unit : UnitCode) (raw : Slot)
         (aImm (format tag) raw) := by
   have tail : aRecordTail (format tag) raw = 0#48 ++ aImm (format tag) raw ++ 2#82 := by
     cases tag <;> simp only [format, aRecordTail]
-  simp only [aRecord, packedRecord, tail]
+  have qp : aQualifier (format tag) raw = reg raw 0 6 := by
+    cases tag <;> rfl
+  simp only [aRecord, packedRecord, tail, qp]
 
 private theorem unpackRecord (u : UnitCode) (raw : Slot) (ip : Word) (index : BitVec 2)
     (p r1 r2 r3 : BitVec 8) (imm : Word) :

@@ -12,6 +12,13 @@ MANUALS = {
     3: ("323207-001", "67cdd91b3d3781fc432fc1c2c1b31053d1f611ddc5064209431fc32029ffe6f2"),
     4: ("323208-001", "b1c6a84ceb532670de204a8f3e325f31f86ccf351935fd50b5a4d46be959ec45"),
 }
+NATIVE_UPDATE = "248699-014"
+NATIVE_UPDATE_SHA256 = "ec5a43b69426561b9d451b3b4aee59e58bd9033143e6a1af0a445cfd46a40387"
+REPLACEMENT_FAMILIES = {
+    "A": "br", "B": "brl", "C": "mov-dahr", "D": "hint", "E": "itc",
+    "F": "itr", "G": "ld", "H": "lfetch", "I": "mov-indirect", "J": "st",
+}
+
 NATIVE_PAGE = re.compile(
     r"Volume 3: Instruction Reference +3:(\d+)|3:(\d+) +Volume 3: Instruction Reference"
 )
@@ -151,10 +158,60 @@ def extract_catalog(manuals):
     return rows
 
 
+def replacement_formats(page, letter):
+    footer = re.search(
+        r"(?m)^(?: *(\d+) +Intel.*Specification Update *|Intel.*Specification Update +(\d+) *)$",
+        page,
+    )
+    body = re.search(r"(?ms)^( *)Format:(.*?)^ *(?:Description|Operation):", page)
+    if not (footer and body):
+        raise ValueError(f"missing native Format block or page number in V3-{letter}")
+    number = next(int(value) for value in footer.groups() if value)
+    block = " " * (len(body[1]) + len("Format:")) + body[2]
+    # The brl replacement repeats a bare Format: label after its last row.
+    if letter == "B":
+        block = re.sub(r"(?m)^ *Format: *\n(?=\s*$)", "", block)
+    rows = list(native_format_rows(block, number))
+    if not rows:
+        raise ValueError(f"empty native Format block in V3-{letter}")
+    return number, rows
+
+
+def extract_native_update(manual):
+    replacements = {}
+    for page in manual.split("\f"):
+        header = re.match(r"V3-([A-J])\b", page)
+        if header:
+            letter = header[1]
+            if letter in replacements:
+                raise ValueError(f"duplicate native replacement page V3-{letter}")
+            replacements[letter] = replacement_formats(page, letter)
+    missing = set(REPLACEMENT_FAMILIES) - replacements.keys()
+    if missing:
+        raise ValueError("missing native replacements: " + ", ".join(f"V3-{x}" for x in sorted(missing)))
+    return replacements
+
+
+def merge_native_update(base, replacements):
+    result = base.copy()
+    for letter, (page, rows) in replacements.items():
+        family = REPLACEMENT_FAMILIES[letter]
+        reference = f"{NATIVE_UPDATE} p.{page}"
+        result.setdefault(f"sdm-native:{family}", reference)
+        for index, (mnemonic, form) in enumerate(rows, start=1):
+            result.setdefault(f"sdm-form:{family}:{mnemonic}:{form}:{index}", reference)
+    return result
+
+
+def update_reference(reference):
+    return reference.startswith(f"{NATIVE_UPDATE} ")
+
+
 def from_pdfs(directories):
-    """Verify local PDFs by content so their filenames can vary."""
+    """Return the inventory and whether the pinned update was supplied."""
     expected = {digest: volume for volume, (_, digest) in MANUALS.items()}
     paths = {}
+    update = None
     for directory in directories:
         if not directory.is_dir():
             raise ValueError(f"manual directory does not exist: {directory}")
@@ -162,29 +219,55 @@ def from_pdfs(directories):
             digest = hashlib.sha256(path.read_bytes()).hexdigest()
             if digest in expected:
                 paths[expected[digest]] = path
+            elif digest == NATIVE_UPDATE_SHA256:
+                update = path
     missing = sorted(set(MANUALS) - set(paths))
     if missing:
         documents = ", ".join(MANUALS[volume][0] for volume in missing)
         raise ValueError(f"pinned SDM PDFs missing: {documents}")
-    return extract_catalog(
-        {
-            volume: subprocess.check_output(
-                ["pdftotext", "-layout", str(path), "-"], encoding="utf-8"
-            )
-            for volume, path in paths.items()
-        }
-    )
+
+    def layout(path):
+        return subprocess.check_output(["pdftotext", "-layout", str(path), "-"], encoding="utf-8")
+
+    base = extract_catalog({volume: layout(path) for volume, path in paths.items()})
+    if update:
+        return merge_native_update(base, extract_native_update(layout(update))), True
+    return base, False
 
 
-def read_catalog(path: Path):
+# These base rows are replaced by the corrected formats in V3-G, V3-H,
+# and V3-J. Other rows, including the historical M48 hint, remain applicable.
+REPLACED_BASE_ROWS = {
+    "ld": {1, 4, 5, 6},
+    "lfetch": {1, 2, 3, 4, 5, 6},
+    "st": {1, 3, 4},
+}
+
+
+def effective_native_catalog(rows):
+    updated = {key.split(":")[1] for key, reference in rows.items()
+               if key.startswith("sdm-form:") and update_reference(reference)}
+
+    def superseded(key, reference):
+        if not key.startswith("sdm-form:") or update_reference(reference):
+            return False
+        _, family, _, _, index = key.split(":")
+        return family in updated and int(index) in REPLACED_BASE_ROWS.get(family, ())
+
+    return {key: ref for key, ref in rows.items() if not superseded(key, ref)}
+
+
+def read_catalog(path: Path, *, include_update=True, effective=True):
     rows = {}
     for line in path.read_text(encoding="utf-8").splitlines():
         if not line or line.startswith("#"):
             continue
         key, reference = line.split("\t")
+        if not include_update and update_reference(reference):
+            continue
         if key in rows:
             raise ValueError(f"duplicate SDM entry {key}")
         rows[key] = reference
     if not rows:
         raise ValueError("empty SDM inventory")
-    return rows
+    return effective_native_catalog(rows) if effective else rows

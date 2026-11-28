@@ -19,7 +19,7 @@ def cBundle
 
 theorem noOrdinaryInPair (form : Form) (code : BitVec 5) (index : BitVec 2) (raw : Slot)
     (long : code = 4 ∨ code = 5) (inside : index = 1 ∨ index = 2) :
-    ¬ formUnit mUnit iUnit fUnit form
+    ¬ formUnit mUnit iUnit bUnit fUnit form
       (templateUnit reservedUnit mUnit iUnit bUnit fUnit lUnit xUnit code index) raw := by
   cases form
   case iMisc format =>
@@ -34,7 +34,7 @@ theorem cBundle_matches (form : Form)
     (single : UnitCode → Slot → Word → BitVec 8 → Observation)
     (paired : BitVec 5 → Slot → Slot → Slot → Word → Observation)
     (single_matches : ∀ unit raw address slot,
-      single unit raw address slot = aOpcode mUnit iUnit fUnit form unit raw address slot)
+      single unit raw address slot = aOpcode mUnit iUnit bUnit fUnit form unit raw address slot)
     (paired_absent : ∀ code l m x address, (code = 4 ∨ code = 5) → paired code l m x address = 0)
     (low high address : Word) (index : BitVec 2) :
     cBundle single paired low high address index =
@@ -47,7 +47,7 @@ theorem cBundle_matches (form : Form)
     simp
   have absent (isMLX : templateBits low = 4 ∨ templateBits low = 5)
       (inside : index = 1 ∨ index = 2) :
-      aOpcode mUnit iUnit fUnit form
+      aOpcode mUnit iUnit bUnit fUnit form
         (templateUnit reservedUnit mUnit iUnit bUnit fUnit lUnit xUnit (templateBits low) index)
         (slotBits low high index) address (index.zeroExtend 8) = 0 := by
     unfold aOpcode

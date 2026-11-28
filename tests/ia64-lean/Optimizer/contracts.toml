@@ -56,3 +56,94 @@ statement = """
     IA64Optimizer.Translation pool (IA64Optimizer.initialized pool.readonly) srcs ops final →
     (IA64Optimizer.run s ops).1 r.dst = IA64Optimizer.sdmPayload s r imm tag
 """
+
+[contract."route:tcg-optimize-a-slots"]
+check = "optimizer-slot"
+module = "Optimizer.SlotImplementation"
+statement = """
+(∀ {Temp α : Type} [DecidableEq Temp]
+  (ordinary branchless : IA64OptimizedSlot.ScalarRun Temp) (tag : IA64Alu.Opcode)
+  (low high ip : BitVec 64) (index : BitVec 2)
+  (s : IA64Add.Joined α) (facts : IA64Tcg.Facts) (context : IA64Add.Context)
+  (regs : IA64Tcg.Reg → Temp) (extract : Option (BitVec 6)),
+  IA64Alu.selected tag low high ip index →
+  IA64Tcg.Sound s.data (IA64Alu.emittedRecord (IA64Alu.decode tag low high ip index)) facts →
+  IA64Add.EntryFacts s (IA64Alu.emittedRecord (IA64Alu.decode tag low high ip index))
+    {context with stopAfter := FullDecodeImplementation.cStop (FullDecodeSpec.templateBits low) index} →
+  (let i := IA64Alu.emittedRecord (IA64Alu.decode tag low high ip index)
+   ¬ (IA64Alu.fastGuard i facts ∧ IA64Alu.conditionalFast tag = true) →
+   IA64Tcg.prepareProjected s.data i facts = .execute →
+   IA64OptimizedSlot.OrdinaryRun ordinary s.data i tag regs) →
+  (let i := IA64Alu.emittedRecord (IA64Alu.decode tag low high ip index)
+   IA64Alu.fastGuard i facts → IA64Alu.conditionalFast tag = true →
+   IA64OptimizedSlot.BranchlessRun branchless s.data i tag extract) →
+  ∃ inputs, IA64Add.OperandChoice s.data
+    (IA64Alu.sdmRecord tag (FullDecodeSpec.slotBits low high index) ip index) inputs ∧
+    IA64OptimizedSlot.optimizedBundle ordinary branchless tag low high ip index s facts context regs =
+      IA64Alu.sdmBundleStep tag low high ip index s inputs context) ∧
+(∀ {α : Type} (low high ip : BitVec 64) (index : BitVec 2)
+  (s : IA64Add.Joined α) (facts : IA64Tcg.Facts) (context : IA64Add.Context),
+  IA64Alu.selected .ADD low high ip index →
+  IA64Tcg.Sound s.data (IA64Alu.emittedRecord (IA64Alu.decode .ADD low high ip index)) facts →
+  IA64Add.EntryFacts s (IA64Alu.emittedRecord (IA64Alu.decode .ADD low high ip index))
+    {context with stopAfter := FullDecodeImplementation.cStop (FullDecodeSpec.templateBits low) index} →
+  ∃ (ordinary branchless : IA64OptimizedSlot.ScalarRun IA64OptimizedSlot.SlotTemp), ∃ inputs,
+    IA64Add.OperandChoice s.data
+      (IA64Alu.sdmRecord .ADD (FullDecodeSpec.slotBits low high index) ip index) inputs ∧
+    IA64OptimizedSlot.optimizedBundle ordinary branchless .ADD low high ip index
+      s facts context IA64OptimizedSlot.registerTemp =
+      IA64Alu.sdmBundleStep .ADD low high ip index s inputs context) ∧
+(∀ {α : Type} (low high ip : BitVec 64) (index : BitVec 2)
+  (s : IA64Add.Joined α) (facts : IA64Tcg.Facts) (context : IA64Add.Context),
+  IA64Alu.selected .ADD low high ip index →
+  IA64Tcg.Sound s.data (IA64Alu.emittedRecord (IA64Alu.decode .ADD low high ip index)) facts →
+  IA64Add.EntryFacts s (IA64Alu.emittedRecord (IA64Alu.decode .ADD low high ip index))
+    {context with stopAfter := FullDecodeImplementation.cStop (FullDecodeSpec.templateBits low) index} →
+  ∃ inputs, IA64Add.OperandChoice s.data
+    (IA64Alu.sdmRecord .ADD (FullDecodeSpec.slotBits low high index) ip index) inputs ∧
+    IA64OptimizedSlot.sourceOptimizedAddBundle low high ip index s facts context =
+      IA64Alu.sdmBundleStep .ADD low high ip index s inputs context) ∧
+(∀ {α : Type} (state : IA64Tcg.State α) (i : IA64Tcg.Slot),
+  IA64OptimizedSlot.optimizedAddWrite state i =
+    IA64Integer.SDM.qualifiedWrite (state.pr i.qp) (state.gr i.dst)
+      (IA64Integer.SDM.ADD (IA64Tcg.SDM.value state i.r2) (IA64Tcg.SDM.value state i.r3))) ∧
+(∀ {α : Type} (op : IA64OptimizedSlot.RegisterOp) (nativeNot : Bool)
+  (low high ip : BitVec 64) (index : BitVec 2)
+  (s : IA64Add.Joined α) (facts : IA64Tcg.Facts) (context : IA64Add.Context),
+  IA64Alu.selected op.tag low high ip index →
+  IA64Tcg.Sound s.data (IA64Alu.emittedRecord (IA64Alu.decode op.tag low high ip index)) facts →
+  IA64Add.EntryFacts s (IA64Alu.emittedRecord (IA64Alu.decode op.tag low high ip index))
+    {context with stopAfter := FullDecodeImplementation.cStop (FullDecodeSpec.templateBits low) index} →
+  ∃ inputs, IA64Add.OperandChoice s.data
+    (IA64Alu.sdmRecord op.tag (FullDecodeSpec.slotBits low high index) ip index) inputs ∧
+    IA64OptimizedSlot.sourceOptimizedRegisterBundle op nativeNot low high ip index s facts context =
+      IA64Alu.sdmBundleStep op.tag low high ip index s inputs context) ∧
+(∀ {α : Type} (s : IA64Tcg.State α) (i : IA64Tcg.Slot)
+  (op : IA64OptimizedSlot.RegisterOp) (nativeNot : Bool),
+  IA64Alu.conditionalFast op.tag = true →
+  IA64OptimizedSlot.optimizedRegisterWrite s i op nativeNot =
+    IA64Integer.SDM.qualifiedWrite (s.pr i.qp) (s.gr i.dst)
+      ((IA64Alu.operation op.tag).value (IA64Tcg.SDM.value s i.r2) (IA64Tcg.SDM.value s i.r3) i.imm)) ∧
+(∀ (dst src : IA64OptimizedSlotLive.AddTemp),
+  IA64OptimizedSlotLive.addPool.readonly dst = none →
+  IA64OptimizedSlotLive.addPool.readonly src = none →
+  IA64Optimizer.Translation IA64OptimizedSlotLive.addPool
+    (IA64Optimizer.initialized IA64OptimizedSlotLive.addPool.readonly)
+    [IA64OptimizedSlotLive.addMoveInput dst src]
+    [if dst = src then .nop else .replace .first dst src src]
+    (IA64OptimizedSlotLive.capturedCopy dst src) ∧
+  ∀ (old source : BitVec 64) (visits : List Nat)
+      (kind : IA64OptimizedSlotLive.AddTemp → Nat),
+    let m := IA64OptimizedSlotLive.capturedCopy dst src
+    let op := if dst = src then IA64Optimizer.Operation.nop else .replace .first dst src src
+    let next := (op.run (IA64OptimizedSlotLive.addEntry old source)).1
+    next (visits.foldl (fun current n =>
+      IA64Optimizer.pickCopy kind current (IA64Optimizer.follow m dst n)) dst) =
+      IA64OptimizedSlotLive.addEntry old source src) ∧
+(∀ (branchless alias : Bool) (old source pred tags : BitVec 64),
+  IA64OptimizedSlotLive.observeAddCopy branchless alias old source pred tags =
+    (if branchless = true ∧ pred = 0 then old
+     else IA64Integer.SDM.ADD (if alias then old else source) 0,
+     if branchless = true ∧ pred = 0 then tags else
+       IA64Integer.SDM.replaceNaT tags 8 (IA64Integer.SDM.staticNaT tags (if alias then 8 else 9))))
+"""

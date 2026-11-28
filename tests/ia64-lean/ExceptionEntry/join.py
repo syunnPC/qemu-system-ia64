@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Follow the actual A1–A5 Illegal Operation branch across the TCG helper."""
+"""Check A1–A5 native Illegal Operation and sequential Single Step entry."""
 
 import argparse
 from pathlib import Path
@@ -12,8 +12,8 @@ import tempfile
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 
-from ExceptionEntry import check
-from SlotControl import alu
+from ExceptionEntry import check, completion
+from Optimizer import slot
 
 
 def source_fault_code(root):
@@ -47,10 +47,13 @@ end IA64ExceptionEntry
 
 
 def generate(root):
-    upstream = alu.generate(root)
+    upstream = slot.generate(root)
     entry = re.sub(r"^import [^\n]+\n", "", check.generate(root, include_slot_spec=False), flags=re.M)
     return "\n\n".join([upstream, entry, source_fault_code(root),
-                        (HERE / "AluProof.lean.inc").read_text(encoding="utf-8")])
+                        (HERE / "AluProof.lean.inc").read_text(encoding="utf-8"),
+                        completion.generate(root),
+                        (HERE / "Completion.lean.inc").read_text(encoding="utf-8"),
+                        (HERE / "AddStep.lean.inc").read_text(encoding="utf-8")])
 
 
 def main():
@@ -70,7 +73,7 @@ def main():
             check.run_lean(work, proof, "-DwarningAsError=true")
     except (ValueError, OSError, subprocess.CalledProcessError) as exc:
         parser.exit(1, f"A1–A5 exception entry check failed: {exc}\n")
-    print("IA-64 A1–A5 ordinary Illegal Operation bundle route through vector entry verified")
+    print("IA-64 A1–A5 Illegal Operation and sequential Single Step vector projections verified")
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-# Coverage identifiers and locations from Intel SDM revision 2.3.
+# Coverage identifiers and locations from Intel SDM revision 2.3 and 248699-014.
 sdm-form:add:add:A1:1	v3 p.3:14
 sdm-form:add:add:A1:2	v3 p.3:14
 sdm-form:add:add:pseudo-op:3	v3 p.3:14
@@ -145,6 +145,7 @@ sdm-form:hint:hint.b:B9:3	v3 p.3:145
 sdm-form:hint:hint.f:F16:5	v3 p.3:145
 sdm-form:hint:hint.i:I18:2	v3 p.3:145
 sdm-form:hint:hint.m:M48:4	v3 p.3:145
+sdm-form:hint:hint.m:M49:4	248699-014 p.147
 sdm-form:hint:hint.x:X5:6	v3 p.3:145
 sdm-form:hint:hint:pseudo-op:1	v3 p.3:145
 sdm-form:invala:invala.e:M26:2	v3 p.3:146
@@ -155,13 +156,17 @@ sdm-form:itc:itc.i:M41:1	v3 p.3:147
 sdm-form:itr:itr.d:M42:2	v3 p.3:149
 sdm-form:itr:itr.i:M42:1	v3 p.3:149
 sdm-form:ld:ld16.acq.ldhint:M2:5	v3 p.3:151
+sdm-form:ld:ld16.acq.ldhintx:M1:5	248699-014 p.153
 sdm-form:ld:ld16.ldhint:M2:4	v3 p.3:151
+sdm-form:ld:ld16.ldhintx:M1:4	248699-014 p.153
 sdm-form:ld:ld8.fill.ldhint:M2:6	v3 p.3:151
 sdm-form:ld:ld8.fill.ldhint:M2:7	v3 p.3:151
 sdm-form:ld:ld8.fill.ldhint:M3:8	v3 p.3:151
+sdm-form:ld:ld8.fill.ldhintx:M1:6	248699-014 p.153
 sdm-form:ld:ldsz.ldtype.ldhint:M2:1	v3 p.3:151
 sdm-form:ld:ldsz.ldtype.ldhint:M2:2	v3 p.3:151
 sdm-form:ld:ldsz.ldtype.ldhint:M3:3	v3 p.3:151
+sdm-form:ld:ldsz.ldtype.ldhintx:M1:1	248699-014 p.153
 sdm-form:ldf:ldf.fill.ldhint:M7:8	v3 p.3:157
 sdm-form:ldf:ldf.fill.ldhint:M8:9	v3 p.3:157
 sdm-form:ldf:ldf.fill.ldhint:M9:7	v3 p.3:157
@@ -177,9 +182,17 @@ sdm-form:ldfp:ldfpd.fldtype.ldhint:M11:3	v3 p.3:161
 sdm-form:ldfp:ldfpd.fldtype.ldhint:M12:4	v3 p.3:161
 sdm-form:ldfp:ldfps.fldtype.ldhint:M11:1	v3 p.3:161
 sdm-form:ldfp:ldfps.fldtype.ldhint:M12:2	v3 p.3:161
+sdm-form:lfetch:lfetch.count.lfhint:M52:8	248699-014 p.159
+sdm-form:lfetch:lfetch.fault.lfhint:M13:2	248699-014 p.159
+sdm-form:lfetch:lfetch.lfhint:M51:1	248699-014 p.159
+sdm-form:lfetch:lfetch.lftype.excl.lfhint:M13:5	248699-014 p.159
+sdm-form:lfetch:lfetch.lftype.excl.lfhint:M14:6	248699-014 p.159
+sdm-form:lfetch:lfetch.lftype.excl.lfhint:M15:7	248699-014 p.159
 sdm-form:lfetch:lfetch.lftype.excl.lfhint:M18:4	v3 p.3:164
 sdm-form:lfetch:lfetch.lftype.excl.lfhint:M20:5	v3 p.3:164
 sdm-form:lfetch:lfetch.lftype.excl.lfhint:M22:6	v3 p.3:164
+sdm-form:lfetch:lfetch.lftype.lfhint:M14:3	248699-014 p.159
+sdm-form:lfetch:lfetch.lftype.lfhint:M15:4	248699-014 p.159
 sdm-form:lfetch:lfetch.lftype.lfhint:M18:1	v3 p.3:164
 sdm-form:lfetch:lfetch.lftype.lfhint:M20:2	v3 p.3:164
 sdm-form:lfetch:lfetch.lftype.lfhint:M22:3	v3 p.3:164
@@ -207,6 +220,7 @@ sdm-form:mov-br:mov:I22:1	v3 p.3:174
 sdm-form:mov-br:mov:pseudo-op:2	v3 p.3:174
 sdm-form:mov-cr:mov:M32:2	v3 p.3:175
 sdm-form:mov-cr:mov:M33:1	v3 p.3:175
+sdm-form:mov-dahr:mov:M50:1	248699-014 p.145
 sdm-form:mov-fr:mov:pseudo-op:1	v3 p.3:177
 sdm-form:mov-gr:mov:pseudo-op:1	v3 p.3:178
 sdm-form:mov-imm:mov:pseudo-op:1	v3 p.3:179
@@ -320,10 +334,13 @@ sdm-form:srlz:srlz.d:M24:2	v3 p.3:249
 sdm-form:srlz:srlz.i:M24:1	v3 p.3:249
 sdm-form:ssm:ssm:M44:1	v3 p.3:250
 sdm-form:st:st16.sttype.sthint:M6:3	v3 p.3:251
+sdm-form:st:st16.sttype.sthintx:M4:3	248699-014 p.167
 sdm-form:st:st8.spill.sthint:M5:5	v3 p.3:251
 sdm-form:st:st8.spill.sthint:M6:4	v3 p.3:251
+sdm-form:st:st8.spill.sthintx:M4:4	248699-014 p.167
 sdm-form:st:stsz.sttype.sthint:M5:2	v3 p.3:251
 sdm-form:st:stsz.sttype.sthint:M6:1	v3 p.3:251
+sdm-form:st:stsz.sttype.sthintx:M4:1	248699-014 p.167
 sdm-form:stf:stf.spill.sthint:M10:6	v3 p.3:254
 sdm-form:stf:stf.spill.sthint:M13:5	v3 p.3:254
 sdm-form:stf:stf8.sthint:M10:4	v3 p.3:254
@@ -811,6 +828,7 @@ sdm-native:mix	v3 p.3:169
 sdm-native:mov-ar	v3 p.3:172
 sdm-native:mov-br	v3 p.3:174
 sdm-native:mov-cr	v3 p.3:175
+sdm-native:mov-dahr	248699-014 p.145
 sdm-native:mov-fr	v3 p.3:177
 sdm-native:mov-gr	v3 p.3:178
 sdm-native:mov-imm	v3 p.3:179

@@ -45,11 +45,16 @@ COMPARE = comparisons()
 
 # Alternate assembler spellings do not have an independent raw encoding.
 # These internal tags occur in the opcode enum, but need not be emitted.
-COMPARE_ALIASES = (
-    "CMP_NE",
-    *(f"{prefix}_{rel}" for prefix in ("CMP", "CMP4")
-      for rel in ("LE", "GT", "GE", "LEU", "GTU", "GEU")),
-)
+COMPARE_ALIASES = {
+    "CMP_NE": ("ne", 0, "CMP_EQ", "CMP_EQ_IMM"),
+    **{
+        f"{prefix}_{relation}": (relation.lower(), width, f"{prefix}_{canonical}",
+                                 f"{prefix}_{canonical}_IMM")
+        for width, prefix in enumerate(("CMP", "CMP4"))
+        for relation, canonical in (("LE", "LT"), ("GT", "LT"), ("GE", "LT"),
+                                    ("LEU", "LTU"), ("GTU", "LTU"), ("GEU", "LTU"))
+    },
+}
 
 
 def multimedia():
@@ -133,8 +138,16 @@ INTEGER_TESTS = {
     )
 }
 
-INTEGER_BITFIELD_ALIASES = ("SHL_IMM", "SHR_IMM", "SHRU_IMM")
-INTEGER_TEST_UPDATE_ALIASES = ("TBIT_Z_OR_ANDCM", "TBIT_NZ_OR_ANDCM", "TNAT_NZ_AND")
+INTEGER_BITFIELD_ALIASES = {
+    "SHL_IMM": ("shl", "DEPZ"),
+    "SHR_IMM": ("shr", "EXTR"),
+    "SHRU_IMM": ("shru", "EXTRU"),
+}
+INTEGER_TEST_UPDATE_ALIASES = {
+    "TBIT_Z_OR_ANDCM": ("tbitZero", "TBIT_Z"),
+    "TBIT_NZ_OR_ANDCM": ("tbitNonzero", "TBIT_NZ"),
+    "TNAT_NZ_AND": ("tnatNonzero", "TNAT_NZ"),
+}
 
 # Tables 4-24–4-27 and 4-74. Shared tags incorporate the M20–M21
 # speculation checks and the M29–M31 application-register transfers.
@@ -156,6 +169,38 @@ INTEGER_MISC = {
     )},
 }
 
+FP_ARITHMETIC = {
+    **{name.upper(): f".f1 .{name}" for name in (
+        "fma", "fms", "fnma", "fpma", "fpms", "fpnma", "fadd", "fsub", "fmpy", "fnorm",
+    )},
+    "XMA_L": ".f2 0 false",
+    "XMA_H": ".f2 3 false",
+    "XMA_HU": ".f2 2 false",
+    "XMPY_HU": ".f2 2 true",
+    "FSELECT": ".f3",
+    "FCMP": ".f4",
+}
+
+FP_EXTENSIONS = {
+    "FRCPA": ".fApprox false false",
+    "FPRCPA": ".fApprox true false",
+    "FRSQRTA": ".fApprox false true",
+    "FPRSQRTA": ".fApprox true true",
+    **{name: f".f8 {str(parallel).lower()} {x6} {x6}"
+       for parallel, names in (
+           (False, ("FMIN", "FMAX", "FAMIN", "FAMAX")),
+           (True, ("FPMIN", "FPMAX", "FPAMIN", "FPAMAX")),
+       ) for x6, name in enumerate(names, 0x14)},
+    "FPCMP": ".f8 true 48 55",
+    "FCVT_FX": ".f10 false (some false)",
+    "FCVT_FXU": ".f10 false (some true)",
+    "FPCVT": ".f10 true none",
+    "FCVT_XF": ".f11",
+    "FSETC": ".fStatus 4",
+    "FCLRF": ".fStatus 5",
+    "FCHKF": ".fStatus 8",
+}
+
 # All F9 rows leave bits 36:34 ignored and use x=0.
 FP_LOGIC = {
     "FCLASS": ".fClass",
@@ -173,6 +218,60 @@ FP_LOGIC = {
     **{opcode: f".f9 1 {x6}" for opcode, x6 in (
         ("FPMERGE_S", 0x10), ("FPMERGE", 0x11), ("FPMERGE_SE", 0x12),
     )},
+}
+
+BRANCH = {
+    **{f"BR_{name}": f".branch (.relative {btype})" for name, btype in (
+        ("COND", 0), ("WEXIT", 2), ("WTOP", 3), ("CLOOP", 5), ("CEXIT", 6), ("CTOP", 7),
+    )},
+    "BR_CALL": ".branch (.call true)",
+    "BR_CALL_INDIRECT": ".branch (.call false)",
+    "BR_INDIRECT": ".branch (.indirect 32 0)",
+    "BR_IA": ".branch (.indirect 32 1)",
+    "BR_RET": ".branch (.indirect 33 4)",
+    "BRP": ".branch .predict",
+    **{name: f".branch (.system {x6})" for name, x6 in (
+        ("COVER", 0x02), ("CLRRRB", 0x04), ("CLRRRB_PR", 0x05),
+        ("RFI", 0x08), ("BSW0", 0x0c), ("BSW1", 0x0d), ("EPC", 0x10),
+    )},
+    "VMSW": ".branch .virtualSwitch",
+    "HINT_B": ".branch .hint",
+}
+
+MEMORY_SYSTEM = {
+    **{name: f".mSystem 0 {x6} .noOperands" for name, x6 in (
+        ("INVALA", 0x10), ("FWB", 0x20), ("MF", 0x22), ("MF_A", 0x23),
+        ("SRLZ_D", 0x30), ("SRLZ", 0x31), ("SYNC_I", 0x33),
+    )},
+    "LOADRS": ".mSystem 0 10 .rse",
+    "FLUSHRS": ".mSystem 0 12 .rse",
+    "FC": ".mSystem 1 48 (.cacheFlush false)",
+    "FC_I": ".mSystem 1 48 (.cacheFlush true)",
+    "ALLOC": ".mAllocate",
+    "MOV_GRCR": ".mSystem 1 44 .toControl",
+    "MOV_CRGR": ".mSystem 1 36 .fromControl",
+    "MOV_GRUM": ".mSystem 1 41 (.toStatus false)",
+    "MOV_GRPSR": ".mSystem 1 45 (.toStatus true)",
+    "MOV_UMGR": ".mSystem 1 33 .fromStatus",
+    "MOV_PSRGR": ".mSystem 1 37 .fromStatus",
+    "MOV_GRRR": ".mSystem 1 0 .toRegion",
+    "MOV_RRGR": ".mSystem 1 16 .fromRegion",
+    **{name: f".mSystem 0 {x4} .mask" for x4, name in enumerate(("SUM_UM", "RUM", "SSM", "RSM"), 4)},
+    **{name: f".mSystem 1 {x6} .toIndexed" for x6, name in enumerate((
+        "MOV_GRDBR_INDEXED", "MOV_GRIBR_INDEXED", "MOV_GRPKR_INDEXED",
+        "MOV_GRPMC_INDEXED", "MOV_GRPMD_INDEXED",
+    ), 1)},
+    **{name: f".mSystem 1 {x6} .fromIndexed" for name, x6 in (
+        ("MOV_DBRGR_INDEXED", 0x11), ("MOV_IBRGR_INDEXED", 0x12), ("MOV_PKRGR_INDEXED", 0x13),
+        ("MOV_PMCGR_INDEXED", 0x14), ("MOV_PMDGR_INDEXED", 0x15), ("MOV_CPUID_INDEXED", 0x17),
+        ("THASH", 0x1a), ("TTAG", 0x1b), ("TPA", 0x1e), ("TAK", 0x1f),
+    )},
+    **{name: f".mSystem 1 {x6} (.translation {str(name.startswith('PTC')).lower()})"
+       for name, x6 in (
+           ("PTC_L", 0x09), ("PTC_G", 0x0a), ("PTC_GA", 0x0b), ("PTR_D", 0x0c),
+           ("PTR_I", 0x0d), ("ITR_D", 0x0e), ("ITR_I", 0x0f), ("ITC_D", 0x2e),
+           ("ITC_I", 0x2f), ("PTC_E", 0x34),
+       )},
 }
 
 
@@ -221,6 +320,7 @@ class Refutation:
     table: str
     slot: int = 0
     rejected_as: str | None = None
+    selected_as: str | None = None
 
 
 def fp_refutations():
@@ -243,6 +343,14 @@ def fp_refutations():
 
 REFUTATIONS = {
     **fp_refutations(),
+    "INVALAT": Refutation(".mSystem 0 18 .invalidateEntry", 0x94000400,
+                          "M26", selected_as="MOV_DAHR_IMM"),
+    "HINT_M": Refutation(".mSystem 0 1 .hint", 0x0c001000,
+                         "M49", selected_as="HINT_M"),
+    "MOV_DAHR_IMM": Refutation(".mSystem 0 1 .toDahr", 0x0c800400,
+                               "M50", selected_as="HINT_M"),
+    "LFETCH_COUNT": Refutation(".prefetchCount", 0xcb00382040, "M52",
+                               rejected_as="CONSTANT_ZERO_VIOLATION"),
     # I14 bit 13 is white, not an explicit zero. Deposit one bit at
     # position 0 into r2 and store the result in r1. PR[qp] is p0.
     "DEP_IMM": Refutation(".iBitfield .i14",

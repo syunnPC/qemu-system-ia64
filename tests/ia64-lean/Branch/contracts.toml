@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+[contract."route:tcg-b1-branch-bundle"]
+check = "branch"
+module = "Branch.Implementation"
+statement = """
+IA64Branch.B1.B1Contract FullDecodeImplementation.bundleBR_COND IA64Branch.B1.cRun ∧
+(∀ (low high ip : BitVec 64) (index : BitVec 2)
+    (context : IA64Branch.B1.Context) (state : IA64Slot.State),
+  FullDecodeSpec.aBundleEncoding FullDecodeImplementation.reservedUnit
+    FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit
+    FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+    (.branch (.relative 0)) low high index →
+  let instruction := IA64Branch.B1.sdmInstruction (FullDecodeSpec.slotBits low high index) ip index
+  IA64Branch.B1.SuppressionEntry context state instruction →
+  IA64Branch.B1.cSuppressionPrefix context state
+      (IA64Branch.B1.cInstruction (FullDecodeImplementation.bundleBR_COND low high ip index)) =
+    IA64Branch.B1.suppressionPrefix state instruction) ∧
+(∀ (low high ip : BitVec 64) (index : BitVec 2)
+    (context : IA64Branch.B1.Context) (state : IA64Slot.State),
+  FullDecodeSpec.aBundleEncoding FullDecodeImplementation.reservedUnit
+    FullDecodeImplementation.mUnit FullDecodeImplementation.iUnit FullDecodeImplementation.bUnit
+    FullDecodeImplementation.fUnit FullDecodeImplementation.lUnit FullDecodeImplementation.xUnit
+    (.branch (.relative 0)) low high index →
+  let instruction := IA64Branch.B1.sdmInstruction (FullDecodeSpec.slotBits low high index) ip index
+  let before := IA64Branch.B1.cSuppressionPrefix context state
+    (IA64Branch.B1.cInstruction (FullDecodeImplementation.bundleBR_COND low high ip index))
+  IA64Branch.B1.SuppressionEntry context state instruction →
+  before.2 = some .clearSuppression →
+  let returned := IA64Branch.B1.cClearReturn before.1
+  returned =
+    { IA64Branch.B1.archSuccess state ip with
+      psr := state.psr &&& ~~~IA64Branch.B1.suppressionMask, savedSuppression := 0 } ∧
+  IA64Slot.SDM.ri returned.psr = instruction.slot.number)
+"""

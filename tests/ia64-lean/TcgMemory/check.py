@@ -8,6 +8,7 @@ import json
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -17,6 +18,7 @@ sys.path.insert(0, str(PROJECT / "Memory"))
 
 from Memory.check import (
     CPU_HEADER,
+    FUSED_BODIES,
     MEMOP,
     MEMORY,
     TRANSLATOR,
@@ -35,15 +37,20 @@ from Ordering.check import (
     stripped,
     switches,
 )
-from TcgMemory.atomic import ATOMIC_FAMILIES
+from TcgMemory.atomic import ATOMIC_FAMILIES, CPU
 from TcgMemory.atomic import generate as generate_atomic
 from TcgMemory.compare import generate as generate_compare
+from TcgMemory.compare_wide import generate as generate_compare_wide
+from TcgMemory.encoded import generate as generate_encoded
+from TcgMemory.encoded import without_plain_acquire, wrong_load_increment_sign
+from TcgMemory.host_order import generate as generate_host_order
 from TcgMemory.lookup import CPUTLB
 from TcgMemory.lookup import generate as generate_lookup
 from TcgMemory.primitive import LDST
 from TcgMemory.primitive import generate as generate_primitive
 
 GEN_MEMORY = Path("target/ia64/translate/gen-memory.c")
+GEN_SYSTEM = Path("target/ia64/translate/gen-system.c")
 MASKS = Path("include/tcg/tcg-mo.h")
 OPCODES = Path("target/ia64/decode/opcode.inc")
 DECODER = Path("target/ia64/decode/decode.c")
@@ -56,6 +63,8 @@ OPERATORS = {"add": "+", "sub": "-", "or": "||", "and": "&&"}
 # Keep each control-flow projection tied to its entire normalized C body.
 # The explicit variable TCG operations below are interpreted instead of pinned.
 BODY_HASHES = {
+    **{name: ("translator", digest)
+       for name, digest in FUSED_BODIES["translate/translate.c"].items()},
     "ia64_gen_predicated_integer": ("translator",
         "53f09bc44584f64be7304ead42ece8982c0fe9a4f5413c659fcbd2fcd9d432d7"),
     "ia64_insn_nat_known": ("translator",
@@ -215,7 +224,7 @@ def project_descriptors(root):
     return out
 
 
-def project_barriers(root, translator):
+def project_barriers(root, translator, system):
     values = {name: int(number, 16) for name, number in re.findall(
         r"(TCG_(?:MO|BAR)_\w+)\s*=\s*(0x[\da-fA-F]+)", (root / MASKS).read_text())}
     for name in ("IA64_TCG_MO_ACQUIRE", "IA64_TCG_MO_RELEASE"):
@@ -226,11 +235,16 @@ def project_barriers(root, translator):
     for suffix in ("acquire", "release"):
         mask = one_barrier(translator, f"ia64_gen_memory_{suffix}", f"mem_{suffix}", values)
         out += [f"def {suffix}Mask : BitVec 8 := {mask}"]
+    system_cases = cases(switches(function(stripped(system), "ia64_gen_system"))[0][2])
+    mf = re.fullmatch(r"tcg_gen_mb\(([^()]+)\);break;", compact(system_cases["MF"]))
+    require(mf is not None, "unsupported mf lowering")
+    out += [f"def programFenceMask : BitVec 8 := {mask_value(mf[1], values)}"]
     return out
 
 
-def generate(root, generator=None, ldst=None, cputlb=None, compare_guard_mutation=False):
-    translator = (root / TRANSLATOR).read_text()
+def generate(root, generator=None, ldst=None, cputlb=None, compare_guard_mutation=False,
+             compare_half_mutation=False, system=None, cpu_source=None, translator_source=None):
+    translator = (root / TRANSLATOR).read_text() if translator_source is None else translator_source
     if generator is None:
         generator = (root / GEN_MEMORY).read_text()
     for name, (source_file, digest) in BODY_HASHES.items():
@@ -247,7 +261,9 @@ def generate(root, generator=None, ldst=None, cputlb=None, compare_guard_mutatio
 
     result = ["import TcgMemory.Spec", translation(root), "namespace TcgMemory"]
     result += project_descriptors(root)
-    result += project_barriers(root, translator)
+    if system is None:
+        system = (root / GEN_SYSTEM).read_text()
+    result += project_barriers(root, translator, system)
     result += [f"def stackedBase : Nat := {stacked[1]}",
                "def sourceGR (s : Registers) (r : Reg) : Word :=",
                f"  if r = 0 then {source_gr[1]} else s.gr r"]
@@ -259,7 +275,7 @@ def generate(root, generator=None, ldst=None, cputlb=None, compare_guard_mutatio
                (HERE / "Implementation.lean.inc").read_text(),
                (HERE / "Compose.lean.inc").read_text(),
                (HERE / "Mixed.lean.inc").read_text(),
-               (HERE / "AtomicSpec.lean.inc").read_text(), generate_atomic(root, ldst),
+               (HERE / "AtomicSpec.lean.inc").read_text(), generate_atomic(root, ldst, cpu_source=cpu_source),
                (HERE / "Atomic.lean.inc").read_text(),
                (HERE / "AtomicTrace.lean.inc").read_text(),
                (HERE / "AtomicOrdering.lean.inc").read_text(),
@@ -268,7 +284,15 @@ def generate(root, generator=None, ldst=None, cputlb=None, compare_guard_mutatio
                (HERE / "ByteAtomic.lean.inc").read_text(),
                (HERE / "ByteAtomicExamples.lean.inc").read_text(),
                generate_compare(root, ldst, mutation=compare_guard_mutation),
-               (HERE / "Compare.lean.inc").read_text()]
+               (HERE / "Compare.lean.inc").read_text(),
+               generate_compare_wide(root, mutation=compare_half_mutation),
+               (HERE / "CompareWide.lean.inc").read_text(),
+               (HERE / "CompareWideReplay.lean.inc").read_text(),
+               (HERE / "CompareWideConcurrent.lean.inc").read_text(),
+               (HERE / "Program.lean.inc").read_text(),
+               (HERE / "ProgramExamples.lean.inc").read_text(),
+               (HERE / "DeferredAcquire.lean.inc").read_text(),
+               (HERE / "DeferredAcquireExamples.lean.inc").read_text()]
     return "\n".join(result) + "\n"
 
 
@@ -295,14 +319,18 @@ def main():
                 f"tcg:CMPXCHG{size}": "Projected WB full CCV, return, abort and conditional memory update"
                 for size in SIZES
             })
+            coverage["tcg:CMP8XCHG16"] = "Projected WB half comparison and complete 16-byte replacement"
             print(json.dumps(coverage))
             return
+        encoded = generate_encoded(args.source_root, LOADS, STORES, RELEASE)
+        memory_models = "\n".join(("", generate_host_order(args.source_root),
+                                   (HERE / "Bypass.lean.inc").read_text()))
         subprocess.run(["lake", "build", "+TcgMemory.Spec"], cwd=PROJECT, check=True,
                        stdout=subprocess.DEVNULL)
         if args.emit_lean:
-            args.emit_lean.write_text(source, encoding="utf-8")
+            args.emit_lean.write_text(source + encoded + memory_models, encoding="utf-8")
             return
-        check(source)
+        check(source + encoded + memory_models)
         print("PASS aligned WB load/store and semaphore effects with scoped multi-vCPU ordering",
               flush=True)
         if args.mutation_test:
@@ -332,16 +360,60 @@ def main():
             check(generate(args.source_root, cputlb=changed),
                   expected_diagnostic="unsolved goals")
             print("PASS Lean rejects a slow store that touches RAM before lookup")
-            source = (args.source_root / LDST).read_text()
+            atomic_source = (args.source_root / LDST).read_text()
             expected = "GEN_ATOMIC_HELPER(fetch_add, add, 0)"
-            require(source.count(expected) == 1, "fetch-add mutation anchor changed")
-            changed = source.replace(expected, expected.replace(", 0", ", 1"))
+            require(atomic_source.count(expected) == 1, "fetch-add mutation anchor changed")
+            changed = atomic_source.replace(expected, expected.replace(", 0", ", 1"))
             check(generate(args.source_root, ldst=changed),
                   expected_diagnostic="unsolved goals")
             print("PASS Lean rejects returning the new value for serial fetch-add")
             check(generate(args.source_root, compare_guard_mutation=True),
                   expected_diagnostic="found a counterexample")
             print("PASS Lean rejects treating the maximum representable CCV as oversized")
+            check(generate(args.source_root, compare_half_mutation=True),
+                  expected_diagnostic="sourceHalf")
+            print("PASS Lean rejects comparing the wrong half of a big-endian CMP8XCHG16")
+            sample = "let loaded := sampleCAS old.inputs block.bytes"
+            require(source.count(sample) == 1, "wide CAS sample mutation anchor changed")
+            check(source.replace(sample, "let loaded := sampleCAS old.inputs old.inputs.cell.bytes"),
+                  expected_diagnostic="sampleCAS current.inputs block.bytes")
+            print("PASS Lean rejects a wide CAS that samples the initial instead of current block")
+            system = (args.source_root / GEN_SYSTEM).read_text()
+            full = "tcg_gen_mb(TCG_MO_ALL);"
+            require(system.count(full) == 1, "mf mutation anchor changed")
+            changed = system.replace(full, "tcg_gen_mb(TCG_MO_LD_LD);")
+            check(generate(args.source_root, system=changed), expected_diagnostic="is false")
+            print("PASS Lean rejects allowing mf to pass a pending store")
+            cpu_source = (args.source_root / CPU).read_text()
+            default_order = ".guest_default_memory_order = TCG_MO_ALL & ~TCG_MO_ST_LD"
+            require(cpu_source.count(default_order) == 1, "CPU default-order mutation anchor changed")
+            weakened = cpu_source.replace(default_order, f"{default_order} & ~TCG_MO_ST_ST")
+            check(generate(args.source_root, cpu_source=weakened), expected_diagnostic="found a counterexample")
+            print("PASS Lean rejects losing the emitted ordinary store/store edge")
+            translator = (args.source_root / TRANSLATOR).read_text()
+            acquire = "(TCG_BAR_LDAQ | TCG_MO_LD_LD | TCG_MO_LD_ST)"
+            require(translator.count(acquire) == 1, "explicit acquire mutation anchor changed")
+            without_explicit_ll = translator.replace(acquire, "(TCG_BAR_LDAQ | TCG_MO_LD_ST)")
+            without_default_ll = cpu_source.replace(default_order, f"{default_order} & ~TCG_MO_LD_LD")
+            check(generate(args.source_root, cpu_source=without_default_ll,
+                           translator_source=without_explicit_ll),
+                  expected_diagnostic="DeferredAcquire.litmus")
+            print("PASS Lean rejects losing both sources of load/load order after acquire")
+            with tempfile.TemporaryDirectory(prefix="ia64-memory-decoder-mutation-") as temp:
+                mutant_root = without_plain_acquire(args.source_root, Path(temp))
+                mutant = generate_encoded(mutant_root, LOADS, STORES, RELEASE)
+            check(source + mutant + memory_models, expected_diagnostic="found a counterexample")
+            print("PASS Lean rejects dropping the acquire flag for encoded ordinary loads")
+            with tempfile.TemporaryDirectory(prefix="ia64-memory-decoder-mutation-") as temp:
+                mutant_root = wrong_load_increment_sign(args.source_root, Path(temp))
+                mutant = generate_encoded(mutant_root, LOADS, STORES, RELEASE)
+            check(source + mutant + memory_models, expected_diagnostic="found a counterexample")
+            print("PASS Lean rejects sign-extending the encoded load increment from the wrong bit")
+            younger = "ordinaryByte m.initial m.committed t.pending"
+            require(source.count(younger) == 1, "ordinary forwarding mutation anchor changed")
+            changed = source.replace(younger, younger.replace("t.pending", "t.pending.reverse"))
+            check(changed + encoded + memory_models, expected_diagnostic="pending.reverse")
+            print("PASS Lean rejects sampling the oldest pending writer")
     except (ValueError, KeyError, OSError, subprocess.CalledProcessError) as error:
         parser.exit(1, f"TCG memory check failed: {error}\n")
 

@@ -130,3 +130,240 @@ statement = """
           TcgMemory.ByteAtomic.writeAtByte p history (physical.toNat / 8) address other = some contender →
           other ≤ previous))
 """
+
+[contract."route:tcg-aligned-wb-cmp8xchg16"]
+check = "tcg-memory"
+module = "TcgMemory.Implementation"
+statement = """
+  ((∀ big upper bytes,
+    TcgMemory.CompareWide.sourceHalf big upper
+      (TcgMemory.CompareWide.orderWords big (TcgMemory.CompareWide.operand bytes big)) =
+        TcgMemory.unpack 8 big (fun offset => bytes (if upper then offset + 8 else offset))) ∧
+  (∀ i s m, TcgMemory.CompareWide.beforePrimitive i s m = none →
+    TcgMemory.CompareWide.attempt i s {m with observations := [TcgMemory.CompareWide.firstPair m]} =
+      TcgMemory.CompareWide.architectureAt i s m (TcgMemory.CompareWide.firstPair m)) ∧
+  (∀ {Cpu : Type} (p : TcgMemory.AtomicPrograms Cpu) (h : TcgMemory.CompareWide.BlockInput p)
+    (i : TcgMemory.CompareWide.Instruction) (s after : TcgMemory.Registers)
+    (m : TcgMemory.CompareWide.Inputs) (e : TcgMemory.CompareWide.Effect),
+    TcgMemory.CompareWide.History p h i s m → m.parallel = true →
+    TcgMemory.CompareWide.replay p h i s m = some (.retired after e) → e.store.isSome = true →
+    ∃ (loaded : TcgMemory.CompareWide.Inputs) (index : Nat) (inside : index < h.casAt.length)
+      (oldBytes : List TcgMemory.Byte),
+      TcgMemory.CompareWide.decodeHistory p h i s m = some loaded ∧ h.loadAt ≤ h.casAt[index] ∧
+        TcgMemory.CompareWide.blockSnapshot p h (TcgMemory.CompareWide.blockBase p h i s)
+          h.casAt[index] = some oldBytes ∧
+        TcgMemory.CompareWide.firstCAS i s loaded index
+          (TcgMemory.CompareWide.decodeSnapshot m.cell.guestBig oldBytes) ∧
+        TcgMemory.CompareWide.architectureAt i s loaded
+          (TcgMemory.CompareWide.decodeSnapshot m.cell.guestBig oldBytes) = .retired after e) ∧
+  (∀ {Cpu : Type} (p : TcgMemory.AtomicPrograms Cpu) (h : TcgMemory.CompareWide.BlockInput p)
+    (base : TcgMemory.Word) (position : Nat) (bytes : List TcgMemory.Byte),
+    TcgMemory.CompareWide.blockSnapshot p h base position = some bytes →
+    ∀ offset, offset < 16 → ∃ previous writer value,
+      let address := base.toNat + offset
+      bytes[offset]? = some value ∧ TcgMemory.ByteAtomic.payloadByte p writer address = some value ∧
+        previous < position ∧
+        TcgMemory.ByteAtomic.writeAtByte p h.timeline (base.toNat / 16) address previous = some writer ∧
+        (∀ other contender, other < position →
+          TcgMemory.ByteAtomic.writeAtByte p h.timeline (base.toNat / 16) address other = some contender →
+          other ≤ previous)) ∧
+  (∀ i s after m e bytes, TcgMemory.CompareWide.attempt i s m = .retired after e →
+    e.store = some bytes →
+    bytes = TcgMemory.pack 8 m.cell.guestBig (TcgMemory.getGR s i.source) ++
+      TcgMemory.pack 8 m.cell.guestBig m.csd ∧ bytes.length = 16 ∧
+      ∀ base offset before, offset < 16 →
+        TcgMemory.CompareWide.memoryAfter base e.store before (base + offset) = bytes[offset]?) ∧
+  (∀ base address stores before, address < base ∨ base + 16 ≤ address →
+    TcgMemory.CompareWide.memoryAfter base stores before address = before address)) ∧
+  (∀ {Cpu : Type} [DecidableEq Cpu] (block : TcgMemory.CompareWide.Block Cpu) (cpu : Cpu)
+    (after : TcgMemory.Registers) (e : TcgMemory.CompareWide.Effect),
+    (TcgMemory.CompareWide.step block cpu).2 = some (after, e) → e.store.isSome = true →
+    ∃ current, block.waiting cpu = some current ∧
+      TcgMemory.CompareWide.mappedBlock block cpu current = true ∧
+      TcgMemory.CompareWide.architectureAt current.instruction current.regs current.inputs
+        (TcgMemory.CompareWide.operand block.bytes current.inputs.cell.guestBig) = .retired after e ∧
+      (TcgMemory.CompareWide.step block cpu).1.bytes = TcgMemory.CompareWide.replace block.bytes e.store)
+"""
+
+[contract."ordering:tcg-aligned-wb-program"]
+check = "tcg-memory"
+module = "TcgMemory.Implementation"
+statement = """
+  (∀ {Cpu : Type} [DecidableEq Cpu] (m final : TcgMemory.Program.Machine Cpu)
+    (steps : List (TcgMemory.Program.Schedule Cpu)),
+    TcgMemory.Program.sourceRun m steps = some final → TcgMemory.Program.guestRun m steps = some final) ∧
+  (∀ implicitOrder, (TcgMemory.Program.storeMask implicitOrder &&& TcgMemory.storeStoreMask) =
+    TcgMemory.storeStoreMask) ∧
+  (∀ {Cpu : Type} (address : Nat) (writes : List (TcgMemory.Program.Write Cpu))
+    (w : TcgMemory.Program.Write Cpu) (byte : TcgMemory.Byte),
+    TcgMemory.Program.newest address writes = some (w, byte) →
+    ∃ later earlier, writes = later ++ w :: earlier ∧
+      TcgMemory.Program.payload w address = some byte ∧
+      ∀ other, other ∈ later → TcgMemory.Program.payload other address = none) ∧
+  (∀ {Cpu : Type} (m : TcgMemory.Program.Machine Cpu) (cpu : Cpu) (i : TcgMemory.Load)
+    (input actual : TcgMemory.CellInput),
+    TcgMemory.Program.sample m (m.threads cpu) cpu (.scalar ⟨.load i, input⟩) =
+      some (.scalar ⟨.load i, actual⟩) →
+    ∀ offset,
+      let address := (m.phys cpu (TcgMemory.getGR (m.threads cpu).regs i.base)).toNat + offset
+      actual.bytes offset = match TcgMemory.Program.newest address (m.threads cpu).pending with
+        | some (_, byte) => byte
+        | none => TcgMemory.Program.publishedByte m.initial m.committed address) ∧
+  (∀ {Cpu : Type} (m : TcgMemory.Program.Machine Cpu) (t : TcgMemory.Program.Thread Cpu)
+    (cpu : Cpu) (i : TcgMemory.AtomicInstruction) (input actual : TcgMemory.CellInput) (parallel : Bool),
+    TcgMemory.Program.sample m t cpu (.semaphore i input parallel) = some (.semaphore i actual true) →
+    ∀ offset, actual.bytes offset = TcgMemory.Program.publishedByte m.initial m.committed
+      ((m.phys cpu (TcgMemory.getGR t.regs i.base)).toNat + offset)) ∧
+  (∀ {Cpu : Type} (candidate old : TcgMemory.Program.Write Cpu)
+    (earlier : List (TcgMemory.Program.Write Cpu)),
+    old ∈ earlier →
+    TcgMemory.Program.publishAllowed TcgMemory.Program.tcgPolicy candidate earlier = false) ∧
+  (∀ {Cpu : Type} (candidate old : TcgMemory.Program.Write Cpu)
+    (earlier : List (TcgMemory.Program.Write Cpu)),
+    candidate.release = true → old ∈ earlier →
+    TcgMemory.Program.publishAllowed TcgMemory.Program.guestPolicy candidate earlier = false) ∧
+  (∀ {Cpu : Type} (policy : TcgMemory.Program.Policy) (candidate old : TcgMemory.Program.Write Cpu)
+    (earlier : List (TcgMemory.Program.Write Cpu)),
+    old ∈ earlier → TcgMemory.Program.overlap old candidate.base candidate.bytes.length = true →
+    TcgMemory.Program.publishAllowed policy candidate earlier = false) ∧
+  (∀ {Cpu : Type} [DecidableEq Cpu] (m next : TcgMemory.Program.Machine Cpu) (cpu : Cpu)
+    (index : Nat) (w : TcgMemory.Program.Write Cpu),
+    (m.threads cpu).pending[index]? = some w →
+    TcgMemory.Program.publish TcgMemory.Program.tcgPolicy m cpu index = some next →
+    TcgMemory.Program.publishAllowed TcgMemory.Program.tcgPolicy w
+      ((m.threads cpu).pending.drop (index + 1)) = true ∧ next.committed = w :: m.committed) ∧
+  (∀ {Cpu : Type} [DecidableEq Cpu] (m : TcgMemory.Program.Machine Cpu) (cpu : Cpu)
+    (next : List TcgMemory.Program.Command),
+    (m.threads cpu).next = .mf :: next → (m.threads cpu).pending.isEmpty = false →
+    TcgMemory.Program.issue TcgMemory.Program.tcgPolicy TcgMemory.tcgStep TcgMemory.tcgAtomic
+      m cpu = none)
+"""
+
+[contract."ordering:tcg-wb-acquire-completion"]
+check = "tcg-memory"
+module = "TcgMemory.Implementation"
+statement = """
+ ((TcgMemory.HostOrder.natural .amd64 = 0x0d ∧
+    TcgMemory.HostOrder.natural .aarch64 = 0 ∧
+    TcgMemory.HostOrder.defaultMb .amd64 TcgMemory.HostOrder.loadRequest = none ∧
+    TcgMemory.HostOrder.defaultMb .amd64 TcgMemory.HostOrder.storeRequest = none ∧
+    TcgMemory.HostOrder.defaultMb .aarch64 TcgMemory.HostOrder.loadRequest = some 0x31 ∧
+    TcgMemory.HostOrder.defaultMb .aarch64 TcgMemory.HostOrder.storeRequest = some 0x3c) ∧
+  (∀ host : TcgMemory.HostOrder.Host,
+    TcgMemory.HostOrder.effective host TcgMemory.HostOrder.loadRequest &&& 0x03 = 0x01 ∧
+    TcgMemory.HostOrder.effective host TcgMemory.HostOrder.storeRequest &&& 0x0c = 0x0c) ∧
+  (∀ (host : TcgMemory.HostOrder.Host) (write : Bool)
+    (earlier : List TcgMemory.DeferredAcquire.Held),
+    TcgMemory.DeferredAcquire.canAccess (TcgMemory.HostOrder.masks host) write earlier =
+      TcgMemory.DeferredAcquire.canAccess TcgMemory.DeferredAcquire.sourceMasks write earlier) ∧
+  (∀ {Cpu : Type} [DecidableEq Cpu] (host : TcgMemory.HostOrder.Host)
+    (s : TcgMemory.DeferredAcquire.State Cpu) (actions : List (TcgMemory.DeferredAcquire.Action Cpu)),
+    TcgMemory.DeferredAcquire.run (TcgMemory.HostOrder.masks host) s actions =
+      TcgMemory.DeferredAcquire.run TcgMemory.DeferredAcquire.sourceMasks s actions)) ∧
+ (((∀ implicitOrder,
+    TcgMemory.DeferredAcquire.defaultMask TcgMemory.atomicLoadRequest implicitOrder &&&
+      TcgMemory.loadLoadMask = TcgMemory.loadLoadMask ∧
+    TcgMemory.DeferredAcquire.defaultMask TcgMemory.atomicStoreRequest implicitOrder &&&
+      TcgMemory.loadStoreMask = TcgMemory.loadStoreMask) ∧
+  (∀ (write : Bool) (prior : TcgMemory.DeferredAcquire.Held)
+    (earlier : List TcgMemory.DeferredAcquire.Held),
+    prior ∈ earlier → prior.op.acquire = true →
+    TcgMemory.DeferredAcquire.canAccess ⟨TcgMemory.acquireMask, 0, 0⟩ write earlier = false) ∧
+  (∀ (explicit : BitVec 8) (write : Bool) (earlier : List TcgMemory.DeferredAcquire.Held),
+    earlier.isEmpty = false →
+    TcgMemory.DeferredAcquire.canAccess
+      {TcgMemory.DeferredAcquire.sourceMasks with acquire := explicit} write earlier = false) ∧
+  (∀ {Cpu : Type} [DecidableEq Cpu] (d : TcgMemory.DeferredAcquire.State Cpu) (cpu : Cpu)
+    (index : Nat) (prior : TcgMemory.DeferredAcquire.Held),
+    prior ∈ (d.held cpu).drop (index + 1) → prior.op.acquire = true →
+    TcgMemory.DeferredAcquire.complete TcgMemory.DeferredAcquire.sourceMasks d cpu index = none) ∧
+  (∀ {Cpu : Type} [DecidableEq Cpu] (d : TcgMemory.DeferredAcquire.State Cpu) (cpu : Cpu)
+    (request : TcgMemory.Request) (rest : List TcgMemory.Program.Command)
+    (prior : TcgMemory.DeferredAcquire.Held),
+    (d.memory.threads cpu).next = .memory (.scalar request) :: rest → prior ∈ d.held cpu →
+    prior.op.acquire = true →
+    TcgMemory.DeferredAcquire.executeNow TcgMemory.DeferredAcquire.sourceMasks d cpu = none) ∧
+  (∀ {Cpu : Type} [DecidableEq Cpu] (mask : TcgMemory.DeferredAcquire.Masks)
+    (d after : TcgMemory.DeferredAcquire.State Cpu) (cpu : Cpu) (index : Nat)
+    (held : TcgMemory.DeferredAcquire.Held),
+    (d.held cpu)[index]? = some held →
+    TcgMemory.DeferredAcquire.complete mask d cpu index = some after →
+    after.memory.trace = d.memory.trace ++
+      (TcgMemory.specLoad held.op held.regs
+        (TcgMemory.DeferredAcquire.readInputs d.memory cpu held)).effect.toList.map
+          (fun e => (cpu, TcgMemory.MemoryRecord.scalar held.slot e))) ∧
+  (∀ {Cpu : Type} (memory : TcgMemory.Program.Machine Cpu) (cpu : Cpu)
+    (held : TcgMemory.DeferredAcquire.Held) (offset : Nat),
+    (TcgMemory.DeferredAcquire.readInputs memory cpu held).bytes offset =
+      TcgMemory.Program.ordinaryByte memory.initial memory.committed (memory.threads cpu).pending
+        (held.address + offset))) ∧
+  (∀ slot : TcgMemory.Encoded.SlotInput,
+    TcgMemory.Encoded.sourcePlan slot = TcgMemory.Encoded.guestPlan slot) ∧
+  (∀ (slot : TcgMemory.Encoded.SlotInput) (plan : TcgMemory.Encoded.Plan),
+    TcgMemory.Encoded.sourcePlan slot = some plan →
+    TcgMemory.Encoded.cannotFuseFill (TcgMemory.Encoded.architecturalUnit slot) plan = true) ∧
+  (∀ slot : TcgMemory.Encoded.SlotInput,
+    TcgMemory.Encoded.emittedCommand slot = TcgMemory.Encoded.guestCommand slot) ∧
+  TcgMemory.DeferredAcquire.sourceMasks = ⟨0x15, 0x01, 0x0c⟩ ∧
+  (∀ {Cpu : Type} [DecidableEq Cpu] (phys : Cpu → TcgMemory.Word → TcgMemory.Word)
+    (initial : Nat → TcgMemory.Byte) (regs : Cpu → TcgMemory.Registers)
+    (programs : List (Cpu × List TcgMemory.Encoded.SlotInput))
+    (actions : List (TcgMemory.DeferredAcquire.Action Cpu)),
+    TcgMemory.Encoded.replay TcgMemory.DeferredAcquire.sourceMasks TcgMemory.Encoded.emittedCommand
+      phys initial regs programs actions =
+    TcgMemory.Encoded.replay ⟨0x15, 0x01, 0x0c⟩ TcgMemory.Encoded.guestCommand
+      phys initial regs programs actions) ∧
+  (∀ {Cpu : Type} [DecidableEq Cpu] (phys : Cpu → TcgMemory.Word → TcgMemory.Word)
+    (initial : Nat → TcgMemory.Byte) (regs : Cpu → TcgMemory.Registers)
+    (programs : List (Cpu × List TcgMemory.Encoded.SlotInput))
+    (steps : List (TcgMemory.Program.Schedule Cpu)) (final : TcgMemory.Program.Machine Cpu),
+    (TcgMemory.Encoded.initialMachine TcgMemory.Encoded.emittedCommand phys initial regs programs).bind
+      (fun m => TcgMemory.Program.sourceRun m steps) = some final →
+    (TcgMemory.Encoded.initialMachine TcgMemory.Encoded.guestCommand phys initial regs programs).bind
+      (fun m => TcgMemory.Program.guestRun m steps) = some final) ∧
+  (∀ (slot : TcgMemory.Encoded.SlotInput) (req : TcgMemory.Request) (regs : TcgMemory.Registers),
+    TcgMemory.Encoded.emittedCommand slot = some (.memory (.scalar req)) →
+    TcgMemory.Encoded.guestCommand slot = some (.memory (.scalar req)) ∧
+    TcgMemory.tcgStep regs req = TcgMemory.specStep regs req ∧
+    (TcgMemory.tcgStep regs req).effect.map TcgMemory.Encoded.effectAddress =
+      (if (TcgMemory.tcgStep regs req).exit = .success
+       then some (TcgMemory.getGR regs (TcgMemory.Encoded.baseRegister req.op)) else none) ∧
+    ((TcgMemory.tcgStep regs req).exit ≠ .success →
+      (TcgMemory.tcgStep regs req).regs = regs ∧ (TcgMemory.tcgStep regs req).effect = none)) ∧
+  (∀ {Cpu : Type} [DecidableEq Cpu] (mask : TcgMemory.DeferredAcquire.Masks)
+    (d after : TcgMemory.DeferredAcquire.State Cpu) (cpu : Cpu) (index : Nat)
+    (held : TcgMemory.DeferredAcquire.Held),
+    (d.held cpu)[index]? = some held →
+    TcgMemory.DeferredAcquire.complete mask d cpu index = some after →
+    (after.memory.threads cpu).regs =
+      TcgMemory.DeferredAcquire.completeRegisters held.op (d.memory.threads cpu).regs
+        (TcgMemory.specLoad held.op held.regs
+          (TcgMemory.DeferredAcquire.readInputs d.memory cpu held)).regs) ∧
+  (∀ (prior : TcgMemory.DeferredAcquire.Held) (address size : Nat) (regs : List TcgMemory.Reg),
+    prior.op.update ≠ .none → regs.contains prior.op.base = true →
+    TcgMemory.DeferredAcquire.beforeIndependent prior address size regs = false) ∧
+  (∀ (op : TcgMemory.Load) (current result : TcgMemory.Registers) (r : TcgMemory.Reg),
+    r ≠ op.target → r ≠ op.base →
+    (TcgMemory.DeferredAcquire.completeRegisters op current result).gr r = current.gr r ∧
+    (TcgMemory.DeferredAcquire.completeRegisters op current result).nat r = current.nat r ∧
+    (TcgMemory.DeferredAcquire.completeRegisters op current result).dirty r = current.dirty r)) ∧
+  TcgMemory.Bypass.emittedLoadAllowsBypass = true ∧
+  (∀ {Cpu : Type} [DecidableEq Cpu] (phys : Cpu → TcgMemory.Word → TcgMemory.Word)
+    (initial : Nat → TcgMemory.Byte) (regs : Cpu → TcgMemory.Registers)
+    (programs : List (Cpu × List TcgMemory.Encoded.SlotInput))
+    (actions : List (TcgMemory.Program.Schedule Cpu)) (final : TcgMemory.Program.Machine Cpu)
+    (log : List (TcgMemory.Bypass.Event Cpu)),
+    TcgMemory.Bypass.sourceBundles phys initial regs programs actions = some (final, log) →
+    TcgMemory.Bypass.Valid initial log ∧ TcgMemory.Bypass.Corresponds final log ∧
+    (TcgMemory.Encoded.initialMachine TcgMemory.Encoded.guestCommand phys initial regs programs).bind
+      (fun m => TcgMemory.Program.guestRun m actions) = some final) ∧
+  (∀ {n : Nat} (owner observer : Fin n) (publication : Nat), observer ≠ owner →
+    TcgMemory.Bypass.remoteTime owner owner publication <
+      TcgMemory.Bypass.remoteTime owner observer publication) ∧
+  (∀ {n : Nat} (owner observer : Fin n) (publication read : Nat),
+    TcgMemory.Bypass.remoteTime owner observer publication < TcgMemory.Bypass.actionTime n read ↔
+      publication < read) ∧
+  (∀ {n : Nat} (a b p q : Fin n) (first second : Nat), first ≠ second →
+    (TcgMemory.Bypass.remoteTime a p first < TcgMemory.Bypass.remoteTime b p second ↔
+     TcgMemory.Bypass.remoteTime a q first < TcgMemory.Bypass.remoteTime b q second))
+"""

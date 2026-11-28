@@ -70,7 +70,7 @@ theorem classPairWrite_matches (pr : Predicates) (p1 p2 : BitVec 6) (v1 v2 resto
 theorem classDisabled_matches (reg : BitVec 7) (psr : Word) (enabledSets : BitVec 32)
     (sound : (cClassSet reg &&& enabledSets) ≠ 0 → classDisabled reg psr = false) :
     cClassDisabled reg psr enabledSets = classDisabled reg psr := by
-  dsimp only [cClassDisabled, cClassSet, classDisabled] at *
+  dsimp only [cClassDisabled, cFpDisabledBits, cClassSet, classDisabled] at *
   bv_decide
 
 def cClassExecute (src : Source) (mask : BitVec 9) (qp p1 p2 : BitVec 6) (unc : Bool)

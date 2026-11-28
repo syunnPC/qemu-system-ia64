@@ -10,6 +10,14 @@ from TcgMemory.atomic import GEN_MEMORY, TRANSLATOR
 from TcgMemory.compare import ARCH_MEMORY, EXEC_ACCESS, HELPER_MEMORY
 from TcgMemory.primitive import check_body
 
+INT128 = Path("include/qemu/int128.h")
+INT128_BODIES = {
+    "int128_make128": ("return(__uint128_t)hi<<64|lo;", "return(Int128){.lo=lo,.hi=hi};"),
+    "int128_getlo": ("returna;", "returna.lo;"),
+    "int128_gethi": ("returna>>64;", "returna.hi;"),
+    "int128_eq": ("returna==b;", "returna.lo==b.lo&&a.hi==b.hi;"),
+}
+
 BODIES = {
     ARCH_MEMORY: ("ia64_memory_cmp8xchg16", "ia64_ldq_data_ra", "ia64_stq_data_ra",
                   "ia64_runtime_data_memop"),
@@ -82,6 +90,11 @@ def generate(root, mutation=False):
     be_lo, be_hi, le_lo, le_hi = source.pop("layout")
     for name, value in source.items():
         check_body(value, DIGESTS[name], name)
+    int128 = (root / INT128).read_text()
+    for name, expected in INT128_BODIES.items():
+        bodies = re.findall(rf"\b{name}\s*\([^;{{}}]*\)\s*{{(.*?)^}}", int128,
+                            flags=re.MULTILINE | re.DOTALL)
+        require(tuple(map(compact, bodies)) == expected, f"changed Int128 representation: {name}")
     return "\n".join((
         "namespace TcgMemory.CompareWide",
         "def sourceHalf (big upper : Bool) (expected : Word × Word) : Word :=",

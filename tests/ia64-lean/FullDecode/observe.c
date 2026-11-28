@@ -11,12 +11,25 @@
 int main(void)
 {
     unsigned unit, slot;
-    uint64_t raw, address;
+    uint64_t raw, address, slots[3];
+    char mode;
     int parsed;
 
-    while ((parsed = scanf("%u %" SCNx64 " %" SCNx64 " %u",
-                           &unit, &raw, &address, &slot)) == 4) {
-        Ia64Instruction insn = ia64_decode_insn(unit, raw, address, slot);
+    while ((parsed = scanf(" %c", &mode)) == 1) {
+        Ia64Instruction insn;
+        bool skip = false;
+
+        if (mode == 's' && scanf("%u %" SCNx64 " %" SCNx64 " %u",
+                                 &unit, &raw, &address, &slot) == 4) {
+            insn = ia64_decode_insn(unit, raw, address, slot);
+        } else if (mode == 'p' && scanf("%u %" SCNx64 " %" SCNx64 " %" SCNx64
+                                        " %" SCNx64, &unit, &slots[0], &slots[1],
+                                        &slots[2], &address) == 5) {
+            insn = ia64_decode_insn(IA64_UNIT_L, slots[1], address, 1);
+            ia64_apply_mlx_long_fixup(unit, slots, 1, &insn, &skip);
+        } else {
+            return 1;
+        }
         const IA64DecodedOperands *op = &insn.operands.decoder;
         const uint64_t values[] = {
             insn.opcode, 1, insn.unit, insn.raw, insn.address, insn.slot,
@@ -32,6 +45,9 @@ int main(void)
         };
         for (unsigned i = 0; i < sizeof(values) / sizeof(values[0]); i++) {
             printf("%s%" PRIu64, i == 0 ? "" : " ", values[i]);
+        }
+        if (mode == 'p') {
+            printf(" %u", (unsigned)skip);
         }
         putchar('\n');
     }

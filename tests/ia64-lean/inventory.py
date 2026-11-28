@@ -131,6 +131,7 @@ def implementation_paths(root, *, include_backends=True):
         "accel/tcg/tcg-accel-ops.c",
         "accel/tcg/tcg-all.c",
         "accel/tcg/translate-all.c",
+        "accel/tcg/translator.c",
         "configs/targets/ia64-softmmu.mak",
         "contrib/ia64-llvm/Makefile",
         "cpu-common.c",
@@ -139,10 +140,13 @@ def implementation_paths(root, *, include_backends=True):
         "include/qemu/atomic.h",
         "include/qemu/bitops.h",
         "include/qemu/host-utils.h",
+        "include/qemu/int128.h",
         "include/qemu/atomic128.h",
         "include/qemu/thread.h",
         "include/system/physmem.h",
-        "include/tcg/tcg-mo.h",
+        "fpu/meson.build",
+        "tcg/tcg-has.h",
+        "tcg/tcg-internal.h",
         "meson_options.txt",
         "target/ia64/Kconfig",
         "target/ia64/meson.build",
@@ -150,10 +154,18 @@ def implementation_paths(root, *, include_backends=True):
         "system/physmem.c",
         "system/cpus.c",
         "tcg/optimize.c",
-        "tcg/tcg-op.c",
-        "tcg/tcg-op-ldst.c",
         "tcg/tcg.c",
     })
+    # Cross-target semantics consumed by emitted IR and the FP helpers.
+    # Native backend sources are collected separately below.
+    common = [
+        path for directory in ("fpu", "include/fpu", "include/tcg")
+        for path in (root / directory).rglob("*")
+    ]
+    common.extend((root / "tcg").glob("tcg-op*"))
+    common.extend(root / "tcg" / arch / "tcg-target-mo.h" for arch in ("x86_64", "aarch64"))
+    paths.update(path.relative_to(root).as_posix()
+                 for path in common if path.is_file() and path.suffix in SOURCE_SUFFIXES)
     if include_backends:
         for backend in ("x86_64", "aarch64"):
             paths.update(path.relative_to(root).as_posix()

@@ -223,11 +223,14 @@ def disabled_fp(translate, cpu_header, body, macro, word):
 def cClassSet (reg : BitVec 7) : BitVec 32 :=
   if 32 ≤ reg then 2 else if 2 ≤ reg then 1 else 0
 
-def cClassDisabled (reg : BitVec 7) (psr : Word) (enabledSets : BitVec 32) : Bool :=
-  let checks := cClassSet reg &&& ~~~enabledSets
+def cFpDisabledBits (sets : BitVec 32) (psr : Word) (enabledSets : BitVec 32) : Word :=
+  let checks := sets &&& ~~~enabledSets
   let mask := (if checks &&& {lo} = 0 then 0 else {psr_low}) |||
               (if checks &&& {hi} = 0 then 0 else {psr_high})
-  decide (psr &&& mask ≠ 0)
+  psr &&& mask
+
+def cClassDisabled (reg : BitVec 7) (psr : Word) (enabledSets : BitVec 32) : Bool :=
+  decide (cFpDisabledBits (cClassSet reg) psr enabledSets ≠ 0)
 """
 
 

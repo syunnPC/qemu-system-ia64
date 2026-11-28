@@ -17,13 +17,15 @@ import tempfile
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 
-from forms import (ALU, ATOMICS16, COMPARE, COMPARE_ALIASES, FP_LOADS, FP_LOGIC,
+from forms import (ALU, ATOMICS16, BRANCH, COMPARE, COMPARE_ALIASES, FP_ARITHMETIC, FP_EXTENSIONS,
+                   FP_LOADS, FP_LOGIC,
                    INTEGER_BITFIELD_ALIASES, INTEGER_BITFIELDS, INTEGER_FEATURES,
                    INTEGER_MAJOR_SEVEN, INTEGER_MEMORY, INTEGER_MISC, INTEGER_TESTS,
-                   INTEGER_TEST_UPDATE_ALIASES, MULTIMEDIA, REFUTATIONS)
-from cast import Array, Frame, Machine, Pointer, Ref, Unsupported, need
+                   INTEGER_TEST_UPDATE_ALIASES, MEMORY_SYSTEM, MULTIMEDIA, REFUTATIONS)
+from cast import Array, Frame, Machine, Pointer, Ref, need
 from Decode.check import ROOT, c_function, get_match, run_lean, uncomment
 from model import feature_masks, lean_gate
+from long import LONG_FORMS, LONG_REFUTATIONS, long_completion, long_proof, long_samples
 
 UNIT_NAMES = ("RESERVED", "M", "I", "B", "F", "L", "X")
 OPERANDS = ("r1", "r2", "r3", "p1", "p2", "b1", "b2", "sf", "fp_precision", "imm")
@@ -35,7 +37,8 @@ FLAGS = (
 )
 METADATA = ("unit", "raw", "address", "slot", "qp")
 FORMS = (ALU | COMPARE | MULTIMEDIA | INTEGER_MEMORY | ATOMICS16 | FP_LOADS |
-         INTEGER_MAJOR_SEVEN | INTEGER_BITFIELDS | INTEGER_TESTS | INTEGER_MISC | FP_LOGIC)
+         INTEGER_MAJOR_SEVEN | INTEGER_BITFIELDS | INTEGER_TESTS | INTEGER_MISC | FP_LOGIC |
+         BRANCH | MEMORY_SYSTEM | FP_ARITHMETIC | FP_EXTENSIONS)
 REFUTED_FORMS = {name: witness.form for name, witness in REFUTATIONS.items()}
 REJECTION_CHECK = {
     "CONSTANT_ZERO_VIOLATION": "cConstantZeroIllegal",
@@ -43,15 +46,22 @@ REJECTION_CHECK = {
 }
 
 
-def get_ast(root, work):
+def get_ast(root, work, long_branch=False):
     unit = work / "decoder.c"
-    unit.write_text('''#include <limits.h>
+    text = '''#include <limits.h>
 #include "target/ia64/decoder.c"
 #include "target/ia64/decode/decode.c"
 _Static_assert(CHAR_BIT == 8 && sizeof(short) == 2 && sizeof(int) == 4 &&
                sizeof(long) == 8 && sizeof(long long) == 8 && sizeof(void *) == 8,
                "symbolic execution requires the LP64 C ABI");
-''', encoding="utf-8")
+'''
+    if long_branch:
+        text += '''_Static_assert(
+    offsetof(IA64BranchOperands, displacement) == offsetof(IA64DecodedOperands, imm) &&
+    offsetof(IA64BranchOperands, link) == offsetof(IA64DecodedOperands, b1),
+    "long-branch generator and decoder projections disagree");
+'''
+    unit.write_text(text, encoding="utf-8")
     clang = shlex.split(os.environ.get("CLANG", "clang"))
     text = subprocess.run(
         [*clang, "-std=c11", "-I", str(root), "-fsyntax-only", "-Xclang", "-ast-dump=json",
@@ -61,7 +71,7 @@ _Static_assert(CHAR_BIT == 8 && sizeof(short) == 2 && sizeof(int) == 4 &&
     return json.loads(text)
 
 
-def check_model_route(root):
+def check_model_route(root, long_forms, long_branch):
     text = uncomment((root / "target/ia64/translate/translate.c").read_text(encoding="utf-8"))
     params, code = c_function(text, "ia64_decode_insn_for_model")
     get_match(r"CPUIA64State\s*\*env,\s*IA64SlotUnit\s+unit,\s*uint64_t\s+raw,"
@@ -71,7 +81,7 @@ def check_model_route(root):
               r"\s*return insn;\s*", code, "decode model path", full=True)
     _, decode_route = c_function(text, "ia64_tr_translate_insn")
     route = re.sub(r"\s+", "", decode_route)
-    get_match(re.escape(
+    decode_prefix = (
         "template_code=ia64_bundle_template_code(low);"
         "template_info=ia64_template_info(template_code);"
         "ctx->restart.exit_after_bundle=false;db->pc_next=bundle_ip+16;"
@@ -89,8 +99,21 @@ def check_model_route(root):
         "decoded[slot]=ia64_decode_insn_for_model("
         "ctx->env,template_info->units[slot],slots[slot],bundle_ip,slot);"
         "ia64_apply_mlx_long_fixup(template_code,slots,slot,&decoded[slot],&skip_x_slot);}"
-    ), route, "TCG bundle decode route")
-    return feature_masks(root, text, ATOMICS16, INTEGER_FEATURES, FORMS.keys() | {"NOP"})
+    )
+    completion_prefix = (
+        "ia64_prepare_self_counted_loop(ctx,decoded,skip_x_slot,bundle_ip);"
+        "record_iipa=true;psr_ic_modified=false;"
+        "for(slot=ctx->restart.start_slot;slot<3;++slot){"
+        "ctx->restart.native_trap_saved_psr=false;if(skip_x_slot&&slot==2){continue;}"
+        "Ia64Instructioninsn=decoded[slot];boolknown_nullified;boolstop_after;"
+        "booltrack_iipa_for_insn;insn.ctx=ctx;"
+        "ctx->restart.completion_slot=skip_x_slot&&slot==1?2:slot;"
+        "stop_after=template_info->stop_after[skip_x_slot&&slot==1?2:slot];"
+    )
+    get_match(re.escape(decode_prefix + (completion_prefix if long_forms else "")),
+              route, "TCG bundle decode route")
+    return feature_masks(root, text, ATOMICS16, INTEGER_FEATURES, FORMS.keys() | {"NOP"},
+                         long_branch)
 
 
 def observation_fields(machine, insn):
@@ -118,14 +141,13 @@ def selected(machine, insn, opcode):
     return machine.bits.eq(insn.fields["opcode"], machine.as_int(machine.enums[f"IA64_OP_{opcode}"], "enum Ia64Opcode"))
 
 
-def check_adapter(root, work, machine, decoded):
+def check_adapter(root, work, machine, decoded, paired, pair_skip, long_forms, *, legal_movl_only=False):
     bits = machine.bits
     fields = (decoded.fields["opcode"], *observation_fields(machine, decoded))
     rng = Random(0x1A64)
 
-    def sample(guard):
-        values = {"unit": rng.getrandbits(3), "raw": rng.getrandbits(41),
-                  "address": rng.getrandbits(64), "slot": rng.getrandbits(8)}
+    def sample(guard, widths):
+        values = {name: rng.getrandbits(width) for name, width in widths.items()}
         while guard > 1:
             (name, bit), lo, hi = bits.nodes[guard]
             take_one = bool(hi) and (not lo or rng.randrange(2) == 1)
@@ -140,22 +162,45 @@ def check_adapter(root, work, machine, decoded):
         return bit
 
     samples = []
-    for name in sorted(machine.enums):
-        if name.startswith("IA64_OP_"):
-            guard = selected(machine, decoded, name.removeprefix("IA64_OP_"))
-            if guard:
-                samples.append(sample(guard))
-    samples.extend(sample(1) for _ in range(32))
-    samples.extend(dict(unit=machine.enums[f"IA64_UNIT_{'I' if witness.slot == 1 else 'M'}"],
-                        raw=witness.raw, address=0, slot=witness.slot)
-                   for witness in REFUTATIONS.values())
+    widths = {"unit": 3, "raw": 41, "address": 64, "slot": 8}
+    if not legal_movl_only:
+        for name in sorted(machine.enums):
+            if name.startswith("IA64_OP_"):
+                guard = selected(machine, decoded, name.removeprefix("IA64_OP_"))
+                if guard:
+                    samples.append(sample(guard, widths))
+        samples.extend(sample(1, widths) for _ in range(32))
+        samples.extend(dict(unit=machine.enums[f"IA64_UNIT_{'I' if witness.slot == 1 else 'M'}"],
+                            raw=witness.raw, address=0, slot=witness.slot)
+                       for witness in REFUTATIONS.values())
     expected = [
         [sum(bit_value(bit, values) << i for i, bit in enumerate(field)) for field in fields]
         for values in samples
     ]
-    stdin = "".join(f"{v['unit']} {v['raw']:x} {v['address']:x} {v['slot']}\n" for v in samples)
+    stdin = "".join(f"s {v['unit']} {v['raw']:x} {v['address']:x} {v['slot']}\n" for v in samples)
+    pair_fields = (paired.fields["opcode"], *observation_fields(machine, paired), (pair_skip,))
+    pair_widths = {"code": 5, "raw": 41, "l": 41, "x": 41, "address": 64}
+    mlx = bits.any(bits.eq(bits.word("code", 5), bits.constant(code, 5)) for code in (4, 5))
+    paired_samples = []
+    if legal_movl_only:
+        x = bits.word("x", 41)
+        # SDM Vol. 3 Table 4-71, X2.
+        x2 = bits.both(bits.eq(x[37:41], bits.constant(6, 4)), bits.eq(x[20:21], (0,)))
+        paired_samples.extend(sample(bits.both(mlx, x2), pair_widths) for _ in range(32))
+    else:
+        for opcode in long_forms:
+            guard = bits.both(mlx, selected(machine, paired, opcode))
+            if guard:
+                paired_samples.extend(sample(guard, pair_widths) for _ in range(32))
+        if "MOVL" in long_forms:
+            paired_samples.extend(long_samples())
+    for v in paired_samples:
+        stdin += f"p {v['code']} {v['l']:x} {v['raw']:x} {v['x']:x} {v['address']:x}\n"
+        expected.append([sum(bit_value(bit, v) << i for i, bit in enumerate(field))
+                         for field in pair_fields])
+    samples.extend(paired_samples)
     executable = work / "observe"
-    cc = shlex.split(os.environ.get("CLANG", "clang"))
+    cc = shlex.split(os.environ.get("CC_FOR_BUILD") or os.environ.get("CLANG", "clang"))
     subprocess.run([*cc, "-std=c11", "-O2", "-I", str(root),
                     str(HERE / "observe.c"), str(root / "target/ia64/decode/decode.c"),
                     "-o", str(executable)], check=True)
@@ -325,7 +370,7 @@ def fixup(machine, complete):
     need(after == complete, "ordinary MLX fixup changed the source record")
     check_skip = lift_definition(b, "cPairSkip",
                                  "(code : BitVec 5) (raw l x : Slot) (address : Word)", skip)
-    return [check_ordinary, check_pair, check_skip], pair_result
+    return [check_ordinary, check_pair, check_skip], pair_result, skip
 
 
 def integer_seven_partition(machine, complete):
@@ -399,19 +444,42 @@ theorem mlxHasNoOrdinary (code : BitVec 5) (raw l x : Slot) (address : Word)
 """
 
 
-def generate(root, work, emit_opcode=None):
-    masks = check_model_route(root)
-    machine = Machine(get_ast(root, work))
+def generate(root, work, emit_opcode=None, *, legal_movl_only=False):
+    forms = FORMS | REFUTED_FORMS | LONG_FORMS | {"NOP": None}
+    aliases = COMPARE_ALIASES
+    shifts = INTEGER_BITFIELD_ALIASES
+    updates = INTEGER_TEST_UPDATE_ALIASES
+    if emit_opcode is not None:
+        emit_opcode = tuple(emit_opcode)
+        aliases = {opcode: COMPARE_ALIASES[opcode] for opcode in emit_opcode if opcode in COMPARE_ALIASES}
+        shifts = {opcode: shifts[opcode] for opcode in emit_opcode if opcode in shifts}
+        updates = {opcode: updates[opcode] for opcode in emit_opcode if opcode in updates}
+        canonical = [tag for _, _, reg, imm in aliases.values() for tag in (reg, imm)]
+        canonical += [tag for _, tag in (*shifts.values(), *updates.values())]
+        alias_names = aliases.keys() | shifts.keys() | updates.keys()
+        physical = [opcode for opcode in emit_opcode if opcode not in alias_names]
+        forms = {opcode: forms[opcode] for opcode in [*physical, *canonical]}
+    need(not legal_movl_only or tuple(forms) == ("MOVL",),
+         "the legal-only MOVL projection requires selecting MOVL")
+    long_forms = tuple(opcode for opcode in forms if opcode in LONG_FORMS)
+    long_branch = any(opcode != "MOVL" for opcode in long_forms)
+    masks = check_model_route(root, long_forms, long_branch)
+    machine = Machine(get_ast(root, work, long_branch))
     ucode = [machine.enums[f"IA64_UNIT_{name}"] for name in UNIT_NAMES]
     need(len(set(ucode)) == len(UNIT_NAMES) and all(0 <= code < 8 for code in ucode),
          "decoder slot unit enum changed width or aliases")
-    forms = FORMS | REFUTED_FORMS | {"NOP": None}
-    if emit_opcode is not None:
-        forms = {opcode: forms[opcode] for opcode in emit_opcode}
-    src = [(HERE / filename).read_text(encoding="utf-8")
-           for filename in ("Spec.lean", "Compare.lean.inc")]
+    files = ["Spec.lean", "Compare.lean.inc"]
+    if aliases:
+        files.append("CompareBundle.lean.inc")
+    if shifts or updates:
+        files.append("ShiftAlias.lean.inc")
+    if updates:
+        files.append("PredicateUpdateAlias.lean.inc")
+    src = [(HERE / filename).read_text(encoding="utf-8") for filename in files]
     if "NOP" in forms:
         src.append((HERE / "NopSpec.lean.inc").read_text(encoding="utf-8"))
+    if long_forms:
+        src.append((HERE / "LongSpec.lean.inc").read_text(encoding="utf-8"))
     src += ["namespace FullDecodeImplementation",
            "open FullDecodeSpec", "set_option maxRecDepth 16384",
            "set_option maxHeartbeats 0", "set_option exponentiation.threshold 512",
@@ -420,24 +488,28 @@ def generate(root, work, emit_opcode=None):
         src.append(f"def {name.lower()}Unit : UnitCode := {code}")
     layout = layouts(machine)
     complete = decode(machine)
-    check_adapter(root, work, machine, complete)
-    mlx_projections, pair_result = fixup(machine, complete)
+    mlx_projections, pair_result, pair_skip = fixup(machine, complete)
+    check_adapter(root, work, machine, complete, pair_result, pair_skip, long_forms,
+                  legal_movl_only=legal_movl_only)
     src += layout + mlx_projections + [STRUCTURAL, (HERE / "Bundle.lean.inc").read_text()]
-    src += [lean_gate(name, mask) for name, mask in masks.items()]
+    src += [lean_gate(name, mask) for name, mask in masks.items() if name not in {"LB", "MERCED"}]
+    if long_forms:
+        src += [long_completion(masks.get("LB"), masks.get("MERCED")),
+                (HERE / "LongProof.lean.inc").read_text(encoding="utf-8")]
     src += integer_seven_partition(machine, complete)
     b, image = machine.bits, pack(observation_fields(machine, complete))
     args = "(unit : UnitCode) (raw : Slot) (address : Word) (slot : BitVec 8)"
     call = "unit raw address slot"
-    aliases = b.any(
+    alias_tags = b.any(
         selected(machine, insn, opcode)
         for insn in (complete, pair_result) for opcode in COMPARE_ALIASES
     )
     src.append(lift_definition(b, "cCompareAliasTag",
-                               args + " (code : BitVec 5) (l x : Slot)", aliases))
+                               args + " (code : BitVec 5) (l x : Slot)", alias_tags))
     alias_tests = b.any(
         selected(machine, insn, opcode)
         for insn in (complete, pair_result)
-        for opcode in INTEGER_BITFIELD_ALIASES + INTEGER_TEST_UPDATE_ALIASES
+        for opcode in INTEGER_BITFIELD_ALIASES | INTEGER_TEST_UPDATE_ALIASES
     )
     src.append(lift_definition(b, "cBitfieldAliasTag",
                                args + " (code : BitVec 5) (l x : Slot)", alias_tests))
@@ -493,13 +565,49 @@ theorem malformedI30 (raw : Slot) (address : Word) (slot : BitVec 8)
         if opcode == "NOP":
             src.append((HERE / "NopProof.lean.inc").read_text(encoding="utf-8"))
             continue
+        if opcode in LONG_FORMS:
+            src.append(long_proof(opcode, legal_only=legal_movl_only))
+            continue
         if opcode in REFUTED_FORMS:
             witness = REFUTATIONS[opcode]
             raw = witness.raw
+            if witness.selected_as:
+                low = raw << 5
+                other = selected(machine, complete, witness.selected_as)
+                src.append(lift_definition(b, f"observed{opcode}Tag", args, other))
+                src.append(f"""
+def bundle{opcode} := cBundle {name} {pair}
+
+theorem {opcode}_classification : observed{opcode}Tag mUnit {raw} 0 0 = true := by decide
+
+theorem {opcode}_observed :
+    bundle{opcode} {low} 0 0 0 ≠
+      aBundle reservedUnit mUnit iUnit bUnit fUnit lUnit xUnit ({form}) {low} 0 0 0 := by
+  decide
+
+theorem {opcode}_refuted :
+    ¬ BundleContract reservedUnit mUnit iUnit bUnit fUnit lUnit xUnit ({form}) bundle{opcode} := by
+  intro complete
+  exact {opcode}_observed (complete {low} 0 0 0).1
+""")
+                if opcode == "INVALAT":
+                    src.append(f"""
+theorem INVALAT_outside_dahr_overlap {args}
+    (outside : ¬ (raw.extractLsb' 27 6 = 18 ∧ raw.getLsbD 26 = true ∧
+                  raw.extractLsb' 10 2 = 1)) :
+    {name} {call} = aOpcode mUnit iUnit bUnit fUnit ({form}) {call} := by
+  dsimp only [{name}, {gate}, {operands}, aOpcode, formUnit, aEncoding, aRecord, aRecordTail,
+             memorySystemEncoding, aR1, aR2, aR3, aPred, aUnc, aPredUpdate,
+             aImm, aCheckFp, aClearP2, aStatusField, aFpPrecision, aQualifier, aBranchRegister, reg,
+             updateByRegister, updateByImmediate, memAcquire, memRelease, fpLoadAttributes, mUnit]
+  bv_decide
+""")
+                continue
             if witness.rejected_as:
                 bundle = raw << (5 + 41 * witness.slot)
                 low, high = bundle & ((1 << 64) - 1), bundle >> 64
                 wire = f"{low} {high} 0 {witness.slot}"
+                unit = "iUnit" if witness.slot == 1 else "mUnit"
                 src.append(f"""
 def bundle{opcode} := cBundle {name} {pair}
 
@@ -507,7 +615,7 @@ theorem {opcode}_observed :
     bundle{opcode} {wire} = 0 := by decide
 
 theorem {opcode}_classification :
-    {REJECTION_CHECK[witness.rejected_as]} iUnit {raw} 0 {witness.slot} = true := by decide
+    {REJECTION_CHECK[witness.rejected_as]} {unit} {raw} 0 {witness.slot} = true := by decide
 
 theorem {opcode}_refuted :
     ¬ BundleContract reservedUnit mUnit iUnit bUnit fUnit lUnit xUnit ({form}) bundle{opcode} := by
@@ -516,6 +624,15 @@ theorem {opcode}_refuted :
   rw [{opcode}_observed] at actual
   exact (by decide : (0 : Observation) ≠
     aBundle reservedUnit mUnit iUnit bUnit fUnit lUnit xUnit ({form}) {wire}) actual
+""")
+                if opcode == "LFETCH_COUNT":
+                    src.append(f"""
+theorem LFETCH_COUNT_witness :
+    aBundleEncoding reservedUnit mUnit iUnit bUnit fUnit lUnit xUnit
+      .prefetchCount {low} {high} {witness.slot} ∧
+    reg {raw} 20 7 = 3 ∧ prefetchCount {raw} = 2 ∧ prefetchStride {raw} = 64 := by
+  unfold aBundleEncoding
+  decide
 """)
                 continue
             low = raw << 5
@@ -554,17 +671,20 @@ theorem {opcode}_pair {paired_args} (_paired : code = 4 ∨ code = 5) :
         )
         bitfield_defs = "iBitfieldEncoding, bitfieldImm, packBitfield, " if opcode in INTEGER_BITFIELDS else ""
         predicate_defs = "iTestEncoding, iTestParallel, " if opcode in INTEGER_TESTS else ""
-        misc_defs = "iMiscEncoding, iMiscImm, " if opcode in INTEGER_MISC else ""
+        misc_defs = ("iMiscEncoding, iMiscImm, " if opcode in INTEGER_MISC else
+                     "memorySystemEncoding, iMiscImm, " if opcode in MEMORY_SYSTEM else "")
         fp_defs = "fpMergeAliasEncoding, " if opcode in FP_LOGIC else ""
+        if opcode in FP_ARITHMETIC:
+            fp_defs += "f1Encoding, "
         src.append(f"""
 theorem {opcode}_matches {args} :
-    {name} {call} = aOpcode mUnit iUnit fUnit ({form}) {call} := by
+    {name} {call} = aOpcode mUnit iUnit bUnit fUnit ({form}) {call} := by
   dsimp only [{name}, {gate}, {operands}, aOpcode, formUnit, aUnit, aEncoding, aRecord, aRecordTail,
              compareEncoding, hasExtension, fpLoadRow, aR1, aR2, aR3, aPred, aUnc, aPredUpdate,
-             aImm, aCheckFp, aStatusField, reg,
+             aImm, aCheckFp, aClearP2, aStatusField, aFpPrecision, aQualifier, aBranchRegister, reg,
              imm8, imm14, imm22, imm9, inc3, updateByRegister, updateByImmediate,
              memAcquire, memRelease, fpLoadAttributes, {major_seven_defs}{bitfield_defs}{predicate_defs}{misc_defs}
-             {fp_defs}mUnit, iUnit, fUnit]
+             {fp_defs}branchEncoding, mUnit, iUnit, bUnit, fUnit]
   bv_decide
 
 def bundle{opcode} := cBundle {name} {pair}
@@ -606,6 +726,27 @@ theorem {opcode}_withFeature :
   intro low high address index cpuid4 qualifies
   rw [integerFeatureFault{opcode}, {opcode}_bundle_matches, {feature.lower()}Reject_matches]
 """)
+    units = "reservedUnit mUnit iUnit bUnit fUnit lUnit xUnit"
+    for alias, (rel, width, reg, imm) in aliases.items():
+        src.append(f"""
+theorem {alias}_canonical :
+    CompareAliasContract {units}
+      .{rel} {width} bundle{reg} bundle{imm} cCompareAliasTag :=
+  compareAliasOfCanonical {units}
+    .{rel} {width} bundle{reg} bundle{imm} cCompareAliasTag compareAliasesHaveNoTag
+    {reg}_complete {imm}_complete
+""")
+    for rows, kind, theorem in (
+            (shifts, "ShiftAlias", "shiftAliasOfCanonical"),
+            (updates, "PredicateUpdateAlias", "predicateUpdateAliasOfCanonical")):
+        for alias, (variant, physical) in rows.items():
+            src.append(f"""
+theorem {alias}_canonical :
+    {kind}Contract (templateUnit {units}) iUnit .{variant}
+      bundle{physical} cBitfieldAliasTag :=
+  {theorem} {units} .{variant}
+    bundle{physical} cBitfieldAliasTag bitfieldAliasesHaveNoTag {physical}_complete
+""")
     src.append("end FullDecodeImplementation")
     return "\n\n".join(src) + "\n", (len(machine.called), len(machine.blocks))
 
@@ -614,13 +755,19 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source-root", type=Path, default=ROOT)
     parser.add_argument("--emit-lean", type=Path)
+    parser.add_argument("--binding-claims", type=Path,
+                        help="append independent Lean contract checks to the full proof run")
     parser.add_argument("--emit-opcode", action="append",
-                        choices=sorted(FORMS.keys() | REFUTED_FORMS.keys() | {"NOP"}),
+                        choices=sorted(FORMS.keys() | REFUTED_FORMS.keys() | LONG_FORMS.keys() |
+                                       COMPARE_ALIASES.keys() | INTEGER_BITFIELD_ALIASES.keys() |
+                                       INTEGER_TEST_UPDATE_ALIASES.keys() | {"NOP"}),
                         help="emit selected opcodes from the whole lifted decoder")
     parser.add_argument("--coverage", action="store_true")
     options = parser.parse_args()
     if options.emit_opcode and not options.emit_lean:
         parser.error("--emit-opcode requires --emit-lean")
+    if options.binding_claims and (options.emit_lean or options.coverage):
+        parser.error("--binding-claims requires the full focused proof run")
     try:
         with tempfile.TemporaryDirectory(prefix="ia64-full-decode-lean-") as tmp:
             work = Path(tmp)
@@ -629,6 +776,11 @@ def main():
             if options.emit_lean:
                 options.emit_lean.write_text(text, encoding="utf-8")
                 return
+            if options.binding_claims:
+                claims = options.binding_claims.read_text(encoding="utf-8")
+                if not claims.strip():
+                    raise ValueError("binding claims are empty")
+                text += "\n" + claims + "\n"
             proof = work / "Decode.lean"
             proof.write_text(text, encoding="utf-8")
             # The combined decoder proof needs a larger Lean worker stack.
@@ -636,14 +788,38 @@ def main():
             if options.coverage:
                 coverage = {f"decode:{opcode}": "complete bundle, selector and operand proof"
                             for opcode in FORMS}
+                coverage.update({f"decode:{alias}": "canonical A6/A8 bundle, operands and comparison result"
+                                 for alias in COMPARE_ALIASES})
+                coverage.update({f"decode:{alias}": "canonical I11/I12 bundle, operands and shift result"
+                                 for alias in INTEGER_BITFIELD_ALIASES})
+                coverage.update({f"decode:{alias}": "canonical I16/I17 bundle, test sense and predicate update"
+                                 for alias in INTEGER_TEST_UPDATE_ALIASES})
+                coverage.update({f"decode:{opcode}": "paired MLX selector, operands and feature gate"
+                                 for opcode in LONG_FORMS.keys() - LONG_REFUTATIONS.keys()})
                 coverage["decode:NOP"] = "assigned M/I/B/F/L+X NOP and white B-unit encoding refinement"
                 print(json.dumps(coverage, sort_keys=True))
             else:
                 print(f"IA-64 decoder lifted {functions} functions and "
-                      f"{blocks} statement sites. Exact proofs for {len(FORMS)} opcodes.")
+                      f"{blocks} statement sites. Exact proofs for "
+                      f"{len(FORMS) + len(LONG_FORMS) - len(LONG_REFUTATIONS)} opcodes and "
+                      f"{len(COMPARE_ALIASES)} compare aliases, "
+                      f"{len(INTEGER_BITFIELD_ALIASES)} shift aliases and "
+                      f"{len(INTEGER_TEST_UPDATE_ALIASES)} predicate update forms.")
                 print("IA-64 NOP decoder matches all assigned short and long NOP and white B-unit forms.")
+                for opcode, (low, high) in LONG_REFUTATIONS.items():
+                    print(f"COUNTEREXAMPLE decode:{opcode} MLX slot 1 "
+                          f"low=0x{low:016x} high=0x{high:016x}. "
+                          "QEMU emits MOVL with the predicate-qualified reserved vc extension.")
                 for opcode, witness in REFUTATIONS.items():
-                    if witness.rejected_as == "CONSTANT_ZERO_VIOLATION":
+                    if witness.selected_as and witness.selected_as != opcode:
+                        detail = (f"SDM {witness.table} selects {opcode}. "
+                                  f"QEMU emits {witness.selected_as}.")
+                    elif witness.selected_as:
+                        detail = f"QEMU decodes an immediate different from SDM {witness.table}."
+                    elif opcode == "LFETCH_COUNT":
+                        detail = ("SDM M52 uses bit 13 for the stride in lfetch.count [r3], 2, 64. "
+                                  "QEMU reports a constant-zero violation.")
+                    elif witness.rejected_as == "CONSTANT_ZERO_VIOLATION":
                         detail = ("SDM Vol. 3 §4.3.2.5 (I14) leaves bit 13 an ignored white field. "
                                   "QEMU reports a constant-zero violation.")
                     elif witness.rejected_as == "RESERVED_IF_QP":

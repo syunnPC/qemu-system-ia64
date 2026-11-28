@@ -37,6 +37,7 @@ CHECKS = {
     "optimizer": "Optimizer/check.py",
     "optimizer-copy": "Optimizer/copy.py",
     "optimizer-payload": "Optimizer/payload.py",
+    "optimizer-slot": "Optimizer/slot.py",
     "ordering": "Ordering/check.py",
     "purges": "Purges/check.py",
     "refinement": "Refinement/check.py",
@@ -45,6 +46,7 @@ CHECKS = {
     "slot-control": "SlotControl/check.py",
     "slot-control-alu": "SlotControl/alu.py",
     "slot-control-bundle": "SlotControl/bundle.py",
+    "slot-control-movl": "SlotControl/movl.py",
     "system": "System/check.py",
     "tcg": "Tcg/check.py",
     "tcg-memory": "TcgMemory/check.py",
@@ -52,17 +54,21 @@ CHECKS = {
 }
 SUPPLEMENTARY_CHECKS = {"llvm", "ordering"}
 GENERATED_MODULES = {
+    "Branch.Implementation": "branch",
     "ExceptionEntry.Implementation": "exception-entry",
     "ExceptionEntry.AluImplementation": "exception-entry-alu",
+    "Floating.Implementation": "floating",
     "FullDecode.Implementation": "full-decode",
     "Memory.Implementation": "memory",
     "Optimizer.Implementation": "optimizer",
     "Optimizer.CopyImplementation": "optimizer-copy",
     "Optimizer.PayloadImplementation": "optimizer-payload",
+    "Optimizer.SlotImplementation": "optimizer-slot",
     "Rse.Implementation": "rse",
     "SlotControl.Implementation": "slot-control",
     "SlotControl.AluImplementation": "slot-control-alu",
     "SlotControl.BundleImplementation": "slot-control-bundle",
+    "SlotControl.MovlImplementation": "slot-control-movl",
     "TcgMemory.Implementation": "tcg-memory",
     "TraceOrder.Implementation": "traceorder",
 }
@@ -79,8 +85,9 @@ FOCUSED_REPORTS = {
     "tcg-memory": "tcg:",
 }
 PROOF_AREAS = (
-    DIRECTORY, DIRECTORY / "ExceptionEntry", DIRECTORY / "FullDecode", DIRECTORY / "Optimizer",
-    DIRECTORY / "Rse", DIRECTORY / "SlotControl", DIRECTORY / "TcgMemory", DIRECTORY / "TraceOrder",
+    DIRECTORY, DIRECTORY / "Branch", DIRECTORY / "ExceptionEntry", DIRECTORY / "Floating",
+    DIRECTORY / "FullDecode", DIRECTORY / "Optimizer", DIRECTORY / "Rse", DIRECTORY / "SlotControl",
+    DIRECTORY / "TcgMemory", DIRECTORY / "TraceOrder",
 )
 FOCUSED_SCOPES = {
     "feature:bundle-legality": ("decode", "bundle/template and immediate projections"),
@@ -197,20 +204,39 @@ def check_toolchain():
         raise ValueError(f"expected Lean {TOOLCHAIN}, got {version.strip()}")
 
 
-def run_checks(names, counterexamples):
+def run_checks(names, counterexamples, records=()):
     check_toolchain()
-    for name in names:
+    remaining = list(records)
+    for name in dict.fromkeys(names):
         print(f"Running {name} focused check", flush=True)
         expected = [key for key, check in counterexamples.items() if check == name]
-        output = check_command([sys.executable, CHECKS[name]], capture=bool(expected))
+        command = [sys.executable, CHECKS[name]]
+        claims = ([entry for entry in remaining if entry[0]["module"] == "FullDecode.Implementation"]
+                  if name == "full-decode" else [])
+        if claims:
+            bound_names, source = proof_claims(claims)
+            with tempfile.TemporaryDirectory(prefix="ia64-decode-bindings-") as temporary:
+                path = Path(temporary) / "Bindings.lean"
+                path.write_text(source, encoding="utf-8")
+                output = check_command([*command, "--binding-claims", str(path)], capture=True)
+            check_axioms(output, bound_names)
+        else:
+            output = check_command(command, capture=bool(expected))
+        if claims or expected:
+            summary = "".join(line for line in output.splitlines(keepends=True)
+                              if not line.startswith("'ia64_coverage_"))
+            print(summary, end="", flush=True)
         if expected:
-            print(output, end="", flush=True)
             for key in expected:
                 if not re.search(rf"(?m)^COUNTEREXAMPLE {re.escape(key)}(?:\s|$)", output):
                     raise ValueError(f"{name} did not reproduce {key}")
             print(f"COMPLETED {name} focused check with counterexample", flush=True)
         else:
             print(f"PASS {name} focused check", flush=True)
+        if claims:
+            remaining = [entry for entry in remaining if entry[0]["module"] != "FullDecode.Implementation"]
+            print(f"PASS {len(claims)} independently typed proof bindings (full-decode)", flush=True)
+    return remaining
 
 
 def validate_contract(key, contract):
@@ -410,11 +436,14 @@ def main():
     strict = args.require_tcg or args.require_full
 
     if args.check_sdm:
-        checked = from_pdfs(args.check_sdm)
-        catalog = read_catalog(DIRECTORY / "sdm-index.tsv")
+        from sdm import NATIVE_UPDATE
+
+        checked, has_update = from_pdfs(args.check_sdm)
+        catalog = read_catalog(DIRECTORY / "sdm-index.tsv", include_update=has_update, effective=False)
         if changes := snapshot_changes(catalog, checked):
             raise ValueError("SDM inventory differs:\n  " + "\n  ".join(changes))
-        print(f"PASS SDM inventory regeneration ({len(checked)} entries)", flush=True)
+        mode = f"four volumes and {NATIVE_UPDATE}" if has_update else "four base volumes only"
+        print(f"PASS SDM inventory regeneration ({mode}, {len(checked)} entries)", flush=True)
         check_toolchain()
         manual_inputs = [argument for directory in args.check_sdm
                          for argument in ("--sdm-dir", str(directory.resolve()))]
@@ -480,11 +509,10 @@ def main():
             raise ValueError("no proof bindings have been submitted")
         selected = sorted({contract["check"] for contract, _ in records + refutations}
                           | {counterexamples[key] for key in counterproofs})
-    elif strict and (changes or missing):
+    elif args.require_full and (changes or missing):
         selected = sorted({contract["check"] for contract, _ in records + refutations}
                           | set(counterexamples.values()))
-    run_checks(selected, counterexamples)
-    verify_proofs(records + refutations)
+    verify_proofs(run_checks(selected, counterexamples, records + refutations))
     if refutations:
         print(f"Checked {len(refutations)} negated scoped properties.", flush=True)
     if strict:

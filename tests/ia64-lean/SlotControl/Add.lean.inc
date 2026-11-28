@@ -117,44 +117,46 @@ structure EntryFacts (s : Joined α) (i : IA64Tcg.Slot) (c : Context) : Prop whe
   debug : c.debugDynamic = false →
     c.debugFlag = SDM.instructionDebug (setEntry s.control (realSlot i.ri)).psr
 
-def sourceRetire (s : Joined α) (bundle : Word) (slot : Slot) (executed : Bool) (c : Context) :
+def sourceRetire (s : Joined α) (bundle : Word) (slot : Slot) (executed : Bool) (c : Context)
+    (long : Bool := false) :
     Boundary α :=
   let noted := (emitSuccess c.knownIC c.record c.trackSuppression bundle).run s.control
   let current := { s with control := noted.1 }
   if .clearSuppression ∈ noted.2 then .suppression current executed
   else
     let native := (emitNative noted.1 false c.trapDynamic c.singleStepFlag c.virtualAddress
-                    c.vaImplemented c.paImplemented bundle slot false).run noted.1
+                    c.vaImplemented c.paImplemented bundle slot long).run noted.1
     match native.2 with
     | .native call :: _ => .native current executed call
     | _ =>
-      let next := (emitAdvance (some slot.number) bundle slot false).run noted.1
+      let next := (emitAdvance (some slot.number) bundle slot long).run noted.1
       .retirement { s with control := next.1 } executed c.stopAfter
 
-def referenceRetire (s : Joined α) (bundle : Word) (slot : Slot) (executed : Bool) (c : Context) :
+def referenceRetire (s : Joined α) (bundle : Word) (slot : Slot) (executed : Bool) (c : Context)
+    (long : Bool := false) :
     Boundary α :=
   let success := { s.control with lastSuccess := SDM.success s.control bundle }
   let current := { s with control := success }
   if c.trackSuppression && s.control.savedSuppression != 0 then .suppression current executed
   else if c.trapDynamic || c.singleStepFlag ||
       !(if c.virtualAddress then c.vaImplemented else c.paImplemented) then
-    .native current executed (SDM.trapPayload s.control bundle slot false)
-  else .retirement { s with control := SDM.restart success bundle slot false } executed c.stopAfter
+    .native current executed (SDM.trapPayload s.control bundle slot long)
+  else .retirement { s with control := SDM.restart success bundle slot long } executed c.stopAfter
 
 theorem sourceRetire_eq (s : Joined α) (bundle : Word) (slot : Slot) (executed : Bool) (c : Context)
     (ip : s.control.ip = bundle) (ri : SDM.ri s.control.psr = slot.number)
     (ic : ∀ v, c.knownIC = some v → SDM.collecting s.control.psr = v)
     (share : c.record = false → SDM.collecting s.control.psr = true →
-      s.control.lastSuccess = bundle &&& ~~~15#64) :
-    sourceRetire s bundle slot executed c = referenceRetire s bundle slot executed c := by
+      s.control.lastSuccess = bundle &&& ~~~15#64) (long : Bool := false) :
+    sourceRetire s bundle slot executed c long = referenceRetire s bundle slot executed c long := by
   let success := { s.control with lastSuccess := SDM.success s.control bundle }
   have note := emittedSuccess s.control c.knownIC c.record c.trackSuppression bundle ic share
   have native := emittedNative success s.control false c.trapDynamic c.singleStepFlag
-    c.virtualAddress c.vaImplemented c.paImplemented bundle slot false rfl
+    c.virtualAddress c.vaImplemented c.paImplemented bundle slot long rfl
   have riSound : RISound success (some slot.number) := by
     intro n selected
     exact ri.trans (Option.some.inj selected)
-  have advance := emittedAdvance success (some slot.number) bundle slot false riSound ip
+  have advance := emittedAdvance success (some slot.number) bundle slot long riSound ip
   unfold sourceRetire referenceRetire
   rw [note]
   by_cases suppress : (c.trackSuppression && s.control.savedSuppression != 0) = true
@@ -180,7 +182,7 @@ def faultBoundary (s : Joined α) (kind : IA64Tcg.Fault)
   .fault { s with control := { s.control with ip := ip } } kind ⟨ip, (realSlot ri).number⟩ raw
 
 def emittedSlot (s : Joined α) (i : IA64Tcg.Slot) (body : IA64Tcg.Outcome α)
-    (c : Context) : Boundary α :=
+    (c : Context) (long : Bool := false) : Boundary α :=
   let slot := realSlot i.ri
   let entered := (emitRI c.knownRI slot.number).run s.control |>.1
   if Event.debug ⟨i.ip, slot.number⟩ ∈ ((emitDebug c.debugDynamic c.debugFlag ⟨i.ip, slot.number⟩).run entered).2
@@ -190,11 +192,11 @@ def emittedSlot (s : Joined α) (i : IA64Tcg.Slot) (body : IA64Tcg.Outcome α)
     match body with
     | .fault kind ip ri raw data =>
       .fault ⟨data, emitFaultIP issued ip⟩ kind ⟨ip, (realSlot ri).number⟩ raw
-    | .committed data => sourceRetire ⟨data, issued⟩ i.ip slot true c
-    | .nullified data => sourceRetire ⟨data, issued⟩ i.ip slot false c
+    | .committed data => sourceRetire ⟨data, issued⟩ i.ip slot true c long
+    | .nullified data => sourceRetire ⟨data, issued⟩ i.ip slot false c long
 
 def referenceSlot (s : Joined α) (i : IA64Tcg.Slot) (body : IA64Tcg.Outcome α)
-    (c : Context) : Boundary α :=
+    (c : Context) (long : Bool := false) : Boundary α :=
   let slot := realSlot i.ri
   let entered := setEntry s.control slot
   if SDM.instructionDebug entered.psr then .debug { s with control := entered } ⟨i.ip, slot.number⟩
@@ -202,12 +204,12 @@ def referenceSlot (s : Joined α) (i : IA64Tcg.Slot) (body : IA64Tcg.Outcome α)
     let issued := savedAtEntry entered c.trackSuppression
     match body with
     | .fault kind ip ri raw data => faultBoundary ⟨data, issued⟩ kind ip ri raw
-    | .committed data => referenceRetire ⟨data, issued⟩ i.ip slot true c
-    | .nullified data => referenceRetire ⟨data, issued⟩ i.ip slot false c
+    | .committed data => referenceRetire ⟨data, issued⟩ i.ip slot true c long
+    | .nullified data => referenceRetire ⟨data, issued⟩ i.ip slot false c long
 
 theorem emittedSlot_eq (s : Joined α) (i : IA64Tcg.Slot) (body : IA64Tcg.Outcome α)
-    (c : Context) (entry : EntryFacts s i c) :
-    emittedSlot s i body c = referenceSlot s i body c := by
+    (c : Context) (entry : EntryFacts s i c) (long : Bool := false) :
+    emittedSlot s i body c long = referenceSlot s i body c long := by
   let slot := realSlot i.ri
   let entered := setEntry s.control slot
   let afterSave := savedAtEntry entered c.trackSuppression
@@ -229,7 +231,7 @@ theorem emittedSlot_eq (s : Joined α) (i : IA64Tcg.Slot) (body : IA64Tcg.Outcom
     cases tracking : c.trackSuppression <;>
       simpa [afterSave, savedAtEntry, tracking] using entry.shared
   have retired (data : IA64Tcg.State α) (executed : Bool) :=
-    sourceRetire_eq ⟨data, afterSave⟩ i.ip slot executed c ip ri ic share
+    sourceRetire_eq ⟨data, afterSave⟩ i.ip slot executed c ip ri ic share long
   simp only [emittedSlot, referenceSlot]
   rw [enter, debug]
   by_cases preempt : SDM.instructionDebug (setEntry s.control (realSlot i.ri)).psr = true

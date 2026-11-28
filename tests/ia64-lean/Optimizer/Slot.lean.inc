@@ -2,7 +2,7 @@
 
 namespace IA64OptimizedSlot
 
-open IA64Optimizer IA64Slot IA64Add
+open IA64Optimizer IA64Slot IA64Add FullDecodeImplementation
 
 structure ScalarRun (Temp : Type) where
   before : IA64Optimizer.State Temp
@@ -25,7 +25,7 @@ structure OrdinaryRun [DecidableEq Temp] (r : ScalarRun Temp) (s : IA64Tcg.State
   values : operandValues r s i
   readRegs : ∀ gr, r.before (regs gr) = s.gr gr
   destination : regs i.dst = r.inputs.dst
-  unique : Function.Injective regs
+  unique : ∀ ⦃a b⦄, regs a = regs b → a = b
   scratch : ∀ gr, regs gr ∉ [r.inputs.tmp, r.inputs.tmp2, r.inputs.low, r.inputs.high]
   constants : r.pool.sound r.before
   inputs : PayloadInputs r.before r.inputs i.imm (valueTag tag)
@@ -42,7 +42,8 @@ theorem projectedGR [DecidableEq Temp] (r : ScalarRun Temp) (s : IA64Tcg.State �
     rw [ready.destination]
     have result := optimizedPayload r.pool r.before r.inputs i.imm r.target r.options
       (valueTag tag) ready.inputs ready.constants ready.compiled
-    exact result.trans (sdmValue _ _ _ _ tag ready.values.1 ready.values.2)
+    simpa only [IA64Tcg.SDM.operate, IA64Tcg.SDM.commit, IA64Tcg.update, if_pos rfl] using
+      result.trans (sdmValue _ _ _ _ tag ready.values.1 ready.values.2)
   · have different : regs gr ≠ r.inputs.dst := by
       rw [← ready.destination]
       exact fun alias => target (ready.unique alias)
@@ -82,14 +83,13 @@ structure BranchlessRun [DecidableEq Temp] (r : ScalarRun Temp) (s : IA64Tcg.Sta
   compiled : ∃ emitted, fastPayload r.inputs i.imm r.target extract r.options (valueTag tag) = some emitted ∧
     Translation r.pool (initialized r.pool.readonly) emitted r.ops r.final
 
-def setFastWord (s : IA64Tcg.State α) (i : IA64Tcg.Slot) (result : Word) :
-    IA64Tcg.Outcome α → IA64Tcg.Outcome α
-  | .committed state =>
-    .committed { state with gr := IA64Tcg.update s.gr i.dst
-      (IA64Integer.SDM.qualifiedWrite (s.pr i.qp) (s.gr i.dst) result) }
-  | .nullified state =>
-    .nullified { state with gr := IA64Tcg.update s.gr i.dst
-      (IA64Integer.SDM.qualifiedWrite (s.pr i.qp) (s.gr i.dst) result) }
+def setFastWord (s : IA64Tcg.State α) (i : IA64Tcg.Slot) (result : Word)
+    (outcome : IA64Tcg.Outcome α) : IA64Tcg.Outcome α :=
+  let value := IA64Integer.SDM.qualifiedWrite (s.pr i.qp) (s.gr i.dst) result
+  let gr := IA64Tcg.update s.gr i.dst value
+  match outcome with
+  | .committed state => .committed { state with gr := gr }
+  | .nullified state => .nullified { state with gr := gr }
   | fault => fault
 
 theorem branchlessEffects [DecidableEq Temp] (r : ScalarRun Temp) (s : IA64Tcg.State α)

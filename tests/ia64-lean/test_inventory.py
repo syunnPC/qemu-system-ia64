@@ -1,22 +1,28 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Regression tests for the inputs and completeness gate."""
 
+import io
 import subprocess
 import sys
 import tempfile
 import tomllib
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-from inventory import c_functions, opcode_rows
+from inventory import Obligation, c_functions, implementation_paths, in_tcg_scope, opcode_rows, tcg_scope
 from verify import (
+    CHECKS,
     DIRECTORY,
+    SUPPLEMENTARY_CHECKS,
     check_ledger,
     counterexample_checks,
     describe_focused_coverage,
+    main,
     proof_claims,
     read_registry,
+    run_checks,
     snapshot_changes,
     verify_proofs,
 )
@@ -94,6 +100,89 @@ create_mapper()
             ["modified target/ia64/changed.h", "added target/ia64/new.c",
              "removed target/ia64/old.c"],
         )
+
+    def test_shared_tcg_sources_are_discovered_without_native_backends(self):
+        selected = {
+            "fpu/softfloat.c", "fpu/softfloat-parts-new.c.inc",
+            "include/fpu/softfloat.h", "include/tcg/tcg.h", "include/tcg/tcg-op-common.h",
+            "include/tcg/tcg-opc.h", "include/tcg/tcg-op-mem.h",
+            "include/tcg/tcg-op-new.h", "tcg/tcg-internal.h", "tcg/tcg-op-gvec.c",
+            "tcg/x86_64/tcg-target-mo.h", "tcg/aarch64/tcg-target-mo.h",
+        }
+        native = {"tcg/x86_64/tcg-target.c.inc", "tcg/aarch64/tcg-target.h"}
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            for name in selected | native | {"target/ia64/meson.build"}:
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.touch()
+            paths = set(implementation_paths(root, include_backends=False))
+        self.assertFalse(selected - paths)
+        self.assertTrue(native.isdisjoint(paths))
+        scope = tcg_scope()
+        self.assertTrue(all(in_tcg_scope(path, scope, "sources", "paths") for path in selected))
+        self.assertFalse(any(in_tcg_scope(path, scope, "sources", "paths") for path in native))
+
+    def test_incomplete_tcg_runs_all_applicable_checks(self):
+        with (patch.object(sys, "argv", ["verify.py", "--require-tcg"]),
+              patch("verify.load_inventory", return_value=({"tcg:ADD": Obligation("ADD")}, [])),
+              patch("verify.read_snapshot", return_value={}),
+              patch("verify.read_registry", return_value={}),
+              patch("verify.RECORDED_WITNESSES", {}),
+              patch("verify.verify_proofs"),
+              patch("verify.run_checks") as run,
+              redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO())):
+            self.assertEqual(main(), 1)
+        run.assert_called_once_with([key for key in CHECKS if key not in SUPPLEMENTARY_CHECKS], {}, [])
+
+    def test_full_decoder_checks_focused_run_and_binding_types_together(self):
+        first = ({"module": "FullDecode.Implementation", "statement": "True"},
+                 {"theorem": "observed"})
+        second = ({"module": "FullDecode.Implementation", "statement": "¬ False"},
+                  {"theorem": "refuted"})
+        static = ({"module": "Other", "statement": "True"},
+                  {"theorem": "True.intro"})
+
+        def execute(command, *, capture):
+            self.assertEqual(command[:3], [sys.executable, CHECKS["full-decode"], "--binding-claims"])
+            self.assertTrue(capture)
+            self.assertEqual(len(command), 4)
+            claims = Path(command[3]).read_text(encoding="utf-8")
+            self.assertIn("theorem ia64_coverage_0 : True := @observed", claims)
+            self.assertIn("theorem ia64_coverage_1 : ¬ False := @refuted", claims)
+            self.assertNotIn("True.intro", claims)
+            with tempfile.TemporaryDirectory() as temporary:
+                module = Path(temporary) / "Decode.lean"
+                module.write_text("theorem observed : True := True.intro\n"
+                                  "theorem refuted : ¬ False := fun h => h\n" + claims,
+                                  encoding="utf-8")
+                output = subprocess.run(["lake", "env", "lean", str(module)], cwd=DIRECTORY,
+                                        capture_output=True, text=True, check=True).stdout
+            return output + "COUNTEREXAMPLE decode:MOVL\n"
+
+        with (patch("verify.check_toolchain"), patch("verify.check_command", side_effect=execute) as run,
+              redirect_stdout(io.StringIO())):
+            remaining = run_checks(["full-decode", "full-decode"],
+                                   {"decode:MOVL": "full-decode"}, [first, second, static])
+        self.assertEqual(remaining, [static])
+        run.assert_called_once()
+
+    def test_full_decoder_rejects_missing_replay_or_unchecked_binding(self):
+        record = ({"module": "FullDecode.Implementation", "statement": "True"},
+                  {"theorem": "observed"})
+        good_axioms = "'ia64_coverage_0' does not depend on any axioms\n"
+        witness = "COUNTEREXAMPLE decode:MOVL\n"
+        forbidden = "'ia64_coverage_0' depends on axioms: [sorryAx]\n"
+        examples = [
+            (good_axioms, "did not reproduce decode:MOVL"),
+            (witness, "missing Lean axiom output"),
+            (forbidden + witness, "unexpected axioms sorryAx"),
+        ]
+        for output, message in examples:
+            with (self.subTest(message=message), patch("verify.check_toolchain"),
+                  patch("verify.check_command", return_value=output), redirect_stdout(io.StringIO())):
+                with self.assertRaisesRegex(ValueError, message):
+                    run_checks(["full-decode"], {"decode:MOVL": "full-decode"}, [record])
 
     def test_full_gate_rejects_empty_or_unknown_scope(self):
         with self.assertRaisesRegex(ValueError, "empty obligation"):

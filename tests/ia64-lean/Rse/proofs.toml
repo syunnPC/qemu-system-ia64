@@ -79,3 +79,7 @@ sources = { "target/ia64/arch/rse.c" = "851524dcb2f3679a5855ff58f0741723e6c0ff7b
 [proof."route:tcg-rse-frame-alat"]
 theorem = "RseImplementation.alatFrame_matches"
 sources = { "target/ia64/arch/rse.c" = "851524dcb2f3679a5855ff58f0741723e6c0ff7b9905d3075b6fe3f28332f0a7", "target/ia64/cpu.h" = "0248204f0a5465666fbb7ec0021c69406ac3ca07fbd6f200c5bd2ad2708d5427", "target/ia64/helper/helper-rse.c" = "502e3cdd0bb6a60235d7513965cddd73628cc68e10dabf1fbeedba52b10bec4e", "target/ia64/translate/gen-system.c" = "14b73135ec8d7dd369e5e2ef4a9bdd476c55775639481d4c2c97aa17c5740b56", "target/ia64/arch/alat.c" = "bbba8385e8832c0ea60c9e5352da87a42d8e7022ca473fa3ba703e395c663f4c", "target/ia64/arch/fp.c" = "fda64e0b8bc9840acdbc741b7aa9921d1955464f3c0720df15b8c1ef4cb86ac1" }
+
+[proof."route:tcg-rse-alloc-spill-ram"]
+theorem = "RseImplementation.allocMandatorySpill_matches"
+sources = { "target/ia64/arch/rse.c" = "851524dcb2f3679a5855ff58f0741723e6c0ff7b9905d3075b6fe3f28332f0a7", "target/ia64/cpu.h" = "0248204f0a5465666fbb7ec0021c69406ac3ca07fbd6f200c5bd2ad2708d5427", "target/ia64/helper/helper-rse.c" = "502e3cdd0bb6a60235d7513965cddd73628cc68e10dabf1fbeedba52b10bec4e", "target/ia64/translate/gen-system.c" = "14b73135ec8d7dd369e5e2ef4a9bdd476c55775639481d4c2c97aa17c5740b56", "target/ia64/exec-access.c" = "74b3c71220c7930c80fc79974e575d14f6f35f18bf305d7b4bd2883bd2b49eaf" }

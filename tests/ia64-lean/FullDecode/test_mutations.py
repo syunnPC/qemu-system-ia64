@@ -19,6 +19,19 @@ MUTATIONS = {
         ia64_bits(raw, 13, 7) != 0) {""", """
         ia64_bits(raw, 36, 1) == 1 && ia64_bits(raw, 34, 2) <= 1 &&
         ia64_bits(raw, 13, 7) == 0) {"""),
+    "compare-alias-unc": (DECODER,
+                          "ia64_base_insn(IA64_OP_CMP4_LTU_IMM, unit, raw, address, slot);\n"
+                          "            insn.operands.decoder.p1 = ia64_bits(raw, 6, 6);\n"
+                          "            insn.operands.decoder.p2 = ia64_bits(raw, 27, 6);\n"
+                          "            insn.operands.decoder.imm = ia64_imm8(raw);\n"
+                          "            insn.operands.decoder.r3 = ia64_bits(raw, 20, 7);\n"
+                          "            insn.compare_unc = compare_unc;",
+                          "ia64_base_insn(IA64_OP_CMP4_LTU_IMM, unit, raw, address, slot);\n"
+                          "            insn.operands.decoder.p1 = ia64_bits(raw, 6, 6);\n"
+                          "            insn.operands.decoder.p2 = ia64_bits(raw, 27, 6);\n"
+                          "            insn.operands.decoder.imm = ia64_imm8(raw);\n"
+                          "            insn.operands.decoder.r3 = ia64_bits(raw, 20, 7);\n"
+                          "            insn.compare_unc = false;"),
     "packed-shift": (DECODER, "size_code == 1 && x4 == 4 && x2b <= 2",
      "size_code == 1 && x4 == 4 && x2b <= 1"),
     "load-order": (DECODER, "return (x6a >= 0x14 && x6a <= 0x17)",
@@ -39,20 +52,55 @@ MUTATIONS = {
                              "is_tf     ? (nz_form && (bit33 && bit36) ? IA64_OP_TF_NZ"),
     "move-pr-mask": (DECODER, "(ia64_bits(raw, 24, 8) << 8) |",
                      "(ia64_bits(raw, 24, 8) << 7) |"),
+    "f1-precision": (DECODER, "decoder.fp_precision = (ia64_b_op(raw) & 1) ? 2",
+                     "decoder.fp_precision = (ia64_b_op(raw) & 1) ? 1"),
+    "f1-multiply-alias": (DECODER, "return f2 == 0 ? IA64_OP_FMPY : IA64_OP_FMA;",
+                          "return f2 == 1 ? IA64_OP_FMPY : IA64_OP_FMA;"),
+    "f2-multiply-alias": (DECODER, "== 0 ? IA64_OP_XMPY_HU : IA64_OP_XMA_HU;",
+                          "== 1 ? IA64_OP_XMPY_HU : IA64_OP_XMA_HU;"),
+    "f3-select-x": (DECODER, "ia64_b_op(raw) == 0xe && x == 0",
+                    "ia64_b_op(raw) == 0xe && x == 1"),
+    "f4-relation": (DECODER, "(ia64_bits(raw, 33, 1) << 1) | ia64_bits(raw, 36, 1);",
+                    "(ia64_bits(raw, 36, 1) << 1) | ia64_bits(raw, 33, 1);"),
+    "f6-predicate": (DECODER, "insn.operands.decoder.p2 = insn.operands.decoder.p1;",
+                     "insn.operands.decoder.p2 = ia64_bits(raw, 26, 6);"),
+    "f10-truncation": (DECODER, "insn.operands.decoder.imm = form & 3;",
+                       "insn.operands.decoder.imm = form & 1;"),
     "fclass-mask": (DECODER, "(ia64_bits(raw, 20, 7) << 2) | ia64_bits(raw, 33, 2);",
                     "(ia64_bits(raw, 20, 7) << 2) | ia64_bits(raw, 33, 1);"),
+    "branch-displacement": (DECODER, "return ia64_sign_extend(field, 21) * 16;",
+                            "return ia64_sign_extend(field, 21) * 8;"),
+    "movl-immediate": (DECODER, "(imm41 << 22) | (i << 63)", "(imm41 << 23) | (i << 63)"),
+    "long-branch-displacement": (DECODER, "ia64_bits(l_slot, 2, 39)", "ia64_bits(l_slot, 1, 39)"),
+    "long-branch-feature": ("target/ia64/cpu.h", "IA64_CPUID4_LB   (1ULL << 0)",
+                            "IA64_CPUID4_LB   (1ULL << 1)"),
+    "system-mask": (DECODER, "(ia64_bits(raw, 36, 1) << 23);",
+                    "(ia64_bits(raw, 36, 1) << 22);"),
     "paired-tag": (DECODER, "? IA64_OP_HINT_X : IA64_OP_NOP", "? IA64_OP_HINT_X : IA64_OP_ADD"),
     "template": ("target/ia64/decoder.c", "[0x00] = { true,", "[0x00] = { false,"),
 }
 
 FOCUSED = {
+    "compare-alias-unc": "CMP4_GTU",
     "i7-fixed-count": "PSHL2",
     "i7-reserved-selector": "POPCNT",
     "clz-feature": "CLZ",
     "extract-length": "EXTR",
     "test-predicate-sense": "TF_NZ",
     "move-pr-mask": "MOV_GRPR",
+    "f1-precision": "FMA",
+    "f1-multiply-alias": "FMPY",
+    "f2-multiply-alias": "XMPY_HU",
+    "f3-select-x": "FSELECT",
+    "f4-relation": "FCMP",
+    "f6-predicate": "FRCPA",
+    "f10-truncation": "FCVT_FX",
     "fclass-mask": "FCLASS",
+    "branch-displacement": "BR_COND",
+    "movl-immediate": "MOVL",
+    "long-branch-displacement": "BRL_CALL",
+    "long-branch-feature": "BRL_COND",
+    "system-mask": "SSM",
 }
 
 
@@ -77,7 +125,7 @@ def main():
                 proof = source / "Check.lean"
                 subprocess.run(command + ["--emit-opcode", FOCUSED[name],
                                           "--emit-lean", str(proof)], check=True)
-                command = ["lake", "env", "lean", "-DwarningAsError=true", str(proof)]
+                command = ["lake", "env", "lean", "-s", "32768", "-DwarningAsError=true", str(proof)]
             run = subprocess.run(command, cwd=HERE.parent, text=True, capture_output=True)
             if run.returncode != 1 or "The prover found a counterexample" not in run.stdout:
                 raise ValueError(f"mutation did not yield a Lean counterexample for {original!r}\n"

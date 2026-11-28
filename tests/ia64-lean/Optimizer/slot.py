@@ -11,11 +11,14 @@ sys.path.insert(0, str(HERE.parent))
 
 from FullDecode.forms import ALU
 from Integer.check import require
-from Optimizer import check, payload
+from Optimizer import add_cond, check, live_copy, payload
 from SlotControl import alu
 
 
 def generate(root):
+    optimizer = check.load(root, check.SOURCE)
+    live_copy.check_source(root, optimizer)
+    add_cond.check_source(root, optimizer)
     require(set(ALU) == set(payload.DIRECT), "A-format optimizer and decode cases disagree")
     value_tags = "\n".join(f"  | .{name} => .{name}" for name in ALU)
     glue = f"""
@@ -39,6 +42,10 @@ end IA64OptimizedSlot
         payload.generate(root, standalone=False),
         glue,
         (HERE / "Slot.lean.inc").read_text(encoding="utf-8"),
+        (HERE / "LiveAdd.lean.inc").read_text(encoding="utf-8"),
+        (HERE / "SlotAllocation.lean.inc").read_text(encoding="utf-8"),
+        (HERE / "AddCond.lean.inc").read_text(encoding="utf-8"),
+        (HERE / "RegisterSlot.lean.inc").read_text(encoding="utf-8"),
     ])
 
 
@@ -46,14 +53,23 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source-root", type=Path, default=HERE.parents[2])
     parser.add_argument("--emit-lean", type=Path)
+    parser.add_argument("--qemu", type=Path)
     args = parser.parse_args()
     program = generate(args.source_root)
+    if args.qemu:
+        from Optimizer import slot_live
+
+        qemu = args.qemu.resolve()
+        program += slot_live.generate(slot_live.capture(qemu))
+        program += "\n" + live_copy.generate(live_copy.capture(qemu))
     if args.emit_lean:
         args.emit_lean.write_text(program, encoding="utf-8")
         return
     result = check.verify(program)
     require(result.returncode == 0, result.stdout + result.stderr)
     print("TCG optimizer: composed the ordinary and branchless ALU payloads with slot boundaries")
+    if args.qemu:
+        print("TCG optimizer: verified live ADD results, copy propagation, NaT and predicate effects")
 
 
 if __name__ == "__main__":

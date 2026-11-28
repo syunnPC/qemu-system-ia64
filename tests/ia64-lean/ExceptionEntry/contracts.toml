@@ -80,3 +80,66 @@ statement = """
       {before with lastSuccessfulBundle := state.control.lastSuccess}
       ⟨i.ip, (IA64Add.realSlot i.ri).number.setWidth 32, i.raw⟩)
 """
+
+[contract."route:tcg-a1-a5-single-step-entry"]
+check = "exception-entry-alu"
+module = "ExceptionEntry.AluImplementation"
+statement = """
+(∀ {Temp α : Type} [DecidableEq Temp]
+  (ordinary branchless : IA64OptimizedSlot.ScalarRun Temp)
+  (tag : IA64Alu.Opcode) (low high ip : BitVec 64) (index : BitVec 2)
+  (state completed : IA64Add.Joined α) (facts : IA64Tcg.Facts)
+  (ctx : IA64Add.Context) (regs : IA64Tcg.Reg → Temp) (extract : Option (BitVec 6))
+  (cfg : IA64ExceptionEntry.Before) (executed : Bool) (request : IA64Slot.NativeRequest),
+  IA64Alu.selected tag low high ip index →
+  IA64Tcg.Sound state.data (IA64Alu.emittedRecord (IA64Alu.decode tag low high ip index)) facts →
+  IA64Add.EntryFacts state (IA64Alu.emittedRecord (IA64Alu.decode tag low high ip index))
+    {ctx with stopAfter := FullDecodeImplementation.cStop (FullDecodeSpec.templateBits low) index} →
+  (let i := IA64Alu.emittedRecord (IA64Alu.decode tag low high ip index)
+   ¬ (IA64Alu.fastGuard i facts ∧ IA64Alu.conditionalFast tag = true) →
+   IA64Tcg.prepareProjected state.data i facts = .execute →
+   IA64OptimizedSlot.OrdinaryRun ordinary state.data i tag regs) →
+  (let i := IA64Alu.emittedRecord (IA64Alu.decode tag low high ip index)
+   IA64Alu.fastGuard i facts → IA64Alu.conditionalFast tag = true →
+   IA64OptimizedSlot.BranchlessRun branchless state.data i tag extract) →
+  IA64OptimizedSlot.optimizedBundle ordinary branchless tag low high ip index state facts ctx regs =
+    .native completed executed request →
+  completed.control.psr.getLsbD 40 = true →
+  (if completed.control.psr.getLsbD 36 then ctx.vaImplemented else ctx.paImplemented) = true →
+  IA64ExceptionEntry.nativeOrdinary (IA64ExceptionEntry.beforeFromBoundary cfg completed) →
+  ip &&& 15 = 0 → cfg.iva &&& 0x7fff = 0 → cfg.cfle = false →
+  let i := IA64Alu.sdmRecord tag (FullDecodeSpec.slotBits low high index) ip index
+  (∃ inputs, IA64Add.OperandChoice state.data i inputs ∧
+    IA64Alu.sdmBundleStep tag low high ip index state inputs ctx = .native completed executed request) ∧
+  IA64ExceptionEntry.sequentialStepObservation cfg
+    (IA64OptimizedSlot.optimizedBundle ordinary branchless tag low high ip index state facts ctx regs)
+    ctx.vaImplemented ctx.paImplemented =
+    some (completed.data, executed,
+      IA64ExceptionEntry.SDM.singleStepEntry (IA64ExceptionEntry.beforeFromBoundary cfg completed)
+        ip (IA64Add.realSlot i.ri))) ∧
+(∀ {α : Type} (low high ip : BitVec 64) (index : BitVec 2)
+  (s : IA64Add.Joined α) (facts : IA64Tcg.Facts) (ctx : IA64Add.Context)
+  (cfg : IA64ExceptionEntry.Before),
+  IA64Alu.selected .ADD low high ip index →
+  IA64Tcg.Sound s.data (IA64Alu.emittedRecord (IA64Alu.decode .ADD low high ip index)) facts →
+  IA64Add.EntryFacts s (IA64Alu.emittedRecord (IA64Alu.decode .ADD low high ip index))
+    {ctx with stopAfter := FullDecodeImplementation.cStop (FullDecodeSpec.templateBits low) index} →
+  let i := IA64Alu.sdmRecord .ADD (FullDecodeSpec.slotBits low high index) ip index
+  let completed := IA64ExceptionEntry.stepAddCompleted s i
+  let executed := IA64Tcg.SDM.qualified s.data i.qp
+  i.dst ≠ 0 → i.dst.val < 32 → i.r2.val < 32 → i.r3.val < 32 →
+  s.control.psr.getLsbD 24 = false → ctx.trackSuppression = false →
+  s.control.psr.getLsbD 40 = true →
+  (ctx.trapDynamic = false → ctx.singleStepFlag = s.control.psr.getLsbD 40) →
+  (if s.control.psr.getLsbD 36 then ctx.vaImplemented else ctx.paImplemented) = true →
+  IA64ExceptionEntry.nativeOrdinary (IA64ExceptionEntry.beforeFromBoundary cfg s) →
+  ip &&& 15 = 0 → cfg.iva &&& 0x7fff = 0 → cfg.cfle = false →
+  IA64OptimizedSlot.sourceOptimizedAddBundle low high ip index s facts ctx =
+    .native completed executed
+      (IA64Slot.SDM.trapPayload completed.control ip (IA64Add.realSlot i.ri) false) ∧
+  IA64ExceptionEntry.sequentialStepObservation cfg
+    (IA64OptimizedSlot.sourceOptimizedAddBundle low high ip index s facts ctx)
+    ctx.vaImplemented ctx.paImplemented =
+    some (completed.data, executed, IA64ExceptionEntry.SDM.singleStepEntry
+      (IA64ExceptionEntry.beforeFromBoundary cfg completed) ip (IA64Add.realSlot i.ri)))
+"""

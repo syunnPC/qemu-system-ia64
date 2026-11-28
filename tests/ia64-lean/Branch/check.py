@@ -16,6 +16,7 @@ sys.path.insert(0, str(HERE.parent))
 
 from Integer.check import HOST_CALLS, TARGET, cases, compact, emit, expr
 from Integer.check import function, require, stripped, switches
+from Branch import b1
 
 
 DIRECT_TARGETS = {
@@ -273,20 +274,25 @@ def generate(decoder):
                        lift_pipeline(source("arch/rse.c"), source("helper/helper-rse.c"))])
 
 
-def run_lean(generated):
+def program(generated, joined=""):
     specification = (HERE / "Spec.lean").read_text()
+    return (specification + "\nnamespace IA64Branch\n"
+            'local notation "Word" => BitVec 64\n'
+            "set_option linter.unusedVariables false\n" + generated
+            + "\nend IA64Branch\n" + joined + "\n")
+
+
+def run_lean(contents):
     with tempfile.TemporaryDirectory(prefix="ia64-lean-branch-") as temp:
         module = Path(temp) / "Proofs.lean"
-        module.write_text(specification + "\nnamespace IA64Branch\n"
-                          'local notation "Word" => BitVec 64\n'
-                          "set_option linter.unusedVariables false\n"
-                          + generated + "\nend IA64Branch\n")
+        module.write_text(contents, encoding="utf-8")
         return subprocess.run(["lake", "env", "lean", "-DwarningAsError=true", str(module)],
                               cwd=HERE.parent, capture_output=True, text=True, check=False)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--emit-lean", type=Path)
     parser.add_argument("--mutation-test", action="store_true",
                         help="check that a changed branch-displacement scale fails")
     parser.add_argument("--coverage", action="store_true",
@@ -296,24 +302,36 @@ def main():
         scope = {f"tcg:{op}": "Aligned direct branch target arithmetic projection"
                  for op in DIRECT_TARGETS}
         scope["tcg:BR_INDIRECT"] = "Indirect branch target alignment projection"
+        scope["tcg:BR_COND"] += ", decoded B1 slot through native continuation or first helper"
         scope["tcg:BR_CLOOP"] += ", ordinary and optimized LC/taken projections"
         for kind in ("CTOP", "CEXIT", "WTOP", "WEXIT"):
             scope[f"tcg:BR_{kind}"] += ", loop helper counter and decision projection"
         print(json.dumps(scope, sort_keys=True))
         return
     decoder = source("decode/decode.c")
-    baseline = run_lean(generate(decoder))
+    root = HERE.parents[2]
+    generated = generate(decoder)
+    contents = program(generated, b1.lift(root, target_exp))
+    if args.emit_lean:
+        args.emit_lean.write_text(contents, encoding="utf-8")
+        return
+    baseline = run_lean(contents)
     require(baseline.returncode == 0, baseline.stdout + baseline.stderr)
-    print("Branch: target alignment, counted loops and pipeline control projections passed")
+    print("Branch: decoded B1 slot control, target alignment, counted loops and pipeline projections passed")
     if args.mutation_test:
         mutant = decoder.replace("ia64_sign_extend(field, 21) * 16",
                                  "ia64_sign_extend(field, 21) * 8")
         require(mutant != decoder, "Could not locate short-branch mutation target")
-        mutated = run_lean(generate(mutant))
+        mutated = run_lean(program(generate(mutant)))
         require(mutated.returncode != 0 and "counterexample" in mutated.stdout,
                 "Lean did not reject mutated branch displacement:\n"
                 + mutated.stdout + mutated.stderr)
         print("Branch: Lean rejected changing the short displacement scale")
+        predicate = run_lean(program(generated, b1.lift(root, target_exp, predicate_mutation=True)))
+        require(predicate.returncode != 0 and "unsolved goals" in predicate.stdout,
+                "Lean did not reject the inverted predicate test:\n"
+                + predicate.stdout + predicate.stderr)
+        print("Branch: Lean rejected inverting the dynamic B1 predicate test")
 
 
 if __name__ == "__main__":

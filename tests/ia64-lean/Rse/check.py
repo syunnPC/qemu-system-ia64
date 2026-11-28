@@ -16,6 +16,7 @@ from Decode.check import ROOT, c_function, expression, get_match, run_lean, unco
 from Rse.frames import frame_updates
 from Rse.registers import register_updates
 from Rse.spill import spill_updates
+from Rse.spill_ram import ram_updates
 
 
 def body(source, name, signature=None):
@@ -292,6 +293,7 @@ def generate(root):
     proofs = (HERE / "Proofs.lean.inc").read_text(encoding="utf-8")
     spec += (HERE / "RegisterSpec.lean.inc").read_text(encoding="utf-8")
     spec += (HERE / "SpillSpec.lean.inc").read_text(encoding="utf-8")
+    spec += (HERE / "SpillRamSpec.lean.inc").read_text(encoding="utf-8")
     return spec + "\nnamespace RseImplementation\nopen RseSpec\n" + "\n".join([
         addresses(source), move_bsp(source), frame(source, header),
         register_map(source, header), wrap(source, header), rotate(source), proofs,
@@ -299,6 +301,8 @@ def generate(root):
         register_updates(root, source, header),
         (HERE / "RegisterProofs.lean.inc").read_text(encoding="utf-8"),
         spill_updates(source), (HERE / "SpillProofs.lean.inc").read_text(encoding="utf-8"),
+        ram_updates(root, source, header), (HERE / "SpillRamProofs.lean.inc").read_text(encoding="utf-8"),
+        (HERE / "SpillRamExamples.lean.inc").read_text(encoding="utf-8"),
     ]) + "\nend RseImplementation\n"
 
 
